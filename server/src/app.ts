@@ -441,7 +441,16 @@ export function createApp(
   modelCatalog?: ModelCatalogService,
   panels?: PanelServices,
   magpie?: MagpieService,
-  options: { modelCatalogRefreshMinutes?: number } = {},
+  options: {
+    modelCatalogRefreshMinutes?: number;
+    /**
+     * Extra API surfaces built outside this file (PC 设备 /api/devices, docs/pc-node.md), handed the
+     * same `requireUser` every route here uses and mounted before the static catch-all.
+     */
+    extraRoutes?: (deps: {
+      requireUser: MiddlewareHandler<{ Variables: AppVariables }>;
+    }) => Array<[path: string, routes: Hono<any>]>;
+  } = {},
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("*", async (_context, next) => withModelConnectionScope(next));
@@ -2157,6 +2166,10 @@ export function createApp(
    * Absent in development: Vite serves the app and proxies `/api` here, so `APP_DIST_DIR` is unset
    * and none of this mounts.
    */
+  for (const [path, routes] of options.extraRoutes?.({ requireUser }) ?? []) {
+    app.route(path, routes);
+  }
+
   if (config.appDistDir) {
     const root = config.appDistDir;
     app.use("/*", serveStatic({ root }));

@@ -184,6 +184,10 @@ import {
   HostAccessRefusedError,
 } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
+import { createDeviceHub } from "./devices/hub";
+import { createDeviceRoutes } from "./devices/routes";
+import { createDeviceStore } from "./devices/store";
+import { deviceTools } from "./devices/tools";
 import { createIntelligenceClient } from "./intelligence-client";
 import { createLocalConversations } from "./local-conversations";
 import { clearLearningRevisionFallback } from "./learning/runtime";
@@ -1123,6 +1127,42 @@ const hostAccessBroker = createHostAccessBroker(Date.now, {
   commandPolicy: (actorId) => approvalService.hostCommandPolicy(actorId),
 });
 
+// PC 节点（docs/pc-node.md）：设备登记在数据库，在线连接在内存里的 hub。
+const deviceStore = createDeviceStore(database);
+const deviceHub = createDeviceHub({ store: deviceStore });
+const deviceToolsFor = async (
+  actorId: string,
+  botId: string,
+  initiator?: AuditInitiator,
+) => {
+  try {
+    const devices = await deviceStore.forBot(actorId, botId);
+    if (!devices.length) return [];
+    const botName = await agentProfileStore
+      .get(await actorFor(actorId), botId)
+      .then((profile) => profile?.name ?? null)
+      .catch(() => null);
+    return deviceTools({
+      store: deviceStore,
+      hub: deviceHub,
+      botId,
+      actorId,
+      devices,
+      botName,
+      ...(initiator ? { initiator } : {}),
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        type: "device-tools-load-failed",
+        error: error instanceof Error ? error.name : "UnknownError",
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    return [];
+  }
+};
+
 // Tools run here, not in the browser. Each connector still executes through the plugin store, so the
 // grant, the policy and the audit row are exactly where they were. Host-folder tools are also
 // server-dispatched: the selected Bot and the signed-in owner are bound here, then the desktop worker
@@ -1208,6 +1248,7 @@ const loadToolsForActor =
       auditStore: bootAuditStore,
       initiator,
     }),
+    ...(await deviceToolsFor(actorId, botId, initiator)),
   ];
 
 /** One person's standing instructions, for both the /api/settings routes and every run they start. */
@@ -3252,6 +3293,19 @@ const app = createApp(
       const text = await memory.execute(args);
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
+    if (name.startsWith("device_")) {
+      const deviceTool = (
+        await deviceToolsFor(actorId, botId, initiator ?? undefined)
+      ).find((candidate) => candidate.name === name);
+      if (!deviceTool) {
+        return {
+          text: `${REFUSAL_MARKER} 这个机器人现在不能使用这项设备工具。`,
+          isError: true,
+        };
+      }
+      const text = await deviceTool.execute(args);
+      return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    }
     if (!name.startsWith("host_")) return null;
     const tool = hostAccessTools({
       broker: hostAccessBroker,
@@ -3355,7 +3409,20 @@ const app = createApp(
   modelCatalog,
   panels,
   magpie,
-  { modelCatalogRefreshMinutes },
+  {
+    modelCatalogRefreshMinutes,
+    extraRoutes: ({ requireUser }) => [
+      [
+        "/api/devices",
+        createDeviceRoutes({
+          store: deviceStore,
+          hub: deviceHub,
+          requireUser,
+          auditStore: bootAuditStore,
+        }),
+      ],
+    ],
+  },
 );
 
 /**
