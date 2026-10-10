@@ -2886,3 +2886,52 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   .ph { flex-direction: column; align-items: flex-start; }
   .ph-actions { margin-left: 0; }
 }
+
+/* ---------- Page-level normalisation for older hand-drawn boxes ---------- */
+.page :is(.rounded-lg, .rounded-xl, .rounded-md).border:not([data-slot]):not(.border-dashed):not(.page-rows) {
+  border-radius: var(--r-lg);
+  border-color: var(--stroke);
+  background: var(--glass-1);
+  backdrop-filter: saturate(140%) blur(var(--blur-2));
+  box-shadow: var(--shadow-1), var(--inset-hl);
+}
+.page .border-dashed:not([data-slot="input"]) {
+  border-radius: var(--r-lg);
+  border-color: rgba(255, 255, 255, 0.75);
+  border-width: 1.5px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.dark .page .border-dashed:not([data-slot="input"]) { border-color: rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.03); }
+.page select:not([data-slot]) {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--glass-2);
+}
+.page h2.font-semibold, .page h2.font-bold { font-size: 16px; font-weight: 600; }
+.admin-group { margin-top: 0; padding-bottom: 8px; }
+.admin-group [data-slot="item"] { min-height: 52px; padding: 8px 20px; }
+.admin-group .sg-card-h h3 { font-size: 16px; }
+/* The faint square behind the left card's bottom corners was the card's own shadow, clipped hard by
+   the sidebar content box (overflow-hidden) at the card's edges. Let the shadow breathe. */
+.glass-shell [data-slot="sidebar-content"].glass-side-full,
+.glass-shell [data-slot="sidebar-inner"],
+.glass-shell [data-slot="sidebar-container"].glass-sidebar-container {
+  overflow: visible !important;
+}
+/* Phone drawer (portalled outside .glass-shell): same glass sheet, 16px inset like the desktop column. */
+[data-slot="sidebar"][data-mobile="true"] {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(160%) blur(var(--blur-2));
+}
+.dark [data-slot="sidebar"][data-mobile="true"] { background: rgba(18, 28, 44, 0.86); }
+/* Template F: auth card */
+.auth-card {
+  border-radius: var(--r-xl);
+  border: 1px solid var(--stroke);
+  background: var(--glass-1);
+  backdrop-filter: saturate(150%) blur(var(--blur-2));
+  box-shadow: var(--shadow-2), var(--inset-hl);
+}

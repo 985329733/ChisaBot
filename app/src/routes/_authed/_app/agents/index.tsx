@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AgentCard } from "@/components/agents/agent-card";
 import { AgentDialog } from "@/components/agents/agent-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
-import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
+import { PageHeader } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -70,12 +70,23 @@ function AgentsScreen() {
 
   return (
     <>
-      <SidebarToggleBar />
-      <div className="max-w-2xl px-4 w-full mx-auto">
+      <div className="page-scroll min-h-0 flex-1 overflow-y-auto" data-slot="page-shell">
+      <div className="page mx-auto flex w-full max-w-[880px] flex-col">
+        <PageHeader
+          action={
+            <Button render={(props) => <Link to="/agents" search={{ new: true }} {...props} />}>
+              <IconPlus />
+              {"新机器人"}
+            </Button>
+          }
+          description={"你创建的代理、与你共享的代理，以及可以随时找回的隐藏代理。"}
+          eyebrow={"AI 同事"}
+          title={"代理"}
+        />
         {pinned?.length ? (
-          <div className="mt-12 w-full max-w-2xl">
-            <h2 className="font-bold text-lg">{"已固定"}</h2>
-            <div className="mt-4 grid grid-cols-2 gap-4">
+          <div className="page-section w-full">
+            <h2 className="sh-title">{"已固定"}</h2>
+            <div className="mt-3 grid grid-cols-2 gap-4">
               {pinned.map((agent, index) => (
                 <StaggerItem className="min-w-0" index={index} key={agent.id}>
                   <AgentCard agent={agent} />
@@ -84,21 +95,9 @@ function AgentsScreen() {
             </div>
           </div>
         ) : null}
-        <div
-          className={`${pinned?.length ? "mt-8" : "mt-12"} w-full max-w-2xl`}
-        >
+        <div className="page-section w-full">
           <div className="flex flex-row w-full items-center justify-between">
-            <h2 className="font-bold text-lg">{"您的代理"}</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              render={(props) => (
-                <Link to="/agents" search={{ new: true }} {...props} />
-              )}
-            >
-              <IconPlus />
-              {"新机器人"}
-            </Button>
+            <h2 className="sh-title">{"您的代理"}</h2>
           </div>
           {loading ? (
             // Approximate one row of cards while the roster loads.
@@ -109,7 +108,7 @@ function AgentsScreen() {
             // never clears `data`), so `isError` and a still-populated roster are an ordinary
             // combination, not a contradiction. A stale roster beats an error card claiming
             // there is nothing, which would be false here.
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="mt-3 grid grid-cols-2 gap-4">
               {mine.map((agent, index) => {
                 return (
                   <StaggerItem className="min-w-0" index={index} key={agent.id}>
@@ -156,15 +155,15 @@ function AgentsScreen() {
             </Empty>
           )}
         </div>
-        <div className="mt-8 w-full max-w-2xl">
-          <h2 className="font-bold text-lg">{"探索代理"}</h2>
+        <div className="page-section w-full">
+          <h2 className="sh-title">{"探索代理"}</h2>
           {loading ? (
             // Approximate one row of cards while the roster loads.
             <Skeleton className="mt-4 h-[180px]" />
           ) : explore?.length ? (
             // Wins over `failed` for the same reason the "Your agents" section above does: a
             // failed background refetch does not clear TanStack Query's cached `data`.
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="mt-3 grid grid-cols-2 gap-4">
               {explore.map((agent, index) => {
                 return (
                   <StaggerItem className="min-w-0" index={index} key={agent.id}>
@@ -212,9 +211,9 @@ function AgentsScreen() {
           )}
         </div>
         {hiddenAgents?.length ? (
-          <details className="group mt-8 mb-12 w-full max-w-2xl">
+          <details className="group page-section w-full">
             <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-              <h2 className="font-bold text-lg">{"隐藏"}</h2>
+              <h2 className="sh-title">{"隐藏"}</h2>
               <span className="text-sm text-muted-foreground">
                 {hiddenAgents.length}
               </span>
@@ -223,7 +222,7 @@ function AgentsScreen() {
                 className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
               />
             </summary>
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="mt-3 grid grid-cols-2 gap-4">
               {hiddenAgents.map((agent) => (
                 <div className="min-w-0" key={agent.id}>
                   <AgentCard agent={agent} />
@@ -232,6 +231,7 @@ function AgentsScreen() {
             </div>
           </details>
         ) : null}
+      </div>
       </div>
       <CreateAgentDialog
         onClose={close}

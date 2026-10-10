@@ -132,10 +132,11 @@ function SignScreen() {
   };
 
   return (
-    <div className="flex flex-col h-dvh w-full items-center justify-center -mt-12">
+    // Template F (DESIGN.md §12): no shell, one centred L1 glass card on the sky.
+    <div className="flex h-dvh w-full flex-col items-center justify-center p-4">
       <motion.div
         animate="shown"
-        className="flex-1 flex w-full max-w-82 flex-col items-center justify-center p-4"
+        className="auth-card flex w-full max-w-[420px] flex-col items-center px-8 py-10"
         initial="hidden"
         variants={{
           hidden: {},
@@ -150,7 +151,7 @@ function SignScreen() {
           <AgentOrb size="56px" />
         </motion.div>
         <motion.h1
-          className="text-2xl font-medium tracking-tight text-center mt-8"
+          className="mt-6 text-center font-semibold text-2xl tracking-tight"
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >

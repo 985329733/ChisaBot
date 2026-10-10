@@ -121,3 +121,205 @@
 - **记忆**：按设备存在 `localStorage`：左栏 `openbot-sidebar`（`expanded` / `collapsed`），右栏 `chisabot-panel-rail`（同上）。只有精确的 `collapsed` 才算收起。
 - **窄屏**：<1280px 右栏本来就不显示（按钮也隐藏）；<768px 左栏仍是原来的抽屉（Sheet），顶栏不显示左栏收起按钮，页面内原有的侧边栏按钮照旧。桌面端页面头部不再重复显示侧边栏按钮（`TopBarOwnsSidebarToggle`）。
 - 天空背景透过收起后的空白区域正常显示，不加任何遮罩。
+
+---
+
+# 天空玻璃 Skyglass 设计系统（§9–§14）
+
+> 原型：`chisabot-proto/index.html`。§0–§8 的规则全部保留。
+
+## 9. 统一原则（解决"拼接感"）
+
+现状的问题：聊天页有顶栏和机器人列表，设置页与管理后台各自用 300px 的 shadcn 侧栏、没有顶栏；页头、卡片、间距、字号、密度各页不同。统一做法：
+
+1. **一套外壳**：所有登录后的页面（聊天、列表、详情、设置、管理）都用同一个 App Shell —— 顶栏 + 左栏 + 中间 + 可选右栏。设置和管理不再是"另一个应用"。
+2. **左栏同一组件族**：聊天页左栏是"主机器人 + AI 同事"（只有机器人列表，不列会话；会话用顶栏「搜索会话」查找），设置页是"偏好设置分区"，管理页是"按问题分组的管理导航"——三者都是 `RailFull`（顶部胶囊按钮 + 玻璃卡片 + 分组标签 + `NavRow` 行 + 底部区）和 `RailSlim`（80px 头像/图标栏），共用收起逻辑（Ctrl+B）。
+3. **墨色 = 主操作 / 选中；天蓝 = 强调 / 焦点 / 开关**。顶栏选中的导航胶囊、主按钮、发送键、首页按钮都是墨色；天蓝只用于焦点光晕、开关开启、进度条、左栏选中竖条、链接。
+4. **玻璃三层**：L1 放在天空上的栏与卡片；L2 卡内控件、输入框、选中态；L3 浮层（弹窗、菜单、toast、未保存栏）。层级越高越不透明。
+5. **一种页头**：面包屑/眉题（12px）→ 标题（24px/600）→ 说明（14px，最多约 620px 宽）→ 右侧操作区。所有页面都一样。
+6. **一种区块**：区块标题（16px/600 + 13px 说明）放在天空上，内容放在 L1 玻璃卡片里；卡片内用列表行 `lrow` 或设置行 `srow`，行间用 1px 分隔线。
+
+---
+
+## 10. 令牌（CSS 自定义属性）
+
+### 10.1 颜色
+
+| 令牌 | 亮色 | 暗色 | 用途 |
+| --- | --- | --- | --- |
+| `--glass-1` | `rgba(255,255,255, .46 + lift)` | `rgba(16,25,44,.52)` | 栏、卡片（直接放在天空上） |
+| `--glass-2` | `rgba(255,255,255, .66 + lift)` | `rgba(30,42,66,.62)` | 输入框、卡内控件、选中行 |
+| `--glass-3` | `rgba(255,255,255, .86 + lift)` | `rgba(22,32,54,.9)` | 弹窗、菜单、toast、未保存栏 |
+| `--stroke` | `rgba(255,255,255,.72)` | `rgba(255,255,255,.09)` | 玻璃高光描边 |
+| `--line` / `--line-strong` | `rgba(22,36,62,.08/.14)` | `rgba(255,255,255,.07/.13)` | 卡内分隔线 / 输入框边框 |
+| `--ink-1` | `#111a2b` | `#e9eef8` | 标题、正文 |
+| `--ink-2` | `#3b4659` | `#b7c1d3` | 次要正文、页头说明 |
+| `--ink-3` | `var(--sky-muted)` | `#8b97ab` | 说明、元信息（随天空加深） |
+| `--ink-4` | `rgba(17,26,43,.36)` | `rgba(233,238,248,.32)` | 占位符 |
+| `--primary` / `--on-primary` | `#15203a` / `#fff` | `#e9eff9` / `#0e1628` | 墨色主操作、选中导航 |
+| `--accent` / `--accent-soft` | `#2f74f0` / 12% | `#5b95ff` / 16% | 强调、焦点、开关 |
+| `--success` `--warn` `--danger`（+ `-soft`） | `#17955c` `#c97a0c` `#d93d40` | `#3ccf8a` `#f0b04a` `#ff6b6e` | 语义色；按钮成功/失败态 |
+
+- 亮色玻璃的白色不透明度一律写成 `calc(基础值 + var(--sky-lift, 0))`（DESIGN.md §7 的可读性旋钮）。
+- 天空 `--sky-1..4 / --sky-cloud / --sky-glow` 继续只来自 `app/src/lib/sky.ts` 的 `computeSky`，原型内嵌的是同一份调色板。
+
+### 10.2 字体
+
+`--font: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", system-ui, sans-serif`
+`--font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace`
+
+| 令牌 | 字号 / 字重 | 用途 |
+| --- | --- | --- |
+| `--fs-32` | 32 / 600 | 首页"开始新会话"、统计数字、引导大标题 |
+| `--fs-24` | 24 / 600 | 页面标题 |
+| `--fs-20` | 20 / 600 | 弹窗标题（原型中 18） |
+| `--fs-16` | 16 / 600 | 区块标题、卡片标题、聊天头 |
+| `--fs-14` | 14 / 400–500 | 正文、按钮、输入框、列表行标题（500） |
+| `--fs-13` | 13 / 400 | 说明文字、列表行副标题、表格次要列 |
+| `--fs-12` | 12 / 500 | 眉题、徽标、元信息、左栏分组标签 |
+
+行高：正文 1.6，标题 1.3。不使用 15/17/18 等中间字号（例外：大号按钮 15、聊天输入 15）。
+
+### 10.3 间距、圆角、阴影、模糊
+
+- **间距（4pt）**：`--sp-1..16` = 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 48 / 64。
+  - 卡片内边距 20（`card-h`/`card-b`），卡片之间 16，区块之间 32，页头下方 24，工具条下方 16。
+  - 外壳：顶栏 72（移动端 60），左栏 276 / 收起 80，右栏 340，三栏间距 16，外边距 16。
+  - 内容最大宽度：列表/设置 880，管理与设计规范 1080（`.page.wide`），聊天 780–820，窄页 720。
+- **圆角**：`--r-xs 6`（kbd）· `--r-sm 10`（小控件、菜单项）· `--r-md 14`（输入框、popover、代码块）· `--r-lg 20`（卡片）· `--r-xl 24`（左栏卡片、弹窗、聊天输入框）· `--r-pill`（所有按钮、胶囊、徽标、分段控件）。
+- **阴影**：`--shadow-1`（卡片、按钮）· `--shadow-2`（悬停卡片、输入框、菜单）· `--shadow-3`（弹窗）；玻璃表面加 `--inset-hl` 顶部高光。
+- **模糊**：`--blur-1 12px`（小控件）· `--blur-2 22px`（栏、卡片）· `--blur-3 36px`（浮层）。只写不带前缀的 `backdrop-filter`（见 chisabot-design 技能里的压缩器坑）。
+
+### 10.4 动效
+
+| 令牌 | 值 | 用途 |
+| --- | --- | --- |
+| `--dur-1` | 150ms | 悬停、按下、颜色 |
+| `--dur-2` | 220ms | 状态切换、淡入淡出、开关 |
+| `--dur-3` | 300ms | 弹窗/页面进入、导航胶囊滑动、未保存栏 |
+| `--dur-collapse` | 260ms | 左右栏收起（= DESIGN.md §8 的 `--glass-collapse-ms`） |
+| `--ease-out` | `cubic-bezier(.22,.8,.24,1)` | 进入 |
+| `--ease-in` | `cubic-bezier(.4,0,1,1)` | 退出 |
+
+页面切换：中间区先出同形状骨架（约 300ms 内），再以 6px 上移 + 淡入出现内容（`page-in`）。顶栏导航胶囊在路由间滑动。减少动态效果时只保留淡入淡出。
+
+---
+
+## 11. 组件
+
+| 组件 | 规格要点 | 原型类名 |
+| --- | --- | --- |
+| 按钮 | 胶囊；高 40（sm 32 / lg 48）；primary 墨色 · secondary 玻璃 L2 · ghost 透明 · danger 红 · danger-soft 浅红 · accent 天蓝（仅特殊强调） | `.btn .btn-*` |
+| 异步按钮 | DESIGN.md §2 状态机：空闲 → 进行中（转圈，禁用，aria-busy）→ 成功（✓ 描边绘制，绿，1.5s）/ 失败（✕，红，2s，toast 说明原因）。四种文案叠放在同一网格里，宽度取最长者，**状态间宽度不变** | `[data-async][data-state]` |
+| 图标按钮 | 32 方形圆角 10（行内）；顶栏 40 圆形玻璃（`.glass-icon-btn`）；纯图标异步按钮只换图标 | `.icon-btn` `.btn.icon-only` |
+| 输入框 / 选择器 / 多行 | 高 40（sm 32），圆角 14，L2 背景，`--line-strong` 边框；焦点：天蓝边框 + 3px 光晕 + L3 背景；错误：红框 + 红色说明 | `.input .select .textarea` |
+| 开关 | 40×24，开启为天蓝 | `.switch[aria-checked]` |
+| 滑块 | 6px 轨道，天蓝填充；时间预览滑块用天空渐变轨道 | `.slider` `.slider.sky` |
+| 分段控件 | 卡内筛选、主题选择；选中项为 L3 白片 + 阴影 | `.segmented` |
+| 顶栏主导航 | 玻璃胶囊 + 墨色滑块（选中）；聊天 / 长期任务 / 技能 | `.seg-nav` |
+| 标签页 | 详情页分区；选中为 2px 天蓝下划线 | `.tabs` |
+| 徽标 / 胶囊 | 22 高；中性 / ok / warn / danger / accent / outline，可带圆点；放在天空上时自动加玻璃底 | `.badge` `.chip` |
+| 头像 | 24 / 32 / 44 / 72；机器人用渐变；主机器人右下角金色星标（会话行内不显示星标） | `.av` `.star` |
+| 左栏行 | 40–52 高，圆角 14；选中：L3 背景 + 阴影 + 左侧 3px 天蓝竖条。机器人、会话、设置分区、管理导航都用它 | `.nav-row` |
+| 列表行 | 卡内 64 高，40px 图标/头像 + 标题（14/500）+ 副标题（13）+ 右侧徽标/操作 | `.lrow` |
+| 设置行 | 左：标题 + 说明；右：控件；移动端控件自动换行 | `.srow` `.sblock` |
+| 卡片 | L1 玻璃，圆角 20，`card-h` / `card-b` / `card-f`（右对齐操作区）；可悬停上浮；虚线卡片用于空状态 | `.card` |
+| 页头 / 区块头 | 见 §9.5 / §9.6 | `.ph` `.sh` |
+| 工具条 | 分段筛选（左）+ 搜索（右） | `.toolbar` |
+| 表格（管理） | 表头 12px `--ink-3`；行 52 高；首尾列 20px 内边距；末列右对齐放操作 | `.tbl` |
+| 统计磁贴 | 13px 标签 + 32px 数值 + 12px 对比 | `.stat` |
+| 代码块 | 深色固定底（亮暗都是深色），顶部语言 + 复制按钮 | `.code` |
+| 空状态 | 虚线玻璃卡 + 52px 图标块 + 标题 + 一句说明 + 主操作 | `.empty` |
+| 错误卡 | 浅红玻璃 + 原因 + 下一步（重试）+"查看详情"折叠原始报错 | `.errcard` |
+| 骨架 | 与最终布局同形状的流光块；路由切换先显示 | `.skel` |
+| Toast | 底部居中，L3；成功/错误/信息图标；错误带"重试" | `.toast` |
+| 确认弹窗 | L3，圆角 24，红色图标块，写清会删除什么；确定按钮是异步删除按钮 | `.dialog` |
+| 表单弹窗 | 同上，内容是 `field` 纵向排列；确定按钮是异步创建按钮 | `formDialog` |
+| 整页加载 | DESIGN.md §1 层级 ③：转圈 → 步骤列表 + 进度条 → ✓ 成功淡出 / ✕ 失败显示原因 +"关闭 / 重试" | `.loader-card` |
+| 菜单 / 弹出层 | L3，圆角 14，菜单项 36 高，危险项红色 | `.popover .menu-item` |
+| 未保存栏 | 中间区底部悬浮胶囊：橙色脉冲点 +"有未保存的更改"+ 放弃 + 保存（异步）；保存成功后收起 | `.savebar` |
+| 聊天气泡 | 我：墨色气泡右对齐（20/20/6/20 圆角）；机器人：头像 + 名字/时间 + L1 玻璃气泡；工具调用为可展开胶囊 | `.bubble` `.bot-text` `.tool-call` |
+| 输入框（聊天） | L3，圆角 24，焦点天蓝光晕；底部：模型胶囊 + 附件 + 技能 + 墨色发送键 | `.composer` |
+| 模型胶囊 | 头像 + BOT 名 + 分隔 + 模型名 + ▾，点击弹出"机器人 / 模型"两段菜单 | `.model-pill` |
+| 面板卡 | 右栏：图标 + 标题 + 操作；内容区 L2 子卡；底部版本元信息 | `.panel-card` |
+
+---
+
+## 12. 页面模板
+
+| 模板 | 结构 | 内容宽 |
+| --- | --- | --- |
+| **A 聊天工作区** | 左栏（主机器人置顶 + AI 同事，**不含会话列表**）· 中间（聊天头 + 消息 + 底部输入框）· 右栏（自定义面板 / 计算机） | 780–820 |
+| **B 列表 / 管理** | 页头（标题 + 说明 + 主操作）→ 工具条（分段 + 搜索）→ 卡片列表或卡片网格 → 次级区块 | 880 |
+| **C 详情 / 编辑** | 面包屑 → 大头像页头（72px + 标题 + 说明 + 徽标 + 操作）→ 标签 → 分区卡片表单 → 危险区；改动后出现未保存栏 | 880 / 1080 |
+| **D 设置** | 与 C 同样的分区卡片；左栏换成设置分区导航；`srow` 行 + 未保存栏 | 880 |
+| **E 管理后台** | 加宽；统计磁贴 + 表格卡片；左栏换成按问题分组的管理导航（机器人可以访问什么 / 可以做什么 / 谁可以进入 / 发生了什么） | 1080 |
+| **F 认证** | 无外壳；天空上居中的玻璃卡（420–440），右上角主题切换 | 420 |
+| **G 引导 / 空状态** | 无外壳；步骤点 + 大标题 + 卡片；列表的空状态用虚线卡 | 860 |
+
+## 13. 页面 → 模板对照（覆盖 `app/src/routes` 全部路由）
+
+| 路由文件 | 页面 | 模板 | 左栏 | 右栏 | 原型地址 |
+| --- | --- | --- | --- | --- | --- |
+| `_app/index.tsx` | 开始新会话（首页） | A | 应用 | 面板 | `#/` |
+| `_app/channel/$channelId.tsx` | 会话 | A | 应用 | 面板 | `#/c/c1` |
+| `_app/bot.tsx`（ComputerViewPanel） | 会话 + 机器人计算机 | A | 应用 | 计算机 | `#/c/c3`、`#/bot/local` |
+| `_app/group/$channelId.tsx` | 群组会话 | A | 应用 | 面板 | `#/group/g1` |
+| `_app/channel/new.tsx` | 新聊天（选择同事） | A | 应用 | 面板 | `#/channel/new` |
+| `_app/group/new.tsx` | 新群组会话 | A/B | 应用 | 面板 | `#/group/new` |
+| `_app/responsibilities.tsx` | 长期任务（含 GitHub 事件源、新建弹窗） | B | 应用 | 面板 | `#/responsibilities` |
+| `_app/routines.tsx` | 定时任务 | B | 应用 | 面板 | `#/routines` |
+| `_app/skills.tsx` | 技能 | B | 应用 | 面板 | `#/skills` |
+| `_app/agents/index.tsx` | 代理 | B | 应用 | 面板 | `#/agents` |
+| `_app/bots.index.tsx` | 机器人列表 | B | 应用 | 面板 | `#/bots` |
+| `_app/bots.$agentId.tsx` | 机器人设置 | C | 应用 | 面板 | `#/bots/general` |
+| `_app/team-bots.tsx` | 团队 Bot | B | 应用 | 面板 | `#/team-bots` |
+| `_app/memory.tsx` | 记忆 | B | 应用 | 面板 | `#/memory` |
+| `_app/approvals.tsx` | 审批 | B | 应用 | 面板 | `#/approvals` |
+| `_app/reachability.tsx` | 可达性 | B | 应用 | 面板 | `#/reachability` |
+| `components/panels/panel-rail.tsx`（面板库 Sheet） | 面板库 | B | 应用 | 面板 | `#/panels` |
+| `settings/index.tsx` | 偏好设置 · 通用（外观 / 背景随时间变化 / 消息列表 / 常驻指令 / 快捷键） | D | 设置 | — | `#/settings` |
+| `settings/connected-accounts/index.tsx` | 已连接账号 | D | 设置 | — | `#/settings/accounts` |
+| `settings/connected-accounts/$key.tsx` | 账号详情 | C | 设置 | — | `#/settings/accounts/github` |
+| `settings/passwords.tsx` | 密码（已保存的登录） | D | 设置 | — | `#/settings/passwords` |
+| `settings/components-gallery/index.tsx`（及 `$name`） | 组件库 | B | 设置 | — | `#/settings/gallery` |
+| —（新增） | 设计规范 | B | 设置 | — | `#/design` |
+| `admin/index.tsx` | 部署概览 | E | 管理 | — | `#/admin` |
+| `admin/models.tsx` | 模型设置 | E | 管理 | — | `#/admin/models` |
+| `admin/credentials.tsx` | 凭据 | E | 管理 | — | `#/admin/credentials` |
+| `admin/boundaries.tsx` | 权限规则 | E | 管理 | — | `#/admin/boundaries` |
+| `admin/computers.tsx` | 计算机（演示错误卡 → 重试） | E | 管理 | — | `#/admin/computers` |
+| `admin/plugins/index.tsx` | 插件 | E | 管理 | — | `#/admin/plugins` |
+| `admin/plugins/$key.tsx`（及 `$key_.tools.$tool`、`$key_.bots.$agentId`） | 插件详情（工具 / 机器人访问） | C | 管理 | — | `#/admin/plugins/github` |
+| `admin/plugins/composio.tsx` | 浏览 Composio | E | 管理 | — | `#/admin/plugins/composio` |
+| `admin/skills.tsx` | 技能（部署） | E | 管理 | — | `#/admin/skills` |
+| `admin/learning.tsx` | 自动学习（整页加载演示） | E | 管理 | — | `#/admin/learning` |
+| `admin/components/index.tsx`（及 `$name`） | UI 组件 | E | 管理 | — | `#/admin/components` |
+| `admin/playground.tsx` | 游乐场 | E | 管理 | — | `#/admin/playground` |
+| `admin/people.tsx` | 人员 | E | 管理 | — | `#/admin/people` |
+| `admin/identity-providers.tsx` | 身份提供者 | E | 管理 | — | `#/admin/identity-providers` |
+| `admin/enterprise.tsx` | 企业网络（整页加载演示） | E | 管理 | — | `#/admin/enterprise` |
+| `admin/audit.tsx` | 审计 | E | 管理 | — | `#/admin/audit` |
+| `sign.tsx` | 登录 | F | — | — | `#/sign` |
+| `sign-in/$requestId.tsx` | 机器人登录请求 | F | — | — | `#/sign-in/req` |
+| `onboarding.tsx` | 新手引导（3 步） | G | — | — | `#/onboarding` |
+
+`__root.tsx`、`_authed.tsx`、`_authed/_app.tsx`、`admin/route.tsx`、`settings/route.tsx` 是布局路由：落地时让 `admin/route.tsx` 与 `settings/route.tsx` 也渲染统一的 `GlassTopbar`，并把 `AdminSidebar` / `SettingsSidebar` 改为复用机器人列表的 `RailFull` / `RailSlim` 组件（同一个 `SidebarShell iconWidth=80`），宽度统一为 276。
+
+## 14. 落地建议（实现顺序）
+
+1. 把 §10 令牌写进 `styles.css` 的 `:root` / `.dark`（与现有 `--glass*`、`--sky-*` 合并，去掉各页自定义的颜色/圆角）。
+2. 抽出 `PageHeader`、`Section`、`Card`、`ListRow`、`SettingRow`、`Toolbar` 到 `components/ui/`；`PageShell` 改为使用它们。
+3. 设置与管理的布局路由接入顶栏和统一左栏（§13 末段）。
+4. 逐页替换：先 B 类列表页（改动最机械），再 D 设置、E 管理，最后 C 详情页加未保存栏。
+5. 每步用 openbot-redesign 的截图脚本对照原型截图。
+
+### 14.1 落地记录（2026-10-10，image glass-20261010k）
+
+- 令牌在 `app/src/styles.css` 的 "Skyglass design tokens" 块；旧名 `--glass*`、shadcn 的 `--primary/--border/--ring…` 已改为这些令牌的别名。原型的 `--accent` 在代码里叫 `--accent-blue`（shadcn 已占用 `--accent` 作中性悬停色）；`--font-mono` 的实际值在 `--font-code`。
+- 根字号改为 16px，使 Tailwind 的 `text-xs/sm/base/xl/2xl` 正好落在 12/14/16/20/24。
+- 外壳：`components/layout/glass-shell.tsx`（`GlassShell scope="app|settings|admin"`），聊天、设置、管理三个布局路由都用它；顶栏 `GlassTopBar scope`：设置/管理里没有右栏按钮、导航胶囊不选中、搜索输入后跳回聊天显示结果。移动端（<768px）顶栏左侧的首页按钮换成 ☰ 抽屉按钮，避免被居中的导航胶囊盖住。
+- 左栏：聊天用 `AppSidebar`（**只列机器人**，主机器人置顶）；设置/管理用 `components/layout/section-rail.tsx` 的 `SectionRail`（顶部「返回应用」胶囊 + L1 卡片 + `nav-row` 行 + 底部用户区 + 收起后的 80px 图标栏）。
+- 页面：`PageShell` 内置统一页头 `PageHeader`（眉题默认取所在区域「偏好设置 / 管理后台」，`backButton` 变成面包屑），管理页默认 1080 宽，其余 880。`PageSection/PageRows/PageEmpty/PageSkeleton` 的外观全部按 §11 改为 L1 卡片 + 64px 行。
+- 组件：`components/ui/skyglass.tsx` 提供 `Card/CardHeader/CardBody/CardFooter/ListRow/SettingRow/Toolbar/StatTile/EmptyState/ErrorCard/SaveBar`。`SaveBar` 用 portal 挂在 `.glass-main` 底部；「常驻指令」已改用它（放弃 / 保存）。
+- 未落地（原型中的纯装饰或无后端）：主题「跟随系统」、界面密度、设计规范页、部署概览统计磁贴（无现成数据接口）；面板库仍是 Sheet。

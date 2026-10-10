@@ -2,7 +2,16 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { Streamdown } from "streamdown";
-import { PageShell } from "@/components/layout/page-shell";
+import { IconPlus } from "@tabler/icons-react";
+import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { EmptyState, ErrorCard } from "@/components/ui/skyglass";
 import { Button } from "@/components/ui/button";
 import { CopyButton as SharedCopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
@@ -46,31 +55,58 @@ async function refresh() {
 
 function ResponsibilitiesPage() {
   const goals = useQuery(responsibilitiesQueryOptions());
+  const [creating, setCreating] = useState(false);
   return (
     <PageShell
+      action={
+        <Button onClick={() => setCreating(true)}>
+          <IconPlus />
+          {"新长期任务"}
+        </Button>
+      }
       title={"长期任务"}
       description={"为机器人设定持久目标，跟踪其进展，并决定何时应执行。"}
     >
-      <div className="grid gap-6">
-        <NewResponsibility />
-        {goals.isPending ? (
-          <p>{"正在加载长期任务…"}</p>
-        ) : goals.error ? (
-          <p role="alert" className="text-destructive">
-            {goals.error.message}
-          </p>
-        ) : goals.data?.length ? (
-          goals.data.map((goal) => <GoalCard key={goal.id} goal={goal} />)
-        ) : (
-          <p className="text-muted-foreground">{"您还没有长期任务。"}</p>
-        )}
+      {/* Template B: create in a dialog, the list in cards, event sources as a secondary section. */}
+      <Dialog onOpenChange={setCreating} open={creating}>
+        <DialogContent className="max-h-[88svh] overflow-y-auto sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>{"新长期任务"}</DialogTitle>
+            <DialogDescription>{"选一个对话和其中的机器人，写下它要持续负责的事。"}</DialogDescription>
+          </DialogHeader>
+          <NewResponsibility onCreated={() => window.setTimeout(() => setCreating(false), 900)} />
+        </DialogContent>
+      </Dialog>
+      <PageSection title={"进行中的任务"}>
+        <div className="mt-3 grid gap-4">
+          {goals.isPending ? (
+            <PageSkeleton rows={2} />
+          ) : goals.error ? (
+            <ErrorCard description={goals.error.message} title={"长期任务加载失败"} />
+          ) : goals.data?.length ? (
+            goals.data.map((goal) => <GoalCard key={goal.id} goal={goal} />)
+          ) : (
+            <EmptyState
+              action={
+                <Button onClick={() => setCreating(true)}>
+                  <IconPlus />
+                  {"新长期任务"}
+                </Button>
+              }
+              description={"给机器人一个持久目标，它会按计划或事件持续推进。"}
+              title={"您还没有长期任务"}
+            />
+          )}
+        </div>
+      </PageSection>
+      <PageSection>
         <GithubSources />
-      </div>
+      </PageSection>
     </PageShell>
   );
 }
 
-function NewResponsibility() {
+function NewResponsibility({ onCreated }: { onCreated?: () => void }) {
   const formId = useId();
   const bots = useQuery(agentListQueryOptions());
   const channels = useInfiniteQuery(channelListQueryOptions());
@@ -96,11 +132,12 @@ function NewResponsibility() {
       setInstruction("");
       setSuccessCriteria("");
       await refresh();
+      onCreated?.();
     },
   });
   return (
     <form
-      className="grid gap-3 rounded-lg border p-4"
+      className="grid gap-3"
       onSubmit={(event) => {
         event.preventDefault();
         create.mutate({
@@ -113,7 +150,6 @@ function NewResponsibility() {
         });
       }}
     >
-      <h2 className="font-semibold">{"新长期任务"}</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={fieldClass}>
           {"对话"}

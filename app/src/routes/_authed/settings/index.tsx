@@ -38,11 +38,11 @@ function RouteComponent() {
   return (
     <PageShell
       description={
-        "ChisaBot 在你这里的显示和行为。消息列表偏好与账号同步。外观保存在此浏览器"
+        "ChisaBot 在你这里的显示和行为。消息列表偏好与账号同步，外观保存在此浏览器。"
       }
-      title={"偏好设置"}
+      title={"通用"}
     >
-      <PageSection title={"通用"}>
+      <PageSection title={"外观"}>
         <PageRows>
           <Item size="sm">
             <ItemContent>
@@ -59,6 +59,8 @@ function RouteComponent() {
           </Item>
         </PageRows>
         <SkyPreference />
+      </PageSection>
+      <PageSection title={"消息列表"}>
         <MessageListPreference />
       </PageSection>
       {/*

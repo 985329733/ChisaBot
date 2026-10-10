@@ -53,10 +53,10 @@ function RouteComponent() {
       <SidebarToggleBar />
       <div className="flex-1 flex flex-col items-center justify-center w-full p-4 mt-8">
         <div className="flex flex-col items-center">
-          <h2 className="text-sm uppercase text-muted-foreground font-medium tracking-tight text-center">
+          <h2 className="text-center font-medium text-muted-foreground text-xs uppercase tracking-[0.12em]">
             {appConfig.brand.productName}
           </h2>
-          <h1 className="text-2xl font-bold tracking-tight mt-1.5 text-center">
+          <h1 className="mt-2 text-center font-semibold text-[32px] leading-tight tracking-[-0.02em]">
             {"开始新会话"}
           </h1>
         </div>

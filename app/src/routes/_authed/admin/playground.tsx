@@ -195,15 +195,16 @@ function PlaygroundPage() {
      * standard prose column and it lands below the fold, so you would be typing at something you
      * cannot see. It takes the header and the controls, and keeps the two panes.
      */
-    <div className="flex h-screen flex-col">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-border border-b px-6 py-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="ph mx-6 mt-6 mb-4 flex-wrap">
         {/* Inline rather than in a band of its own: this screen is an editor beside a live preview
             and every 48px of height is taken from the thing being previewed. */}
         <div className="flex items-start gap-2">
           <SidebarToggle className="-ml-2 shrink-0" />
           <div>
-            <h1 className="font-bold text-2xl">{"游乐场"}</h1>
-            <p className="mt-1 max-w-prose text-pretty text-muted-foreground text-sm leading-relaxed">
+            <div className="ph-eyebrow">{"管理后台"}</div>
+            <h1 className="ph-title">{"游乐场"}</h1>
+            <p className="ph-desc">
               {
                 "在此处编写组件并在不部署的情况下发布。编辑的是草稿；对话只显示已发布的。"
               }

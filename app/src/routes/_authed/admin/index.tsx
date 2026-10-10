@@ -20,8 +20,6 @@ import {
   type LinkOptions,
 } from "@tanstack/react-router";
 import {
-  PageRows,
-  PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
@@ -32,7 +30,6 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { Separator } from "@/components/ui/separator";
 import { MAGPIE_ADMIN_URL } from "@/lib/magpie";
 
 export const Route = createFileRoute("/_authed/admin/")({
@@ -178,21 +175,21 @@ function RouteComponent() {
       description={
         "适用于此部署中所有人的设置。此处的任何内容都会影响每个人和每个机器人，这与您的个人偏好不同。"
       }
-      title={"管理员"}
+      title={"部署概览"}
     >
-      {SECTIONS.map((section) => (
-        <PageSection
-          description={section.description || undefined}
-          key={section.title}
-          title={section.title}
-        >
-          <PageRows>
+      {/* Template E: the four questions as a 2-up grid of glass cards (DESIGN.md §12). */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        {SECTIONS.map((section) => (
+          <section className="page-rows admin-group" key={section.title}>
+            <div className="sg-card-h pb-1">
+              <div className="min-w-0 flex-1">
+                <h3>{section.title}</h3>
+                {section.description ? <p>{section.description}</p> : null}
+              </div>
+            </div>
             {section.items.map((item, index) => (
               <StaggerItem index={index} key={item.title}>
-                {/*
-                 * The whole row is the link, not a chevron somebody has to aim at: every row here
-                 * goes exactly one place, so there is nothing else the row could mean.
-                 */}
+                {/* The whole row is the link: every row here goes exactly one place. */}
                 <Item
                   render={(props) => item.href ? (
                     <a {...props} href={item.href} target="_blank" rel="noopener noreferrer" />
@@ -201,8 +198,8 @@ function RouteComponent() {
                   )}
                   size="sm"
                 >
-                  <ItemMedia>
-                    <item.icon className="size-4 text-muted-foreground" />
+                  <ItemMedia variant="icon">
+                    <item.icon className="size-[18px]" />
                   </ItemMedia>
                   <ItemContent>
                     <ItemTitle>{item.title}</ItemTitle>
@@ -214,12 +211,11 @@ function RouteComponent() {
                     <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   )}
                 </Item>
-                {index !== section.items.length - 1 && <Separator />}
               </StaggerItem>
             ))}
-          </PageRows>
-        </PageSection>
-      ))}
+          </section>
+        ))}
+      </div>
     </PageShell>
   );
 }
