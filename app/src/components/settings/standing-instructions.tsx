@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { SaveBar } from "@/components/ui/skyglass";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { saveInstructionsMutationOptions } from "@/lib/settings/mutations";
@@ -42,6 +43,15 @@ export function StandingInstructions() {
   const text = draft ?? stored.data ?? "";
   const over = text.trim().length > INSTRUCTIONS_LIMIT;
   const unchanged = stored.data !== undefined && text === stored.data;
+  const dirty = stored.data !== undefined && !unchanged;
+  /* Keep the bar up for the ✓ (≈1.5s) after a save, then let it slide away. */
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (!saved) return;
+    setFlash(true);
+    const timer = window.setTimeout(() => setFlash(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
 
   const submit = () => {
     setProblem(null);
@@ -95,28 +105,34 @@ export function StandingInstructions() {
             >
               {`${text.trim().length} / ${INSTRUCTIONS_LIMIT} 字`}
             </p>
-            <div className="flex flex-row items-center gap-3">
-              {/*
-               * One line, and only the news. A save that worked says so until the next keystroke; a
-               * refusal shows the server's own sentence, which names what was wrong with it.
-               */}
-              {problem ? (
-                <span className="text-destructive text-xs" role="alert">
-                  {problem}
-                </span>
-              ) : saved ? null : !unchanged && stored.data !== undefined ? (
-                <span className="settings-unsaved text-xs">{"有未保存的更改"}</span>
-              ) : null}
-              <Button mutation={save}
-                feedback="save"
-                disabled={over || unchanged}
-                onClick={submit}
-                size="sm"
-              >
-                {"保存"}
-              </Button>
-            </div>
+            {problem ? (
+              <span className="text-destructive text-xs" role="alert">
+                {problem}
+              </span>
+            ) : null}
           </div>
+          {/* DESIGN.md §11 未保存栏: appears on the first edit, stays through 保存中… → 已保存. */}
+          <SaveBar show={dirty || save.isPending || flash}>
+            <Button
+              disabled={save.isPending}
+              onClick={() => {
+                setDraft(stored.data ?? "");
+                setProblem(null);
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              {"放弃"}
+            </Button>
+            <Button mutation={save}
+              feedback="save"
+              disabled={over || (unchanged && !save.isPending)}
+              onClick={submit}
+              size="sm"
+            >
+              {"保存"}
+            </Button>
+          </SaveBar>
         </div>
       )}
     </PageSection>

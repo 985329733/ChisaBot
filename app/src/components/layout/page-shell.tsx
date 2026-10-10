@@ -1,9 +1,7 @@
 import { IconChevronLeft } from "@tabler/icons-react";
-import { Link, type LinkProps } from "@tanstack/react-router";
+import { Link, type LinkProps, useRouterState } from "@tanstack/react-router";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
-import { SidebarToggle, useSidebarToggleVisible } from "./sidebar-toggle";
 
 /**
  * The frame every configuration screen sits in.
@@ -31,110 +29,121 @@ import { SidebarToggle, useSidebarToggleVisible } from "./sidebar-toggle";
  */
 type ShellWidth = "prose" | "wide";
 
+/* DESIGN.md §10.3: list / settings pages 880, admin and design pages 1080. */
 const WIDTHS: Record<ShellWidth, string> = {
-  prose: "max-w-2xl",
-  wide: "max-w-5xl",
+  prose: "max-w-[880px]",
+  wide: "max-w-[1080px]",
 };
+
+/** The eyebrow a page gets when it does not name one: the area it lives in. */
+function areaOf(pathname: string): { label: string; to: string } | null {
+  if (pathname.startsWith("/settings")) return { label: "偏好设置", to: "/settings" };
+  if (pathname.startsWith("/admin")) return { label: "管理后台", to: "/admin" };
+  return null;
+}
+
+/**
+ * The one page header (DESIGN.md §9.5): eyebrow / breadcrumb (12) → title (24/600) → description
+ * (14, ≤620px) → actions on the right. Every screen drawn through PageShell gets exactly this.
+ */
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+  className,
+}: {
+  eyebrow?: React.ReactNode;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <header className={cn("ph", className)} data-slot="page-header">
+      <div className="ph-main">
+        {eyebrow ? <div className="ph-eyebrow">{eyebrow}</div> : null}
+        <h1 className="ph-title page-title">{title}</h1>
+        {description ? <p className="ph-desc">{description}</p> : null}
+      </div>
+      {action ? <div className="ph-actions">{action}</div> : null}
+    </header>
+  );
+}
 
 export function PageShell({
   action,
   children,
   className,
   description,
+  eyebrow,
   title,
-  width = "prose",
+  width,
   backButton,
 }: {
-  /** Sits on the title's baseline. For the page's one primary verb, if it has one. */
+  /** Sits at the header's right. For the page's one primary verb, if it has one. */
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   description?: React.ReactNode;
+  /** Overrides the default eyebrow (the area name, or the back link as a breadcrumb). */
+  eyebrow?: React.ReactNode;
   title: string;
+  /** Defaults to `wide` in admin (template E) and `prose` everywhere else. */
   width?: ShellWidth;
   backButton?: {
     linkProps: LinkProps;
     label: string;
   };
 }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const area = areaOf(pathname);
+  const resolvedWidth: ShellWidth = width ?? (pathname.startsWith("/admin") ? "wide" : "prose");
+
   /*
-   * The bar carries the toggle and the Back link, and is drawn when it has at least one of them.
-   * The screens with a Back link already drew exactly this bar, so for them nothing changes; what
-   * changed is that a sidebar is now reason enough on its own, because the toggle has to sit at the
-   * pane's left edge in both states and the prose column is centred — a control inside it would be
-   * 400px from the edge it belongs to on a wide screen. Drawing it with neither would be a 56px
-   * band holding nothing, which reads as a layout bug rather than as chrome.
-   *
-   * The question is whether the toggle will DRAW, not whether a sidebar exists: it hides itself on
-   * a desktop-width window while the sidebar is already open, which is most of the time on these
-   * screens. Asking `useSidebarToggleVisible` rather than re-deriving the condition here is what
-   * keeps the two from drifting apart and reintroducing that empty band. It also still answers false
-   * on `/assist` and `/link/slack`, which draw PageShell directly under `_authed` with no sidebar
-   * provider at all, so there is nothing for a toggle to act on there.
+   * The back link is a breadcrumb now, not a band of chrome above the page: "管理后台 / 插件 /"
+   * then the title. The old 56px bar existed to hold the sidebar toggle, which the unified top bar
+   * owns on every screen (DESIGN.md §13).
    */
-  const showToggle = useSidebarToggleVisible();
-  const bar = showToggle || !!backButton;
+  const crumbs =
+    eyebrow ??
+    (backButton ? (
+      <>
+        {area ? (
+          <>
+            <Link to={area.to}>{area.label}</Link>
+            <span aria-hidden className="ph-crumb-sep">
+              {"/"}
+            </span>
+          </>
+        ) : null}
+        <Link {...backButton.linkProps} className="ph-crumb-back">
+          <IconChevronLeft className="size-3.5" />
+          {backButton.label}
+        </Link>
+      </>
+    ) : (
+      area?.label
+    ));
 
   return (
-    <>
-      {bar ? (
-        <div className="max-w-7xl w-full h-14 flex items-center gap-1 px-3">
-          {showToggle ? <SidebarToggle /> : null}
-          {!!backButton && (
-            <Button
-              variant="ghost"
-              render={(props) => <Link {...backButton.linkProps} {...props} />}
-            >
-              <IconChevronLeft />
-              {backButton.label}
-            </Button>
-          )}
-        </div>
-      ) : null}
-      {/*
-       * The scroller, and it has to live here rather than in either shell, because the two shells
-       * this frame is used under disagree about who scrolls.
-       *
-       * Under `_authed` — admin, settings — the document scrolls, so a page taller than the window
-       * has always just worked. Under `_authed/_app` it does not: that shell is `h-svh
-       * overflow-hidden` on purpose ("one viewport, never scrolls: panes scroll inside it") and its
-       * `main` is `overflow-hidden` too, so a PageShell taller than the window was silently CLIPPED
-       * — 246px of Skills sat below the fold with no way to reach it, by keyboard or otherwise.
-       *
-       * `min-h-0` is the load-bearing half of `min-h-0 flex-1`: a flex item's default `min-height:
-       * auto` refuses to shrink below its content, so `flex-1` alone would grow this past the pane
-       * and clip exactly as before. Under `_authed` both are inert — the parent is not a flex
-       * container — and `overflow-y-auto` on an auto-height element shows no scrollbar, so those
-       * eighteen screens are unaffected.
-       *
-       * Separate from the centred column below so the scrollbar rides the pane's edge instead of
-       * appearing inside a 630px measure with content either side of it.
-       */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div
-          className={cn(
-            "mx-auto flex w-full flex-col px-4 pb-12",
-            // Without a bar above it the heading keeps the full original space.
-            bar ? "pt-8" : "pt-12",
-            WIDTHS[width],
-            className,
-          )}
-        >
-          <header className="flex flex-col gap-2">
-            <div className="flex flex-row items-center justify-between gap-4">
-              <h1 className="page-title font-semibold text-2xl tracking-tight">{title}</h1>
-              {action}
-            </div>
-            {description ? (
-              <p className="max-w-prose text-pretty text-muted-foreground text-sm leading-relaxed">
-                {description}
-              </p>
-            ) : null}
-          </header>
-          {children}
-        </div>
+    /*
+     * The scroller lives here because the shell is one viewport that never scrolls (panes scroll
+     * inside it). `min-h-0` is the load-bearing half of `min-h-0 flex-1`: a flex item's default
+     * `min-height: auto` would otherwise grow this past the pane and clip the page.
+     */
+    <div className="page-scroll min-h-0 flex-1 overflow-y-auto" data-slot="page-shell">
+      <div
+        className={cn(
+          "page mx-auto flex w-full flex-col",
+          WIDTHS[resolvedWidth],
+          className,
+        )}
+      >
+        <PageHeader action={action} description={description} eyebrow={crumbs} title={title} />
+        {children}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -159,17 +168,15 @@ export function PageSection({
   title?: string;
 }) {
   return (
-    <section className={cn("mt-10", className)} data-slot="page-section">
-      {title ? (
-        <div className="flex min-h-8 flex-row items-center justify-between gap-4">
-          <h2 className="page-section-title font-semibold text-base">{title}</h2>
-          {action}
+    <section className={cn("page-section", className)} data-slot="page-section">
+      {title || description || action ? (
+        <div className="sh">
+          <div className="min-w-0 flex-1">
+            {title ? <h2 className="sh-title page-section-title">{title}</h2> : null}
+            {description ? <p className="sh-desc">{description}</p> : null}
+          </div>
+          {action ? <div className="sh-actions">{action}</div> : null}
         </div>
-      ) : null}
-      {description ? (
-        <p className="mt-1 max-w-prose text-pretty text-muted-foreground text-sm leading-relaxed">
-          {description}
-        </p>
       ) : null}
       {children}
     </section>
@@ -198,7 +205,7 @@ export function PageRows({
      */
     <div
       className={cn(
-        "page-rows mt-4 overflow-hidden rounded-lg border border-border bg-card dark:border-transparent",
+        "page-rows overflow-hidden",
         "[&_[data-slot=item]]:rounded-none",
         className,
       )}
@@ -216,7 +223,7 @@ export function PageRows({
  */
 export function PageEmpty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="page-empty mt-4 text-muted-foreground text-sm" data-slot="page-empty">
+    <p className="page-empty" data-slot="page-empty">
       {children}
     </p>
   );
@@ -231,7 +238,7 @@ export function PageSkeleton({ rows = 3, tall = false }: { rows?: number; tall?:
     <div
       aria-busy="true"
       aria-label={"正在加载"}
-      className="page-rows page-skeleton mt-4"
+      className="page-rows page-skeleton"
       role="status"
     >
       {Array.from({ length: rows }, (_, index) => (
