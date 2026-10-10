@@ -2957,3 +2957,107 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   .sky-preview-actions { flex-wrap: wrap; justify-content: flex-end; }
   .sky-slider { width: 100%; }
 }
+
+/* ---------- 模型平台 Magpie (admin/magpie) + model health (DESIGN.md §15) ---------- */
+.magpie-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+@media (max-width: 900px) { .magpie-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.magpie-stats .sg-stat-v { font-size: 26px; }
+.magpie-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--ink-2);
+  background: var(--glass-2, rgba(255, 255, 255, 0.5));
+}
+.magpie-badge.is-ok { color: var(--success); background: var(--success-soft); }
+.magpie-badge.is-warn { color: var(--warn); background: var(--warn-soft); }
+.magpie-badge.is-danger { color: var(--danger); background: var(--danger-soft); }
+.magpie-code {
+  display: inline-block;
+  max-width: min(420px, 60vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-family: var(--font-code);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--glass-2, rgba(255, 255, 255, 0.45));
+}
+.magpie-empty { padding: 24px; font-size: 14px; color: var(--ink-3); }
+
+.model-health-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ink-4);
+}
+.model-health-dot.is-ok { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.model-health-dot.is-bad { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.model-health-dot.is-off { background: var(--ink-4); }
+.model-popover-label-id {
+  margin-left: auto;
+  font-family: var(--font-code);
+  font-weight: 400;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+/* The embedded console: header in the page column, the frame fills the rest of the pane. */
+.magpie-console { padding: 24px 24px 16px; min-height: 0; height: 100%; animation: page-in var(--dur-3) var(--ease-out); }
+.magpie-console-head { width: 100%; max-width: 1080px; margin: 0 auto; }
+.magpie-console-head .ph { margin-bottom: 16px; }
+.magpie-frame-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  overflow: hidden;
+  padding: 0 !important;
+}
+.magpie-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.magpie-frame[data-loaded] { opacity: 1; }
+.magpie-frame-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.magpie-frame-skeleton .model-pill-shimmer { position: relative; width: 160px; height: 10px; border-radius: 999px; overflow: hidden; }
+@media (max-width: 640px) { .magpie-console { padding: 12px 12px 12px; } }
+@media (prefers-reduced-motion: reduce) {
+  .magpie-console { animation: none; }
+  .magpie-frame { transition: none; }
+}

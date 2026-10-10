@@ -30,7 +30,6 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { MAGPIE_ADMIN_URL } from "@/lib/magpie";
 
 export const Route = createFileRoute("/_authed/admin/")({
   component: RouteComponent,
@@ -64,14 +63,12 @@ const SECTIONS: {
         icon: IconBrain,
         linkOptions: { to: "/admin/models" },
       },
-      ...(MAGPIE_ADMIN_URL
-        ? [{
-            title: "Magpie 模型管理",
-            description: "管理模型供应商、模型与网关，在新标签页打开。",
-            icon: IconNetwork,
-            href: MAGPIE_ADMIN_URL,
-          }]
-        : []),
+      {
+        title: "模型平台 Magpie",
+        description: "模型网关状态、提供方与模型同步，并在后台内直接管理 Magpie。",
+        icon: IconNetwork,
+        linkOptions: { to: "/admin/magpie" },
+      },
       {
         title: "凭据",
         description: "为该部署持有的密钥和令牌。",

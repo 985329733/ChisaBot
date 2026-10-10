@@ -19,7 +19,6 @@ import {
 import type * as React from "react";
 import { type RailGroup, SectionRail } from "@/components/layout/section-rail";
 import type { Sidebar } from "@/components/ui/sidebar";
-import { MAGPIE_ADMIN_URL } from "@/lib/magpie";
 
 /**
  * 管理导航 — grouped by the question an administrator is asking, in the same order as the admin
@@ -45,13 +44,11 @@ const GROUPS: RailGroup[] = [
         icon: IconBrain,
         linkOptions: { to: "/admin/models" },
       },
-      ...(MAGPIE_ADMIN_URL
-        ? [{
-            title: "Magpie 模型管理",
-            icon: IconNetwork,
-            href: MAGPIE_ADMIN_URL,
-          }]
-        : []),
+      {
+        title: "模型平台 Magpie",
+        icon: IconNetwork,
+        linkOptions: { to: "/admin/magpie" },
+      },
       {
         title: "凭据",
         icon: IconKey,

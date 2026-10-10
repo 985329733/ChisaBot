@@ -74,6 +74,8 @@ import {
 import type { Database } from "./db/client";
 import { withModelConnectionScope } from "./model-connection-context";
 import { type ModelCatalogService, ModelCatalogError } from "./model-catalog";
+import { MAGPIE_MOUNT, type MagpieService } from "./magpie";
+import type { MagpieOverview } from "../../shared/model-selection";
 import {
   type ModelSettingsService,
   ModelSettingsValidationError,
@@ -438,6 +440,8 @@ export function createApp(
   agentModels?: AgentModelService,
   modelCatalog?: ModelCatalogService,
   panels?: PanelServices,
+  magpie?: MagpieService,
+  options: { modelCatalogRefreshMinutes?: number } = {},
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("*", async (_context, next) => withModelConnectionScope(next));
@@ -1080,11 +1084,21 @@ export function createApp(
     if (!modelCatalog)
       return context.json({ error: "模型列表暂时不可用。" }, 503);
     try {
-      return context.json(
-        await modelCatalog.list({
-          refresh: context.req.query("refresh") === "1",
-        }),
-      );
+      const refresh = context.req.query("refresh") === "1";
+      const catalog = await modelCatalog.list({ refresh });
+      // Per-provider readiness for the picker's health dots. Best effort: a slow or locked Magpie
+      // admin API never holds up or fails the model list itself.
+      if (magpie?.managementAvailable && catalog.source === "magpie") {
+        const status = await magpie.status({ refresh }).catch(() => null);
+        if (status?.reachable)
+          catalog.providers = status.providers.map(({ id, name, ready, enabled }) => ({
+            id,
+            name,
+            ready,
+            enabled,
+          }));
+      }
+      return context.json(catalog);
     } catch (error) {
       return context.json(
         {
@@ -1096,6 +1110,89 @@ export function createApp(
         503,
       );
     }
+  });
+
+  /*
+   * 管理后台 → 模型平台 Magpie: gateway status, ChisaBot's connection to it and the model sync.
+   * Administrators only; a safe projection (see MagpieOverview), never keys or upstream prose.
+   */
+  app.get("/api/admin/magpie", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    context.header("Cache-Control", "no-store");
+    const refresh = context.req.query("refresh") === "1";
+    const status = magpie
+      ? await magpie.status({ refresh })
+      : {
+          configured: false,
+          managementAvailable: false,
+          reachable: false,
+          providers: [],
+          checkedAt: Date.now(),
+          error: "未配置 Magpie。",
+        };
+    let connection: MagpieOverview["connection"] = null;
+    try {
+      const current = modelSettings ? await modelSettings.get() : null;
+      if (current) {
+        let host = "";
+        try {
+          host = new URL(current.baseUrl).host;
+        } catch {
+          host = "";
+        }
+        const sync = modelCatalog?.sync();
+        connection = {
+          viaMagpie:
+            /^(magpie|127\.0\.0\.1:3425|localhost:3425)(:\d+)?$/u.test(host) ||
+            sync?.source === "magpie",
+          protocol: current.provider,
+          baseUrl: current.baseUrl,
+          defaultModel: current.model,
+          source: current.source,
+        };
+      }
+    } catch {
+      connection = null;
+    }
+    const overview: MagpieOverview = {
+      configured: status.configured,
+      managementAvailable: status.managementAvailable,
+      managementPath: `${MAGPIE_MOUNT}/`,
+      reachable: status.reachable,
+      ...(status.version ? { version: status.version } : {}),
+      ...(status.gatewayOn !== undefined ? { gatewayOn: status.gatewayOn } : {}),
+      checkedAt: status.checkedAt,
+      ...(status.error ? { error: status.error } : {}),
+      providers: status.providers,
+      connection,
+      catalog: {
+        ...(modelCatalog?.sync() ?? {}),
+        autoRefreshMinutes: options.modelCatalogRefreshMinutes ?? 0,
+      },
+    };
+    return context.json(overview);
+  });
+
+  /*
+   * The Magpie console itself, same-origin, behind ChisaBot's own sign-in and administrators only.
+   * The public gateway already authenticates every request to this origin; this adds the role check
+   * and injects Magpie's web key server-side (see magpie.ts). Embedded in 管理后台 by an iframe.
+   */
+  app.all(MAGPIE_MOUNT, requireUser, (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    return context.redirect(`${MAGPIE_MOUNT}/`, 302);
+  });
+  app.all(`${MAGPIE_MOUNT}/*`, requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    if (!magpie?.managementAvailable)
+      return context.text("Magpie 管理未在此部署配置。", 503);
+    return magpie.proxy(
+      context.req.raw,
+      context.req.path.slice(MAGPIE_MOUNT.length) || "/",
+    );
   });
 
   app.put(

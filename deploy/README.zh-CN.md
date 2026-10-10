@@ -39,16 +39,9 @@ docker compose --env-file .env -p magpie -f magpie.compose.yaml up -d --wait
 
 已有安装请保留并复用 `private/magpie.env` 与 `magpie-data`，不要重新生成 Web key。模板固定使用已验证的 Magpie v0.1.1141 镜像 digest；升级应先备份配置和独立验证。
 
-API 端口 `3425`、管理端口 `3430` 只绑定 loopback。ChisaBot 容器通过 `http://magpie:3425/v1` 访问网关；公网浏览器的管理入口由登录网关提供，例如 `https://chisabot.example.com:2053`。接入步骤、专用调用密钥及全模型目录见 [Magpie 指南](../docs/magpie.md)。
+API 端口 `3425`、管理端口 `3430` 只绑定 loopback。ChisaBot 容器通过 `http://magpie:3425/v1` 访问网关，并在「管理后台 → 模型平台 Magpie」内嵌 Magpie 管理控制台（同源 `/magpie-admin/`，仅管理员，沿用 ChisaBot 登录）。为此在 ChisaBot 的 compose 中设置 `MAGPIE_ADMIN_URL=http://magpie:3430`，并把 Magpie Web key 以只读文件挂载（`MAGPIE_WEB_KEY_FILE`，属主为容器内 API 用户 uid 1002、权限 0400）。模型列表启动时、每 `MODEL_CATALOG_REFRESH_MINUTES`（默认 10）分钟和点「刷新」时从 Magpie 同步。详见 [Magpie 指南](../docs/magpie.md)。
 
-管理入口是前端构建配置。需要显示这个入口时，在仓库根目录的 `.env` 设置 `VITE_MAGPIE_MANAGEMENT_URL`，或使用以下构建命令，然后重新执行 `start.sh`：
-
-```sh
-VITE_MAGPIE_MANAGEMENT_URL=https://chisabot.example.com:2053 \
-  TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build
-```
-
-只修改 `deploy/.env` 中的 `VITE_*` 不会改变已经构建的网页。
+登录网关上独立的管理入口（例如 `https://chisabot.example.com:2053`）可以保留作备用；`VITE_MAGPIE_MANAGEMENT_URL` 已不再用于界面导航。
 
 ## 数据与兼容性
 

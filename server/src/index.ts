@@ -258,6 +258,7 @@ import {
   resolveScopedModelConnection,
 } from "./model-connection-context";
 import { createModelCatalogService } from "./model-catalog";
+import { createMagpieService, readMagpieWebKey } from "./magpie";
 import { createSelfHostBanner } from "./self-host-banner";
 import { createTeamBots } from "./team-bots/team-bots";
 import {
@@ -1040,6 +1041,22 @@ const resolveRuntimeConnection = () =>
 const modelCatalog = createModelCatalogService({
   resolveConnection: () => modelSettings.resolve(),
 });
+/*
+ * Magpie, the model gateway. MAGPIE_ADMIN_URL (e.g. http://magpie:3430) plus its web key
+ * (MAGPIE_WEB_KEY_FILE, readable only by the API user) turn on 管理后台 → 模型平台 Magpie and the
+ * embedded console. The model list syncs on start and every MODEL_CATALOG_REFRESH_MINUTES (10).
+ */
+const magpie = createMagpieService({
+  adminUrl: process.env.MAGPIE_ADMIN_URL?.trim() || undefined,
+  webKey: readMagpieWebKey(process.env),
+});
+magpie.onChange(() => modelCatalog.invalidate());
+const modelCatalogRefreshMinutes = (() => {
+  const value = Number(process.env.MODEL_CATALOG_REFRESH_MINUTES ?? 10);
+  return Number.isFinite(value) && value >= 0 ? Math.min(value, 24 * 60) : 10;
+})();
+if (modelCatalogRefreshMinutes > 0)
+  modelCatalog.startAutoRefresh(modelCatalogRefreshMinutes * 60_000);
 const agentModels = createAgentModelService({
   database,
   profiles: agentProfileStore,
@@ -3337,6 +3354,8 @@ const app = createApp(
   agentModels,
   modelCatalog,
   panels,
+  magpie,
+  { modelCatalogRefreshMinutes },
 );
 
 /**

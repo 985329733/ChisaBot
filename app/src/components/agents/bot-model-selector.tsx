@@ -69,7 +69,7 @@ function BotModelSettingsRow({ agentId, disabled = false }: { agentId: string; d
             <ComboboxInput aria-label="搜索模型" placeholder="搜索模型名称…" showTrigger={false} className="w-full" />
             <ComboboxEmpty>没有匹配的模型</ComboboxEmpty>
             <ComboboxList>{(item: ModelOption) => <ComboboxItem key={item.id} value={item} disabled={item.missing}>
-              <div className="flex min-w-0 flex-col"><span className="break-all">{labelOf(item)}</span>{item.provider ? <span className="text-xs text-muted-foreground">{item.provider}</span> : null}</div>
+              <div className="flex min-w-0 flex-col"><span className="break-all">{labelOf(item)}</span>{item.provider ? <span className="text-xs text-muted-foreground">{item.providerName ?? item.provider}</span> : null}</div>
             </ComboboxItem>}</ComboboxList>
           </ComboboxContent>
         </Combobox>

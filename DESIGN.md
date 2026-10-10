@@ -323,3 +323,12 @@
 - 页面：`PageShell` 内置统一页头 `PageHeader`（眉题默认取所在区域「偏好设置 / 管理后台」，`backButton` 变成面包屑），管理页默认 1080 宽，其余 880。`PageSection/PageRows/PageEmpty/PageSkeleton` 的外观全部按 §11 改为 L1 卡片 + 64px 行。
 - 组件：`components/ui/skyglass.tsx` 提供 `Card/CardHeader/CardBody/CardFooter/ListRow/SettingRow/Toolbar/StatTile/EmptyState/ErrorCard/SaveBar`。`SaveBar` 用 portal 挂在 `.glass-main` 底部；「常驻指令」已改用它（放弃 / 保存）。
 - 未落地（原型中的纯装饰或无后端）：主题「跟随系统」、界面密度、设计规范页、部署概览统计磁贴（无现成数据接口）；面板库仍是 Sheet。
+
+## 15. 模型平台 Magpie（2026-10-10，image glass-20261010l）
+
+- 路由：`admin/magpie/index.tsx`（模板 E，1080）与 `admin/magpie/console.tsx`（内嵌控制台）。管理导航「机器人可以访问什么」组、部署概览、顶栏头像菜单「管理员」组都改为站内链接「模型平台 Magpie」，不再在新标签页打开 `:2053`。
+- 状态页结构：页头（主操作「打开 Magpie 管理」+ 次操作「刷新状态」）→ 4 个 `StatTile`（网关状态 / 就绪的提供方 / 可用模型 / 上次同步，`.magpie-stats` 四列，≤900px 两列）→「ChisaBot 接入」卡片（`SettingRow`：模型网关、接口地址、部署默认模型、模型同步、模型设置；区块操作「立即同步模型」）→「提供方」卡片（`ListRow` + `ProviderMark` + 状态徽标）→「Magpie 管理」入口卡片。
+- 异步按钮：「刷新状态」用 `RefreshButton`（Magpie 不可访问时落到 ✕）；「立即同步模型」用自定义 feedback `同步中… / 已同步 / 同步失败`。
+- 徽标 `.magpie-badge`（`is-ok / is-warn / is-danger`，用 `--success/--warn/--danger` 与对应 `-soft`），代码值 `.magpie-code`（`--font-code`、L2 玻璃底）。浅色、深色都只用令牌。
+- 健康点 `.model-health-dot`（7px，`is-ok` 绿 + 3px 柔光、`is-bad` 红、`is-off` 灰）。模型选择器的提供方分组标题：`ProviderMark` + 提供方名称（来自 Magpie 的 `magpie_label`）+ 健康点 + 右侧等宽的提供方 ID；当前模型所在提供方未就绪时，药丸上也显示红点。底部文案「Magpie · 共 N 个模型 · 下一轮生效」，网关不可用时改为「网关暂不可用，显示上次列表」。
+- 内嵌控制台：统一页头（面包屑「管理后台 / 模型平台 Magpie」，操作「重新载入」「新窗口打开」）下方是一张 L1 玻璃卡片（`.magpie-frame-wrap`，最大 1280 宽，填满剩余高度），iframe 载入完成前显示居中的骨架条「正在载入 Magpie 控制台…」，载入后淡入（`--dur-2`，尊重 prefers-reduced-motion）。Magpie 自己的界面跟随系统浅色/深色。

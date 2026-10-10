@@ -31,6 +31,10 @@ services:
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
       OPENBOT_SELF_HOST_BANNER: "false"
       SERVER_INTERNAL_URL: http://127.0.0.1:3001
+      # 管理后台 → 模型平台 Magpie（docs/magpie.md）。Web key 文件挂载见该文档；留空则只显示连接信息。
+      MAGPIE_ADMIN_URL: ${MAGPIE_ADMIN_URL:-}
+      MAGPIE_WEB_KEY_FILE: ${MAGPIE_WEB_KEY_FILE:-}
+      MODEL_CATALOG_REFRESH_MINUTES: ${MODEL_CATALOG_REFRESH_MINUTES:-10}
     logging:
       driver: json-file
       options:

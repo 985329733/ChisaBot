@@ -128,3 +128,92 @@ Magpie 可能将请求在协议之间转换；确认实际模型 ID 比只查看
 | GUI 能打开，但应用连不到网关 | ChisaBot 服务端容器的网络/DNS/端口，不能以用户浏览器连通来代替服务端连通 |
 
 一般运维检查、备份与升级见 [维护与排错](operations.md)。
+
+---
+
+# Magpie 模型平台接入指南
+
+ChisaBot 把自托管的 [Magpie](https://github.com/yetone/magpie)（`ghcr.io/yetone/magpie`）作为默认模型网关：所有机器人的聊天、长期任务和面板请求都经由 Magpie 转发，模型列表也从 Magpie 同步。Magpie 的管理控制台直接内嵌在 ChisaBot 的「管理后台 → 模型平台 Magpie」里，沿用 ChisaBot 登录，不再需要单独的入口。
+
+## 架构
+
+```
+浏览器 ──HTTPS──▶ 登录网关 (nginx :8443) ──▶ ChisaBot (127.0.0.1:3001)
+                                              │  /api/…              ChisaBot 自身
+                                              │  /magpie-admin/…     反向代理 → magpie:3430（管理控制台）
+                                              └─ 模型请求            → magpie:3425/v1（网关 API）
+```
+
+- **网关 API**：ChisaBot 容器通过 Docker 网络 `openbot_magpie` 访问 `http://magpie:3425/v1`，使用 Magpie 中名为 `OpenBot` 的调用密钥（caller key）。该密钥加密保存在 ChisaBot 数据库（「管理后台 → 模型设置」），不会出现在浏览器里。
+- **管理控制台**：ChisaBot 服务器在 `/magpie-admin/` 下反向代理 `http://magpie:3430`。代理在服务端注入 Magpie 的 Web key（Cookie `magpie_web_3430`），并把控制台里的 `/api/…` 调用改写到 `/magpie-admin/api/…`。
+
+## 部署配置
+
+`/opt/openbot-zh/compose.yaml`（ChisaBot 服务）：
+
+```yaml
+    volumes:
+      # Magpie web key，仅容器内的 API 用户（uid 1002）可读。
+      - ./secrets/magpie-web.key:/etc/chisabot/magpie-web.key:ro
+    environment:
+      MAGPIE_ADMIN_URL: http://magpie:3430
+      MAGPIE_WEB_KEY_FILE: /etc/chisabot/magpie-web.key
+      MODEL_CATALOG_REFRESH_MINUTES: "10"
+```
+
+Web key 文件从 Magpie 的私密配置复制，权限 `0400`、属主 `1002:1002`：
+
+```sh
+install -d -m 700 /opt/openbot-zh/secrets
+install -m 400 -o 1002 -g 1002 /opt/magpie/private/web.key /opt/openbot-zh/secrets/magpie-web.key
+```
+
+> 使用文件而不是环境变量：容器内的环境变量对机器人计算机的用户可读，文件只给 API 用户读。重新生成 Magpie Web key 后需要重新复制文件并重启 ChisaBot。
+
+| 变量 | 作用 | 默认 |
+| --- | --- | --- |
+| `MAGPIE_ADMIN_URL` | Magpie 管理端地址（容器网络内）。未设置时「模型平台 Magpie」页显示未配置。 | 无 |
+| `MAGPIE_WEB_KEY_FILE` / `MAGPIE_WEB_KEY` | Magpie Web key（16+ 位 `A-Za-z0-9-._~`）。缺少时只能显示连接信息，不能读取提供方状态或内嵌控制台。 | 无 |
+| `MODEL_CATALOG_REFRESH_MINUTES` | 模型列表后台自动同步间隔（分钟），`0` 关闭。 | `10` |
+
+## 模型接口（默认走 Magpie）
+
+「管理后台 → 模型设置」保存的连接（当前）：
+
+- 协议：Anthropic（Magpie 同时提供 OpenAI 兼容接口，两者都可以）
+- 接口地址：`http://magpie:3425/v1`
+- 默认模型：`opencode-zen/mimo-v2.6-flash-free`
+- API Key：Magpie 的 `OpenBot` 调用密钥（只保存在服务器）
+
+仍然可以在「模型设置」里换成任何 OpenAI 兼容或 Anthropic 接口（如 MiniMax、New API）；compose 中的 `BOT_MODEL` / `OPENAI_BASE_URL` 只是在数据库没有保存连接时的后备。
+
+> 阶跃星辰（StepFun）提供方因实名认证限制当前不可用，已在 Magpie 中停用，不要设为默认。
+
+## 模型同步
+
+- 来源：`GET {接口地址}/models`（Magpie 返回在 Magpie 中勾选开放给网关的模型，带 `display_name` 和 `magpie_label`，例如 `MiMo-V2.6-Flash Free · OpenCode Zen`）。ChisaBot 从 `magpie_label` 取提供方名称，用于选择器分组。
+- 何时同步：服务启动后约 3 秒、每 `MODEL_CATALOG_REFRESH_MINUTES` 分钟、模型选择器或「模型平台 Magpie」页点「刷新 / 立即同步模型」时；在内嵌控制台里保存了设置（任意 `/api/…` 写操作成功）后，下一次读取会立即重新同步。
+- 缓存：成功结果缓存 10 分钟；网关暂时不可用时，普通读取继续返回上一次的列表（`stale: true`，选择器底部提示），手动刷新则报告失败。
+- 提供方健康：`/api/models` 在来源是 Magpie 时附带 `providers: [{ id, name, ready, enabled }]`（来自 Magpie 管理接口，缓存 60 秒），选择器在分组标题旁显示状态点（绿 = 就绪，红 = 未就绪，灰 = 已停用）。
+
+## 管理后台 → 模型平台 Magpie
+
+- `/admin/magpie`：网关状态、Magpie 版本、就绪的提供方、可用模型数、上次同步；ChisaBot 接入信息（是否经由 Magpie、接口地址、默认模型、同步状态）；提供方列表。
+- `/admin/magpie/console`：内嵌的 Magpie 控制台（iframe，同源 `/magpie-admin/`），可「重新载入」或「新窗口打开」。
+- 接口：`GET /api/admin/magpie[?refresh=1]` 返回 `MagpieOverview`（`shared/model-selection.ts`），只含安全字段。
+
+## 安全
+
+- 只有 ChisaBot 管理员能访问 `/api/admin/magpie` 和 `/magpie-admin/*`（服务端 `requireAdmin`）；公网请求先经过登录网关的会话校验。
+- Magpie Web key 只在 ChisaBot 服务端使用，浏览器的 Cookie / Authorization 不会转发给 Magpie，Magpie 返回的 `Set-Cookie` 被丢弃。
+- Magpie 本身不校验 Origin，所以代理对非 GET 请求要求同源（`Origin` 与 `Host` 一致、`Sec-Fetch-Site` 不是跨站），否则返回 403。
+- 代理响应带 `Content-Security-Policy: frame-ancestors 'self'`，只允许 ChisaBot 自己内嵌；它在现代浏览器中优先于登录网关统一添加的 `X-Frame-Options: DENY`，因此无需修改网关配置。
+- 模型网关 API（`:3425`）和管理端口（`:3430`）仍只绑定 loopback / Docker 网络。
+
+## 旧的独立入口
+
+登录网关上的 `https://<域名>:2053`（同样需要 ChisaBot 登录）保留不变，可作为备用入口；`VITE_MAGPIE_MANAGEMENT_URL` 不再用于导航，界面统一跳到内嵌页面。
+
+## 回滚
+
+`/opt/openbot-zh/rollback-to-glass-20261010k.sh`：恢复 `compose.yaml.before-glass-20261010l`（镜像 `glass-20261010k`，去掉 Magpie 环境变量和挂载）并重建容器。

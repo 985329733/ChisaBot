@@ -2,7 +2,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import { IconCheck, IconChevronDown, IconRefresh, IconSearch, IconSparkles } from "@tabler/icons-react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import type { ModelCatalogEntry } from "../../../../shared/model-selection";
+import type { ModelCatalog, ModelCatalogEntry } from "../../../../shared/model-selection";
 import { useModelSelectionSaving, useModelSelectionSync } from "@/lib/model-selection/hooks";
 import { refreshModelsMutationOptions, saveAgentModelMutationOptions } from "@/lib/model-selection/mutations";
 import { agentModelQueryOptions, modelCatalogQueryOptions, modelSelectionKeys } from "@/lib/model-selection/queries";
@@ -11,7 +11,23 @@ import { FEEDBACK_PRESETS, useMutationFeedback } from "@/components/ui/async-act
 import { AsyncContent } from "@/components/ui/button";
 
 type Option = ModelCatalogEntry & { missing?: boolean; inherited?: boolean };
-type Group = { value: string; label: string; items: Option[] };
+type Health = "ok" | "bad" | "off" | "unknown";
+type Group = { value: string; label: string; items: Option[]; health?: Health };
+
+/** Gateway readiness of a provider: Magpie's own "ready" flag, when the catalog carries it. */
+function healthOf(provider: string, catalog: ModelCatalog | undefined): Health {
+  const row = catalog?.providers?.find((item) => item.id === provider);
+  if (!row) return "unknown";
+  if (!row.enabled) return "off";
+  return row.ready ? "ok" : "bad";
+}
+const HEALTH_TEXT: Record<Health, string> = { ok: "提供方就绪", bad: "提供方未就绪", off: "提供方已停用", unknown: "提供方状态未知" };
+
+/** A small status light; shared by the picker and 管理后台 → 模型平台 Magpie. */
+export function HealthDot({ health }: { health: Health }) {
+  if (health === "unknown") return null;
+  return <span aria-label={HEALTH_TEXT[health]} className={`model-health-dot is-${health}`} role="img" title={HEALTH_TEXT[health]} />;
+}
 
 /** A model id's last path segment, which is what a person recognises ("mimo-v2.6-flash-free"). */
 function tailOf(id: string) {
@@ -79,13 +95,16 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
     }
     result.push({ value: "__default", label: "默认", items: head });
     const byProvider = new Map<string, Option[]>();
+    const names = new Map<string, string>();
     for (const model of models) {
       const key = model.provider || "其他";
       byProvider.set(key, [...(byProvider.get(key) ?? []), model]);
+      if (model.providerName && !names.has(key)) names.set(key, model.providerName);
     }
-    for (const [provider, items] of byProvider) result.push({ value: provider, label: provider, items });
+    for (const [provider, items] of byProvider)
+      result.push({ value: provider, label: names.get(provider) ?? provider, items, health: healthOf(provider, catalog.data) });
     return result;
-  }, [models, state.data]);
+  }, [models, state.data, catalog.data]);
 
   const allOptions = useMemo(() => groups.flatMap((group) => group.items), [groups]);
   const selected = allOptions.find((item) => item.id === (state.data?.overrideModel ?? "")) ?? null;
@@ -140,6 +159,7 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
       >
         <ProviderMark provider={effectiveProvider} />
         <span className="truncate">{shortName(effective, models)}</span>
+        {healthOf(effectiveProvider, catalog.data) === "bad" ? <HealthDot health="bad" /> : null}
         {!state.data.overrideModel ? <span className="model-pill-tag">默认</span> : null}
         {saving ? <IconRefresh className="size-3 shrink-0 animate-spin opacity-60" /> : <IconChevronDown className="model-pill-chevron" />}
       </ComboboxPrimitive.Trigger>
@@ -155,7 +175,7 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
               {(group: Group) => (
                 <ComboboxPrimitive.Group className="model-popover-group" items={group.items} key={group.value}>
                   <ComboboxPrimitive.GroupLabel className="model-popover-label">
-                    {group.value === "__default" ? group.label : <><ProviderMark className="model-provider-mark-sm" provider={group.value} />{group.label}</>}
+                    {group.value === "__default" ? group.label : <><ProviderMark className="model-provider-mark-sm" provider={group.value} /><span className="truncate">{group.label}</span>{group.health ? <HealthDot health={group.health} /> : null}{group.label !== group.value ? <span className="model-popover-label-id">{group.value}</span> : null}</>}
                   </ComboboxPrimitive.GroupLabel>
                   <ComboboxPrimitive.Collection>
                     {(item: Option) => (
@@ -176,7 +196,7 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
               )}
             </ComboboxPrimitive.List>
             <div className="model-popover-footer">
-              <span className="truncate">{error ? <span className="text-destructive">{error}</span> : catalog.data ? `共 ${models.length} 个模型 · 下一轮生效` : "正在加载模型列表…"}</span>
+              <span className="truncate">{error ? <span className="text-destructive">{error}</span> : catalog.data ? `${catalog.data.source === "magpie" ? "Magpie · " : ""}共 ${models.length} 个模型${catalog.data.stale ? " · 网关暂不可用，显示上次列表" : " · 下一轮生效"}` : "正在加载模型列表…"}</span>
               <button
                 aria-busy={refreshState === "pending" || undefined}
                 className="model-popover-refresh async-raw"

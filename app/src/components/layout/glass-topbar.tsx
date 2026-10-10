@@ -46,7 +46,6 @@ import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { approvalInboxOptions } from "@/lib/approvals";
 import { signOutMutationOptions } from "@/lib/auth/mutations";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { MAGPIE_ADMIN_URL } from "@/lib/magpie";
 import { setSidebarSearch, useSidebarSearch } from "@/lib/sidebar-search";
 import { cn } from "@/lib/utils";
 
@@ -443,13 +442,12 @@ function AccountMenu() {
                 label={"管理控制台"}
                 to="/admin"
               />
-              {MAGPIE_ADMIN_URL ? (
-                <MenuRow
-                  href={MAGPIE_ADMIN_URL}
-                  icon={<IconNetwork className={icon} />}
-                  label={"Magpie 模型管理"}
-                />
-              ) : null}
+              <MenuRow
+                hint={"网关 · 提供方 · 模型"}
+                icon={<IconNetwork className={icon} />}
+                label={"模型平台 Magpie"}
+                to="/admin/magpie"
+              />
               <MenuRow icon={<IconKey className={icon} />} label={"密钥与凭据"} to="/admin/credentials" />
               <MenuRow icon={<IconBox className={icon} />} label={"组件库"} to="/settings/components-gallery" />
             </DropdownMenuGroup>

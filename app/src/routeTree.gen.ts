@@ -48,6 +48,8 @@ import { Route as AuthedAppGroupChannelIdRouteImport } from './routes/_authed/_a
 import { Route as AuthedAppGroupNewRouteImport } from './routes/_authed/_app/group/new'
 import { Route as AuthedAdminComponentsIndexRouteImport } from './routes/_authed/admin/components/index'
 import { Route as AuthedAdminComponentsNameRouteImport } from './routes/_authed/admin/components/$name'
+import { Route as AuthedAdminMagpieIndexRouteImport } from './routes/_authed/admin/magpie/index'
+import { Route as AuthedAdminMagpieConsoleRouteImport } from './routes/_authed/admin/magpie/console'
 import { Route as AuthedAdminPluginsIndexRouteImport } from './routes/_authed/admin/plugins/index'
 import { Route as AuthedAdminPluginsKeyRouteImport } from './routes/_authed/admin/plugins/$key'
 import { Route as AuthedAdminPluginsComposioRouteImport } from './routes/_authed/admin/plugins/composio'
@@ -256,6 +258,17 @@ const AuthedAdminComponentsNameRoute =
     path: '/components/$name',
     getParentRoute: () => AuthedAdminRouteRoute,
   } as any)
+const AuthedAdminMagpieIndexRoute = AuthedAdminMagpieIndexRouteImport.update({
+  id: '/magpie/',
+  path: '/magpie/',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
+const AuthedAdminMagpieConsoleRoute =
+  AuthedAdminMagpieConsoleRouteImport.update({
+    id: '/magpie/console',
+    path: '/magpie/console',
+    getParentRoute: () => AuthedAdminRouteRoute,
+  } as any)
 const AuthedAdminPluginsIndexRoute = AuthedAdminPluginsIndexRouteImport.update({
   id: '/plugins/',
   path: '/plugins/',
@@ -344,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/group/$channelId': typeof AuthedAppGroupChannelIdRoute
   '/group/new': typeof AuthedAppGroupNewRoute
   '/admin/components/$name': typeof AuthedAdminComponentsNameRoute
+  '/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
   '/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
@@ -351,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/agents/': typeof AuthedAppAgentsIndexRoute
   '/bots/': typeof AuthedAppBotsIndexRoute
   '/admin/components/': typeof AuthedAdminComponentsIndexRoute
+  '/admin/magpie/': typeof AuthedAdminMagpieIndexRoute
   '/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
   '/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
@@ -390,6 +405,7 @@ export interface FileRoutesByTo {
   '/group/$channelId': typeof AuthedAppGroupChannelIdRoute
   '/group/new': typeof AuthedAppGroupNewRoute
   '/admin/components/$name': typeof AuthedAdminComponentsNameRoute
+  '/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
   '/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
@@ -397,6 +413,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AuthedAppAgentsIndexRoute
   '/bots': typeof AuthedAppBotsIndexRoute
   '/admin/components': typeof AuthedAdminComponentsIndexRoute
+  '/admin/magpie': typeof AuthedAdminMagpieIndexRoute
   '/admin/plugins': typeof AuthedAdminPluginsIndexRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts': typeof AuthedSettingsConnectedAccountsIndexRoute
@@ -441,6 +458,7 @@ export interface FileRoutesById {
   '/_authed/_app/group/$channelId': typeof AuthedAppGroupChannelIdRoute
   '/_authed/_app/group/new': typeof AuthedAppGroupNewRoute
   '/_authed/admin/components/$name': typeof AuthedAdminComponentsNameRoute
+  '/_authed/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/_authed/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/_authed/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
   '/_authed/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
@@ -448,6 +466,7 @@ export interface FileRoutesById {
   '/_authed/_app/agents/': typeof AuthedAppAgentsIndexRoute
   '/_authed/_app/bots/': typeof AuthedAppBotsIndexRoute
   '/_authed/admin/components/': typeof AuthedAdminComponentsIndexRoute
+  '/_authed/admin/magpie/': typeof AuthedAdminMagpieIndexRoute
   '/_authed/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
   '/_authed/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/_authed/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
@@ -491,6 +510,7 @@ export interface FileRouteTypes {
     | '/group/$channelId'
     | '/group/new'
     | '/admin/components/$name'
+    | '/admin/magpie/console'
     | '/admin/plugins/$key'
     | '/admin/plugins/composio'
     | '/settings/components-gallery/$name'
@@ -498,6 +518,7 @@ export interface FileRouteTypes {
     | '/agents/'
     | '/bots/'
     | '/admin/components/'
+    | '/admin/magpie/'
     | '/admin/plugins/'
     | '/settings/components-gallery/'
     | '/settings/connected-accounts/'
@@ -537,6 +558,7 @@ export interface FileRouteTypes {
     | '/group/$channelId'
     | '/group/new'
     | '/admin/components/$name'
+    | '/admin/magpie/console'
     | '/admin/plugins/$key'
     | '/admin/plugins/composio'
     | '/settings/components-gallery/$name'
@@ -544,6 +566,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/bots'
     | '/admin/components'
+    | '/admin/magpie'
     | '/admin/plugins'
     | '/settings/components-gallery'
     | '/settings/connected-accounts'
@@ -587,6 +610,7 @@ export interface FileRouteTypes {
     | '/_authed/_app/group/$channelId'
     | '/_authed/_app/group/new'
     | '/_authed/admin/components/$name'
+    | '/_authed/admin/magpie/console'
     | '/_authed/admin/plugins/$key'
     | '/_authed/admin/plugins/composio'
     | '/_authed/settings/components-gallery/$name'
@@ -594,6 +618,7 @@ export interface FileRouteTypes {
     | '/_authed/_app/agents/'
     | '/_authed/_app/bots/'
     | '/_authed/admin/components/'
+    | '/_authed/admin/magpie/'
     | '/_authed/admin/plugins/'
     | '/_authed/settings/components-gallery/'
     | '/_authed/settings/connected-accounts/'
@@ -881,6 +906,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminComponentsNameRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
+    '/_authed/admin/magpie/': {
+      id: '/_authed/admin/magpie/'
+      path: '/magpie'
+      fullPath: '/admin/magpie/'
+      preLoaderRoute: typeof AuthedAdminMagpieIndexRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/admin/magpie/console': {
+      id: '/_authed/admin/magpie/console'
+      path: '/magpie/console'
+      fullPath: '/admin/magpie/console'
+      preLoaderRoute: typeof AuthedAdminMagpieConsoleRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
     '/_authed/admin/plugins/': {
       id: '/_authed/admin/plugins/'
       path: '/plugins'
@@ -961,9 +1000,11 @@ interface AuthedAdminRouteRouteChildren {
   AuthedAdminSkillsRoute: typeof AuthedAdminSkillsRoute
   AuthedAdminIndexRoute: typeof AuthedAdminIndexRoute
   AuthedAdminComponentsNameRoute: typeof AuthedAdminComponentsNameRoute
+  AuthedAdminMagpieConsoleRoute: typeof AuthedAdminMagpieConsoleRoute
   AuthedAdminPluginsKeyRoute: typeof AuthedAdminPluginsKeyRoute
   AuthedAdminPluginsComposioRoute: typeof AuthedAdminPluginsComposioRoute
   AuthedAdminComponentsIndexRoute: typeof AuthedAdminComponentsIndexRoute
+  AuthedAdminMagpieIndexRoute: typeof AuthedAdminMagpieIndexRoute
   AuthedAdminPluginsIndexRoute: typeof AuthedAdminPluginsIndexRoute
   AuthedAdminPluginsKeyBotsAgentIdRoute: typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   AuthedAdminPluginsKeyToolsToolRoute: typeof AuthedAdminPluginsKeyToolsToolRoute
@@ -983,9 +1024,11 @@ const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
   AuthedAdminSkillsRoute: AuthedAdminSkillsRoute,
   AuthedAdminIndexRoute: AuthedAdminIndexRoute,
   AuthedAdminComponentsNameRoute: AuthedAdminComponentsNameRoute,
+  AuthedAdminMagpieConsoleRoute: AuthedAdminMagpieConsoleRoute,
   AuthedAdminPluginsKeyRoute: AuthedAdminPluginsKeyRoute,
   AuthedAdminPluginsComposioRoute: AuthedAdminPluginsComposioRoute,
   AuthedAdminComponentsIndexRoute: AuthedAdminComponentsIndexRoute,
+  AuthedAdminMagpieIndexRoute: AuthedAdminMagpieIndexRoute,
   AuthedAdminPluginsIndexRoute: AuthedAdminPluginsIndexRoute,
   AuthedAdminPluginsKeyBotsAgentIdRoute: AuthedAdminPluginsKeyBotsAgentIdRoute,
   AuthedAdminPluginsKeyToolsToolRoute: AuthedAdminPluginsKeyToolsToolRoute,

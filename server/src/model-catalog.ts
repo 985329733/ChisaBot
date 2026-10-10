@@ -6,8 +6,22 @@ import type {
 import { normalizeModelBaseUrl } from "../../shared/model-base-url";
 import type { ModelConnectionRuntime } from "./model-settings";
 
+export type ModelCatalogSyncState = {
+  /** When the last successful sync finished, if any. */
+  fetchedAt?: number;
+  count?: number;
+  source?: "magpie" | "gateway";
+  lastAttemptAt?: number;
+  /** The last sync's failure, already a safe Chinese message. Cleared by a success. */
+  lastError?: string;
+};
 export type ModelCatalogService = {
   list(options?: { refresh?: boolean }): Promise<ModelCatalog>;
+  /** Forget the cached list so the next read syncs again (e.g. after Magpie changed). */
+  invalidate(): void;
+  sync(): ModelCatalogSyncState;
+  /** Sync now and then every `intervalMs`; returns a stop function. Failures keep the last list. */
+  startAutoRefresh(intervalMs: number, initialDelayMs?: number): () => void;
 };
 export class ModelCatalogError extends Error {
   constructor(message = "模型列表暂时无法获取，请检查模型接口配置后重试。") {
@@ -18,7 +32,8 @@ export class ModelCatalogError extends Error {
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_MODELS = 10000;
-const CACHE_MS = 30000;
+// The list is also refreshed in the background (startAutoRefresh), so reads rarely wait on it.
+const CACHE_MS = 10 * 60_000;
 const NON_CHAT = new Set([
   "image",
   "video",
@@ -40,6 +55,13 @@ function safeText(value: unknown, max = 240): value is string {
     value.length <= max &&
     !/[\x00-\x1f\x7f]/u.test(value)
   );
+}
+/** Magpie labels a model "Display Name · Provider Name"; the tail is the provider's own name. */
+function providerNameOf(label: unknown): string | undefined {
+  if (!safeText(label)) return undefined;
+  const at = label.lastIndexOf(" · ");
+  const name = at >= 0 ? label.slice(at + 3).trim() : "";
+  return name && name.length <= 80 ? name : undefined;
 }
 function project(body: unknown): ModelCatalogEntry[] {
   if (
@@ -75,10 +97,12 @@ function project(body: unknown): ModelCatalogEntry[] {
       prefix ?? (safeText(row.owned_by, 200) ? row.owned_by : "");
     const context =
       row.context_window ?? row.context_length ?? row.max_input_tokens;
+    const providerName = providerNameOf(row.magpie_label);
     models.push({
       id: row.id,
       label,
       provider,
+      ...(providerName ? { providerName } : {}),
       ...(typeof context === "number" &&
       Number.isInteger(context) &&
       context > 0 &&
@@ -139,10 +163,32 @@ export function createModelCatalogService(options: {
     key: string;
     value?: ModelCatalog;
     pending?: Promise<ModelCatalog>;
+    expired?: boolean;
   };
   let current: Cache | undefined;
-  return {
+  const state: ModelCatalogSyncState = {};
+  const service: ModelCatalogService = {
+    invalidate() {
+      if (current) current.expired = true;
+    },
+    sync() {
+      return { ...state };
+    },
+    startAutoRefresh(intervalMs, initialDelayMs = 3000) {
+      const tick = () => {
+        void service.list({ refresh: true }).catch(() => {});
+      };
+      const first = setTimeout(tick, initialDelayMs);
+      const every = setInterval(tick, Math.max(60_000, intervalMs));
+      first.unref?.();
+      every.unref?.();
+      return () => {
+        clearTimeout(first);
+        clearInterval(every);
+      };
+    },
     async list(input = {}) {
+      let stale: ModelCatalog | undefined;
       try {
         const connection = await options.resolveConnection();
         if (connection.useApiKey && !connection.apiKey)
@@ -175,13 +221,16 @@ export function createModelCatalogService(options: {
           .digest("hex");
         if (current?.key !== key) current = { key };
         const cache = current;
+        stale = cache.value;
         if (
           !input.refresh &&
+          !cache.expired &&
           cache.value &&
           Date.now() - cache.value.fetchedAt < CACHE_MS
         )
           return structuredClone(cache.value);
         if (!cache.pending) {
+          state.lastAttemptAt = Date.now();
           cache.pending = (async () => {
             const headers: Record<string, string> = {
               Accept: "application/json",
@@ -207,11 +256,19 @@ export function createModelCatalogService(options: {
                   : undefined,
               );
             }
-            const value = {
-              models: project(await readJson(response, signal)),
+            const body = await readJson(response, signal);
+            const models = project(body);
+            const value: ModelCatalog = {
+              models,
               fetchedAt: Date.now(),
+              source: isMagpie(body) ? "magpie" : "gateway",
             };
             cache.value = value;
+            cache.expired = false;
+            state.fetchedAt = value.fetchedAt;
+            state.count = models.length;
+            state.source = value.source;
+            state.lastError = undefined;
             return value;
           })().finally(() => {
             cache.pending = undefined;
@@ -219,10 +276,25 @@ export function createModelCatalogService(options: {
         }
         return structuredClone(await cache.pending);
       } catch (error) {
-        if (error instanceof ModelCatalogError) throw error;
         // Fetch, parsing and storage exceptions can contain keys or arbitrary upstream prose.
-        throw new ModelCatalogError();
+        const safe =
+          error instanceof ModelCatalogError ? error : new ModelCatalogError();
+        state.lastError = safe.message;
+        // A passive read keeps working on the last good list while the gateway is down; an
+        // explicit 刷新 reports the failure so its button lands on ✕.
+        if (!input.refresh && stale?.models.length)
+          return { ...structuredClone(stale), stale: true };
+        throw safe;
       }
     },
   };
+  return service;
+}
+
+function isMagpie(body: unknown) {
+  return (
+    object(body) &&
+    Array.isArray(body.data) &&
+    body.data.some((row) => object(row) && typeof row.magpie_label === "string")
+  );
 }
