@@ -7,12 +7,22 @@ import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, 
 import { useModelSelectionSaving, useModelSelectionSync } from "@/lib/model-selection/hooks";
 import { refreshModelsMutationOptions, saveAgentModelMutationOptions } from "@/lib/model-selection/mutations";
 import { agentModelQueryOptions, modelCatalogQueryOptions, modelSelectionKeys } from "@/lib/model-selection/queries";
+import { ModelPicker } from "@/components/agents/model-picker";
 
 type ModelOption = ModelCatalogEntry & { missing?: boolean };
 const labelOf = (option: ModelOption) => !option.id ? option.label : option.label === option.id ? option.id : `${option.label} · ${option.id}`;
 
-/** Chat and settings both edit this BOT's one saved model; no connection credential reaches here. */
+/**
+ * Chat and settings both edit this BOT's one saved model; no connection credential reaches here.
+ * `compact` is the composer's pill + popover (`ModelPicker`); the full row is for settings screens.
+ */
 export function BotModelSelector({ agentId, compact = false, disabled = false }: { agentId: string; compact?: boolean; disabled?: boolean }) {
+  if (compact) return <ModelPicker agentId={agentId} disabled={disabled} />;
+  return <BotModelSettingsRow agentId={agentId} disabled={disabled} />;
+}
+
+function BotModelSettingsRow({ agentId, disabled = false }: { agentId: string; disabled?: boolean }) {
+  const compact = false;
   const queryClient = useQueryClient();
   const state = useQuery(agentModelQueryOptions(agentId));
   const catalog = useQuery(modelCatalogQueryOptions());

@@ -31,7 +31,7 @@ export function DictationButton({
           ? "口述消息"
           : "语音输入需要支持的浏览器和 HTTPS（或 localhost）"
       }
-      className="size-8 shrink-0 self-end rounded-full"
+      className="glass-composer-icon shrink-0"
       disabled={disabled || !dictation.supported || dictation.busy}
       onClick={() => void dictation.session.start()}
       size="icon"

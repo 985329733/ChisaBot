@@ -63,7 +63,7 @@ function RouteComponent() {
         <div className="mt-8 w-full flex flex-col items-center">
           <Composer
             onAgentChange={setExplicitAgentId}
-            modelControl={explicitAgentId ? <BotModelSelector agentId={explicitAgentId} compact /> : <p className="pt-2 text-xs text-muted-foreground"><Link to="/channel/new" className="underline underline-offset-2">选择 BOT 后可切换模型</Link>，也可在消息中用 @ 选择。</p>}
+            modelControl={explicitAgentId ? <BotModelSelector agentId={explicitAgentId} compact /> : <Link to="/channel/new" className="model-pill model-pill-hint" title="选择 BOT 后可切换模型，也可在消息中用 @ 选择">选择 BOT 以切换模型</Link>}
             sendBlocked={modelSaving}
             agents={toAgentOptions(agents)}
             className="w-full max-w-2xl"

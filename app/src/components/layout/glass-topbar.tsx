@@ -16,8 +16,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useRef } from "react";
+import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import { createContext, type MouseEvent, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/theme-provider";
 import {
   DropdownMenu,
@@ -161,6 +161,13 @@ function TopSearch() {
   );
 }
 
+/**
+ * Closes the account menu and navigates only once the destination's route chunk is loaded, so the
+ * current screen stays put while it loads instead of being swapped for a placeholder with the menu
+ * still floating over it.
+ */
+const MenuNavigateContext = createContext<((to: string) => void) | null>(null);
+
 function MenuRow({
   icon,
   label,
@@ -189,9 +196,18 @@ function MenuRow({
       {children}
     </>
   );
+  const go = useContext(MenuNavigateContext);
   if (to)
     return (
-      <DropdownMenuItem className={className} render={<Link to={to} />}>
+      <DropdownMenuItem
+        className={className}
+        onClick={(event: MouseEvent) => {
+          if (!go || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+          event.preventDefault();
+          go(to);
+        }}
+        render={<Link to={to} />}
+      >
         {body}
       </DropdownMenuItem>
     );
@@ -223,6 +239,16 @@ function AccountMenu() {
     (approvals.data?.requests.filter((r) => r.status === "pending").length ?? 0) +
     (approvals.data?.questions.length ?? 0);
 
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const go = (to: string) => {
+    setOpen(false);
+    void router
+      .preloadRoute({ to })
+      .catch(() => undefined)
+      .finally(() => void navigate({ to }));
+  };
+
   const handleSignOut = async () => {
     await signOut.mutateAsync();
     await navigate({ to: "/sign" });
@@ -230,7 +256,8 @@ function AccountMenu() {
 
   const icon = "size-[18px] shrink-0 opacity-80";
   return (
-    <DropdownMenu>
+    <MenuNavigateContext.Provider value={go}>
+    <DropdownMenu onOpenChange={setOpen} open={open}>
       <DropdownMenuTrigger
         render={
           <button
@@ -335,5 +362,6 @@ function AccountMenu() {
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+    </MenuNavigateContext.Provider>
   );
 }

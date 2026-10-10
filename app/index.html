@@ -5,13 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ChisaBot · 中文版</title>
     <style>
-      .openbot-startup { min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; font-family: system-ui, sans-serif; color: #202124; background: #fafafa; }
-      .dark .openbot-startup { color: #ededed; background: #171717; }
-      .openbot-startup-panel { width: 100%; max-width: 360px; }
-      .openbot-startup-title { margin: 0 0 12px; font-size: 20px; font-weight: 600; }
-      .openbot-startup-detail { margin: 0; color: #777; font-size: 14px; line-height: 1.6; }
-      .openbot-startup-reload { margin-top: 24px; padding: 8px 14px; border: 1px solid #bbb; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
-      .openbot-startup-reload[hidden] { display: none; }
+      /* Pre-JS shell: the same sky and glass skeleton the app draws while routes load, so the first
+         paint is never a white page. Kept small and self-contained; styles.css takes over after. */
+      html, body { margin: 0; min-height: 100%; }
+      body { background-color: #9dbddc; background: radial-gradient(900px 380px at 18% 22%, rgba(255,255,255,.75), transparent 70%), radial-gradient(700px 300px at 72% 12%, rgba(255,255,255,.55), transparent 70%), radial-gradient(1100px 420px at 60% 78%, rgba(255,255,255,.7), transparent 70%), linear-gradient(180deg, #6f9bc7 0%, #9dbddc 38%, #c9dbeb 68%, #e4ecf3 100%); background-attachment: fixed; font-family: "Inter Variable", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+      html.dark body { background-color: #12203a; background: radial-gradient(900px 380px at 18% 22%, rgba(120,160,220,.18), transparent 70%), radial-gradient(1100px 420px at 60% 78%, rgba(80,110,170,.16), transparent 70%), linear-gradient(180deg, #0c1626 0%, #12203a 45%, #172a46 75%, #1b304d 100%); background-attachment: fixed; }
+      .boot { position: fixed; inset: 0; overflow: hidden; --g: rgba(255,255,255,.34); --gl: rgba(255,255,255,.35); --s1: rgba(255,255,255,.25); --s2: rgba(255,255,255,.75); }
+      html.dark .boot { --g: rgba(255,255,255,.07); --gl: rgba(255,255,255,.05); --s1: rgba(255,255,255,.03); --s2: rgba(255,255,255,.09); }
+      .boot i { display: block; font-style: normal; }
+      .boot .sh { background: linear-gradient(90deg, var(--s1) 0%, var(--s2) 50%, var(--s1) 100%); background-size: 200% 100%; animation: boot-sh 1.6s ease-in-out infinite; border-radius: 999px; }
+      .boot .gl { background: var(--g); border: 1px solid var(--gl); -webkit-backdrop-filter: saturate(160%) blur(22px); backdrop-filter: saturate(160%) blur(22px); }
+      .boot-top { position: absolute; inset: 14px 16px auto 16px; height: 48px; display: flex; align-items: center; justify-content: space-between; }
+      .boot-dot { width: 48px; height: 48px; border-radius: 50% !important; }
+      .boot-seg { position: absolute; left: 50%; transform: translateX(-50%); width: 260px; height: 46px; border-radius: 999px; }
+      .boot-right { display: flex; gap: 10px; }
+      .boot-search { width: 190px; height: 44px; border-radius: 999px; }
+      .boot-cols { position: absolute; inset: 76px 16px 16px 16px; display: grid; grid-template-columns: 260px minmax(0,1fr) 356px; gap: 16px; }
+      .boot-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+      .boot-card { border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+      .boot-bar { height: 12px; }
+      .boot-main { align-items: center; justify-content: flex-end; gap: 16px; padding: 24px 6% 0; }
+      .boot-note { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 999px; background: rgba(255,255,255,.8); box-shadow: 0 10px 30px rgba(40,70,110,.12); color: #3b3f48; font-size: 13px; white-space: nowrap; }
+      html.dark .boot-note { background: rgba(30,42,60,.82); color: #c7cedb; }
+      .boot-note[hidden] { display: none; }
+      .boot-note button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: #16181d; color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+      html.dark .boot-note button { background: #e8ecf3; color: #10161f; }
+      .boot-note button[hidden] { display: none; }
+      @keyframes boot-sh { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+      @media (max-width: 1100px) { .boot-cols { grid-template-columns: 240px minmax(0,1fr); } .boot-cols > :nth-child(3) { display: none; } }
+      @media (max-width: 760px) { .boot-cols { grid-template-columns: minmax(0,1fr); } .boot-cols > :first-child, .boot-seg, .boot-search { display: none; } }
+      @media (prefers-reduced-motion: reduce) { .boot .sh { animation: none; } }
     </style>
     <!-- Sets the theme before the first paint. Must stay inline and classic: `defer` or `type="module"` runs too late. -->
     <script>
@@ -24,14 +47,39 @@
     </script>
   </head>
   <body>
+    <!-- Present before the gateway's workspace.js runs its DOMContentLoaded mount, which tells it the
+         app draws its own account control (sign-out lives in the avatar menu), so it adds no
+         floating "退出登录" button of its own. -->
+    <div id="openbot-account-control" hidden></div>
     <div id="root">
-      <div id="openbot-startup" class="openbot-startup" role="status">
-        <div class="openbot-startup-panel">
-          <p id="openbot-startup-title" class="openbot-startup-title">正在加载 ChisaBot…</p>
-          <p id="openbot-startup-detail" class="openbot-startup-detail">首次打开可能需要一些时间。</p>
-          <button id="openbot-reload" class="openbot-startup-reload" type="button" hidden>重新加载</button>
-          <noscript><p class="openbot-startup-detail">请启用浏览器的 JavaScript 后重新加载。</p></noscript>
+      <div id="openbot-startup" class="boot" role="status" aria-label="正在加载 ChisaBot">
+        <div class="boot-top">
+          <i class="boot-dot sh"></i>
+          <i class="boot-seg gl"></i>
+          <span class="boot-right"><i class="boot-search gl"></i><i class="boot-dot gl"></i></span>
         </div>
+        <div class="boot-cols">
+          <div class="boot-col">
+            <i class="sh" style="height:46px"></i>
+            <div class="boot-card gl"><i class="boot-bar sh" style="width:40%;height:10px"></i><i class="boot-bar sh" style="width:85%"></i><i class="boot-bar sh" style="width:70%"></i><i class="boot-bar sh" style="width:78%"></i></div>
+            <div class="boot-card gl" style="flex:1"><i class="boot-bar sh" style="width:30%;height:10px"></i><i class="boot-bar sh" style="width:90%"></i><i class="boot-bar sh" style="width:65%"></i><i class="boot-bar sh" style="width:80%"></i><i class="boot-bar sh" style="width:55%"></i></div>
+          </div>
+          <div class="boot-col boot-main">
+            <i class="boot-bar sh" style="width:34%"></i>
+            <i class="boot-bar sh" style="width:52%"></i>
+            <i class="gl sh" style="width:min(640px,100%);height:96px;border-radius:22px"></i>
+          </div>
+          <div class="boot-col">
+            <i class="sh" style="width:40%;height:14px;margin-top:14px"></i>
+            <div class="boot-card gl"><i class="boot-bar sh" style="width:50%"></i><i class="sh" style="height:64px;border-radius:16px"></i><i class="boot-bar sh" style="width:35%"></i></div>
+          </div>
+        </div>
+        <div id="openbot-startup-note" class="boot-note" hidden>
+          <span id="openbot-startup-title">加载时间比平时长一些…</span>
+          <span id="openbot-startup-detail" hidden></span>
+          <button id="openbot-reload" type="button">重新加载</button>
+        </div>
+        <noscript><div class="boot-note"><span>请启用浏览器的 JavaScript 后重新加载。</span></div></noscript>
       </div>
     </div>
     <script id="openbot-startup-script">
@@ -42,6 +90,7 @@
         var title = document.getElementById("openbot-startup-title");
         var detail = document.getElementById("openbot-startup-detail");
         var reload = document.getElementById("openbot-reload");
+        var note = document.getElementById("openbot-startup-note");
         var failed = false;
         var mounted = false;
         var stage = "shell";
@@ -118,9 +167,8 @@
           }
           failed = true;
           startup.setAttribute("role", "alert");
-          title.textContent = "无法加载 ChisaBot";
-          detail.textContent = "请检查网络连接后重新加载。";
-          reload.hidden = false;
+          title.textContent = "无法加载 ChisaBot，请检查网络连接";
+          note.hidden = false;
           report("error", resource, category, info);
         }
         report("shell");
@@ -142,14 +190,18 @@
           if (stage === "react-mounted") {
             mounted = true;
             window.clearTimeout(deadline);
+            window.clearTimeout(hint);
           }
         });
+        // A gentle hint once the load is clearly slow; the diagnostic report still waits for 30s.
+        var hint = setTimeout(function () {
+          if (mounted || failed || !startup || !startup.isConnected) return;
+          note.hidden = false;
+        }, 10000);
         var deadline = setTimeout(function () {
           if (mounted || failed || !startup || !startup.isConnected) return;
-          startup.setAttribute("role", "alert");
-          title.textContent = "页面仍在加载";
-          detail.textContent = "加载时间较长，请检查网络连接后重试。";
-          reload.hidden = false;
+          title.textContent = "加载时间较长，请检查网络连接";
+          note.hidden = false;
           report("timeout");
         }, 30000);
       })();

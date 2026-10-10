@@ -119,7 +119,7 @@ const MAX_HEIGHT_PX = 220;
  * Tracks the compact `text-sm` line box so PromptArea stays vertically centered in one row.
  */
 const COMPACT_MIN_HEIGHT_PX = 19;
-const COMPACT_MAX_HEIGHT_PX = 96;
+const COMPACT_MAX_HEIGHT_PX = 200;
 
 export type ComposerProps = {
   className?: string;
@@ -1354,10 +1354,7 @@ export function Composer({
   const sendLabel = parking ? "队列消息" : "发送消息";
   const callAction =
     draft.isEmpty && draft.attachments.length === 0 ? voiceCall : undefined;
-  const actionClassName = cn(
-    "rounded-full p-0",
-    compact ? "size-8 self-end" : "size-7",
-  );
+  const actionClassName = "glass-composer-send";
   const primaryAction = canStop ? (
     <Button
       aria-label={"停止机器人"}
@@ -1395,7 +1392,7 @@ export function Composer({
       size="icon"
       type="submit"
     >
-      <IconArrowUp className="size-3.5" />
+      <IconArrowUp className="size-[18px]" stroke={2.25} />
     </Button>
   );
 
@@ -1498,22 +1495,10 @@ export function Composer({
           aria-busy={isBusy}
           className={cn(
             /*
-             * `py-3` IS LOAD-BEARING ONCE THE TEXT WRAPS. On one line `min-h-14` and the controls
-             * row's own `items-center` fake the vertical padding, so it read as correct for as long
-             * as nobody typed a paragraph. Past that the box grows to fit its content exactly and
-             * the glyphs sit against the border.
-             *
-             * It goes on the form rather than on the editor because the editor scrolls internally
-             * at COMPACT_MAX_HEIGHT_PX: padding inside that box would scroll away with the text, so
-             * the first visible line would still touch the top edge on a long message.
+             * A COLUMN: attachment strip, editor, then the toolbar. The frame's padding lives on the
+             * form (see `.glass-composer`) so a scrolled editor never puts text against the edge.
              */
-            /*
-             * A COLUMN, SO THE ATTACHMENT STRIP CAN HAVE THE FULL WIDTH. It used to be one row —
-             * attach button, editor, send — with the strip inside the editor's column, which
-             * started it 42px in from the frame's left edge with nothing under it. The strip is
-             * its own row across the top now, and the three controls keep their row below it.
-             */
-            "flex min-h-14 flex-col rounded-2xl border border-border bg-card px-3 py-3 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+            "glass-composer flex flex-col",
             className,
           )}
           onSubmit={handleFormSubmit}
@@ -1526,64 +1511,65 @@ export function Composer({
               onRemove={discardAttachment}
             />
             {/*
-             * `self-end` ON THE THREE CONTROLS, AND IT COSTS NOTHING ON ONE LINE. The row is
-             * `items-center`, which is right while everything in it is a single line high. A long
-             * message grows the editor to `COMPACT_MAX_HEIGHT_PX`, and centred buttons then float to
-             * the middle of that block rather than sitting on the line the person is typing. Empty,
-             * the row is exactly a button tall, so centred and bottom are the same pixel.
+             * The editor takes the full width and grows to COMPACT_MAX_HEIGHT_PX before it scrolls;
+             * the controls live in their own toolbar row underneath, so they never float mid-text.
              */}
-            <div className="flex items-center gap-3">
-              {attachmentsEnabled ? (
-                <Button
-                  aria-label={"附加文件"}
-                  className="self-end"
-                  // The button stays, and stays labelled: a conversation that cannot take another
-                  // message has not lost the ability to attach, it has lost the message. Swapping it
-                  // for the "unavailable" placeholder would say the wrong thing about why.
-                  disabled={disabled}
-                  onClick={() => fileInputRef.current?.click()}
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                >
-                  <IconPlus className="size-5" />
-                </Button>
-              ) : (
-                <Button
-                  aria-label={"更多消息选项不可用"}
-                  className="self-end disabled:opacity-100"
-                  disabled
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                >
-                  <IconPlus className="size-5" />
-                </Button>
+            <PromptArea
+              aria-label={"消息"}
+              autoGrow
+              className={cn(
+                "glass-composer-editor min-w-0 w-full border-0 bg-transparent p-0 text-sm shadow-none",
+                editorClassName,
               )}
-              <PromptArea
-                aria-label={"消息"}
-                className={cn(
-                  "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none",
-                  editorClassName,
+              disabled={disabled}
+              maxHeight={COMPACT_MAX_HEIGHT_PX}
+              minHeight={COMPACT_MIN_HEIGHT_PX * 2}
+              onChange={handleChange}
+              onImagePaste={canAttach ? stagePastedImage : undefined}
+              onSubmit={submitDraft}
+              placeholder={"输入消息…（Shift+Enter 换行）"}
+              ref={promptAreaRef}
+              triggers={triggers}
+              value={value}
+            />
+            {/* One toolbar inside the frame: attach and the model pill on the left, voice and send on the right. */}
+            <div className="glass-composer-toolbar">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {attachmentsEnabled ? (
+                  <Button
+                    aria-label={"附加文件"}
+                    className="glass-composer-icon"
+                    // Disabled with the conversation, but still labelled: the message is what is gone.
+                    disabled={disabled}
+                    onClick={() => fileInputRef.current?.click()}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <IconPlus className="size-[18px]" />
+                  </Button>
+                ) : (
+                  <Button
+                    aria-label={"更多消息选项不可用"}
+                    className="glass-composer-icon disabled:opacity-40"
+                    disabled
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <IconPlus className="size-[18px]" />
+                  </Button>
                 )}
-                disabled={disabled}
-                maxHeight={COMPACT_MAX_HEIGHT_PX}
-                minHeight={COMPACT_MIN_HEIGHT_PX}
-                onChange={handleChange}
-                onImagePaste={canAttach ? stagePastedImage : undefined}
-                onSubmit={submitDraft}
-                placeholder={"询问任何内容"}
-                ref={promptAreaRef}
-                triggers={triggers}
-                value={value}
-              />
-              <DictationButton
-                dictation={dictation}
-                disabled={disabled || voiceCall?.active === true}
-              />
-              {primaryAction}
+                {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <DictationButton
+                  dictation={dictation}
+                  disabled={disabled || voiceCall?.active === true}
+                />
+                {primaryAction}
+              </div>
             </div>
-            {modelControl}
           </DictationSurface>
         </form>
       </div>
@@ -1602,13 +1588,12 @@ export function Composer({
       {tooManyStagedNotice}
       <form
         aria-busy={isBusy}
-        className="overflow-hidden rounded-2xl border border-border bg-card"
+        className="glass-composer glass-composer-hero"
         onSubmit={handleFormSubmit}
       >
         <DictationSurface
           dictation={dictation}
           canSend={canSendRecording}
-          className="p-3"
         >
           {filePicker}
 
@@ -1630,30 +1615,32 @@ export function Composer({
               onChange={handleChange}
               onImagePaste={canAttach ? stagePastedImage : undefined}
               onSubmit={submitDraft}
-              placeholder={"询问任何内容"}
+              placeholder={"有什么想让 BOT 帮你做的？用 @ 指定 BOT"}
               ref={promptAreaRef}
               triggers={triggers}
               value={value}
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            {attachmentsEnabled ? (
-              <Button
-                aria-label={"附加文件"}
-                className="size-7 rounded-full p-0"
-                disabled={disabled}
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-                variant="ghost"
-              >
-                <IconPlus className="size-4" />
-              </Button>
-            ) : (
-              <div />
-            )}
+          <div className="glass-composer-toolbar">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {attachmentsEnabled ? (
+                <Button
+                  aria-label={"附加文件"}
+                  className="glass-composer-icon"
+                  disabled={disabled}
+                  onClick={() => fileInputRef.current?.click()}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <IconPlus className="size-[18px]" />
+                </Button>
+              ) : null}
+              {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
+            </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1.5">
               <DictationButton
                 dictation={dictation}
                 disabled={disabled || voiceCall?.active === true}
@@ -1661,7 +1648,6 @@ export function Composer({
               {primaryAction}
             </div>
           </div>
-          {modelControl}
         </DictationSurface>
       </form>
     </div>

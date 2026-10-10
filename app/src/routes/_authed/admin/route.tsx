@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
+import { ShellBoundary } from "@/components/startup-status";
 import { currentUserQueryOptions } from "../../../lib/auth/queries";
 
 export const Route = createFileRoute("/_authed/admin")({
@@ -20,7 +21,9 @@ function RouteComponent() {
     <SidebarShell width="300px">
       <AdminSidebar />
       <main className="flex-1">
-        <Outlet />
+        <ShellBoundary>
+          <Outlet />
+        </ShellBoundary>
       </main>
     </SidebarShell>
   );
