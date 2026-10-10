@@ -6,8 +6,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -153,7 +152,7 @@ function RouteComponent() {
         />
 
         {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
-        {apps.isPending ? null : apps.error ? (
+        {apps.isPending ? <PageSkeleton /> : apps.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {/*
              * The server's own sentence, as the enable failure above already does. A keyless

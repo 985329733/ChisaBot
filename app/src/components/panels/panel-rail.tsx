@@ -1,3 +1,4 @@
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   IconAdjustments,
   IconChevronDown,
@@ -486,8 +487,14 @@ function PanelCard({
                   <DropdownMenuItem
                     className="gap-2"
                     onClick={() => {
-                      if (window.confirm("移除此 BOT 的面板？面板库继续保留。"))
-                        remove.mutate();
+                      void confirmDialog({
+                        title: "移除此面板？",
+                        description: "只会从这个 BOT 上移除，面板库中的副本继续保留。",
+                        confirmLabel: "移除",
+                        destructive: true,
+                      }).then((ok) => {
+                        if (ok) remove.mutate();
+                      });
                     }}
                     variant="destructive"
                   >
@@ -605,13 +612,17 @@ function CapabilityList({
               )}
               disabled={toggle.isPending || grants.isPending}
               onClick={() => {
-                if (
-                  on ||
-                  window.confirm(
-                    `批准面板 ${instance.title} 使用 ${cap.adapter}/${cap.action}，范围为当前用户和此 BOT？`,
-                  )
-                )
+                if (on) {
                   toggle.mutate({ id: cap.id, on: !on });
+                  return;
+                }
+                void confirmDialog({
+                  title: "批准此权限？",
+                  description: `面板「${instance.title}」将可以使用 ${cap.adapter}/${cap.action}，范围为当前用户和此 BOT。`,
+                  confirmLabel: "批准",
+                }).then((ok) => {
+                  if (ok) toggle.mutate({ id: cap.id, on: true });
+                });
               }}
               type="button"
             >
@@ -771,8 +782,14 @@ function PanelLibrary({
                         className="text-[11px] text-muted-foreground hover:text-destructive"
                         disabled={archive.isPending}
                         onClick={() => {
-                          if (window.confirm("归档此库项？已安装副本继续保留。"))
-                            archive.mutate(entry);
+                          void confirmDialog({
+                            title: "归档此库项？",
+                            description: "已安装到各 BOT 的副本会继续保留。",
+                            confirmLabel: "归档",
+                            destructive: true,
+                          }).then((ok) => {
+                            if (ok) archive.mutate(entry);
+                          });
                         }}
                         type="button"
                       >
@@ -844,10 +861,17 @@ function DraftPreview({
       if (
         e instanceof Error &&
         e.message === "state_reset_required" &&
-        !input.resetState &&
-        window.confirm("此版本与您的状态不兼容。确认仅重置您自己的状态并保存面板？")
+        !input.resetState
       ) {
-        commit.mutate({ ...input, resetState: true });
+        void confirmDialog({
+          title: "需要重置状态",
+          description: "此版本与你的面板状态不兼容。确认只重置你自己的状态并保存面板？",
+          confirmLabel: "重置并保存",
+          destructive: true,
+        }).then((ok) => {
+          if (ok) commit.mutate({ ...input, resetState: true });
+          else setError(panelErrorText(e));
+        });
         return;
       }
       setError(panelErrorText(e));

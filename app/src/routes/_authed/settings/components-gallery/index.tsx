@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ComponentPreview } from "@/components/component-preview";
-import { PageShell } from "@/components/layout/page-shell";
+import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { SettingsItemBackground } from "@/components/settings/background";
 import {
   Empty,
@@ -34,7 +34,7 @@ function RouteComponent() {
       }
       title={"组件库"}
     >
-      {components.isPending ? null : components.error ? (
+      {components.isPending ? <PageSkeleton /> : components.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
           {"无法加载组件。"}
         </p>

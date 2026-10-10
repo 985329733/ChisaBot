@@ -1,3 +1,4 @@
+import { toast } from "@/components/ui/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChannelItemContent } from "@/components/app-sidebar/channel-item-content";
 import { PageRows } from "@/components/layout/page-shell";
@@ -46,7 +47,13 @@ export function MessageListPreference() {
             disabled={!preferences.data || save.isPending}
             onValueChange={(value) => {
               if (value === "agent" || value === "thread") {
-                save.mutate({ messageListEmphasis: value });
+                save.mutate(
+                  { messageListEmphasis: value },
+                  {
+                    onSuccess: () => toast.success("已保存"),
+                    onError: (thrown: Error) => toast.error(`保存失败：${thrown.message}`),
+                  },
+                );
               }
             }}
           >

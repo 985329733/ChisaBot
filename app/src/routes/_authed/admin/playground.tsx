@@ -89,7 +89,7 @@ export function validatePlaygroundDraft(draft: Draft): PlaygroundValidation {
     draft.argumentSchema,
     "Arguments (JSON Schema)",
   );
-  const sample = parseJsonObject(draft.sampleArguments, "Sample arguments");
+  const sample = parseJsonObject(draft.sampleArguments, "示例参数");
   if (!schema.ok || !sample.ok) {
     return {
       ok: false,

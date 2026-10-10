@@ -1,3 +1,4 @@
+import { RouteSkeleton } from "@/components/startup-status";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import { IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -95,7 +96,7 @@ function RouteComponent() {
     listedBot ?? (detail?.status === "found" ? detail.bot : undefined);
   const known = bot !== undefined;
 
-  if (isPending || (shouldLoadExplicitBot && isDetailPending)) return null;
+  if (isPending || (shouldLoadExplicitBot && isDetailPending)) return <RouteSkeleton />;
   if (isError && agents === undefined) {
     return (
       <div className="flex h-screen items-center justify-center p-6">

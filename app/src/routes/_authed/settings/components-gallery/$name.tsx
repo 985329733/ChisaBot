@@ -1,3 +1,4 @@
+import { RouteSkeleton } from "@/components/startup-status";
 import { IconCode, IconTag } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -72,7 +73,7 @@ function RouteComponent() {
   const { name } = Route.useParams();
   const components = useQuery(componentListQueryOptions());
 
-  if (components.isPending) return null;
+  if (components.isPending) return <RouteSkeleton />;
 
   if (components.error) {
     return (

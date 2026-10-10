@@ -116,7 +116,7 @@ export function channelHistoryNotice({
 
   if (unreadable > 0) {
     return unreadable === 1
-      ? "One earlier message could not be read and is not shown. The rest of this conversation is complete."
+      ? "有一条较早的消息无法读取，未显示。会话其余部分完整。"
       : `${unreadable} earlier messages could not be read and are not shown. The rest of this conversation is complete.`;
   }
 
@@ -235,7 +235,7 @@ export function toMessageContent(
 function describeAttachments(attachments: readonly Attachment[]): string {
   if (attachments.length === 1) {
     const { filename } = uploadedAttachment(attachments[0]);
-    return filename ? `Sent ${filename}` : "Sent an attachment";
+    return filename ? `Sent ${filename}` : "发送了附件";
   }
   return `已发送 ${attachments.length} 个附件`;
 }
@@ -1072,6 +1072,29 @@ export function ChannelChat({
              * run before closing it; see server/src/channels/stall-guard.ts.
              */
             stopped={runError ?? undefined}
+            /*
+             * The retry resends the restored draft, which adds the message again. Take the failed
+             * turn's copy out first, but only when nothing came back under it: a partial answer is
+             * part of the conversation and stays.
+             */
+            onBeforeRetry={() => {
+              const target = agentRef.current;
+              const list = target.messages;
+              let lastUser = -1;
+              for (let i = list.length - 1; i >= 0; i -= 1) {
+                if (list[i]?.role === "user") {
+                  lastUser = i;
+                  break;
+                }
+              }
+              if (lastUser < 0) return;
+              const answered = list
+                .slice(lastUser + 1)
+                .some((message) => message.role === "assistant" || message.role === "tool");
+              if (answered) return;
+              target.setMessages(list.slice(0, lastUser) as typeof list);
+              setRunError(null);
+            }}
           />
         </div>
       </ConversationProvider>

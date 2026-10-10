@@ -7,8 +7,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
 import { Button } from "@/components/ui/button";
 import {
@@ -287,7 +286,7 @@ function CredentialsPage() {
                 selector={(state) => [state.canSubmit, state.isSubmitting]}
               >
                 {([canSubmit, isSubmitting]) => (
-                  <Button
+                  <Button loading={createCredential.isPending}
                     disabled={
                       !canSubmit || isSubmitting || createCredential.isPending
                     }
@@ -306,7 +305,7 @@ function CredentialsPage() {
       </Dialog>
 
       <PageSection title={"已配置的凭据"}>
-        {credentials.isPending ? null : credentials.error ? (
+        {credentials.isPending ? <PageSkeleton /> : credentials.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {"无法加载凭据。"}
           </p>

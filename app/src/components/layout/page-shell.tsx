@@ -122,7 +122,7 @@ export function PageShell({
         >
           <header className="flex flex-col gap-2">
             <div className="flex flex-row items-center justify-between gap-4">
-              <h1 className="font-bold text-2xl">{title}</h1>
+              <h1 className="page-title font-semibold text-2xl tracking-tight">{title}</h1>
               {action}
             </div>
             {description ? (
@@ -159,10 +159,10 @@ export function PageSection({
   title?: string;
 }) {
   return (
-    <section className={cn("mt-12", className)}>
+    <section className={cn("mt-10", className)} data-slot="page-section">
       {title ? (
         <div className="flex min-h-8 flex-row items-center justify-between gap-4">
-          <h2 className="font-bold text-lg">{title}</h2>
+          <h2 className="page-section-title font-semibold text-base">{title}</h2>
           {action}
         </div>
       ) : null}
@@ -198,7 +198,7 @@ export function PageRows({
      */
     <div
       className={cn(
-        "mt-4 overflow-hidden rounded-lg border border-border bg-card dark:border-transparent",
+        "page-rows mt-4 overflow-hidden rounded-lg border border-border bg-card dark:border-transparent",
         "[&_[data-slot=item]]:rounded-none",
         className,
       )}
@@ -215,5 +215,39 @@ export function PageRows({
  * "nothing here yet" is a fact, not an event, and the page already told you what the section is for.
  */
 export function PageEmpty({ children }: { children: React.ReactNode }) {
-  return <p className="mt-4 text-muted-foreground text-sm">{children}</p>;
+  return (
+    <p className="page-empty mt-4 text-muted-foreground text-sm" data-slot="page-empty">
+      {children}
+    </p>
+  );
+}
+
+/**
+ * A list that has been asked for and has not arrived: rows the shape of the ones it will hold, in
+ * the same glass card, so the page does not jump when the data lands.
+ */
+export function PageSkeleton({ rows = 3, tall = false }: { rows?: number; tall?: boolean }) {
+  return (
+    <div
+      aria-busy="true"
+      aria-label={"正在加载"}
+      className="page-rows page-skeleton mt-4"
+      role="status"
+    >
+      {Array.from({ length: rows }, (_, index) => (
+        <div className="page-skeleton-row" key={index}>
+          {tall ? null : <span className="sky-skel-glass page-skeleton-dot" />}
+          <span className="flex min-w-0 flex-1 flex-col gap-2">
+            <span
+              className="sky-skel-glass page-skeleton-bar"
+              style={{ width: tall ? "100%" : `${58 - index * 9}%`, height: tall ? 120 : undefined }}
+            />
+            {tall ? null : (
+              <span className="sky-skel-glass page-skeleton-bar is-sub" style={{ width: `${36 - index * 5}%` }} />
+            )}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }

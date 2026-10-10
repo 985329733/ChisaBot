@@ -258,7 +258,7 @@ function PublishForm({ botId, current }: { botId: string; current?: TeamBot }) {
         </div>
       ) : null}
       <div className="flex items-center gap-2">
-        <Button disabled={publish.isPending} size="sm" type="submit">
+        <Button loading={publish.isPending} disabled={publish.isPending} size="sm" type="submit">
           {current ? "更新" : "发布到团队"}
         </Button>
         {publish.error ? (
@@ -308,7 +308,7 @@ function Assignments({ bot }: { bot: TeamBot }) {
           placeholder={"组，或 *"}
           value={group}
         />
-        <Button
+        <Button loading={assign.isPending}
           disabled={!group.trim() || assign.isPending}
           size="sm"
           type="submit"

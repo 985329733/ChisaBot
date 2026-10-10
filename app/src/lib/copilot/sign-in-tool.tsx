@@ -100,7 +100,7 @@ export function SignInTool() {
           return {
             ok: false,
             requestId: id,
-            result: "The request was stopped.",
+            result: "请求已停止。",
           };
         const state = await readSignIn(id, signal);
         if (state && FINAL_SIGN_IN.includes(state.status))

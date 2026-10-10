@@ -165,7 +165,7 @@ function ScheduleSkill({
       )}
       <div className="flex gap-2">
         {/* Base UI's Button defaults to type="button", which never submits the form. */}
-        <Button
+        <Button loading={schedule.isPending}
           size="sm"
           type="submit"
           disabled={schedule.isPending || (cron === "custom" && !custom.trim())}
@@ -308,7 +308,7 @@ export function DemonstrationRecorder({
             />
           </label>
           {/* Base UI's Button defaults to type="button", which never submits the form. */}
-          <Button
+          <Button loading={start.isPending}
             size="sm"
             type="submit"
             disabled={!driving || start.isPending || !title.trim()}
@@ -411,7 +411,7 @@ export function DemonstrationRecorder({
           <SkillFields
             key={draft.sourceRecordingId}
             defaultValues={draft}
-            submitLabel="Save and use with this Bot"
+            submitLabel="保存并用于此机器人"
             error={saveError || save.error}
             onCancel={() => setDraft(null)}
             onSubmit={async (values) => {

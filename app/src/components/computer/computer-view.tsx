@@ -338,7 +338,7 @@ export function ComputerView({
         if (generation.current !== mine) return;
 
         if (!frame) {
-          setProblem(error ?? "The screen is not available right now.");
+          setProblem(error ?? "屏幕暂时不可用。");
         } else {
           // Exact byte comparison is the settling signal.
           unchanged = frame.base64 === lastFrame ? unchanged + 1 : 0;

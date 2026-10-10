@@ -36,7 +36,7 @@ export function NewSkill() {
           // skill than the form just said, and the new row is already behind it in the list.
           await navigate({ search: {}, to: "/skills" });
         }}
-        submitLabel="Save skill"
+        submitLabel="保存技能"
       />
     </div>
   );

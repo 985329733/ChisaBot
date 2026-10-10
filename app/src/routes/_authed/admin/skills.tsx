@@ -7,8 +7,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -110,7 +109,7 @@ function RouteComponent() {
         title={"已安装"}
       >
         {/* A read that failed says so; `isPending` goes false on it too, and it is not "none". */}
-        {plugins.isPending ? null : !plugins.data ? (
+        {plugins.isPending ? <PageSkeleton /> : !plugins.data ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {"无法加载技能。"}
           </p>

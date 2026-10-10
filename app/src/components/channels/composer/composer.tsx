@@ -503,7 +503,7 @@ export function Composer({
         // `http://` a queue drop would answer by tearing down the tree that was about to explain
         // it — a blank conversation instead of a list of the files it just lost.
         id: newId(),
-        name: attachment.filename ?? "Attachment",
+        name: attachment.filename ?? "附件",
         reason,
       })),
     ]);
@@ -1026,7 +1026,7 @@ export function Composer({
         .filter((attachment) => stagedModality(attachment) !== "image")
         .map((attachment) => ({
           id: attachment.id,
-          name: attachment.filename ?? "Attachment",
+          name: attachment.filename ?? "附件",
           size: attachment.size,
           loading: attachment.status === "uploading",
           /*

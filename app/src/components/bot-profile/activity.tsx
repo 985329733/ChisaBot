@@ -47,12 +47,12 @@ const ICONS: Record<ActivityKind, typeof IconBell> = {
 };
 
 const KIND_LABEL: Record<ActivityKind, string> = {
-  routine: "Routine",
-  responsibility: "Responsibility",
-  handoff: "Delegated task",
-  approval: "Approval",
-  question: "Question",
-  follow_up: "Follow-up",
+  routine: "例行任务",
+  responsibility: "职责",
+  handoff: "委派任务",
+  approval: "审批",
+  question: "提问",
+  follow_up: "跟进",
 };
 
 /** Where an item opens: its conversation when it has one, otherwise the screen that owns its kind. */
@@ -192,19 +192,19 @@ export function BotActivitySections({ agentId }: { agentId: string }) {
     <>
       <ActivitySection
         agentId={agentId}
-        empty="Nothing is running or waiting on you."
+        empty="当前没有正在运行或等待你处理的任务。"
         items={activity.data.inProgress}
         title={"进行中"}
       />
       <ActivitySection
         agentId={agentId}
-        empty="Nothing is scheduled."
+        empty="暂无计划任务。"
         items={activity.data.scheduled}
         title={"已计划"}
       />
       <ActivitySection
         agentId={agentId}
-        empty="Nothing has finished yet."
+        empty="暂时还没有已完成的任务。"
         items={activity.data.completed}
         title={"已完成"}
       />

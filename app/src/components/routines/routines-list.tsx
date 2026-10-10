@@ -2,7 +2,7 @@ import { IconHistory, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { PageSection } from "@/components/layout/page-shell";
+import { PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -268,7 +268,7 @@ export function RoutinesList({
       ) : null}
 
       {/* Pending renders nothing: the empty-state sentence would otherwise flash for the fetch. */}
-      {routines.isPending ? null : routines.error ? (
+      {routines.isPending ? <PageSkeleton /> : routines.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
           {"您的定时任务无法加载。"}
         </p>

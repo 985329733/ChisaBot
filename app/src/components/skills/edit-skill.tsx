@@ -1,3 +1,4 @@
+import { RouteSkeleton } from "@/components/startup-status";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SkillAgents } from "@/components/skills/skill-agents";
@@ -28,7 +29,7 @@ export function EditSkill({ slug }: { slug: string }) {
   const saveSkill = useMutation(saveSkillMutationOptions(queryClient));
 
   /* Nothing while it loads. "Missing" and "not yet arrived" must not read the same. */
-  if (isPending) return null;
+  if (isPending) return <RouteSkeleton />;
 
   /*
    * No list is not a missing skill. `isPending` goes false on a failed read too, and the sentence
@@ -92,7 +93,7 @@ export function EditSkill({ slug }: { slug: string }) {
           await navigate({ search: {}, to: "/skills" });
         }}
         slugLocked
-        submitLabel="Save changes"
+        submitLabel="保存更改"
       />
     </div>
   );

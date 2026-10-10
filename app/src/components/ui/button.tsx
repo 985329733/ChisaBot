@@ -1,3 +1,4 @@
+import { IconLoader2 } from "@tabler/icons-react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -62,16 +63,29 @@ function Button({
    * that does.
    */
   nativeButton = render === undefined,
+  /** Pending: draws a spinner in front of the label and disables the button until it settles. */
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & { loading?: boolean }) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      aria-busy={loading || undefined}
+      data-loading={loading ? "true" : undefined}
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || loading}
       nativeButton={nativeButton}
       render={render}
       {...props}
-    />
+    >
+      {loading ? (
+        <IconLoader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
+      ) : null}
+      {children}
+    </ButtonPrimitive>
   );
 }
 

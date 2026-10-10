@@ -7,7 +7,7 @@ import {
   attentionSummary,
   needsInput,
 } from "@/components/bot-profile/attention";
-import { PageEmpty, PageRows, PageShell } from "@/components/layout/page-shell";
+import { PageEmpty, PageRows, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import {
   Item,
   ItemActions,
@@ -34,7 +34,7 @@ function BotsPage() {
       description={"您每个机器人在做什么，它需要您什么，以及它是否已暂停。"}
       title={"机器人"}
     >
-      {agents.isPending ? null : agents.error ? (
+      {agents.isPending ? <PageSkeleton /> : agents.error ? (
         <p className="mt-6 text-destructive text-sm" role="alert">
           {"无法加载您的机器人。"}
         </p>

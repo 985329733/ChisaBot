@@ -11,8 +11,7 @@ import * as React from "react";
 import {
   PageEmpty,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
 import {
@@ -186,7 +185,7 @@ function RouteComponent() {
        * this page could not be loaded, and what it would otherwise draw is not shown rather than
        * drawn wrong.
        */}
-      {plugins.isPending || connections.isPending ? null : plugins.error ||
+      {plugins.isPending || connections.isPending ? <PageSkeleton /> : plugins.error ||
         connections.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
           {

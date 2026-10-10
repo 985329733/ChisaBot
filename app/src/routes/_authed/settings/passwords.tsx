@@ -1,3 +1,5 @@
+import { confirmDialog } from "@/components/ui/confirm";
+import { toast } from "@/components/ui/toast";
 import { IconKey, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -6,6 +8,7 @@ import {
   PageRows,
   PageSection,
   PageShell,
+  PageSkeleton,
 } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +45,7 @@ function PasswordsPage() {
       }
     >
       <PageSection title={"已保存的登录"}>
-        {logins.isPending ? null : logins.error ? (
+        {logins.isPending ? <PageSkeleton /> : logins.error ? (
           <p className="text-destructive text-sm" role="alert">
             {"无法加载您的密码。"}
           </p>
@@ -76,7 +79,20 @@ function PasswordsPage() {
                       size="sm"
                       variant="ghost"
                       disabled={remove.isPending}
-                      onClick={() => remove.mutate(login.id)}
+                      onClick={() => {
+                        void confirmDialog({
+                          title: "删除这条已保存的登录？",
+                          description: `${login.origin} · ${login.username}。删除后无法恢复。`,
+                          confirmLabel: "删除",
+                          destructive: true,
+                        }).then((ok) => {
+                          if (!ok) return;
+                          remove.mutate(login.id, {
+                            onSuccess: () => toast.success("已删除"),
+                            onError: (thrown: Error) => toast.error(`删除失败：${thrown.message}`),
+                          });
+                        });
+                      }}
                     >
                       <IconTrash />
                     </Button>

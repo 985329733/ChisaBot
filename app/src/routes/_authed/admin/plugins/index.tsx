@@ -11,8 +11,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import {
   Item,
@@ -116,7 +115,7 @@ function RouteComponent() {
       title={"插件"}
     >
       {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
-      {plugins.isPending ? null : plugins.error ? (
+      {plugins.isPending ? <PageSkeleton /> : plugins.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
           {"插件无法加载。"}
         </p>

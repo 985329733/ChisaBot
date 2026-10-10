@@ -498,7 +498,7 @@ export function ComputerTools() {
           outcome === "answered"
             ? `The person has entered ${input.label} into the field. It was typed straight into the page and you were not told what it is.`
             : outcome === "cancelled"
-              ? "The request was cancelled."
+              ? "请求已取消。"
               : `Nobody entered ${input.label}. Do not ask for it another way.`,
       };
     },

@@ -6,8 +6,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,7 +127,7 @@ function PeoplePage() {
           value={search}
         />
 
-        {people.isPending ? null : people.error ? (
+        {people.isPending ? <PageSkeleton /> : people.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {"无法加载人员。"}
           </p>

@@ -34,6 +34,7 @@ export function ConversationView({
   pending = false,
   autoFocus = false,
   stopped,
+  onBeforeRetry,
   stoppable,
   queueWhileBusy = false,
   restoring = false,
@@ -73,6 +74,11 @@ export function ConversationView({
   autoFocus?: boolean;
   /** Why the last turn ended without an answer. Drawn at the end of the transcript, not here. */
   stopped?: string;
+  /**
+   * Called just before the error card's 重试 resends the restored draft, so the caller can take the
+   * failed turn's own copy of the message out of the transcript instead of showing it twice.
+   */
+  onBeforeRetry?: () => void;
   /**
    * There is a run for Stop to abort, which is a narrower fact than `pending` and is the honest one
    * to draw a Stop button from. Defaults to `pending` for a caller with no gap between the two.
@@ -413,6 +419,23 @@ export function ConversationView({
     });
   }, [apply, disabled, inFlight, restoreFailedRun, sendBlocked]);
 
+  /*
+   * 重试 resends what the failed turn put back into the composer: the composer restores the words,
+   * the chips and the attachments of a failed send, so pressing its own send button is the retry
+   * that carries all of it, through the same gates as a typed send.
+   */
+  const composerBoxRef = useRef<HTMLDivElement | null>(null);
+  const retry = () => {
+    const box = composerBoxRef.current;
+    const send = box?.querySelector<HTMLButtonElement>('form button[type="submit"]');
+    if (send && !send.disabled) {
+      onBeforeRetry?.();
+      send.click();
+      return;
+    }
+    box?.querySelector<HTMLElement>('[contenteditable="true"], textarea')?.focus();
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex flex-1 min-h-0">
@@ -435,10 +458,10 @@ export function ConversationView({
           }}
           queued={queued}
           restoring={restoring}
-          {...(stopped ? { stopped } : {})}
+          {...(stopped ? { stopped, onRetry: retry } : {})}
         />
       </div>
-      <div className="max-w-2xl mx-auto w-full px-0 pb-4 shrink-0">
+      <div className="max-w-2xl mx-auto w-full px-0 pb-4 shrink-0" ref={composerBoxRef}>
         {notice}
         <Composer
           modelControl={modelControl}

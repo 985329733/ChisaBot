@@ -1,3 +1,4 @@
+import { PageSkeleton } from "@/components/layout/page-shell";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -79,7 +80,7 @@ export function SkillTools({
     <Field>
       <FieldLabel>{"它需要的工具"}</FieldLabel>
 
-      {plugins.isPending ? null : plugins.error ? (
+      {plugins.isPending ? <PageSkeleton /> : plugins.error ? (
         <p className="text-destructive text-xs" role="alert">
           {"无法加载此部署拥有的工具。"}
         </p>

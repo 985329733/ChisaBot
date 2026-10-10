@@ -59,18 +59,18 @@ export function VoiceCallWidget({
   const connecting = state.phase === "connecting";
   const failed = state.phase === "error";
   const status = failed
-    ? "Call unavailable"
+    ? "通话不可用"
     : connecting
       ? "Connecting…"
       : state.speaking
         ? `${name} is speaking`
         : taskRunning
-          ? "Working on your request"
+          ? "正在处理你的请求"
           : state.muted
-            ? "Your microphone is muted"
+            ? "麦克风已静音"
             : state.listening
-              ? "Listening to you"
-              : "Ready when you are";
+              ? "正在聆听"
+              : "随时可以开始";
   const duration = `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, "0")}`;
   const transition = {
     duration: reduceMotion ? 0 : ENTRANCE_SECONDS,

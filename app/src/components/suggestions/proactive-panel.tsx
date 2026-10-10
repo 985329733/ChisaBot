@@ -43,7 +43,7 @@ export function SuggestionsInbox() {
     onSuccess: refresh,
   });
   const botName = (id: string) =>
-    bots.data?.find((bot) => bot.id === id)?.name ?? "Your Bot";
+    bots.data?.find((bot) => bot.id === id)?.name ?? "你的机器人";
   return (
     <section className="grid gap-3">
       <h2 className="font-semibold">{"建议的下一步"}</h2>
@@ -221,7 +221,7 @@ export function ProactiveResearchSettings() {
             placeholder={"打开分配给我的问题和等待我回答的问题"}
           />
         </label>
-        <Button
+        <Button loading={add.isPending}
           type="submit"
           className="justify-self-start"
           disabled={add.isPending || !agentId || !channelId}

@@ -94,7 +94,7 @@ export function ProposedSkillCard({
       // Left on the card with the buttons still live. See `refusal` above.
       setSending(null);
       setRefusal(
-        cause instanceof Error ? cause.message : "The skill was not saved.",
+        cause instanceof Error ? cause.message : "技能未保存。",
       );
       return;
     }

@@ -11,13 +11,13 @@ export type BrowserGroup = {
 export type TranscriptItem = VisibleChatItem | BrowserGroup;
 
 const labels: Record<string, string> = {
-  computer_navigate: "Opened page",
-  computer_read: "Read page",
-  computer_snapshot: "Inspected page",
-  computer_click: "Clicked on page",
-  computer_type: "Filled in field",
-  computer_key: "Pressed key",
-  computer_scroll: "Scrolled page",
+  computer_navigate: "打开了页面",
+  computer_read: "读取了页面",
+  computer_snapshot: "检查了页面",
+  computer_click: "点击了页面",
+  computer_type: "填写了字段",
+  computer_key: "按下了按键",
+  computer_scroll: "滚动了页面",
 };
 
 /** Group adjacent browsing steps without moving messages or hiding requests for human help. */

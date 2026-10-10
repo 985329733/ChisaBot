@@ -19,8 +19,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -132,7 +131,7 @@ function EnterprisePage() {
           {failure.message}
         </p>
       ) : null}
-      {overview.isPending ? null : overview.error ? (
+      {overview.isPending ? <PageSkeleton /> : overview.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
           {"无法加载企业控制。"}
         </p>
@@ -998,7 +997,7 @@ function NetworkDialog({
             <Button onClick={onClose} size="sm" type="button" variant="outline">
               {"取消"}
             </Button>
-            <Button
+            <Button loading={save.isPending}
               disabled={
                 save.isPending || (initial.scopeKind === "group" && !scopeId)
               }

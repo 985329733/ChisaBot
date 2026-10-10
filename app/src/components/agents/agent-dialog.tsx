@@ -109,11 +109,11 @@ export function AgentDialog({
 }
 
 const SECTIONS = [
-  { id: "general", name: "General", icon: IconUser },
+  { id: "general", name: "通用", icon: IconUser },
   { id: "access", name: "Access", icon: IconPuzzle },
-  { id: "connection", name: "Connection", icon: IconPlugConnected },
-  { id: "handoff", name: "Handoff", icon: IconArrowsExchange },
-  { id: "routines", name: "Routines", icon: IconClock },
+  { id: "connection", name: "连接", icon: IconPlugConnected },
+  { id: "handoff", name: "交接", icon: IconArrowsExchange },
+  { id: "routines", name: "例行任务", icon: IconClock },
   { id: "manage", name: "Manage", icon: IconAdjustments },
 ] as const;
 
@@ -504,7 +504,7 @@ function VisibilityItem({
           <Select
             disabled={saving}
             // The label map, so the closed trigger says "Private" rather than the raw value.
-            items={{ private: "Private", public: "Public" }}
+            items={{ private: "私有", public: "Public" }}
             onValueChange={async (next) => {
               if (next === value) return;
               setError(null);
@@ -779,7 +779,7 @@ function ManageSection({
             </ItemDescription>
           </ItemContent>
           <ItemActions>
-            <Button
+            <Button loading={duplicateAgent.isPending}
               disabled={duplicateAgent.isPending}
               onClick={async () => {
                 const copy = await duplicateAgent.mutateAsync(agentId);
@@ -848,7 +848,7 @@ function ManageSection({
             >
               {"取消"}
             </Button>
-            <Button
+            <Button loading={deleteAgent.isPending}
               disabled={deleteAgent.isPending}
               onClick={async () => {
                 await deleteAgent.mutateAsync(agentId);

@@ -1,3 +1,4 @@
+import { RouteSkeleton } from "@/components/startup-status";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -54,7 +55,7 @@ export function GroupChat({ channelId }: { channelId: string }) {
     if (lastKey) endRef.current?.scrollIntoView({ block: "end" });
   }, [lastKey]);
 
-  if (group.isPending) return null;
+  if (group.isPending) return <RouteSkeleton />;
   if (group.isError)
     return (
       <p className="p-8 text-sm text-destructive" role="alert">
@@ -79,10 +80,10 @@ export function GroupChat({ channelId }: { channelId: string }) {
               message={message}
               name={
                 message.agentId
-                  ? (names.get(message.agentId) ?? "A Bot no longer here")
+                  ? (names.get(message.agentId) ?? "已不存在的机器人")
                   : message.ownerUserId === me?.id
                     ? "You"
-                    : "A teammate"
+                    : "一位队友"
               }
               answeredBy={
                 message.answeredBy
@@ -251,7 +252,7 @@ function AddPerson({ channelId }: { channelId: string }) {
         type="email"
         value={email}
       />
-      <Button disabled={!email.trim() || add.isPending} size="sm" type="submit">
+      <Button loading={add.isPending} disabled={!email.trim() || add.isPending} size="sm" type="submit">
         {"添加"}
       </Button>
       {add.error ? (

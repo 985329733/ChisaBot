@@ -7,6 +7,9 @@ import {
 import {
   IconAlertTriangle,
   IconBox,
+  IconCheck,
+  IconCopy,
+  IconRefresh,
   IconChevronDown,
   IconClock,
   IconFile,
@@ -23,6 +26,7 @@ import {
 } from "react";
 import { Streamdown } from "streamdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { toast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogClose,
@@ -50,6 +54,7 @@ import { readResponsibilityTurn } from "@/lib/channels/responsibility-turn";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
+import { friendlyError } from "@/lib/chat/friendly-error";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
 import {
@@ -99,6 +104,8 @@ type ChatTranscriptProps = {
    * be told, and only the thing that ended the turn knows which one happened.
    */
   stopped?: string;
+  /** Re-run the turn that failed. Without it the error card has no retry button. */
+  onRetry?: () => void;
 };
 
 /** One shared empty array, so a screen without a queue does not hand down a new one per render. */
@@ -175,14 +182,20 @@ function RestoringTranscript() {
  */
 function Thinking() {
   return (
-    <p
-      className="tool-line-running text-muted-foreground text-sm"
+    <div
+      className="chat-thinking"
+      data-testid="transcript-thinking"
       // `status` rather than `alert`: this is progress, not something that interrupts what somebody
-      // is doing. The text says it, so a screen reader is told the same thing the shimmer implies.
+      // is doing. The text says it, so a screen reader is told the same thing the dots imply.
       role="status"
     >
-      {"思考中"}
-    </p>
+      <span aria-hidden="true" className="chat-thinking-dots">
+        <i />
+        <i />
+        <i />
+      </span>
+      <span className="tool-line-running">{"思考中"}</span>
+    </div>
   );
 }
 
@@ -199,15 +212,50 @@ function Thinking() {
  * and the conversation is sent back to the model on the next turn, so the Bot would then read its
  * own obituary as something it had written.
  */
-function Stopped({ reason }: { reason: string }) {
+function Stopped({
+  onRetry,
+  reason,
+}: {
+  onRetry?: () => void;
+  reason: string;
+}) {
+  const friendly = friendlyError(reason);
+  const [open, setOpen] = useState(false);
   return (
-    <p
-      className="text-destructive text-sm"
+    <div
+      className="chat-error-card"
       data-testid="transcript-stopped"
       role="alert"
     >
-      {reason}
-    </p>
+      <span aria-hidden="true" className="chat-error-icon">
+        <IconAlertTriangle className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="chat-error-title">{friendly.title}</p>
+        {friendly.hint ? (
+          <p className="chat-error-hint">{friendly.hint}</p>
+        ) : null}
+        {friendly.detail ? (
+          <>
+            <button
+              aria-expanded={open}
+              className="chat-error-toggle"
+              onClick={() => setOpen((value) => !value)}
+              type="button"
+            >
+              {open ? "收起详情" : "查看详情"}
+            </button>
+            {open ? <pre className="chat-error-detail">{friendly.detail}</pre> : null}
+          </>
+        ) : null}
+      </div>
+      {onRetry ? (
+        <button className="chat-error-retry" onClick={onRetry} type="button">
+          <IconRefresh className="size-3.5" />
+          {"重试"}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -711,11 +759,38 @@ const TranscriptMessage = memo(function TranscriptMessage({
               )}
             </BubbleContent>
           </Bubble>
+          {isUser || !text.trim() ? null : <CopyMessage text={text} />}
         </Arriving>
       </MessageContent>
     </MessageRow>
   );
 });
+
+/** A quiet copy action under a Bot's answer; shows on hover, always reachable by keyboard. */
+function CopyMessage({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="chat-msg-actions">
+      <button
+        aria-label={copied ? "已复制" : "复制回答"}
+        className="chat-msg-action"
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(text)
+            .then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            })
+            .catch(() => toast.error("复制失败，请手动选择文本复制。"));
+        }}
+        type="button"
+      >
+        {copied ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
+        {copied ? "已复制" : "复制"}
+      </button>
+    </div>
+  );
+}
 
 /**
  * The one shape an attachment url is allowed to have, taken from the helper that builds it rather
@@ -1076,7 +1151,7 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
 function unavailableSentence(filename?: string): string {
   return filename
     ? `${filename} is unavailable.`
-    : "This attachment is unavailable.";
+    : "此附件不可用。";
 }
 
 /**
@@ -1170,7 +1245,7 @@ function AttachmentLightbox({
   filename?: string;
   url: string;
 }) {
-  const label = filename ?? "Attachment";
+  const label = filename ?? "附件";
   /*
    * Controlled only so that clicking the dark space around the picture closes it, the way every
    * lightbox a reader has used does. The popup covers the viewport (see below), so it — not the
@@ -1237,7 +1312,7 @@ function AttachmentLightbox({
  */
 function activityName(activityType: string): string {
   return activityType === "open-generative-ui"
-    ? "This Bot's generated interface"
+    ? "此机器人生成的界面"
     : activityType;
 }
 
@@ -1515,6 +1590,7 @@ export function ChatTranscript({
   queued = EMPTY_QUEUE,
   restoring = false,
   stopped,
+  onRetry,
 }: ChatTranscriptProps) {
   /*
    * NOT MEMOISED, AND THAT IS DELIBERATE. `useMemo` keyed on `messages` looks obviously right and
@@ -1650,7 +1726,7 @@ export function ChatTranscript({
              */}
             <div className="contents [&>*]:order-1">
               {stopped ? (
-                <Stopped reason={stopped} />
+                <Stopped onRetry={onRetry} reason={stopped} />
               ) : waitingOnFirstToken ? (
                 <Thinking />
               ) : null}
@@ -1730,7 +1806,10 @@ export function ChatTranscript({
             )}
           </MessageScrollerContent>
         </MessageScrollerViewport>
-        <MessageScrollerButton />
+        <MessageScrollerButton className="chat-bottom-pill">
+          <IconChevronDown className="size-4" />
+          {"回到底部"}
+        </MessageScrollerButton>
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
       </MessageScroller>
     </MessageScrollerProvider>

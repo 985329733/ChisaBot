@@ -357,7 +357,7 @@ function CreateAgentWizard({
             >
               {step === 0 ? "取消" : "返回"}
             </Button>
-            <Button
+            <Button loading={createAgent.isPending}
               disabled={createAgent.isPending}
               onClick={() => void advance()}
               type="button"

@@ -200,7 +200,7 @@ export function LiveScreen({
       };
       if (typeof message.type !== "string") return;
       if (message.type === "error") {
-        onProblem?.(message.error ?? "The screen could not be shown.");
+        onProblem?.(message.error ?? "无法显示屏幕。");
         return;
       }
       if (message.type !== "frame" || !message.data) return;

@@ -558,8 +558,8 @@ function RuleForm({
       }}
     >
       <h3 className="font-medium sm:col-span-2">{label}</h3>
-      {field("toolRef", "Tool or app", "mcp/gmail/*, computer_click, host/*")}
-      {field("effect", "Kind of action", "* , write, read, delegate")}
+      {field("toolRef", "工具或应用", "mcp/gmail/*, computer_click, host/*")}
+      {field("effect", "操作类型", "* , write, read, delegate")}
       {field("scope", "Target", "*, a site, a folder, a Bot name")}
       {field("botId", "Bot", "* for every Bot")}
       <label className="grid gap-1 text-sm">

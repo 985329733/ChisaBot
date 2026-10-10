@@ -6,8 +6,7 @@ import {
   PageEmpty,
   PageRows,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,7 +117,7 @@ function IdentityProvidersPage() {
             {failure.message}
           </p>
         ) : null}
-        {providers.isPending ? null : providers.error ? (
+        {providers.isPending ? <PageSkeleton /> : providers.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {"无法加载身份提供者。"}
           </p>
@@ -308,7 +307,7 @@ function IdentityProvidersPage() {
               >
                 {"取消"}
               </Button>
-              <Button disabled={register.isPending} size="sm" type="submit">
+              <Button loading={register.isPending} disabled={register.isPending} size="sm" type="submit">
                 {register.isPending ? "正在添加…" : "添加"}
               </Button>
             </DialogFooter>

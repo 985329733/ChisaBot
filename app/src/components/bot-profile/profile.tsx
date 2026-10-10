@@ -10,7 +10,7 @@ import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
-import { PageRows, PageSection } from "@/components/layout/page-shell";
+import { PageRows, PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,8 +53,8 @@ import { BotActivitySections } from "./activity";
 import { BotPausedBanner } from "./pause-banner";
 
 const NOTIFY_LABEL: Record<BotNotify, string> = {
-  all: "Everything",
-  needs_input: "Only when it needs me",
+  all: "全部",
+  needs_input: "仅在需要我时",
   none: "Nothing (badges only)",
 };
 
@@ -130,7 +130,7 @@ function ResetDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="mt-4 overflow-y-auto">
-          {plan.isPending ? null : plan.error ? (
+          {plan.isPending ? <PageSkeleton /> : plan.error ? (
             <p className="text-destructive text-sm" role="alert">
               {"无法计算重置会删除的内容。"}
             </p>
@@ -205,7 +205,7 @@ function UpdateRoutingSection() {
       }
       title={"更新去哪里"}
     >
-      {routing.isPending ? null : routing.error ? (
+      {routing.isPending ? <PageSkeleton /> : routing.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
           {"无法加载更新去向。"}
         </p>
@@ -303,7 +303,7 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
       </PageSection>
 
       <PageSection title={"为您"}>
-        {lifecycle.isPending ? null : lifecycle.error ? (
+        {lifecycle.isPending ? <PageSkeleton /> : lifecycle.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {"无法加载此机器人的状态。"}
           </p>

@@ -1,3 +1,4 @@
+import { RouteSkeleton } from "@/components/startup-status";
 import {
   IconAlertTriangle,
   IconChevronRight,
@@ -101,7 +102,7 @@ function RouteComponent() {
    * alternative here is worse than a blank — "no such component" while the list is still in flight
    * says something false about a component that is about to appear.
    */
-  if (components.isPending) return null;
+  if (components.isPending) return <RouteSkeleton />;
 
   if (components.error) {
     return (
@@ -273,11 +274,11 @@ function ComponentDetail({
 
   const grantSummary =
     bots.length === 0
-      ? "There are no Bots yet"
+      ? "还没有机器人"
       : granted.length === bots.length
         ? `All ${bots.length} Bots`
         : granted.length === 0
-          ? "No Bots"
+          ? "没有机器人"
           : `${granted.length} of ${bots.length} Bots`;
 
   const functionSummary =

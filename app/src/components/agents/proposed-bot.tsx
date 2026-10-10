@@ -118,7 +118,7 @@ export function ProposedBotCard({
       setRefusal(
         cause instanceof Error
           ? cause.message
-          : "The coworker was not created.",
+          : "未能创建 AI 同事。",
       );
       return;
     }

@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { PageSection } from "@/components/layout/page-shell";
+import { PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import { saveInstructionsMutationOptions } from "@/lib/settings/mutations";
 import {
   INSTRUCTIONS_LIMIT,
@@ -46,11 +47,15 @@ export function StandingInstructions() {
     setProblem(null);
     setSaved(false);
     save.mutate(text, {
-      onError: (thrown: Error) => setProblem(thrown.message),
+      onError: (thrown: Error) => {
+        setProblem(thrown.message);
+        toast.error(`保存失败：${thrown.message}`);
+      },
       /* The server trims, so the box settles to what was actually stored rather than what was sent. */
       onSuccess: (asStored) => {
         setDraft(asStored);
         setSaved(true);
+        toast.success("常驻指令已保存");
       },
     });
   };
@@ -62,7 +67,7 @@ export function StandingInstructions() {
       }
       title={"常驻指令"}
     >
-      {stored.isPending ? null : stored.error ? (
+      {stored.isPending ? <PageSkeleton rows={1} tall /> : stored.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
           {stored.error.message}
         </p>
@@ -89,8 +94,7 @@ export function StandingInstructions() {
                   : "text-muted-foreground text-xs"
               }
             >
-              {text.trim().length} {"的"}
-              {INSTRUCTIONS_LIMIT} {"字符"}
+              {`${text.trim().length} / ${INSTRUCTIONS_LIMIT} 字`}
             </p>
             <div className="flex flex-row items-center gap-3">
               {/*
@@ -105,8 +109,10 @@ export function StandingInstructions() {
                 <span className="text-muted-foreground text-xs">
                   {"已保存"}
                 </span>
+              ) : !unchanged && stored.data !== undefined ? (
+                <span className="settings-unsaved text-xs">{"有未保存的更改"}</span>
               ) : null}
-              <Button
+              <Button loading={save.isPending}
                 disabled={save.isPending || over || unchanged}
                 onClick={submit}
                 size="sm"

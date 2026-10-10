@@ -243,7 +243,7 @@ function NewResponsibility() {
           {create.error.message}
         </p>
       )}
-      <Button disabled={create.isPending} type="submit">
+      <Button loading={create.isPending} disabled={create.isPending} type="submit">
         {create.isPending ? "正在创建…" : "创建长期任务"}
       </Button>
     </form>
@@ -320,7 +320,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
             />
           </label>
           <div className="flex gap-2">
-            <Button type="submit" disabled={edit.isPending}>
+            <Button loading={edit.isPending} type="submit" disabled={edit.isPending}>
               {"保存"}
             </Button>
             <Button
@@ -550,7 +550,7 @@ function GithubSources() {
             required
           />
         </label>
-        <Button type="submit" className="self-end" disabled={create.isPending}>
+        <Button loading={create.isPending} type="submit" className="self-end" disabled={create.isPending}>
           {"连接事件"}
         </Button>
       </form>
@@ -589,7 +589,7 @@ function GithubSources() {
 const RUN_LABEL: Record<string, string> = {
   queued: "Queued",
   running: "Running",
-  waiting: "Waiting for you",
+  waiting: "等待你处理",
   succeeded: "Succeeded",
   failed: "Failed",
   skipped: "Skipped",
@@ -941,7 +941,7 @@ function TriggerRow({
             onChange={(event) => setPasted(event.target.value)}
             required
           />
-          <Button size="sm" type="submit" disabled={rotate.isPending}>
+          <Button loading={rotate.isPending} size="sm" type="submit" disabled={rotate.isPending}>
             {"保存密钥"}
           </Button>
         </form>
@@ -1178,7 +1178,7 @@ function NewTrigger({
           {create.error.message}
         </p>
       )}
-      <Button type="submit" disabled={create.isPending}>
+      <Button loading={create.isPending} type="submit" disabled={create.isPending}>
         {create.isPending ? "正在添加…" : `添加 ${KIND_LABEL[kind]} 触发器`}
       </Button>
     </form>

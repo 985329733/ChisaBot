@@ -70,7 +70,7 @@ function MemoryPage() {
             onChange={(event) => setContent(event.target.value)}
             placeholder={"我喜欢早上开会"}
           />
-          <Button
+          <Button loading={remember.isPending}
             type="submit"
             disabled={remember.isPending || !content.trim()}
             className="justify-self-start"
@@ -400,7 +400,7 @@ function Sources() {
             )}
           </label>
         ))}
-        <Button
+        <Button loading={add.isPending}
           type="submit"
           className="justify-self-start"
           disabled={add.isPending || !toolRef}

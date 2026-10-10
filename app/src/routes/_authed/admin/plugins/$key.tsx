@@ -92,7 +92,7 @@ function toggled(
  */
 function grantSummary(held: number, total: number): string {
   if (held === 0) return "暂无机器人";
-  if (held === total) return total === 1 ? "1 Bot" : "All Bots";
+  if (held === total) return total === 1 ? "1 Bot" : "全部机器人";
   return `${held} / ${total} 个机器人`;
 }
 
@@ -105,7 +105,7 @@ function grantSummary(held: number, total: number): string {
  */
 function heldSummary(held: number, total: number): string {
   if (held === 0) return "暂无工具";
-  if (held === total) return total === 1 ? "1 tool" : "Every tool";
+  if (held === total) return total === 1 ? "1 tool" : "全部工具";
   return `${held} 个 ${total} 工具`;
 }
 

@@ -72,7 +72,7 @@ function ComputersPage() {
    * A list that could not be read. A refused stop, reset or update is said beside the buttons
    * instead, because the top of this page is a long scroll away from them.
    */
-  const problem = fleet.error ? "The computers could not be listed." : null;
+  const problem = fleet.error ? "无法列出计算机。" : null;
   const hostProblem = hostAccess.error
     ? hostAccess.error.message
     : requestGrant.error

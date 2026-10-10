@@ -273,7 +273,7 @@ function IntelligenceLearningPage() {
               })}
             </fieldset>
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={save.isPending}>
+              <Button loading={save.isPending} type="submit" disabled={save.isPending}>
                 {save.isPending ? "正在保存…" : "保存学习设置"}
               </Button>
               {saved && (

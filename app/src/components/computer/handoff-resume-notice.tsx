@@ -81,7 +81,7 @@ export function HandoffResumeNotice({
       await resumeHandoffTask(botId, pending, agent, run, abort.signal);
     } catch (error) {
       setProblem(
-        error instanceof Error ? error.message : "The task could not resume.",
+        error instanceof Error ? error.message : "任务无法继续。",
       );
     } finally {
       setBusy(false);

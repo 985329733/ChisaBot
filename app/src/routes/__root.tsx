@@ -7,6 +7,8 @@ import { useEffect } from "react";
 import { StartupFailure } from "@/components/startup-status";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ConfirmHost } from "@/components/ui/confirm";
+import { Toaster } from "@/components/ui/toast";
 import type { RouterContext } from "../router-context";
 import "@fontsource-variable/inter/wght.css";
 
@@ -125,6 +127,8 @@ function RootComponent() {
       <ThemeProvider>
         <TooltipProvider>
           <Outlet />
+          <ConfirmHost />
+          <Toaster />
         </TooltipProvider>
       </ThemeProvider>
     </div>

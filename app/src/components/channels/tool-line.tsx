@@ -18,7 +18,7 @@ export function ToolLine({
   failed,
   children,
 }: {
-  /** What was done, in a couple of words: "Searched Slack", "Filled in", "Read the page". */
+  /** What was done, in a couple of words: "搜索了 Slack", "已填写", "Read the page". */
   label: string;
   /** What it was done to. Muted, and truncated rather than wrapped. */
   detail?: string;

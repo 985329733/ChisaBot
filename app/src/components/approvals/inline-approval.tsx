@@ -37,12 +37,12 @@ export function InlineApproval({
   const handOff = request.action.policy?.behaviour === "hand_off";
   const choices: [ApprovalDecision, string][] = handOff
     ? [
-        ["handled", "I did it myself"],
-        ["deny", "Don't do it"],
+        ["handled", "我自己完成了"],
+        ["deny", "不要执行"],
       ]
     : [
-        ["allow_once", "Allow once"],
-        ["allow_always", "Always allow here"],
+        ["allow_once", "允许一次"],
+        ["allow_always", "始终允许此处"],
         ["deny", "Deny"],
       ];
   return (

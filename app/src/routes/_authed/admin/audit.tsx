@@ -5,8 +5,7 @@ import { useState } from "react";
 import {
   PageEmpty,
   PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+  PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { useBotNames } from "@/lib/agents/bot-names";
 import {
@@ -101,7 +100,7 @@ function AuditPage() {
           ))}
         </div>
 
-        {events.isPending ? null : events.isError ? (
+        {events.isPending ? <PageSkeleton /> : events.isError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
             {"审计轨迹无法加载。"}
           </p>
@@ -447,30 +446,30 @@ const DECISIONS: Record<string, string> = {
   "computer.updated": "The computer was updated",
   "computer.stopped": "A person pressed stop",
 
-  "component.granted": "Granted to this Bot",
-  "component.revoked": "Taken away from this Bot",
-  "component.published": "Published, so every Bot may use it",
-  "component.unpublished": "Unpublished, so no Bot may use it",
-  "component.draft_saved": "Draft saved, not yet published",
+  "component.granted": "已授予此机器人",
+  "component.revoked": "已从此机器人收回",
+  "component.published": "已发布，所有机器人均可使用",
+  "component.unpublished": "未发布，任何机器人都不能使用",
+  "component.draft_saved": "草稿已保存，尚未发布",
   "component.refused": "Refused",
-  "component.function_granted": "May read this",
-  "component.function_revoked": "May no longer read this",
+  "component.function_granted": "可读取",
+  "component.function_revoked": "不再可读取",
   "component.function_called": "Read real data",
   "component.function_refused": "Refused",
   // A function failure is execution failure, not a policy refusal.
-  "component.function_failed": "Could not be read",
+  "component.function_failed": "无法读取",
 
   // Not a call and not a decision: the tools this run was allowed to see. Worded so nobody reads it
   // as permission, which it is not — everything named was already granted.
   "mcp.tools_discovered": "Tools offered for one run",
   "mcp.call_succeeded": "Called on this Bot's behalf",
   "mcp.call_rejected": "Blocked",
-  "mcp.call_failed": "The server did not answer",
+  "mcp.call_failed": "服务器没有响应",
   // Not "Blocked": nothing about the Bot was judged, because nothing proved which Bot it was.
   "mcp.callback_refused": "Could not prove which Bot it was",
 
-  "configuration.changed": "Configuration changed",
-  "credential.created": "Credential saved",
+  "configuration.changed": "配置已更改",
+  "credential.created": "凭据已保存",
 };
 
 function hostOf(url: string): string {

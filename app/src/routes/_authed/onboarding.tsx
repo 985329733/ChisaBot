@@ -57,7 +57,7 @@ function WelcomeStep() {
           compact
           className="scale-90"
           editorClassName="text-base"
-          initialValue="Hand off tasks to your team of agents"
+          initialValue="把任务交给你的代理团队"
         />
       </div>
     </div>
@@ -235,7 +235,7 @@ function RouteComponent() {
                 className="mt-20 flex flex-col items-center justify-center max-w-xs gap-4 w-full mx-auto"
                 layout
               >
-                <Button
+                <Button loading={complete.isPending}
                   className="w-full"
                   disabled={complete.isPending}
                   onClick={() => {

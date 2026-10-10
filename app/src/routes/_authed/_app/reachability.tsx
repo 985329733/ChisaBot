@@ -226,7 +226,7 @@ function ReachabilityPage() {
                 pattern="\+[1-9][0-9]{7,14}"
               />
             </label>
-            <Button
+            <Button loading={sms.isPending}
               type="submit"
               disabled={!agentId || !reach.data?.available.sms || sms.isPending}
             >
@@ -248,7 +248,7 @@ function ReachabilityPage() {
                 onChange={(event) => setCode(event.target.value)}
                 required
               />
-              <Button type="submit" disabled={confirm.isPending}>
+              <Button loading={confirm.isPending} type="submit" disabled={confirm.isPending}>
                 {"确认电话"}
               </Button>
             </form>
