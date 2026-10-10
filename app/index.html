@@ -8,9 +8,11 @@
       /* Pre-JS shell: the same sky and glass skeleton the app draws while routes load, so the first
          paint is never a white page. Kept small and self-contained; styles.css takes over after. */
       html, body { margin: 0; min-height: 100%; }
-      body { background-color: #9dbddc; background: radial-gradient(900px 380px at 18% 22%, rgba(255,255,255,.75), transparent 70%), radial-gradient(700px 300px at 72% 12%, rgba(255,255,255,.55), transparent 70%), radial-gradient(1100px 420px at 60% 78%, rgba(255,255,255,.7), transparent 70%), linear-gradient(180deg, #6f9bc7 0%, #9dbddc 38%, #c9dbeb 68%, #e4ecf3 100%); background-attachment: fixed; font-family: "Inter Variable", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
-      html.dark body { background-color: #12203a; background: radial-gradient(900px 380px at 18% 22%, rgba(120,160,220,.18), transparent 70%), radial-gradient(1100px 420px at 60% 78%, rgba(80,110,170,.16), transparent 70%), linear-gradient(180deg, #0c1626 0%, #12203a 45%, #172a46 75%, #1b304d 100%); background-attachment: fixed; }
-      .boot { position: fixed; inset: 0; overflow: hidden; --g: rgba(255,255,255,.34); --gl: rgba(255,255,255,.35); --s1: rgba(255,255,255,.25); --s2: rgba(255,255,255,.75); }
+      /* The sky reads the same --sky-* vars as styles.css (DESIGN.md §7); the boot script at the top of
+         <body> sets them for the current time before this paints. Fallbacks = the fixed blue sky. */
+      body { --sky-1: #6f9bc7; --sky-2: #9dbddc; --sky-3: #c9dbeb; --sky-4: #e4ecf3; --sky-cloud: rgba(255,255,255,.75); --sky-glow: rgba(255,255,255,0); --sky-glow-x: 50%; --sky-glow-y: 20%; background-color: var(--sky-2); background: radial-gradient(560px 560px at var(--sky-glow-x) var(--sky-glow-y), var(--sky-glow), transparent 62%), radial-gradient(900px 380px at 18% 22%, var(--sky-cloud), transparent 70%), radial-gradient(700px 300px at 72% 12%, color-mix(in srgb, var(--sky-cloud) 73%, transparent), transparent 70%), radial-gradient(1100px 420px at 60% 78%, color-mix(in srgb, var(--sky-cloud) 93%, transparent), transparent 70%), linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 38%, var(--sky-3) 68%, var(--sky-4) 100%); background-attachment: fixed; font-family: "Inter Variable", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+      html.dark body { --sky-1: #0c1626; --sky-2: #12203a; --sky-3: #172a46; --sky-4: #1b304d; --sky-cloud: rgba(110,150,215,.18); }
+      .boot { position: fixed; inset: 0; overflow: hidden; --g: rgba(255,255,255,calc(.34 + var(--sky-lift, 0))); --gl: rgba(255,255,255,.35); --s1: rgba(255,255,255,.25); --s2: rgba(255,255,255,.75); }
       html.dark .boot { --g: rgba(255,255,255,.07); --gl: rgba(255,255,255,.05); --s1: rgba(255,255,255,.03); --s2: rgba(255,255,255,.09); }
       .boot i { display: block; font-style: normal; }
       .boot .sh { background: linear-gradient(90deg, var(--s1) 0%, var(--s2) 50%, var(--s1) 100%); background-size: 200% 100%; animation: boot-sh 1.6s ease-in-out infinite; border-radius: 999px; }
@@ -47,6 +49,7 @@
     </script>
   </head>
   <body>
+    <!-- chisabot-sky-boot: replaced by the time-of-day sky boot script (vite.config.ts → src/lib/sky.ts). -->
     <!-- Present before the gateway's workspace.js runs its DOMContentLoaded mount, which tells it the
          app draws its own account control (sign-out lives in the avatar menu), so it adds no
          floating "退出登录" button of its own. -->

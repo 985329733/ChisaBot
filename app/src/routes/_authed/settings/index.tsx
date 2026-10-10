@@ -6,6 +6,7 @@ import {
   PageShell,
 } from "@/components/layout/page-shell";
 import { MessageListPreference } from "@/components/settings/message-list-preference";
+import { SkyPreference } from "@/components/settings/sky-preference";
 import { StandingInstructions } from "@/components/settings/standing-instructions";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -37,7 +38,7 @@ function RouteComponent() {
   return (
     <PageShell
       description={
-        "ChisaBot 在你这里的显示和行为。消息列表偏好与账号同步。主题保存在此浏览器"
+        "ChisaBot 在你这里的显示和行为。消息列表偏好与账号同步。外观保存在此浏览器"
       }
       title={"偏好设置"}
     >
@@ -57,6 +58,7 @@ function RouteComponent() {
             </ItemActions>
           </Item>
         </PageRows>
+        <SkyPreference />
         <MessageListPreference />
       </PageSection>
       {/*

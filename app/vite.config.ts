@@ -5,6 +5,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { listenPort } from "../shared/listen-port";
+import { skyBootScript } from "./src/lib/sky";
 
 /*
  * Announce the server's port to the two runtimes that serve the app through Vite, and to no other.
@@ -91,6 +92,22 @@ const serving = {
   },
 };
 
+/*
+ * Inline the time-of-day sky (DESIGN.md §7) as the first thing in <body>, so the pre-JS skeleton
+ * already paints the current hour's sky. The palette is `computeSky` itself, serialised, so the boot
+ * paint and the app can never disagree.
+ */
+function skyBoot(): Plugin {
+  const marker =
+    /<!-- chisabot-sky-boot:[^>]*-->/;
+  return {
+    name: "chisabot-sky-boot",
+    transformIndexHtml(html) {
+      return html.replace(marker, () => `<script>${skyBootScript()}</script>`);
+    },
+  };
+}
+
 type RouteSplitGroupings = Array<
   Array<
     "component" | "pendingComponent" | "errorComponent" | "notFoundComponent"
@@ -172,6 +189,7 @@ export default defineConfig({
   envDir: path.resolve(__dirname, ".."),
   plugins: [
     announceServerPort(apiPort.port),
+    skyBoot(),
     tanstackRouter({
       autoCodeSplitting: true,
       codeSplittingOptions: routeCodeSplittingOptions,

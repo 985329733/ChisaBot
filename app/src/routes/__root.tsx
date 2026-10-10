@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { StartupFailure } from "@/components/startup-status";
+import { SkyBackground } from "@/components/sky-background";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmHost } from "@/components/ui/confirm";
@@ -126,6 +127,7 @@ function RootComponent() {
   return (
     <div className="min-h-dvh w-full antialiased">
       <ThemeProvider>
+        <SkyBackground />
         <TooltipProvider>
           <Outlet />
           <ConfirmHost />
