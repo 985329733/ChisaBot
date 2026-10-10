@@ -21,7 +21,7 @@ export function AdminComponentPreview({
   });
   if (kind === "sandboxed" && sandboxed.isPending) return null;
   if (kind === "sandboxed" && sandboxed.error) {
-    return <PreviewNotice>Preview could not be loaded.</PreviewNotice>;
+    return <PreviewNotice>{"预览无法加载。"}</PreviewNotice>;
   }
   return (
     <ComponentPreview
@@ -63,11 +63,7 @@ export function ComponentPreview({
 
   if (sandboxed?.name === name) {
     if (!sandboxed.published || sandboxed.publishedHtml === null) {
-      return (
-        <PreviewNotice>
-          Publish in the playground to see a preview.
-        </PreviewNotice>
-      );
+      return <PreviewNotice>{"在游乐场中发布以查看预览。"}</PreviewNotice>;
     }
     const content = {
       css: sandboxed.publishedCss ?? "",
@@ -80,10 +76,7 @@ export function ComponentPreview({
     };
     return (
       <FittedPreview fill={fill}>
-        <div
-          className="w-full"
-          title="Published component with saved sample arguments"
-        >
+        <div className="w-full" title={"已发布带有保存样本参数的组件"}>
           <OpenGenerativeUIActivityRenderer
             activityType="open-generative-ui"
             agent={null}
@@ -99,10 +92,10 @@ export function ComponentPreview({
   return (
     <PreviewNotice>
       {entry
-        ? "This one is only drawn in a conversation."
+        ? "这个只在对话中绘制。"
         : kind === "sandboxed"
-          ? "Published in the playground."
-          : "This build cannot draw this."}
+          ? "已在游乐场中发布。"
+          : "此构建无法绘制此内容。"}
     </PreviewNotice>
   );
 }

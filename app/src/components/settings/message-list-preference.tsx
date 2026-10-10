@@ -35,9 +35,9 @@ export function MessageListPreference() {
     <PageRows>
       <Item size="sm">
         <ItemContent>
-          <ItemTitle>Message list emphasis</ItemTitle>
+          <ItemTitle>{"消息列表强调"}</ItemTitle>
           <ItemDescription>
-            Choose which name appears larger in the sidebar.
+            {"选择哪个名称在侧边栏中显示更大。"}
           </ItemDescription>
         </ItemContent>
         <ItemActions>
@@ -50,18 +50,18 @@ export function MessageListPreference() {
               }
             }}
           >
-            <SelectTrigger aria-label="Message list emphasis">
+            <SelectTrigger aria-label={"消息列表强调"}>
               <SelectValue>
                 {emphasis
                   ? emphasis === "agent"
-                    ? "Agent name"
-                    : "Thread title"
-                  : "Loading…"}
+                    ? "代理名称"
+                    : "线程标题"
+                  : "正在加载…"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="thread">Thread title</SelectItem>
-              <SelectItem value="agent">Agent name</SelectItem>
+              <SelectItem value="thread">{"线程标题"}</SelectItem>
+              <SelectItem value="agent">{"代理名称"}</SelectItem>
             </SelectContent>
           </Select>
         </ItemActions>
@@ -76,7 +76,7 @@ export function MessageListPreference() {
             size="sm"
             onClick={() => void preferences.refetch()}
           >
-            Retry
+            {"重试"}
           </Button>
         </div>
       ) : null}
@@ -87,19 +87,19 @@ export function MessageListPreference() {
       ) : null}
       {save.isPending ? (
         <p role="status" className="px-3 text-sm text-muted-foreground">
-          Saving…
+          {"正在保存…"}
         </p>
       ) : null}
       {emphasis ? (
         <div className="flex justify-center px-6 pt-3 pb-6">
           <figure
-            aria-label="Message list preview"
+            aria-label={"消息列表预览"}
             className="flex h-16 w-full max-w-xs items-center rounded-lg border border-border bg-sidebar px-3"
           >
             <ChannelItemContent
               participantIds={["message-list-preview"]}
               name="General Assistant"
-              title="Plan next week"
+              title={"计划下周"}
               lastMessageAt="2h"
               emphasis={emphasis}
             />

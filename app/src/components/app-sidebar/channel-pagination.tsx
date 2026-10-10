@@ -65,7 +65,7 @@ export function ChannelPagination({ query, scrollRoot, searching }: Props) {
     <div ref={sentinel} className="px-2 py-3 text-center">
       {isFetchNextPageError ? (
         <p role="alert" className="mb-2 text-xs text-muted-foreground">
-          Could not load older conversations.
+          {"无法加载较旧的对话。"}
         </p>
       ) : null}
       <Button
@@ -76,10 +76,10 @@ export function ChannelPagination({ query, scrollRoot, searching }: Props) {
         onClick={() => void fetchNextPage({ cancelRefetch: false })}
       >
         {isFetchingNextPage
-          ? "Loading older conversations…"
+          ? "正在加载更早的会话…"
           : isFetchNextPageError
-            ? "Retry loading older conversations"
-            : "Load older conversations"}
+            ? "重试加载更早对话"
+            : "加载更早的会话"}
       </Button>
     </div>
   );

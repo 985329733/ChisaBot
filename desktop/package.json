@@ -1,5 +1,6 @@
 {
-  "name": "openbot-desktop",
+  "name": "chisabot-desktop",
+  "description": "ChisaBot 桌面客户端",
   "private": true,
   "type": "module",
   "scripts": {

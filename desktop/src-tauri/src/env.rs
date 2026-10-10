@@ -356,7 +356,7 @@ pub fn compose(
     // Absent means no harness was picked, and the package's gated rows stay dropped.
     harness: Option<&PickedHarness>,
     // What a previous run of THIS deployment already minted, so it is not minted again. Empty on a
-    // machine that has never run OpenBot, which is exactly when generating is right.
+    // machine that has never run ChisaBot, which is exactly when generating is right.
     kept: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
     let mut env = BTreeMap::new();
@@ -1068,7 +1068,7 @@ pub fn write(
     {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
-            "OpenBot setting names and values must not contain line breaks.",
+            "ChisaBot setting names and values must not contain line breaks.",
         ));
     }
     let existing = match std::fs::read_to_string(path) {

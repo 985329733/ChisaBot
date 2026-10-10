@@ -315,7 +315,7 @@ mod stop_ipc {
             .expect("menu Stop failure should be retained for setup");
         assert_eq!(
             problem.said,
-            "OpenBot could not finish stopping. Try Stop OpenBot again."
+            "ChisaBot could not finish stopping. Try Stop ChisaBot again."
         );
         assert!(
             problem

@@ -93,7 +93,7 @@ function ActivityRow({
       size="sm"
       variant="outline"
     >
-      {stop.isPending ? "Stopping…" : "Stop"}
+      {stop.isPending ? "正在停止…" : "停止"}
     </Button>
   ) : item.cancellable ? (
     <Button
@@ -102,7 +102,7 @@ function ActivityRow({
       size="sm"
       variant="outline"
     >
-      {cancel.isPending ? "Cancelling…" : "Cancel"}
+      {cancel.isPending ? "正在取消……" : "取消"}
     </Button>
   ) : null;
   const content = (
@@ -113,9 +113,9 @@ function ActivityRow({
       <ItemContent>
         <ItemTitle>{item.title}</ItemTitle>
         <ItemDescription>
-          {KIND_LABEL[item.kind]} · {item.needsYou ? "needs you" : item.status}
-          {when ? ` · ${when}` : ""}
-          {item.detail ? ` · ${item.detail}` : ""}
+          {KIND_LABEL[item.kind]} · {item.needsYou ? "需要你" : item.status}
+          {when ? `· ${when}` : ""}
+          {item.detail ? `· ${item.detail}` : ""}
         </ItemDescription>
       </ItemContent>
     </>
@@ -131,7 +131,7 @@ function ActivityRow({
         <ItemActions>
           {link ? (
             <Button render={link} size="sm" variant="ghost">
-              Open
+              {"打开"}
             </Button>
           ) : null}
           {control}
@@ -182,9 +182,9 @@ export function BotActivitySections({ agentId }: { agentId: string }) {
   if (activity.isPending) return null;
   if (activity.error)
     return (
-      <PageSection title="Activity">
+      <PageSection title={"活动"}>
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Could not load this Bot's activity.
+          {"无法加载此机器人的活动。"}
         </p>
       </PageSection>
     );
@@ -194,19 +194,19 @@ export function BotActivitySections({ agentId }: { agentId: string }) {
         agentId={agentId}
         empty="Nothing is running or waiting on you."
         items={activity.data.inProgress}
-        title="In progress"
+        title={"进行中"}
       />
       <ActivitySection
         agentId={agentId}
         empty="Nothing is scheduled."
         items={activity.data.scheduled}
-        title="Scheduled"
+        title={"已计划"}
       />
       <ActivitySection
         agentId={agentId}
         empty="Nothing has finished yet."
         items={activity.data.completed}
-        title="Completed"
+        title={"已完成"}
       />
     </>
   );

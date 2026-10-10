@@ -2,20 +2,23 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { BootCommitMarker, reportBootStage } from "./lib/boot-status";
 import { queryClient } from "./query-client";
 import { router } from "./router";
 import "@copilotkit/react-core/v2/styles.css";
 import "./styles.css";
 
+reportBootStage("entry-executing");
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-  throw new Error("OpenBot could not find the application root element.");
+  throw new Error("ChisaBot 无法找到应用程序根元素。");
 }
 
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <BootCommitMarker />
       <RouterProvider router={router} context={{ queryClient }} />
     </QueryClientProvider>
   </StrictMode>,

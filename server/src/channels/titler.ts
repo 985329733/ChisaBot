@@ -2,8 +2,9 @@
  * One model call for a few words. Not a Bot and not a turn: a title is not said to anybody and is
  * not part of the conversation it names, so there is no runtime work and no thread to hold.
  */
-import { chatCompletionsUrl } from "../routing/model";
-import { oneLine } from "./text";
+import { PlanModel } from "../agents/plan-model";
+import type { RuntimeModel, RuntimeModelResolver } from "../copilot";
+import { runtimeModelEndpoint } from "../routing/model";
 
 /** Rules, not an example: a model copies an example's subject as readily as its shape. */
 const INSTRUCTION = [
@@ -18,6 +19,8 @@ export type TitlerOptions = {
   model: string;
   /** Resolved per call, so a rotated credential is picked up without a restart. */
   resolveApiKey: () => Promise<string | null>;
+  /** One coherent connection snapshot for this call, including settings saved after startup. */
+  resolveConnection?: RuntimeModelResolver;
   environment?: Record<string, string | undefined>;
   /** Injectable so a test drives this without a network. */
   fetchImpl?: typeof fetch;
@@ -30,42 +33,114 @@ export function createChannelTitler(options: TitlerOptions) {
   const call = options.fetchImpl ?? fetch;
 
   return async (excerpt: string): Promise<string | null> => {
-    const apiKey = await options.resolveApiKey();
-    if (!apiKey) return null;
+    const connection = await options.resolveConnection?.();
+    const model: RuntimeModel = connection?.model ?? {
+      provider: "openai",
+      defaultModel: options.model,
+    };
+    if (model.plan) {
+      const controller = new AbortController();
+      const timer = setTimeout(
+        () => controller.abort(),
+        options.timeoutMs ?? 20_000,
+      );
+      try {
+        const result = await new PlanModel(
+          model.plan,
+          "channel-title",
+          { threadId: crypto.randomUUID() },
+          new Set(),
+          controller.signal,
+        ).doGenerate({
+          prompt: [
+            { role: "system", content: INSTRUCTION },
+            { role: "user", content: [{ type: "text", text: excerpt }] },
+          ],
+          maxOutputTokens: 512,
+          abortSignal: controller.signal,
+        });
+        const text = result.content
+          .flatMap((part) => (part.type === "text" ? [part.text] : []))
+          .join("")
+          .trim();
+        return text || null;
+      } catch {
+        throw new Error(
+          "The configured plan could not name this conversation.",
+        );
+      } finally {
+        clearTimeout(timer);
+        controller.abort();
+      }
+    }
+    const apiKey = connection
+      ? connection.apiKey
+      : await options.resolveApiKey();
+    if (!apiKey && model.useApiKey !== false) return null;
+    const anthropic = model.provider === "anthropic";
 
     const response = await call(
-      chatCompletionsUrl(options.environment ?? process.env),
+      runtimeModelEndpoint(model, options.environment ?? process.env),
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
+          ...(anthropic
+            ? {
+                "anthropic-version": "2023-06-01",
+                ...(model.useApiKey === false
+                  ? {}
+                  : { "x-api-key": apiKey ?? "" }),
+              }
+            : model.useApiKey === false
+              ? {}
+              : { authorization: `Bearer ${apiKey}` }),
         },
         body: JSON.stringify({
-          model: options.model,
-          messages: [
-            { role: "system", content: INSTRUCTION },
-            { role: "user", content: excerpt },
-          ],
-          // Reasoning tokens come out of this budget, so a cap sized for the answer alone 400s.
-          max_completion_tokens: 512,
+          model: model.defaultModel,
+          ...(anthropic
+            ? {
+                system: INSTRUCTION,
+                messages: [{ role: "user", content: excerpt }],
+                max_tokens: 512,
+              }
+            : {
+                messages: [
+                  { role: "system", content: INSTRUCTION },
+                  { role: "user", content: excerpt },
+                ],
+                // Reasoning tokens come out of this budget, so a cap sized for the answer alone 400s.
+                max_completion_tokens: 512,
+              }),
         }),
         signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
+        redirect: "error",
       },
-    );
+    ).catch(() => {
+      throw new Error("The conversation title model could not be reached.");
+    });
 
     if (!response.ok) {
-      // Capped: this lands on the work item's row, and an HTML error page would land there whole.
-      const detail = oneLine(await response.text().catch(() => ""), 200);
+      await response.body?.cancel();
       throw new Error(
-        `The model refused to name a conversation: ${response.status} ${detail}`.trim(),
+        `The model refused to name a conversation (${response.status}).`,
       );
     }
 
-    const body = (await response.json()) as {
+    const body = (await response.json().catch(() => {
+      throw new Error("The conversation title model returned invalid JSON.");
+    })) as {
       choices?: { message?: { content?: unknown } }[];
+      content?: { type?: string; text?: unknown }[];
     };
-    const content = body.choices?.[0]?.message?.content;
+    const content = anthropic
+      ? body.content
+          ?.filter(
+            (part) => part.type === "text" && typeof part.text === "string",
+          )
+          .map((part) => part.text)
+          .join("")
+      : body.choices?.[0]?.message?.content;
     if (typeof content !== "string") return null;
     const answer = content.trim();
     return answer.length > 0 ? answer : null;

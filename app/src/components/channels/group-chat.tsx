@@ -68,8 +68,9 @@ export function GroupChat({ channelId }: { channelId: string }) {
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6">
           {messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Say something to {bots.map((bot) => bot.name).join(" and ")}.
-              Every Bot answers in turn; start with @Name to ask just one.
+              {"对...说点什么"}
+              {bots.map((bot) => bot.name).join(" and ")}
+              {". 每个机器人轮流回答；以 @Name 开始只问一个。"}
             </p>
           ) : null}
           {messages.map((message) => (
@@ -163,7 +164,7 @@ function GroupLine({
       <MessageContent>
         <MessageHeader className="text-xs font-medium text-muted-foreground">
           {name}
-          {answeredBy ? ` · answer from ${answeredBy}` : null}
+          {answeredBy ? `· 来自 ${answeredBy} 的回答` : null}
         </MessageHeader>
         {(message.status === "running" || message.status === "queued") &&
         !message.text ? (
@@ -171,13 +172,13 @@ function GroupLine({
             className="tool-line-running text-sm text-muted-foreground"
             role="status"
           >
-            Thinking
+            {"思考中"}
           </p>
         ) : message.status === "waiting" ? (
           <p className="text-sm text-muted-foreground">
-            {message.reason ?? "Waiting for your response."}{" "}
+            {message.reason ?? "等待您的回复。"}{" "}
             <Link className="underline" to="/approvals">
-              Open approvals
+              {"打开审批"}
             </Link>
           </p>
         ) : message.consent ? (
@@ -190,13 +191,13 @@ function GroupLine({
             />
           ) : (
             <p className="text-sm text-muted-foreground">
-              Asked a teammate for permission to use their own{" "}
-              {message.consent.serverId} account.
+              {"已向同事请求使用其自己的权限"} {message.consent.serverId}{" "}
+              {"账号。"}
             </p>
           )
         ) : message.status === "failed" ? (
           <p className="text-sm text-destructive" role="alert">
-            {message.text || "This Bot could not answer."}
+            {message.text || "此机器人无法回答。"}
           </p>
         ) : (
           <Bubble
@@ -226,7 +227,7 @@ function AddPerson({ channelId }: { channelId: string }) {
     return (
       <div className="flex justify-end pb-2">
         <Button onClick={() => setOpen(true)} size="sm" variant="ghost">
-          Add a person
+          {"添加个人"}
         </Button>
       </div>
     );
@@ -244,14 +245,14 @@ function AddPerson({ channelId }: { channelId: string }) {
       }}
     >
       <Input
-        aria-label="Their email"
+        aria-label={"他们的电子邮件"}
         onChange={(event) => setEmail(event.target.value)}
-        placeholder="Their email"
+        placeholder={"他们的电子邮件"}
         type="email"
         value={email}
       />
       <Button disabled={!email.trim() || add.isPending} size="sm" type="submit">
-        Add
+        {"添加"}
       </Button>
       {add.error ? (
         <span className="text-sm text-destructive" role="alert">
@@ -282,7 +283,7 @@ function People({
   if (people.length < 2) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 pb-2 text-xs text-muted-foreground">
-      <span>People:</span>
+      <span>{"人员："}</span>
       {people.map((person) => {
         const self = person.userId === me;
         const removable = self ? !person.creator : iCreated;
@@ -291,18 +292,16 @@ function People({
             className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5"
             key={person.userId}
           >
-            {self ? "You" : (person.name ?? person.email)}
+            {self ? "您" : (person.name ?? person.email)}
             {removable ? (
               <button
-                aria-label={
-                  self ? "Leave this group" : `Remove ${person.email}`
-                }
+                aria-label={self ? "离开此群组" : `移除 ${person.email}`}
                 className="hover:text-foreground"
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(person.userId)}
                 type="button"
               >
-                {self ? "leave" : "×"}
+                {self ? "离开" : "×"}
               </button>
             ) : null}
           </span>

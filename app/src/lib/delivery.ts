@@ -29,7 +29,7 @@ export function deliveryQueryOptions() {
     queryKey: deliveryKey,
     queryFn: async (): Promise<Reachability> => {
       const response = await client("/api/delivery", {
-        fallback: "Could not load reachability",
+        fallback: "无法加载可达性",
       });
       return response.json();
     },
@@ -51,7 +51,7 @@ export async function startChatLink(target: {
   const response = await client("/api/delivery/opentag/start", {
     method: "POST",
     body: target,
-    fallback: `Could not start linking ${target.platform === "teams" ? "Teams" : "Slack"}`,
+    fallback: `无法启动链接 ${target.platform === "teams" ? "Teams" : "Slack"}`,
   });
   return response.json();
 }
@@ -63,25 +63,25 @@ export function startSms(target: {
   return client<string>("/api/delivery/sms/start", "challengeId", {
     method: "POST",
     body: target,
-    fallback: "Could not verify this phone",
+    fallback: "无法验证此手机",
   });
 }
 export function confirmSms(challengeId: string, code: string) {
   return client("/api/delivery/sms/confirm", {
     method: "POST",
     body: { challengeId, code },
-    fallback: "Could not confirm this phone",
+    fallback: "无法确认此手机号码",
   });
 }
 export function removeDeliveryBinding(id: string) {
   return client(`/api/delivery/bindings/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    fallback: "Could not disconnect",
+    fallback: "无法断开连接",
   });
 }
 export function removePushDevice(id: string) {
   return client(`/api/delivery/devices/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    fallback: "Could not remove this device",
+    fallback: "无法移除此设备",
   });
 }

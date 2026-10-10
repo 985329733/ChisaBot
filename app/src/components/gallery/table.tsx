@@ -42,9 +42,9 @@ export function DataTable(props: Record<string, unknown>) {
   const parsed = DataTableProps.safeParse(props);
   if (!parsed.success) {
     return (
-      <GalleryFrame title="Table">
+      <GalleryFrame title={"表格"}>
         <p className="text-sm text-muted-foreground">
-          Waiting for complete table data…
+          {"正在等待完整表格数据…"}
         </p>
       </GalleryFrame>
     );
@@ -70,19 +70,20 @@ export function DataTable(props: Record<string, unknown>) {
       caption={caption}
       action={
         <Badge>
-          {rows.length} {rows.length === 1 ? "row" : "rows"}
+          {rows.length} {rows.length === 1 ? "行" : "行"}
         </Badge>
       }
     >
       <section
         className="overflow-x-auto rounded-lg border border-border focus-visible:outline-2 focus-visible:outline-ring"
-        aria-label={`${title} table, scroll for more columns`}
+        aria-label={`${title} 表，滚动查看更多列`}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: Overflow regions need keyboard focus to scroll in Safari; the region has an accessible name.
         tabIndex={0}
       >
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">
-            {title}. Select a column heading to sort.
+            {title}
+            {". 选择列标题进行排序。"}
           </caption>
           <thead className="bg-muted/50 text-xs text-muted-foreground">
             <tr>
@@ -145,7 +146,7 @@ export function DataTable(props: Record<string, unknown>) {
                         >
                           —
                         </span>
-                        <span className="sr-only">Empty</span>
+                        <span className="sr-only">{"空"}</span>
                       </>
                     ) : (
                       row.cells[index]
@@ -160,7 +161,7 @@ export function DataTable(props: Record<string, unknown>) {
                   colSpan={columns.length}
                   className="px-3 py-8 text-center text-muted-foreground"
                 >
-                  No rows to show.
+                  {"没有要显示的行。"}
                 </td>
               </tr>
             )}
@@ -170,8 +171,8 @@ export function DataTable(props: Record<string, unknown>) {
       {rows.length > 1 && (
         <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
           {sort
-            ? `Sorted by ${columns[sort.column]}, ${sort.ascending ? "ascending" : "descending"}.`
-            : "Select a column heading to sort."}
+            ? `按 ${columns[sort.column]}、${sort.ascending ? "升序" : "降序"} 排序。`
+            : "选择列标题进行排序。"}
         </p>
       )}
     </GalleryFrame>
@@ -181,16 +182,16 @@ export function DataTable(props: Record<string, unknown>) {
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showTable",
-    title: "Data table",
+    title: "数据表",
     kind: "card",
     description:
-      "Show a sortable table to compare records, plans, or other structured facts. Supply up to eight columns and 100 rows, with exactly one cell per column. Use numbers for quantities so sorting is numeric. Show only data you have; do not invent rows.",
+      "显示可排序表格以比较记录、计划或其他结构化事实。提供最多八列和100行，每列正好一个单元格。使用数字表示数量以便数值排序。只显示已有数据；不要虚构行。",
     parameters: DataTableProps,
     Component: DataTable,
     confirmation: "The sortable table is now on screen for the person.",
     preview: {
-      title: "Team capacity",
-      caption: "Three teams, one shared launch. Hours available this week.",
+      title: "团队容量",
+      caption: "三个团队，一个共享启动。本周可用小时。",
       columns: ["Team", "Available hours", "Focus"],
       rows: [
         { cells: ["Product", 24, "Customer onboarding"] },

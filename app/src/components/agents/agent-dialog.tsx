@@ -14,6 +14,7 @@ import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
+import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { RoutinesList } from "@/components/routines/routines-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -134,7 +135,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-6 text-sm text-destructive" role="alert">
-        Could not load this coworker.
+        {"无法加载此AI同事。"}
       </p>
     );
   }
@@ -281,21 +282,21 @@ function GeneralSection({
       <div className="flex flex-col gap-2">
         <EditableTextItem
           canManage={profile.canManage}
-          label="Name"
+          label={"名称"}
           onSave={(name) => save({ name })}
           schema={agentFormSchema.shape.name}
           value={profile.name}
         />
         <EditableTextItem
           canManage={profile.canManage}
-          label="Title"
+          label={"标题"}
           onSave={(title) => save({ title })}
           schema={agentFormSchema.shape.title}
           value={profile.title}
         />
         <EditableTextItem
           canManage={profile.canManage}
-          label="Role"
+          label={"角色"}
           multiline
           onSave={(roleDescription) => save({ roleDescription })}
           schema={agentFormSchema.shape.roleDescription}
@@ -306,12 +307,13 @@ function GeneralSection({
           onSave={(visibility) => save({ visibility })}
           value={profile.visibility}
         />
+        <Item variant="muted"><ItemContent><ItemTitle>模型设置</ItemTitle><BotModelSelector agentId={agentId} /></ItemContent></Item>
         {profile.systemOwned ? (
           <Item variant="muted">
             <ItemContent>
-              <ItemTitle>System owned</ItemTitle>
+              <ItemTitle>{"系统拥有"}</ItemTitle>
               <ItemDescription>
-                Ships with this deployment rather than belonging to a person.
+                {"此部署随附，而不是属于某人。"}
               </ItemDescription>
             </ItemContent>
           </Item>
@@ -320,10 +322,8 @@ function GeneralSection({
 
       <Item variant="muted">
         <ItemContent>
-          <ItemTitle>Start channel</ItemTitle>
-          <ItemDescription>
-            Open a new channel with this coworker.
-          </ItemDescription>
+          <ItemTitle>{"开始会话"}</ItemTitle>
+          <ItemDescription>{"与此 AI 同事开启新会话。"}</ItemDescription>
         </ItemContent>
         <ItemActions>
           <Button
@@ -335,7 +335,7 @@ function GeneralSection({
             }
             size="sm"
           >
-            Start
+            {"开始"}
           </Button>
         </ItemActions>
       </Item>
@@ -378,7 +378,7 @@ function EditableTextItem({
   const submit = async () => {
     const parsed = schema.safeParse(draft);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "That value does not fit.");
+      setError(parsed.error.issues[0]?.message ?? "该值不合适。");
       return;
     }
     setSaving(true);
@@ -386,7 +386,7 @@ function EditableTextItem({
       await onSave(parsed.data);
       close();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not save.");
+      setError(failure instanceof Error ? failure.message : "无法保存。");
     } finally {
       setSaving(false);
     }
@@ -408,7 +408,7 @@ function EditableTextItem({
           </span>
           {canManage ? (
             <Button
-              aria-label={`Edit ${label.toLowerCase()}`}
+              aria-label={`编辑 ${label.toLowerCase()}`}
               onClick={() => {
                 setDraft(value);
                 setEditing(true);
@@ -457,10 +457,10 @@ function EditableTextItem({
         ) : null}
         <div className="mt-1 flex gap-2">
           <Button disabled={saving} onClick={() => void submit()} size="sm">
-            {saving ? "Saving…" : "Save"}
+            {saving ? "正在保存…" : "保存"}
           </Button>
           <Button disabled={saving} onClick={close} size="sm" variant="outline">
-            Cancel
+            {"取消"}
           </Button>
         </div>
       </ItemContent>
@@ -487,11 +487,11 @@ function VisibilityItem({
   return (
     <Item variant="muted">
       <ItemContent>
-        <ItemTitle>Visibility</ItemTitle>
+        <ItemTitle>{"可见性"}</ItemTitle>
         <ItemDescription>
           {value === "private"
-            ? "Only you can see it and start channels with it."
-            : "Everyone in the deployment can find and use it."}
+            ? "只有你能看到它并与之启动会话。"
+            : "部署中的每个人都可以找到并使用它。"}
         </ItemDescription>
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -513,9 +513,7 @@ function VisibilityItem({
                 await onSave(next as AgentProfile["visibility"]);
               } catch (failure) {
                 setError(
-                  failure instanceof Error
-                    ? failure.message
-                    : "Could not save.",
+                  failure instanceof Error ? failure.message : "无法保存。",
                 );
               } finally {
                 setSaving(false);
@@ -527,13 +525,13 @@ function VisibilityItem({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="private">Private</SelectItem>
-              <SelectItem value="public">Public</SelectItem>
+              <SelectItem value="private">{"私有"}</SelectItem>
+              <SelectItem value="public">{"公开"}</SelectItem>
             </SelectContent>
           </Select>
         ) : (
           <span className="text-sm text-muted-foreground">
-            {value === "private" ? "Private" : "Public"}
+            {value === "private" ? "私有" : "公开"}
           </span>
         )}
       </ItemActions>
@@ -564,7 +562,7 @@ function AccessSection({ agentId }: { agentId: string }) {
   if (plugins.error || !plugins.data) {
     return (
       <p className="text-sm text-destructive" role="alert">
-        What this coworker may reach could not be loaded.
+        {"此AI同事可以访问的内容无法加载。"}
       </p>
     );
   }
@@ -595,11 +593,12 @@ function AccessSection({ agentId }: { agentId: string }) {
       <Empty className="h-[180px] border border-dashed">
         <EmptyHeader>
           <EmptyTitle className="text-muted-foreground">
-            Nothing granted yet
+            {"尚未授权"}
           </EmptyTitle>
           <EmptyDescription>
-            An administrator grants connectors and skills from the Plugins
-            screens. Until then this coworker can converse, and nothing more.
+            {
+              "管理员从插件屏幕授予连接器和技能。在此之前，此 AI 同事可以对话，仅此而已。"
+            }
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -609,8 +608,9 @@ function AccessSection({ agentId }: { agentId: string }) {
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        What this coworker may reach when it works. Granted by an administrator
-        on the Plugins screens; anything not listed is refused when called.
+        {
+          "此AI同事在工作时可以访问的内容。由管理员在插件页面授予；未列出的任何内容在调用时被拒绝。"
+        }
       </p>
       <div className="flex flex-col gap-2">
         {[...connectors.entries()].map(([key, labels]) => (
@@ -619,12 +619,12 @@ function AccessSection({ agentId }: { agentId: string }) {
               <ItemTitle>{connectorName(key)}</ItemTitle>
               <ItemDescription>
                 {labels.slice(0, 4).join(", ")}
-                {labels.length > 4 ? ` and ${labels.length - 4} more` : ""}
+                {labels.length > 4 ? `以及 ${labels.length - 4} 更多` : ""}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <span className="text-sm text-muted-foreground tabular-nums">
-                {labels.length} {labels.length === 1 ? "tool" : "tools"}
+                {labels.length} {labels.length === 1 ? "工具" : "工具"}
               </span>
             </ItemActions>
           </Item>
@@ -636,7 +636,7 @@ function AccessSection({ agentId }: { agentId: string }) {
               <ItemDescription>{skill.summary}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <span className="text-sm text-muted-foreground">Skill</span>
+              <span className="text-sm text-muted-foreground">{"技能"}</span>
             </ItemActions>
           </Item>
         ))}
@@ -661,9 +661,9 @@ function ConnectionSection({
   if (!profile.endpoint || profile.builtIn) {
     return (
       <p className="text-sm text-muted-foreground">
-        Runs on this deployment's own Bot. Nothing to connect and nothing to
-        authenticate: its tool calls are covered by the deployment's own
-        credential.
+        {
+          "在此部署的自身机器人上运行。无需连接和认证：其工具调用由部署自身的凭证覆盖。"
+        }
       </p>
     );
   }
@@ -671,7 +671,7 @@ function ConnectionSection({
     <>
       <section className="grid gap-2">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Endpoint
+          {"端点"}
         </h2>
         <p className="break-all font-mono text-sm">{profile.endpoint}</p>
       </section>
@@ -710,11 +710,11 @@ function ManageSection({
       <div className="flex flex-col gap-2">
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>{profile.pinned ? "Pinned" : "Pin"}</ItemTitle>
+            <ItemTitle>{profile.pinned ? "已固定" : "固定"}</ItemTitle>
             <ItemDescription>
               {profile.pinned
-                ? "At the top of your agents list. This changes nothing for anyone else."
-                : "Keep it at the top of your agents list. This changes nothing for anyone else."}
+                ? "在你的代理列表顶部。这对其他人没有任何影响。"
+                : "将其保持在您的代理列表顶部。这对其他人没有任何改变。"}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
@@ -728,22 +728,22 @@ function ManageSection({
             >
               {setPinned.isPending
                 ? profile.pinned
-                  ? "Unpinning…"
-                  : "Pinning…"
+                  ? "取消固定中…"
+                  : "正在固定…"
                 : profile.pinned
-                  ? "Unpin"
-                  : "Pin"}
+                  ? "取消固定"
+                  : "固定"}
             </Button>
           </ItemActions>
         </Item>
 
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>{profile.hidden ? "Hidden" : "Hide"}</ItemTitle>
+            <ItemTitle>{profile.hidden ? "隐藏" : "隐藏"}</ItemTitle>
             <ItemDescription>
               {profile.hidden
-                ? "Hidden from your agents list. This changes nothing for anyone else."
-                : "Take it off your agents list. This changes nothing for anyone else."}
+                ? "从你的代理列表隐藏。这对其他人无影响"
+                : "将其从您的代理列表中移除。这对其他人没有任何影响。"}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
@@ -762,20 +762,20 @@ function ManageSection({
             >
               {setHidden.isPending
                 ? profile.hidden
-                  ? "Unhiding…"
-                  : "Hiding…"
+                  ? "取消隐藏中…"
+                  : "正在隐藏…"
                 : profile.hidden
-                  ? "Unhide"
-                  : "Hide"}
+                  ? "取消隐藏"
+                  : "隐藏"}
             </Button>
           </ItemActions>
         </Item>
 
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>Duplicate</ItemTitle>
+            <ItemTitle>{"复制"}</ItemTitle>
             <ItemDescription>
-              A copy of your own, with no key and no channels.
+              {"你自己的副本，没有密钥也没有通道。"}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
@@ -788,7 +788,7 @@ function ManageSection({
               size="sm"
               variant="outline"
             >
-              {duplicateAgent.isPending ? "Duplicating…" : "Duplicate"}
+              {duplicateAgent.isPending ? "正在复制…" : "复制"}
             </Button>
           </ItemActions>
         </Item>
@@ -796,8 +796,8 @@ function ManageSection({
         {profile.canManage ? (
           <Item variant="muted">
             <ItemContent>
-              <ItemTitle>Delete</ItemTitle>
-              <ItemDescription>This cannot be undone.</ItemDescription>
+              <ItemTitle>{"删除"}</ItemTitle>
+              <ItemDescription>{"此操作无法撤消。"}</ItemDescription>
             </ItemContent>
             <ItemActions>
               <Button
@@ -805,7 +805,7 @@ function ManageSection({
                 size="sm"
                 variant="destructive"
               >
-                Delete
+                {"删除"}
               </Button>
             </ItemActions>
           </Item>
@@ -829,8 +829,11 @@ function ManageSection({
           overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm"
         >
           <DialogHeader>
-            <DialogTitle>Delete {profile.name}?</DialogTitle>
-            <DialogDescription>This cannot be undone.</DialogDescription>
+            <DialogTitle>
+              {"删除"}
+              {profile.name}?
+            </DialogTitle>
+            <DialogDescription>{"此操作无法撤消。"}</DialogDescription>
           </DialogHeader>
           {deleteAgent.error ? (
             <p className="mt-4 text-sm text-destructive" role="alert">
@@ -843,7 +846,7 @@ function ManageSection({
               size="sm"
               variant="outline"
             >
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={deleteAgent.isPending}
@@ -854,7 +857,7 @@ function ManageSection({
               size="sm"
               variant="destructive"
             >
-              {deleteAgent.isPending ? "Deleting…" : "Delete"}
+              {deleteAgent.isPending ? "正在删除…" : "删除"}
             </Button>
           </DialogFooter>
         </DialogContent>

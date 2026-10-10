@@ -7,7 +7,7 @@
 //! allocated before anything is written to.
 //!
 //! The visible half of this was Stop: `compose down` takes several seconds, so its window had time
-//! to be seen, in the foreground, over OpenBot. The rest are quicker and flash instead, once per
+//! to be seen, in the foreground, over ChisaBot. The rest are quicker and flash instead, once per
 //! poll, for the whole of a first run.
 //!
 //! Unix has no equivalent problem and no equivalent flag, so there the wrapper is the identity.

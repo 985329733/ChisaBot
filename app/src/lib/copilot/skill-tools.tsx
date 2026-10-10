@@ -75,7 +75,7 @@ export function SkillTools() {
   useFrontendTool({
     name: "list_skills",
     description:
-      "The skills that already exist in this deployment, one line each, with whose each one is. Read this before writing a skill: a slug is an identity, so reusing one replaces that skill, and a slug that is not the person's own cannot be replaced at all.",
+      "此部署中已存在的技能，每行一个，带有每个技能的。写技能前阅读此内容：slug 是身份，因此重用一个会替换该技能，且不是本人拥有的 slug 无法替换。",
     parameters: z.object({}),
     available: authoring,
     handler: async () => describeSkills(skills, me?.id),
@@ -84,7 +84,7 @@ export function SkillTools() {
   useFrontendTool({
     name: "read_skill",
     description:
-      "One existing skill in full, including its instructions. Use this when improving a skill rather than writing a new one — never rewrite an instruction you have not read.",
+      "一个现有的技能，包含其指令。当改进技能而非编写新技能时使用此选项——切勿改写未阅读过的指令。",
     parameters: z.object({
       slug: z
         .string()
@@ -106,7 +106,7 @@ export function SkillTools() {
   useFrontendTool({
     name: "list_skill_tools",
     description:
-      "The `serverId/toolName` refs a skill here can declare, grouped by connector. Declaring a tool grants nothing — the offer a run gets is always the intersection of what the skill names with what the Bot was granted — so a skill may name tools for a connector this Bot does not hold yet.",
+      "`serverId/toolName` 引用此处技能可声明的，由连接器分组。声明工具无任何授予——运行获得的提供始终是技能命名与 Bot 授予的交集——因此技能可为 Bot 尚未持有的连接器命名工具。",
     parameters: z.object({}),
     available: authoring,
     handler: async () => describeToolRefs(page?.servers ?? []),
@@ -165,7 +165,7 @@ export function SkillTools() {
   useHumanInTheLoop({
     name: "save_skill",
     description:
-      "Put a finished skill in front of the person to save. They see the command, the title and the whole instruction, and nothing is written unless they press the button. Call this once, at the end, after they have agreed to what the skill says — not to check your draft.",
+      "将一个完成的技能放在要保存的人面前。他们看到命令、标题和整个指令，除非他们按下按钮，否则什么都不会被写入。在他们同意技能所说的话之后，在最后一次调用它——不要检查你的草稿。",
     parameters: proposedSkillSchema,
     available: authoring,
     render: Card,

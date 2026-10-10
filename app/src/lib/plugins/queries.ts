@@ -286,7 +286,7 @@ export function connectionsQueryOptions() {
     queryKey: pluginKeys.connections(),
     queryFn: async (): Promise<PluginConnections> => {
       const response = await client("/api/plugins/connections", {
-        fallback: "Your connected accounts could not be loaded.",
+        fallback: "您的连接账户无法加载。",
       });
       return response.json();
     },
@@ -298,7 +298,7 @@ export function pluginsPageQueryOptions() {
     queryKey: pluginKeys.page(),
     queryFn: async (): Promise<PluginsPage> => {
       const response = await client("/api/plugins", {
-        fallback: "Plugins could not be loaded.",
+        fallback: "插件无法加载。",
       });
       return response.json();
     },
@@ -317,7 +317,7 @@ export function composioAppsQueryOptions(query: string) {
     queryFn: async (): Promise<{ apps: ComposioApp[] }> => {
       const response = await client(
         `/api/plugins/composio/apps?q=${encodeURIComponent(query)}`,
-        { fallback: "Composio's app directory could not be read." },
+        { fallback: "无法读取 Composio 的应用目录。" },
       );
       return response.json();
     },
@@ -335,7 +335,7 @@ export function agentPluginsQueryOptions(agentId: string) {
     queryFn: async (): Promise<GrantedPlugins> => {
       const response = await client(
         `/api/plugins/for/${encodeURIComponent(agentId)}`,
-        { fallback: "This Bot's plugins could not be read." },
+        { fallback: "此机器人的插件无法读取。" },
       );
       return response.json();
     },

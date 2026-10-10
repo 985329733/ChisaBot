@@ -111,6 +111,7 @@ function selectActiveAgents(database: Database, actor: AgentActor) {
       name: agents.name,
       type: agents.type,
       configuration: agents.configuration,
+      override: agents.override,
       title: agentProfiles.title,
       roleDescription: agentProfiles.roleDescription,
     })

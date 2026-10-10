@@ -1,5 +1,6 @@
 {
   "name": "@openbot/supervisor",
+  "description": "ChisaBot BOT 电脑管理服务",
   "license": "MIT",
   "private": true,
   "type": "module",

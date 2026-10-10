@@ -4,11 +4,8 @@ name: Desktop
 # Windows app and a Linux app built from one tree, and the ways they differ are exactly the ways
 # this fails. So it tests and builds on all three, on every change to it.
 on:
-  pull_request:
-    paths: ["desktop/**", "package.json", ".github/workflows/desktop.yml"]
-  push:
-    branches: [main]
-    paths: ["desktop/**", "package.json", ".github/workflows/desktop.yml"]
+  # Native packages need their own platform checks before a ChisaBot release.
+  workflow_dispatch:
   workflow_call:
     secrets:
       OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET:
@@ -117,7 +114,7 @@ jobs:
           mkdir -p "$mount"
           hdiutil attach -readonly -nobrowse -mountpoint "$mount" "${images[0]}"
           trap 'hdiutil detach "$mount"' EXIT
-          export OPENBOT_VERIFY_APP="$mount/OpenBot.app"
+          export OPENBOT_VERIFY_APP="$mount/ChisaBot.app"
           python3 - <<'PY'
           import json, os, pathlib, plistlib, subprocess
           build = json.loads(pathlib.Path('desktop/build-version.json').read_text())

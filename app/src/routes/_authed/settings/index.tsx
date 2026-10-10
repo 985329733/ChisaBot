@@ -36,21 +36,21 @@ function RouteComponent() {
    */
   return (
     <PageShell
-      description="How OpenBot looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser."
-      title="Preferences"
+      description={
+        "ChisaBot 在你这里的显示和行为。消息列表偏好与账号同步。主题保存在此浏览器"
+      }
+      title={"偏好设置"}
     >
-      <PageSection title="General">
+      <PageSection title={"通用"}>
         <PageRows>
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Dark theme</ItemTitle>
-              <ItemDescription>
-                Use the dark appearance across OpenBot.
-              </ItemDescription>
+              <ItemTitle>{"深色主题"}</ItemTitle>
+              <ItemDescription>{"在 ChisaBot 中使用暗色外观。"}</ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Dark theme"
+                aria-label={"深色主题"}
                 checked={dark}
                 onCheckedChange={setDark}
               />
@@ -69,7 +69,7 @@ function RouteComponent() {
        * actually do rather than what somebody remembered they did. Read-only on purpose: these
        * are not rebindable, and a row with nothing to click says so by having nothing to click.
        */}
-      <PageSection title="Keyboard shortcuts">
+      <PageSection title={"键盘快捷键"}>
         <PageRows>
           {HOTKEYS.map((hotkey, index) => (
             <React.Fragment key={hotkey.id}>

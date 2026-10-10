@@ -26,9 +26,9 @@ import {
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 
 const HOST_LABELS: Record<HostCommandPolicy, string> = {
-  ask: "Ask every time",
-  allow: "Always allow",
-  never: "Never",
+  ask: "每次询问",
+  allow: "始终允许",
+  never: "从不",
 };
 const selectClass =
   "h-9 rounded-md border bg-background px-2 text-sm disabled:opacity-50";
@@ -118,14 +118,14 @@ export function ApprovalInbox() {
         className="flex items-center justify-between gap-4 rounded-lg border p-4"
       >
         <span>
-          <span className="block font-medium">Ask before making changes</span>
+          <span className="block font-medium">{"更改前询问"}</span>
           <span className="text-sm text-muted-foreground">
-            Review a Bot's changes to websites, connected apps, and files.
+            {"查看机器人对网站、连接应用和文件的更改"}
           </span>
         </span>
         <Switch
           id="ask-before-changes"
-          aria-label="Ask before making changes"
+          aria-label={"更改前询问"}
           checked={inbox.data?.enabled ?? false}
           disabled={inbox.isLoading || preference.isPending}
           onCheckedChange={(enabled) => preference.mutate(enabled)}
@@ -139,17 +139,16 @@ export function ApprovalInbox() {
           >
             <span>
               <span id="auto-review-title" className="block font-medium">
-                Auto-review
+                {"自动审核"}
               </span>
               <span
                 id="auto-review-description"
                 className="text-sm text-muted-foreground"
               >
-                {enforced ? "Required by your team. " : ""}
-                Before an action that could affect your accounts or share
-                information, a model checks it against what you asked for, your
-                rules and the safety requirements. If it cannot decide, it asks
-                you.
+                {enforced ? "由您的团队要求。" : ""}
+                {
+                  "在可能影响你的账户或共享信息的操作之前，模型会将其与你要求的内容、你的规则和安全要求进行检查。如果无法决定，它会询问你。"
+                }
               </span>
             </span>
             <Switch
@@ -170,21 +169,20 @@ export function ApprovalInbox() {
             className="flex items-center justify-between gap-4 rounded-lg border p-4"
           >
             <span>
-              <span className="block font-medium">
-                Commands on your computer
-              </span>
+              <span className="block font-medium">{"您电脑上的命令"}</span>
               <span className="text-sm text-muted-foreground">
                 {inbox.data.hostCommands &&
                 inbox.data.hostCommands !== inbox.data.preferences.hostCommands
-                  ? `Your team limits this to "${HOST_LABELS[inbox.data.hostCommands]}". `
+                  ? `您的团队将此限制为 "${HOST_LABELS[inbox.data.hostCommands]}"。`
                   : ""}
-                The OpenBot desktop app still shows each command before it runs
-                on your computer.
+                {
+                  "ChisaBot 桌面应用在您的计算机上运行每个命令之前仍会显示每个命令。"
+                }
               </span>
             </span>
             <select
               id="host-commands"
-              aria-label="Commands on your computer"
+              aria-label={"您电脑上的命令"}
               className={selectClass}
               value={inbox.data.preferences.hostCommands}
               disabled={preferences.isPending}
@@ -204,7 +202,7 @@ export function ApprovalInbox() {
         </>
       ) : null}
       <div className="space-y-3">
-        <h2 className="font-medium">Waiting for you</h2>
+        <h2 className="font-medium">{"等待您"}</h2>
         {inbox.data?.questions.map((question) => (
           <article
             key={question.id}
@@ -217,8 +215,8 @@ export function ApprovalInbox() {
               <p className="text-sm text-muted-foreground">{question.why}</p>
             ) : null}
             <Textarea
-              aria-label="Your answer"
-              placeholder="Your answer"
+              aria-label={"您的回答"}
+              placeholder={"您的回答"}
               value={answers[question.id] ?? ""}
               onChange={(event) =>
                 setAnswers((prior) => ({
@@ -236,15 +234,15 @@ export function ApprovalInbox() {
                 })
               }
             >
-              Send answer
+              {"发送答案"}
             </Button>
           </article>
         ))}
         {inbox.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading approvals…</p>
+          <p className="text-sm text-muted-foreground">{"正在加载审批…"}</p>
         ) : pending.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No actions need your approval.
+            {"没有操作需要您的审批。"}
           </p>
         ) : (
           pending.map((request) => (
@@ -254,7 +252,7 @@ export function ApprovalInbox() {
             >
               <div>
                 <h3 className="font-medium">
-                  {request.action.botId} wants to{" "}
+                  {request.action.botId} {"想要"}{" "}
                   {request.action.toolRef
                     .replace(/^computer_|^host\//, "")
                     .replaceAll("_", " ")}
@@ -265,7 +263,7 @@ export function ApprovalInbox() {
                 {request.action.policy ? (
                   <p className="text-sm">
                     {request.action.policy.behaviour === "hand_off"
-                      ? "Handed to you: "
+                      ? "已移交给您："
                       : ""}
                     {request.action.policy.reason}
                   </p>
@@ -282,7 +280,7 @@ export function ApprovalInbox() {
                       decision.mutate({ id: request.id, choice: "handled" })
                     }
                   >
-                    I did it myself
+                    {"我自己完成"}
                   </Button>
                   <Button
                     variant="outline"
@@ -291,7 +289,7 @@ export function ApprovalInbox() {
                       decision.mutate({ id: request.id, choice: "deny" })
                     }
                   >
-                    Don't do it
+                    {"不要这样做"}
                   </Button>
                 </div>
               ) : (
@@ -302,7 +300,7 @@ export function ApprovalInbox() {
                       decision.mutate({ id: request.id, choice: "allow_once" })
                     }
                   >
-                    Allow once
+                    {"允许一次"}
                   </Button>
                   <Button
                     variant="outline"
@@ -314,7 +312,7 @@ export function ApprovalInbox() {
                       })
                     }
                   >
-                    Always allow here
+                    {"始终在此处允许"}
                   </Button>
                   <Button
                     variant="outline"
@@ -323,7 +321,7 @@ export function ApprovalInbox() {
                       decision.mutate({ id: request.id, choice: "deny" })
                     }
                   >
-                    Deny
+                    {"拒绝"}
                   </Button>
                 </div>
               )}
@@ -332,14 +330,12 @@ export function ApprovalInbox() {
         )}
       </div>
       <div className="space-y-3">
-        <h2 className="font-medium">Rules</h2>
+        <h2 className="font-medium">{"规则"}</h2>
         <p className="text-sm text-muted-foreground">
-          The strictest matching rule wins, so an "ask" rule beats an "allow"
-          one. Team rules are locked. Changing a password, security settings and
-          payments are always handed to you.
-          {rulesOff
-            ? " Your team has switched personal rules off, so they are kept but do not apply."
-            : ""}
+          {
+            "最严格的匹配规则获胜，因此“ask”规则胜过“allow”规则。团队规则已锁定。更改密码、安全设置和付款始终由您处理。"
+          }
+          {rulesOff ? "您的团队已关闭个人规则，因此它们被保留但不适用。" : ""}
         </p>
         {inbox.data?.teamRules.map((rule) => (
           <RuleRow
@@ -367,11 +363,11 @@ export function ApprovalInbox() {
           />
         ))}
         {!inbox.data?.rules.length && !inbox.data?.teamRules.length ? (
-          <p className="text-sm text-muted-foreground">No rules saved.</p>
+          <p className="text-sm text-muted-foreground">{"未保存规则。"}</p>
         ) : null}
         {inbox.data?.preferences && !rulesOff ? (
           <RuleForm
-            label="Add a rule"
+            label={"添加规则"}
             pending={addRule.isPending}
             onSave={(input) => addRule.mutate(input)}
           />
@@ -379,13 +375,13 @@ export function ApprovalInbox() {
       </div>
       {isAdmin && inbox.data?.team ? (
         <div className="space-y-3">
-          <h2 className="font-medium">Team settings</h2>
+          <h2 className="font-medium">{"团队设置"}</h2>
           <label
             htmlFor="enforce-auto-review"
             className="flex items-center justify-between gap-4 rounded-lg border p-4"
           >
             <span id="enforce-auto-review-title" className="font-medium">
-              Require auto-review for everyone
+              {"要求所有人自动审核"}
             </span>
             <Switch
               id="enforce-auto-review"
@@ -402,7 +398,7 @@ export function ApprovalInbox() {
             className="flex items-center justify-between gap-4 rounded-lg border p-4"
           >
             <span id="custom-rules-title" className="font-medium">
-              Let members set personal rules
+              {"允许成员设置个人规则"}
             </span>
             <Switch
               id="custom-rules"
@@ -420,15 +416,15 @@ export function ApprovalInbox() {
           >
             <span>
               <span className="block font-medium">
-                Commands on members' computers, at most
+                {"成员电脑上的命令，至多"}
               </span>
               <span className="text-sm text-muted-foreground">
-                A member's own stricter setting still applies.
+                {"成员自己的更严格设置仍适用。"}
               </span>
             </span>
             <select
               id="host-commands-cap"
-              aria-label="Commands on members' computers, at most"
+              aria-label={"成员电脑上的命令，至多"}
               className={selectClass}
               value={inbox.data.team.hostCommandsCap}
               disabled={team.isPending}
@@ -446,7 +442,7 @@ export function ApprovalInbox() {
             </select>
           </label>
           <RuleForm
-            label="Add a team rule"
+            label={"添加团队规则"}
             pending={addTeamRule.isPending}
             onSave={(input) => addTeamRule.mutate(input)}
           />
@@ -479,7 +475,7 @@ function RuleRow({
           <p className="text-sm font-medium">{label}</p>
         ) : (
           <select
-            aria-label={`Behaviour for ${rule.toolRef}`}
+            aria-label={`行为：${rule.toolRef}`}
             className={selectClass}
             value={rule.behaviour}
             disabled={disabled}
@@ -491,23 +487,23 @@ function RuleRow({
             {(Object.keys(BEHAVIOUR_LABELS) as RuleBehaviour[]).map((key) => (
               <option key={key} value={key}>
                 {BEHAVIOUR_LABELS[key]}
-                {team ? " (team rule)" : ""}
+                {team ? "(团队规则)" : ""}
               </option>
             ))}
           </select>
         )}
         <p className="text-sm text-muted-foreground">
           {rule.toolRef}
-          {rule.effect !== "*" ? `, ${rule.effect}` : ""}
-          {rule.scope !== "*" ? ` on ${rule.scope}` : ""}
-          {rule.botId !== "*" ? ` for ${rule.botId}` : ""}
+          {rule.effect !== "*" ? `，${rule.effect}` : ""}
+          {rule.scope !== "*" ? `在 ${rule.scope} 上` : ""}
+          {rule.botId !== "*" ? `用于 ${rule.botId}` : ""}
         </p>
       </div>
       {locked ? (
-        <span className="text-sm text-muted-foreground">Locked</span>
+        <span className="text-sm text-muted-foreground">{"已锁定"}</span>
       ) : (
         <Button variant="outline" disabled={disabled} onClick={onRevoke}>
-          Remove
+          {"移除"}
         </Button>
       )}
     </div>
@@ -567,9 +563,9 @@ function RuleForm({
       {field("scope", "Target", "*, a site, a folder, a Bot name")}
       {field("botId", "Bot", "* for every Bot")}
       <label className="grid gap-1 text-sm">
-        <span>Behaviour</span>
+        <span>{"行为"}</span>
         <select
-          aria-label="Behaviour"
+          aria-label={"行为"}
           className={selectClass}
           value={rule.behaviour}
           onChange={(event) => {
@@ -586,7 +582,7 @@ function RuleForm({
       </label>
       <div className="flex items-end">
         <Button type="submit" disabled={pending || !rule.toolRef.trim()}>
-          Save rule
+          {"保存规则"}
         </Button>
       </div>
     </form>

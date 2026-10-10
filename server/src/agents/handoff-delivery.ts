@@ -14,6 +14,7 @@
 import type { AbstractAgent, BaseEvent } from "@ag-ui/client";
 import type { Observable } from "rxjs";
 import { headlessTurnRefusal } from "../admin/controls";
+import { withModelConnectionScope } from "../model-connection-context";
 import type { HandoffDelivery } from "./handoff-runner";
 import { guardBotTurn } from "./lifecycle";
 import { textOf } from "./message-text";
@@ -174,7 +175,7 @@ export function createHandoffDelivery(options: {
     deadlineMs = DEFAULT_DELIVERY_DEADLINE_MS,
   } = options;
 
-  return {
+  const delivery: HandoffDelivery = {
     async deliver({ work, message, shown, assertion }) {
       const agent = await agentFor({
         actorId: work.actorId,
@@ -478,6 +479,9 @@ export function createHandoffDelivery(options: {
        */
       return { answer: said.length > 0 ? said.join("\n\n") : null };
     },
+  };
+  return {
+    deliver: (input) => withModelConnectionScope(() => delivery.deliver(input)),
   };
 }
 

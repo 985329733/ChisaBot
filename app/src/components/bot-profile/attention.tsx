@@ -18,16 +18,11 @@ export function needsInput(bot: BotAttention): number {
 /** What the badge says, in words, for the row's accessible name and its tooltip. */
 export function attentionSummary(bot: BotAttention): string {
   const parts: string[] = [];
-  if (bot.questions)
-    parts.push(`${bot.questions} question${bot.questions === 1 ? "" : "s"}`);
-  if (bot.approvals)
-    parts.push(`${bot.approvals} approval${bot.approvals === 1 ? "" : "s"}`);
-  if (bot.handoffs)
-    parts.push(
-      `${bot.handoffs} stalled hand-off${bot.handoffs === 1 ? "" : "s"}`,
-    );
-  if (bot.unread) parts.push(`${bot.unread} unread`);
-  return parts.join(", ");
+  if (bot.questions) parts.push(`${bot.questions} 个问题`);
+  if (bot.approvals) parts.push(`${bot.approvals} 项待审批操作`);
+  if (bot.handoffs) parts.push(`${bot.handoffs} 项等待处理的交接`);
+  if (bot.unread) parts.push(`${bot.unread} 条未读消息`);
+  return parts.join("，");
 }
 
 /**
@@ -56,7 +51,7 @@ function useAttentionNotifications(bots: BotAttention[] | undefined) {
       if (bot.notify === "none" || now <= (previous.get(bot.agentId) ?? 0))
         continue;
       try {
-        new Notification(`${bot.name} needs you`, {
+        new Notification(`${bot.name} 需要你处理`, {
           body: attentionSummary(bot),
           tag: `openbot-attention-${bot.agentId}`,
         });
@@ -88,7 +83,7 @@ export function BotAttentionList() {
         return (
           <SidebarMenuItem key={bot.agentId} className="flex flex-row gap-1">
             <SidebarMenuButton
-              aria-label={`${bot.name}: ${bot.paused ? "paused" : attentionSummary(bot)}`}
+              aria-label={`${bot.name}：${bot.paused ? "已暂停" : attentionSummary(bot)}`}
               className="hover:bg-foreground/5 h-9 flex-1"
               render={(props) => (
                 <Link
@@ -123,7 +118,7 @@ export function BotAttentionList() {
                 }
               >
                 <IconPlayerPause className="size-3.5" />
-                Paused, tap to resume
+                {"已暂停，轻点以恢复"}
               </SidebarMenuButton>
             ) : null}
           </SidebarMenuItem>

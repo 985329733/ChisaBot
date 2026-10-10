@@ -92,7 +92,7 @@ fn podman_with(
     args: &[&str],
     run: impl FnOnce() -> std::io::Result<std::process::Output>,
 ) -> Result<String, String> {
-    // Resolved, not named: right after OpenBot installs it, `podman` is not yet on this process's
+    // Resolved, not named: right after ChisaBot installs it, `podman` is not yet on this process's
     // PATH. See the PATH rule in `engine.rs`.
     let output = run().map_err(|error| format!("could not run podman: {error}"))?;
     if output.status.success() {
@@ -215,7 +215,7 @@ fn prepare_user_mode_networking_before_start(
     let networking = owned_machine_networking(&listing)?;
     if networking.state.eq_ignore_ascii_case("running") && !networking.user_mode {
         return Err(format!(
-            "{MACHINE} is already running without Podman user-mode networking. Stop the OpenBot engine machine and start OpenBot again so host callbacks can be configured."
+            "{MACHINE} is already running without Podman user-mode networking. Stop the ChisaBot engine machine and start ChisaBot again so host callbacks can be configured."
         ));
     }
     if networking.state.eq_ignore_ascii_case("stopped") && !networking.user_mode {
@@ -278,7 +278,7 @@ fn configure_owned_windows_podman_for_compose(
     let networking = owned_machine_networking(&listing)?;
     if !networking.user_mode {
         return Err(format!(
-            "{MACHINE} is running without Podman user-mode networking. Stop the OpenBot engine machine and start OpenBot again so host callbacks can be configured."
+            "{MACHINE} is running without Podman user-mode networking. Stop the ChisaBot engine machine and start ChisaBot again so host callbacks can be configured."
         ));
     }
     configure_host_gateway_after_start(&mut run, true)
@@ -363,7 +363,7 @@ pub fn start_machine() -> StepOutcome {
 fn explain_machine_error(error: &str) -> String {
     if error.contains("WSL_E_LOCAL_SYSTEM_NOT_SUPPORTED") {
         return "WSL will not run as the system account, so this step has to run as you. \
-                Restart OpenBot without elevation."
+                Restart ChisaBot without elevation."
             .into();
     }
     if error.contains("WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED") {
@@ -438,7 +438,7 @@ pub fn health_gate(address: &Address) -> StepOutcome {
 
 /// What to install, named, rather than seven errors about a file that is not there.
 ///
-/// A last resort, not the plan: OpenBot installs a Compose provider itself, so somebody only reads
+/// A last resort, not the plan: ChisaBot installs a Compose provider itself, so somebody only reads
 /// this when that copy is missing or is not being found. The restart comes first for that reason,
 /// and the platform's own instruction is behind it.
 ///
@@ -461,8 +461,8 @@ pub fn missing_compose(binary: &str) -> String {
          sure `docker-compose` is on PATH."
     };
     format!(
-        "{binary} is answering, but it has no Compose to run the stack with, and OpenBot's own \
-         copy of one is not being found. Restart OpenBot and try again. If this comes back: \
+        "{binary} is answering, but it has no Compose to run the stack with, and ChisaBot's own \
+         copy of one is not being found. Restart ChisaBot and try again. If this comes back: \
          {install}"
     )
 }
@@ -865,7 +865,7 @@ mod tests {
             },
             true,
         )
-        .expect("borrowed Podman machines are outside OpenBot's provisioning scope");
+        .expect("borrowed Podman machines are outside ChisaBot's provisioning scope");
 
         assert!(!called);
     }

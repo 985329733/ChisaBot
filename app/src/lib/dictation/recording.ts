@@ -23,14 +23,11 @@ export async function startRecording(
   onError: (error: Error) => void,
 ): Promise<Recording> {
   if (!recordingSupported())
-    throw new Error(
-      "Dictation requires a supported browser and HTTPS (or localhost).",
-    );
+    throw new Error("口述需要支持的浏览器和HTTPS（或localhost）。");
   const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find(
     (type) => MediaRecorder.isTypeSupported(type),
   );
-  if (!mimeType)
-    throw new Error("This browser cannot record a supported audio format.");
+  if (!mimeType) throw new Error("此浏览器无法录制支持的音频格式。");
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const release = () => {
     for (const track of stream.getTracks()) track.stop();
@@ -58,19 +55,19 @@ export async function startRecording(
     size += event.data.size;
     if (size > MAX_DICTATION_BYTES) {
       cancel();
-      onError(new Error("Recording is too large. Try a shorter message."));
+      onError(new Error("录音太大。尝试更短的消息。"));
       return;
     }
     if (event.data.size) chunks.push(event.data);
   };
   recorder.onerror = () => {
     cancel();
-    onError(new Error("The microphone stopped recording. Please try again."));
+    onError(new Error("麦克风停止录音。请重试。"));
   };
   recorder.onstop = () => {
     release();
     if (!done) {
-      onError(new Error("Recording was interrupted. Please try again."));
+      onError(new Error("录音被中断。请重试。"));
       return;
     }
     done.resolve(
@@ -92,9 +89,7 @@ export async function startRecording(
       done = Promise.withResolvers<Blob>();
       if (recorder.state === "inactive") {
         release();
-        done.reject(
-          new Error("Recording stopped before audio could be collected."),
-        );
+        done.reject(new Error("录音在音频收集之前停止。"));
       } else {
         recorder.stop();
         release();
@@ -111,9 +106,7 @@ export async function transcribeRecording(
   const type = dictationMediaType(audio.type);
   const extension = dictationExtension(type);
   if (!extension || !audio.size || audio.size > MAX_DICTATION_BYTES) {
-    throw new Error(
-      "The recording is empty or unsupported. Please record again.",
-    );
+    throw new Error("录音为空或不支持。请重新录音。");
   }
   const body = new FormData();
   body.set("file", audio, `recording.${extension}`);
@@ -135,7 +128,7 @@ export async function transcribeRecording(
         "error" in result &&
         typeof result.error === "string"
         ? result.error
-        : "Transcription failed. Please retry.",
+        : "转录失败。请重试。",
     );
   }
   if (
@@ -145,7 +138,7 @@ export async function transcribeRecording(
     typeof result.text !== "string" ||
     !result.text.trim()
   ) {
-    throw new Error("No speech was detected. Try recording again.");
+    throw new Error("未检测到语音。请尝试再次录音。");
   }
   return result.text.trim();
 }

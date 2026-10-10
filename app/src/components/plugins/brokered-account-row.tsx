@@ -663,7 +663,7 @@ export function useBrokeredAccount(input: {
  * keeps receding, and a relative phrase recomputed on every render reads as a fact about now.
  */
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
+  return new Date(iso).toLocaleDateString("zh-CN");
 }
 
 /**
@@ -695,7 +695,7 @@ function accountSentence(input: {
   } = input;
 
   if (!account.configured) {
-    return "Set COMPOSIO_API_KEY on this deployment. Without it there is no broker to reach, so this account can be neither connected nor ended from here. The app stays enabled and every grant on its tools still stands.";
+    return "请为此部署设置 COMPOSIO_API_KEY。未设置时无法连接 Composio，也无法在这里连接或断开账号。应用仍处于启用状态，现有工具授权仍然保留。";
   }
 
   if (account.kind === "no-auth") {
@@ -703,13 +703,13 @@ function accountSentence(input: {
      * Neither screen's own sentence fits: both are about an account, and there is none to have.
      * Capitalised because this is the one position the name opens a sentence in.
      */
-    return `${title.charAt(0).toUpperCase()}${title.slice(1)} needs no account. A Bot granted these tools can use it as it is.`;
+    return `${title.charAt(0).toUpperCase()}${title.slice(1)} 无需连接账号。获得这些工具授权的机器人可直接使用。`;
   }
 
   if (account.kind === "fields") {
     if (account.connected) {
       if (account.verified && account.verifiedAt) {
-        return `Connected with a key you provided, last checked ${formatDate(account.verifiedAt)}.`;
+        return `已使用你提供的密钥连接，最近检查时间：${formatDate(account.verifiedAt)}。`;
       }
       /*
        * A CHECK WAS SPENT AND DID NOT COME BACK CLEAN, and the account it was spent in is still
@@ -735,7 +735,7 @@ function accountSentence(input: {
        * is worth a second press rather than a second connection.
        */
       if (account.probe && !account.verified) {
-        return `A check against ${title} was made with your key and did not come back clean — that may be the key, and it may be ${title} itself. The account still stands at Composio, so press Re-check to try again, or disconnect it here and connect again with a fresh key.`;
+        return `使用你的密钥验证 ${title} 时未通过，原因可能是密钥，也可能是 ${title} 服务。账号仍保留在 Composio 中。请点击重新检查，或先断开连接，再使用新密钥连接。`;
       }
       /*
        * NOTHING WAS SPENT ON IT, WHICH IS A FACT ABOUT THE CHECK AND ABOUT THE APP AT THE TIME. The
@@ -756,7 +756,7 @@ function accountSentence(input: {
        * today.
        */
       if (account.probe === null) {
-        return `Connected with a key you provided. It was accepted without being checked against ${title}, which published nothing safe to try a key on at the time — that is about the app, not about your key.`;
+        return `已使用你提供的密钥连接。由于 ${title} 当时未提供可安全测试密钥的接口，连接时没有验证密钥。这表示应用未提供验证接口，无法据此判断密钥是否有效。`;
       }
       /*
        * AND NOTHING HAS SAID WHICH, which is no longer the page load: the connections read carries
@@ -766,7 +766,7 @@ function accountSentence(input: {
        * two things a record can say; this is what stands where there is no record, and it must not
        * borrow either.
        */
-      return `Connected with a key you provided. It was accepted without being checked against ${title}.`;
+      return `已使用你提供的密钥连接，连接时未向 ${title} 验证密钥。`;
     }
     /*
      * WHAT DISCONNECTING DID NOT DO. The account ends at Composio and the key does not end
@@ -775,7 +775,7 @@ function accountSentence(input: {
      * have live, so the row names the step this deployment cannot take for them.
      */
     if (account.disconnected) {
-      return `Removed from Composio. Your key still works at ${title} — rotate it there if you meant to end its access.`;
+      return `已从 Composio 移除。密钥在 ${title} 中仍然有效；如果需要撤销访问，请前往该服务轮换密钥。`;
     }
     /*
      * NOT THE SCREEN'S OWN SENTENCE, which is written for the kind that leaves: one of the two says
@@ -868,7 +868,7 @@ export function BrokeredAccountRow({
         <ItemContent>
           {/* Not "Connect your account": the row is also the connected state, and a title has to
               read for both. */}
-          <ItemTitle>Your account</ItemTitle>
+          <ItemTitle>{"您的账号"}</ItemTitle>
           {/* Unclamped where the key is missing: that sentence is the only place the setting is
               named, so it is the point rather than a hint. */}
           <ItemDescription
@@ -900,7 +900,9 @@ export function BrokeredAccountRow({
                * at it twice. A button that cannot work is worse than no button — it invites the
                * second press that files a record of an act that did not happen.
                */
-              <span className="text-muted-foreground text-xs">Key missing</span>
+              <span className="text-muted-foreground text-xs">
+                {"密钥缺失"}
+              </span>
             ) : account.connected ? (
               <>
                 {/* Decorative: the word beside it already says which. */}
@@ -909,7 +911,9 @@ export function BrokeredAccountRow({
                   className="size-1.5 rounded-full bg-emerald-500"
                 />
                 {/* The same word for both kinds. The line beneath says what it rests on. */}
-                <span className="text-muted-foreground text-xs">Connected</span>
+                <span className="text-muted-foreground text-xs">
+                  {"已连接"}
+                </span>
                 {/*
                  * OFFERED ONLY ON A KEY APP, BECAUSE THAT IS THE ONLY KIND A RE-CHECK IS AN ACT ON.
                  * A consent connection is written verified by the confirm, with no probe behind it,
@@ -944,7 +948,7 @@ export function BrokeredAccountRow({
                     type="button"
                     variant="outline"
                   >
-                    {account.rechecking ? "Checking…" : "Re-check"}
+                    {account.rechecking ? "正在检查…" : "重新检查"}
                   </Button>
                 ) : null}
                 <Button
@@ -954,7 +958,7 @@ export function BrokeredAccountRow({
                   type="button"
                   variant="outline"
                 >
-                  Disconnect
+                  {"断开连接"}
                 </Button>
               </>
             ) : (
@@ -978,7 +982,7 @@ export function BrokeredAccountRow({
                 type="button"
                 variant="outline"
               >
-                Connect
+                {"连接"}
                 <IconArrowUpRight />
               </Button>
             )}
@@ -991,7 +995,7 @@ export function BrokeredAccountRow({
           <DialogHeader>
             {/* The title the row above cannot have: this exists only while the account is not
                 connected, so it is free to name the act rather than the subject. */}
-            <DialogTitle>Connect your account</DialogTitle>
+            <DialogTitle>{"连接您的账号"}</DialogTitle>
           </DialogHeader>
           <DialogBody className="mt-4">
             {/*
@@ -1030,7 +1034,7 @@ export function BrokeredAccountRow({
               />
             ) : account.requestingFields ? (
               <p className="text-muted-foreground text-sm">
-                Asking the app what it needs…
+                {"询问应用需要什么……"}
               </p>
             ) : (
               /*
@@ -1042,8 +1046,7 @@ export function BrokeredAccountRow({
                * on a second open and not only on a first.
                */
               <p className="text-muted-foreground text-sm">
-                That app could not be asked what it needs. Close this and try
-                again.
+                {"无法询问该应用其需求。请关闭此窗口并重试。"}
               </p>
             )}
             {/*

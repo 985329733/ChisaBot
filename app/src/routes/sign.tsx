@@ -66,7 +66,7 @@ function SignScreen() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "No identity provider is registered for that address.",
+          : "该地址未注册身份提供者。",
       );
       setOpening(null);
     }
@@ -82,7 +82,7 @@ function SignScreen() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : `Could not start ${providerName(provider)} sign-in.`,
+          : `无法启动 ${providerName(provider)} 登录。`,
       );
       setOpening(null);
     }
@@ -111,8 +111,8 @@ function SignScreen() {
           {/* Centred against the button, not against the space left of the mark. */}
           <span className="flex-1 text-center">
             {opening === provider
-              ? `Opening ${providerName(provider)}…`
-              : `Continue with ${providerName(provider)}`}
+              ? `正在打开 ${providerName(provider)}…`
+              : `继续使用 ${providerName(provider)}`}
           </span>
           {/* Balances the mark so the label sits in the middle of the button. */}
           <span aria-hidden="true" className="size-[18px]" />
@@ -154,7 +154,8 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          Sign in to {appConfig.brand.productName}
+          {"登录到"}
+          {appConfig.brand.productName}
         </motion.h1>
         <motion.div
           className="mt-8 w-full"
@@ -163,14 +164,14 @@ function SignScreen() {
         >
           {options?.ssoRequired ? (
             <p className="mb-3 text-center text-sm text-muted-foreground">
-              Your organization requires single sign-on.
+              {"您的组织要求单点登录。"}
             </p>
           ) : null}
           {providers.length > 0 && !options?.ssoRequired ? (
             providerButtons
           ) : options?.sso || options?.ssoRequired ? null : (
             <p className="text-center text-sm text-muted-foreground">
-              No sign-in provider is configured for this deployment.
+              {"此部署未配置登录提供者。"}
             </p>
           )}
           {/*
@@ -184,14 +185,14 @@ function SignScreen() {
               {providers.length > 0 ? (
                 <div className="mb-3 flex items-center gap-3">
                   <Separator className="flex-1" />
-                  <span className="text-muted-foreground text-xs">or</span>
+                  <span className="text-muted-foreground text-xs">{"或"}</span>
                   <Separator className="flex-1" />
                 </div>
               ) : null}
               <Input
                 autoComplete="email"
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@company.com"
+                placeholder={"you@company.com"}
                 required
                 type="email"
                 value={email}
@@ -203,9 +204,7 @@ function SignScreen() {
                 type="submit"
                 variant="outline"
               >
-                {opening === "sso"
-                  ? "Opening…"
-                  : "Continue with your company account"}
+                {opening === "sso" ? "正在打开…" : "使用公司账号继续"}
               </Button>
             </form>
           ) : null}
@@ -213,7 +212,7 @@ function SignScreen() {
           {options?.ssoRequired && providers.length > 0 ? (
             <details className="mt-4 text-sm">
               <summary className="cursor-pointer text-center text-muted-foreground">
-                Administrator sign-in
+                {"管理员登录"}
               </summary>
               <div className="mt-3">{providerButtons}</div>
             </details>

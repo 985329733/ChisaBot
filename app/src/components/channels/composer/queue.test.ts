@@ -128,7 +128,7 @@ describe("submitting", () => {
     expect(result.queue).toEqual([
       {
         id: "one",
-        text: "no, the other one",
+        text: "不，另一个",
         commandIds: [],
         attachments: [],
       },
@@ -355,7 +355,7 @@ describe("removing", () => {
     const result = reduceQueue(queue, { id: "one", type: "remove" });
 
     expect(result.queue).toEqual([
-      { id: "two", text: "no, the other one", commandIds: [], attachments: [] },
+      { id: "two", text: "不，另一个", commandIds: [], attachments: [] },
     ]);
   });
 });

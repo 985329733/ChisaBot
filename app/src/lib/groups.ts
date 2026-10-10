@@ -51,7 +51,7 @@ export function groupQueryOptions(channelId: string) {
     queryFn: async (): Promise<GroupConversation> => {
       const response = await client(
         `/api/groups/${encodeURIComponent(channelId)}`,
-        { fallback: "This group conversation could not be loaded." },
+        { fallback: "此群组对话无法加载。" },
       );
       return (await response.json()) as GroupConversation;
     },
@@ -91,7 +91,7 @@ export function sendGroupMessageMutationOptions(
       await client(`/api/groups/${encodeURIComponent(channelId)}`, {
         method: "POST",
         body: input,
-        fallback: "Your message could not be sent to the group.",
+        fallback: "您的消息无法发送到群组。",
       });
     },
     onSettled: () =>
@@ -106,7 +106,7 @@ export function createGroupMutationOptions(queryClient: QueryClient) {
       const response = await client("/api/groups", {
         method: "POST",
         body: { agentIds },
-        fallback: "The group could not be started.",
+        fallback: "群组无法启动。",
       });
       return ((await response.json()) as { channel: AgentChannel }).channel;
     },
@@ -122,7 +122,7 @@ export function addGroupMemberMutationOptions(channelId: string) {
       await client(`/api/groups/${encodeURIComponent(channelId)}/members`, {
         method: "POST",
         body: { email },
-        fallback: "That person could not be added.",
+        fallback: "该人员无法添加。",
       });
     },
   });
@@ -137,7 +137,7 @@ export function removeGroupMemberMutationOptions(
     mutationFn: async (userId: string) => {
       await client(
         `/api/groups/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}`,
-        { method: "DELETE", fallback: "That person could not be removed." },
+        { method: "DELETE", fallback: "该人员无法移除。" },
       );
     },
     onSettled: () =>

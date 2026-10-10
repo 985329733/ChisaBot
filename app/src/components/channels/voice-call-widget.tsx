@@ -78,7 +78,7 @@ export function VoiceCallWidget({
   };
   return (
     <motion.section
-      aria-label={`Voice call with ${name}`}
+      aria-label={`与 ${name} 的语音通话`}
       initial={{ opacity: reduceMotion ? 1 : 0, y: reduceMotion ? 0 : -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={transition}
@@ -91,7 +91,7 @@ export function VoiceCallWidget({
         <span
           className="shrink-0 tabular-nums"
           role="timer"
-          aria-label="Call duration"
+          aria-label={"通话时长"}
         >
           {duration}
         </span>
@@ -101,8 +101,8 @@ export function VoiceCallWidget({
           <AbstractAvatar name={name} seed={avatarSeed} size={32} />
           <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
           <Button
-            aria-label="Expand voice call"
-            title="Expand call"
+            aria-label={"展开语音通话"}
+            title={"展开通话"}
             variant="ghost"
             size="icon-sm"
             onClick={() => setMinimized(false)}
@@ -110,8 +110,8 @@ export function VoiceCallWidget({
             <IconWaveform className="size-4" />
           </Button>
           <Button
-            aria-label="End voice call"
-            title="End call"
+            aria-label={"结束语音通话"}
+            title={"结束通话"}
             variant="destructive"
             size="icon-sm"
             className="rounded-full"
@@ -150,7 +150,7 @@ export function VoiceCallWidget({
               )}
             </div>
             <div
-              title={state.muted ? "You · microphone muted" : "You"}
+              title={state.muted ? "您 · 麦克风已静音" : "您"}
               className={cn(
                 "relative flex size-[40px] shrink-0 items-center justify-center rounded-full bg-background ring-2 ring-transparent ring-offset-2 ring-offset-muted transition-shadow motion-reduce:transition-none",
                 state.listening && !state.muted && "ring-primary/40",
@@ -159,14 +159,14 @@ export function VoiceCallWidget({
               {user?.image && user.image !== failedImage ? (
                 <img
                   src={user.image}
-                  alt="You"
+                  alt={"您"}
                   className="size-full rounded-full object-cover"
                   onError={() => setFailedImage(user.image ?? null)}
                 />
               ) : (
                 <span
                   role="img"
-                  aria-label={user?.name ? `${user.name} (you)` : "You"}
+                  aria-label={user?.name ? `${user.name} (你)` : "您"}
                   className="text-sm font-medium text-foreground/70"
                 >
                   {initials}
@@ -175,7 +175,7 @@ export function VoiceCallWidget({
               {state.muted && (
                 <span className="absolute -bottom-1 -right-1 rounded-full bg-card p-1">
                   <IconMicrophoneOff className="size-2.5" />
-                  <span className="sr-only">Your microphone is muted</span>
+                  <span className="sr-only">{"您的麦克风已静音"}</span>
                 </span>
               )}
             </div>
@@ -185,8 +185,8 @@ export function VoiceCallWidget({
               <DropdownMenuTrigger
                 render={
                   <Button
-                    aria-label="Call settings"
-                    title="Call settings"
+                    aria-label={"通话设置"}
+                    title={"通话设置"}
                     variant="secondary"
                     size="icon"
                     className="size-12 rounded-full"
@@ -200,13 +200,13 @@ export function VoiceCallWidget({
                   checked={captions}
                   onCheckedChange={setCaptions}
                 >
-                  Show live captions
+                  {"显示实时字幕"}
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
-              aria-label="Return to chat"
-              title="Return to chat · keep call open"
+              aria-label={"返回聊天"}
+              title={"返回聊天 · 保持通话打开"}
               variant="secondary"
               size="icon"
               className="size-12 rounded-full"
@@ -215,15 +215,11 @@ export function VoiceCallWidget({
               <IconMessageCircle className="size-5" />
             </Button>
             <Button
-              aria-label={
-                state.muted ? "Unmute your microphone" : "Mute your microphone"
-              }
+              aria-label={state.muted ? "取消麦克风静音" : "静音麦克风"}
               aria-pressed={state.muted}
               disabled={connecting || failed}
               title={
-                state.muted
-                  ? "Unmute your microphone"
-                  : "Mute your microphone · you’ll still hear the agent"
+                state.muted ? "取消麦克风静音" : "静音麦克风 · 你仍能听到代理"
               }
               variant="secondary"
               size="icon"
@@ -245,8 +241,8 @@ export function VoiceCallWidget({
               size="icon"
               className="size-12 rounded-full bg-rose-500 text-white hover:bg-rose-600 dark:bg-rose-500 dark:hover:bg-rose-600"
               onClick={session.end}
-              aria-label="End voice call"
-              title="End call"
+              aria-label={"结束语音通话"}
+              title={"结束通话"}
             >
               <IconX className="size-5" />
             </Button>
@@ -264,7 +260,7 @@ export function VoiceCallWidget({
                 <div className="mt-3 h-16 overflow-y-auto rounded-xl bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
                   {state.reply ||
                     state.transcript ||
-                    "Speak when you’re ready. This call uses the current chat."}
+                    "准备好后说话。此通话使用当前聊天。"}
                 </div>
               </motion.div>
             )}
@@ -280,7 +276,7 @@ export function VoiceCallWidget({
                 className="mt-2"
                 onClick={() => void session.start()}
               >
-                Try again
+                {"重试"}
               </Button>
             </div>
           )}

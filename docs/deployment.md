@@ -1,5 +1,7 @@
 # Deployment
 
+> **ChisaBot 分支：** 正式部署使用 [本分支模板](../deploy/README.zh-CN.md) 构建自己的 ChisaBot 镜像。下文为上游容器与平台参考，`ghcr.io/copilotkit/openbot` 是上游镜像，不包含本分支全部改动，也不是 ChisaBot 发布镜像。
+
 OpenBot ships as one container. It carries the app, the API that serves it, and the browser the Bots
 drive, and it can carry its own PostgreSQL as well. It does what it does on a laptop.
 

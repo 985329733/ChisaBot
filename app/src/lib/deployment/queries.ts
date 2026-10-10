@@ -9,6 +9,9 @@ import { client } from "@/lib/client";
  * deployment secret stay on the server. See server/src/app.ts.
  */
 export type DeploymentCapabilities = {
+  mode?: "local" | "intelligence";
+  durableHistory?: boolean;
+  learning?: boolean;
   /**
    * Whether a Bot may answer with an interface it wrote itself.
    *
@@ -57,9 +60,12 @@ export function deploymentCapabilitiesQueryOptions() {
        */
       const body = (await (
         await client("/api/capabilities", {
-          fallback: "This deployment's capabilities could not be loaded.",
+          fallback: "此部署的能力无法加载。",
         })
       ).json()) as {
+        mode?: "local" | "intelligence";
+        durableHistory?: boolean;
+        learning?: boolean;
         generativeUi?: boolean;
         selfHostBanner?: boolean;
         transcription?: boolean;
@@ -67,6 +73,13 @@ export function deploymentCapabilitiesQueryOptions() {
       };
 
       return {
+        mode:
+          body.mode === "local" || body.mode === "intelligence"
+            ? body.mode
+            : undefined,
+        durableHistory: body.durableHistory === true,
+        learning:
+          typeof body.learning === "boolean" ? body.learning : undefined,
         generativeUi: body.generativeUi === true,
         selfHostBanner: body.selfHostBanner === true,
         transcription: body.transcription === true,

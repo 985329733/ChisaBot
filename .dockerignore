@@ -13,3 +13,20 @@ app/dist
 *.log
 .DS_Store
 assets/*.svg
+work
+deploy/.env
+deploy/private
+deploy/magpie-data
+deploy/public/auth/config.json
+deploy/public/auth-data
+deploy/public/admin.htpasswd
+deploy/public/magpie-private.conf
+deploy/public/backup*
+deploy/**/id_rsa*
+deploy/**/*.key
+deploy/**/*.pem
+deploy/**/*.sqlite*
+
+# The self-hosted Dockerfile consumes a prebuilt frontend; Git still ignores it.
+!app/dist/
+!app/dist/**

@@ -28,6 +28,8 @@ export function ConversationView({
   agents = [],
   commands,
   channelId,
+  modelControl,
+  sendBlocked = false,
   disabled = false,
   pending = false,
   autoFocus = false,
@@ -54,6 +56,8 @@ export function ConversationView({
    * first send — which leaves the composer exactly as it behaved before attachments existed.
    */
   channelId?: string;
+  modelControl?: ReactNode;
+  sendBlocked?: boolean;
   disabled?: boolean;
   /**
    * A turn is in flight: the Bot has been asked something and has not come back yet.
@@ -365,7 +369,7 @@ export function ConversationView({
       heldBack.current = false;
       return;
     }
-    if (disabled || heldBack.current || queuedRef.current.length === 0) {
+    if (disabled || sendBlocked || heldBack.current || queuedRef.current.length === 0) {
       return;
     }
     const next = apply({ type: "settle" });
@@ -407,7 +411,7 @@ export function ConversationView({
        */
       restoreFailedRun(carried);
     });
-  }, [apply, disabled, inFlight, restoreFailedRun]);
+  }, [apply, disabled, inFlight, restoreFailedRun, sendBlocked]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -437,6 +441,8 @@ export function ConversationView({
       <div className="max-w-2xl mx-auto w-full px-0 pb-4 shrink-0">
         {notice}
         <Composer
+          modelControl={modelControl}
+          sendBlocked={sendBlocked}
           agents={agents}
           autoFocus={autoFocus}
           {...(channelId ? { channelId } : {})}

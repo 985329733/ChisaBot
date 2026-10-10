@@ -1,7 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AgentCard } from "@/components/agents/agent-card";
+import { BotModelSelector } from "@/components/agents/bot-model-selector";
+import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
+import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
 import { Composer, toAgentOptions } from "@/components/channels/composer";
 import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
 import {
@@ -27,6 +30,9 @@ export const Route = createFileRoute("/_authed/_app/")({
 });
 
 function RouteComponent() {
+  const modelQueryClient = useQueryClient();
+  const [explicitAgentId, setExplicitAgentId] = useState<string | undefined>();
+  const modelSaving = useModelSelectionSaving(explicitAgentId ?? "");
   const {
     data: agents,
     isPending: loading,
@@ -51,11 +57,14 @@ function RouteComponent() {
             {appConfig.brand.productName}
           </h2>
           <h1 className="text-2xl font-bold tracking-tight mt-1.5 text-center">
-            Start a new channel
+            {"开始新会话"}
           </h1>
         </div>
         <div className="mt-8 w-full flex flex-col items-center">
           <Composer
+            onAgentChange={setExplicitAgentId}
+            modelControl={explicitAgentId ? <BotModelSelector agentId={explicitAgentId} compact /> : <p className="pt-2 text-xs text-muted-foreground"><Link to="/channel/new" className="underline underline-offset-2">选择 BOT 后可切换模型</Link>，也可在消息中用 @ 选择。</p>}
+            sendBlocked={modelSaving}
             agents={toAgentOptions(agents)}
             className="w-full max-w-2xl"
             disabled={!fallback}
@@ -67,6 +76,7 @@ function RouteComponent() {
               setError(null);
               try {
                 if (draft.agentId) {
+                  assertModelSelectionNotSaving(modelQueryClient, draft.agentId);
                   // Recorded and started as one sequence, shared with `/channel/new`: the person
                   // already decided, and the trail has to say so wherever they decided it.
                   await startChosen(draft.agentId, draft.text);
@@ -81,12 +91,11 @@ function RouteComponent() {
                   agentId = fallback?.id;
                 }
                 if (!agentId) return;
+                assertModelSelectionNotSaving(modelQueryClient, agentId);
                 await start(agentId, draft.text);
               } catch (caught) {
                 setError(
-                  caught instanceof Error
-                    ? caught.message
-                    : "Could not start the conversation.",
+                  caught instanceof Error ? caught.message : "无法开始会话。",
                 );
                 throw caught;
               }
@@ -97,8 +106,8 @@ function RouteComponent() {
             // Said out loud: a message that silently reaches somebody you did not choose is the
             // kind of surprise that costs trust the first time it happens.
             <p className="mt-2 w-full max-w-2xl text-xs text-muted-foreground text-center">
-              Sent to the coworker it is for. Type <code>@</code> to choose one
-              yourself.
+              {"发送给为其分配的 AI 同事。类型"}
+              <code>@</code> {"自己选择一个。"}
             </p>
           ) : null}
           {error ? (
@@ -120,8 +129,7 @@ function RouteComponent() {
               className="mt-2 w-full max-w-2xl text-sm text-destructive"
               role="alert"
             >
-              Your coworkers couldn't be loaded, so there's no one to send this
-              to yet.
+              {"您的AI同事无法加载，因此还没有人可以发送此消息。"}
             </p>
           ) : null}
         </div>
@@ -147,7 +155,7 @@ function RouteComponent() {
            */}
           {loading ? (
             <>
-              <h2 className="font-bold text-lg">Explore agents</h2>
+              <h2 className="font-bold text-lg">{"探索代理"}</h2>
               <Skeleton className="mt-4 h-[180px]" />
             </>
           ) : explore?.length ? (
@@ -160,7 +168,7 @@ function RouteComponent() {
             >
               <div className="flex flex-row items-center justify-between gap-4">
                 <h2 id="explore-agents-heading" className="font-bold text-lg">
-                  Explore agents
+                  {"探索代理"}
                 </h2>
                 {/*
                  * `static` undoes the primitive's own absolute placement, which parks these either
@@ -194,11 +202,11 @@ function RouteComponent() {
             // card there would say the opposite of what a populated composer beside it (still
             // working off that same, successfully loaded `agents`) proves.
             <>
-              <h2 className="font-bold text-lg">Explore agents</h2>
+              <h2 className="font-bold text-lg">{"探索代理"}</h2>
               <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
                 <EmptyHeader>
                   <EmptyTitle className="text-destructive">
-                    Agents shared with you couldn't be loaded.
+                    {"与您共享的代理无法加载。"}
                   </EmptyTitle>
                 </EmptyHeader>
               </Empty>
@@ -208,11 +216,11 @@ function RouteComponent() {
             // when it failed but `agents` is defined — a loaded, empty slice either way. Same
             // plain copy for both: an empty roster is a fact, not an error.
             <>
-              <h2 className="font-bold text-lg">Explore agents</h2>
+              <h2 className="font-bold text-lg">{"探索代理"}</h2>
               <Empty className="mt-4 h-[180px] border border-dashed">
                 <EmptyHeader>
                   <EmptyTitle className="text-muted-foreground">
-                    Nobody has shared an agent with you yet.
+                    {"尚未有人与您共享代理。"}
                   </EmptyTitle>
                 </EmptyHeader>
               </Empty>

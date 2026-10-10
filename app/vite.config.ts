@@ -169,6 +169,7 @@ export const routeBuildRollupOutputOptions = {
 };
 
 export default defineConfig({
+  envDir: path.resolve(__dirname, ".."),
   plugins: [
     announceServerPort(apiPort.port),
     tanstackRouter({

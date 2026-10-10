@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { AbstractAgent } from "@ag-ui/client";
 import {
-  CopilotKitIntelligence,
   IntelligenceAgentRunner,
+  type CopilotKitIntelligence,
 } from "@copilotkit/runtime/v2";
 import { serve } from "bun";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -48,6 +48,7 @@ import {
 } from "./agents/lifecycle";
 import { createBotReset } from "./agents/lifecycle-reset";
 import { createAgentProfileStore } from "./agents/profile-store";
+import { createAgentModelService } from "./agents/model-selection";
 import type { AgentActor } from "./agents/profile-types";
 import { createRuntimeAgentLoader } from "./agents/runtime-agents";
 import {
@@ -176,10 +177,8 @@ import {
   HostAccessRefusedError,
 } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
-import {
-  createIntelligenceClient,
-  observeIntelligenceAuthentication,
-} from "./intelligence-client";
+import { createIntelligenceClient } from "./intelligence-client";
+import { createLocalConversations } from "./local-conversations";
 import { clearLearningRevisionFallback } from "./learning/runtime";
 import { createLearningSettingsStore } from "./learning/settings";
 import { createMemoryIngestion } from "./memory/ingestion";
@@ -243,6 +242,15 @@ import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
+import {
+  createModelSettingsService,
+  createModelSettingsStore,
+} from "./model-settings";
+import {
+  resolveScopedAgentModelConnection,
+  resolveScopedModelConnection,
+} from "./model-connection-context";
+import { createModelCatalogService } from "./model-catalog";
 import { createSelfHostBanner } from "./self-host-banner";
 import { createTeamBots } from "./team-bots/team-bots";
 import {
@@ -331,6 +339,10 @@ clearLearningRevisionFallback();
 // `serverPort` in config.ts for what `process.env.PORT ?? …` did with `PORT=` instead.
 const port = config.port;
 const database = createDatabase(config.databaseUrl);
+const localBackend =
+  config.runtime.mode === "local"
+    ? await createLocalConversations(database)
+    : undefined;
 // Every dispatch point asks this database whether its person paused the Bot. See agents/lifecycle.ts.
 configureBotLifecycle({ database });
 const learningSettings = createLearningSettingsStore(database, config.learning);
@@ -541,7 +553,7 @@ const approvalService = createApprovalService(
               id: request.id,
               kind: "approval",
               requestId: request.id,
-              text: `${botName} asks for approval to use ${action.toolRef}. Open your OpenBot approval inbox to review this action.`,
+              text: `${botName} asks for approval to use ${action.toolRef}. Open your ChisaBot approval inbox to review this action.`,
             },
           );
       }
@@ -974,9 +986,76 @@ const stallGuard = createStallGuard({
 normalizeModelBaseUrls();
 const runtimeModel = runtimeModelForEnvironment(tenantPackage.model);
 
+const resolveRuntimeModelApiKey = () =>
+  resolveModelApiKey({
+    encryptionKey: config.keyEncryptionKey,
+    reader: credentialStore,
+    provider: runtimeModel.provider,
+    keyId: tenantPackage.model.credentialSecretRef,
+    environment: process.env,
+  });
+const modelSettings = createModelSettingsService({
+  store: createModelSettingsStore(database),
+  encryptionKey: config.keyEncryptionKey,
+  fallback: {
+    provider: runtimeModel.provider,
+    model: runtimeModel.defaultModel,
+    baseUrl:
+      runtimeModel.provider === "anthropic"
+        ? process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1"
+        : process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+  },
+  fallbackApiKey: resolveRuntimeModelApiKey,
+});
+const resolveRuntimeConnection = () =>
+  resolveScopedModelConnection(async () => {
+    const connection = await modelSettings.resolve();
+    return {
+      model: {
+        provider: connection.provider,
+        defaultModel: connection.model,
+        baseUrl: connection.baseUrl,
+        useApiKey: connection.useApiKey,
+        ...(connection.source === "environment" && runtimeModel.plan
+          ? { plan: runtimeModel.plan }
+          : {}),
+      },
+      apiKey: connection.apiKey,
+    };
+  });
+
+const modelCatalog = createModelCatalogService({
+  resolveConnection: () => modelSettings.resolve(),
+});
+const agentModels = createAgentModelService({
+  database,
+  profiles: agentProfileStore,
+  resolveDefaultModel: async () =>
+    (await resolveRuntimeConnection()).model.defaultModel,
+  catalog: modelCatalog,
+});
+const resolveRuntimeConnectionForAgent = (agentId: string) =>
+  resolveScopedAgentModelConnection(agentId, async () => {
+    const [connection, selected] = await Promise.all([
+      resolveRuntimeConnection(),
+      agentModels.resolveModel(agentId),
+    ]);
+    return selected === null
+      ? connection
+      : {
+          model: {
+            ...connection.model,
+            defaultModel: selected,
+            plan: undefined,
+          },
+          apiKey: connection.apiKey,
+        };
+  });
+
 const intentRouter = createIntentRouter({
   complete: createModelCompleter({
     model: runtimeModel,
+    resolveConnection: resolveRuntimeConnection,
     resolveApiKey: () =>
       resolveModelApiKey({
         encryptionKey: config.keyEncryptionKey,
@@ -996,6 +1075,7 @@ const intentRouter = createIntentRouter({
  */
 const chooseSkills = createModelCompleter({
   model: runtimeModel,
+  resolveConnection: resolveRuntimeConnection,
   resolveApiKey: () =>
     resolveModelApiKey({
       encryptionKey: config.keyEncryptionKey,
@@ -1007,16 +1087,6 @@ const chooseSkills = createModelCompleter({
 });
 
 // Named collaborators are bound once in actorAgentResolver for chat, hops, and headless turns.
-
-/** The deployment's model key, resolved per call so a credential rotated a moment ago is used next. */
-const resolveRuntimeModelApiKey = () =>
-  resolveModelApiKey({
-    encryptionKey: config.keyEncryptionKey,
-    reader: credentialStore,
-    provider: runtimeModel.provider,
-    keyId: tenantPackage.model.credentialSecretRef,
-    environment: process.env,
-  });
 
 const hostAccessBroker = createHostAccessBroker(Date.now, {
   approvalGate: approvalService.gate,
@@ -1620,29 +1690,23 @@ const buildAgentFor = async ({
 /*
  * The pair a headless turn is driven through, built ONCE.
  *
- * Not the runtime's own pair: `mountCopilotRuntime` keeps its client and its runner inside
- * `CopilotRuntime` and hands neither back, and reaching into that object would be a worse seam than
- * building our own from the same three settings. Built from `config.runtime.intelligence`, which is
- * required and not optional — `RuntimeCapabilities` has exactly one mode and every Intelligence field
- * with it (`config.ts:10-22`), and `loadConfig` refuses to boot without them — so there is no
- * not-in-Intelligence-mode branch to write here. If a second mode is ever added, THIS is the line that
- * has to grow a guard, and the routine runner must then be left off `createApp` entirely.
+ * Intelligence keeps its existing client and gateway runner. Local mode shares the Postgres client
+ * and OSS runner used by browser turns, so routines persist into the same owner-scoped transcript.
  *
  * One runner for the process, reused across firings: it opens a socket per run and holds no idle
  * connection, but its `threads` map is per instance, and a runner per turn would fragment the
  * already-running check that keeps two turns off one thread. See `routines/run-turn.ts`.
  */
-const routineIntelligence = observeIntelligenceAuthentication(
-  new CopilotKitIntelligence({
-    apiUrl: config.runtime.intelligence.apiUrl,
-    wsUrl: config.runtime.intelligence.gatewayWsUrl,
-    apiKey: config.runtime.intelligence.apiKey,
-  }),
-);
-const routineAgentRunner = new IntelligenceAgentRunner({
-  url: routineIntelligence.ɵgetRunnerWsUrl(),
-  authToken: routineIntelligence.ɵgetRunnerAuthToken(),
-});
+// Only the legacy turn contracts use this facade; the OSS runtime receives the public runner.
+const routineIntelligence: CopilotKitIntelligence = localBackend
+  ? (localBackend.client as unknown as CopilotKitIntelligence)
+  : createIntelligenceClient(config.runtime.intelligence!);
+const routineAgentRunner =
+  localBackend?.runner ??
+  new IntelligenceAgentRunner({
+    url: routineIntelligence.ɵgetRunnerWsUrl(),
+    authToken: routineIntelligence.ɵgetRunnerAuthToken(),
+  });
 
 const routineRunner = createRoutineRunner({
   routineStore,
@@ -1686,6 +1750,8 @@ const actorAgentResolver = createActorAgentResolver({
   loadAgents: loadAgentsForActor,
   model: runtimeModel,
   resolveModelApiKey: resolveRuntimeModelApiKey,
+  resolveConnection: resolveRuntimeConnection,
+  resolveConnectionForAgent: resolveRuntimeConnectionForAgent,
   stallGuard,
   loadToolsForActor: (actorId, initiator) =>
     restrictToolsForRun(
@@ -1723,6 +1789,7 @@ const copilotRuntime = mountCopilotRuntime(
       void channelStore.signalBusy(input.threadId, input.busy).catch(() => {});
     },
     learningSettings,
+    localBackend,
   },
 );
 
@@ -2667,9 +2734,7 @@ if (config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0) {
       // The same address and the same token the runtime uses. Assembling either from configuration
       // produced a runner every join was refused for, because the thread's active run is a lock the
       // platform issues rather than something an API key can claim.
-      runner: new IntelligenceAgentRunner(
-        copilotRuntime.runnerConnection(),
-      ) as never,
+      runner: copilotRuntime.runner as never,
     }),
   });
 
@@ -2781,6 +2846,7 @@ const channelSummaries = {
   title: createChannelTitler({
     model: runtimeModel.defaultModel,
     resolveApiKey: resolveRuntimeModelApiKey,
+    resolveConnection: resolveRuntimeConnection,
   }),
   owner: workOwner("summariser"),
 };
@@ -2817,7 +2883,14 @@ await installEnterpriseControls({
   auditStore: bootAuditStore,
   ...(computerProvider ? { provider: computerProvider } : {}),
   ...(config.computer?.token ? { computerToken: config.computer.token } : {}),
-  builtInModel: `${runtimeModel.provider}/${runtimeModel.defaultModel}`,
+  builtInModel: async () => {
+    const { model } = await resolveRuntimeConnection();
+    return `${model.provider}/${model.defaultModel}`;
+  },
+  builtInModelForAgent: async (agentId) => {
+    const { model } = await resolveRuntimeConnectionForAgent(agentId);
+    return `${model.provider}/${model.defaultModel}`;
+  },
   people: peopleStore,
   initialAdminEmails: config.auth?.initialAdminEmails ?? [],
 });
@@ -2834,9 +2907,10 @@ auditRoutineStore(routineStore, bootAuditStore);
 
 // Asked only whether this deployment pays for Intelligence, for the self-host banner. Its own client
 // rather than the runtime's, the same as the thread reader: the constructor opens nothing.
-const selfHostBannerIntelligence = createIntelligenceClient(
-  config.runtime.intelligence,
-);
+const selfHostBannerIntelligence =
+  config.runtime.mode === "intelligence"
+    ? createIntelligenceClient(config.runtime.intelligence)
+    : undefined;
 
 const app = createApp(
   config,
@@ -2954,6 +3028,7 @@ const app = createApp(
     summarize: createVoiceSummarizer({
       model: runtimeModel,
       resolveApiKey: resolveRuntimeModelApiKey,
+      resolveConnection: resolveRuntimeConnection,
     }),
     channels: channelStore,
   },
@@ -3017,10 +3092,16 @@ const app = createApp(
       auditStore: bootAuditStore,
     },
   },
-  createSelfHostBanner({
-    enabled: config.selfHostBanner,
-    entitlements: () => selfHostBannerIntelligence.getRuntimeEntitlements(),
-  }),
+  selfHostBannerIntelligence
+    ? createSelfHostBanner({
+        enabled: config.selfHostBanner,
+        entitlements: () => selfHostBannerIntelligence.getRuntimeEntitlements(),
+      })
+    : { shown: async () => config.selfHostBanner },
+  localBackend,
+  modelSettings,
+  agentModels,
+  modelCatalog,
 );
 
 /**
@@ -3277,4 +3358,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-console.info(`OpenBot server listening on http://127.0.0.1:${port}`);
+console.info(`ChisaBot server listening on http://127.0.0.1:${port}`);

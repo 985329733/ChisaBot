@@ -1,7 +1,7 @@
 import { IconPlus } from "@tabler/icons-react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   PageEmpty,
@@ -91,11 +91,22 @@ function CredentialsPage() {
       action={
         <Button onClick={() => setAdding(true)} size="sm" variant="ghost">
           <IconPlus />
-          Add credential
+          {"添加凭据"}
         </Button>
       }
-      description="Credentials are write-only. OpenBot never displays their secret values."
-      title="Credentials"
+      description={
+        <>
+          凭据是仅写入的，保存后不再显示密钥。聊天模型、接口地址和 API Key 可在
+          <Link
+            className="text-foreground underline underline-offset-4"
+            to="/admin/models"
+          >
+            模型设置
+          </Link>
+          中配置。
+        </>
+      }
+      title={"凭据"}
     >
       {/*
        * THE FORM IS NOT ON THE PAGE. A credential is added once and then lived with, so a permanent
@@ -112,9 +123,9 @@ function CredentialsPage() {
             }}
           >
             <DialogHeader>
-              <DialogTitle>Add credential</DialogTitle>
+              <DialogTitle>{"添加凭据"}</DialogTitle>
               <DialogDescription>
-                Held for this deployment and never shown again once saved.
+                {"为此次部署持有，一旦保存后不再显示"}
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="mt-4">
@@ -125,7 +136,7 @@ function CredentialsPage() {
                       field.state.meta.isTouched && !field.state.meta.isValid;
                     return (
                       <Field data-invalid={isInvalid}>
-                        <FieldLabel htmlFor={field.name}>Type</FieldLabel>
+                        <FieldLabel htmlFor={field.name}>{"类型"}</FieldLabel>
                         <Select
                           onValueChange={(value) =>
                             field.handleChange(value as "model" | "connector")
@@ -140,9 +151,9 @@ function CredentialsPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              <SelectItem value="model">Model</SelectItem>
+                              <SelectItem value="model">{"模型"}</SelectItem>
                               <SelectItem value="connector">
-                                Connector
+                                {"连接器"}
                               </SelectItem>
                             </SelectGroup>
                           </SelectContent>
@@ -160,7 +171,7 @@ function CredentialsPage() {
                       field.state.meta.isTouched && !field.state.meta.isValid;
                     return (
                       <Field data-invalid={isInvalid}>
-                        <FieldLabel htmlFor={field.name}>Provider</FieldLabel>
+                        <FieldLabel htmlFor={field.name}>{"提供者"}</FieldLabel>
                         <Input
                           aria-invalid={isInvalid}
                           id={field.name}
@@ -169,7 +180,7 @@ function CredentialsPage() {
                           onChange={(event) =>
                             field.handleChange(event.target.value)
                           }
-                          placeholder="OpenAI"
+                          placeholder={"OpenAI"}
                           value={field.state.value}
                         />
                         {isInvalid ? (
@@ -185,7 +196,9 @@ function CredentialsPage() {
                       field.state.meta.isTouched && !field.state.meta.isValid;
                     return (
                       <Field data-invalid={isInvalid}>
-                        <FieldLabel htmlFor={field.name}>Key ID</FieldLabel>
+                        <FieldLabel htmlFor={field.name}>
+                          {"密钥 ID"}
+                        </FieldLabel>
                         <Input
                           aria-invalid={isInvalid}
                           id={field.name}
@@ -194,7 +207,7 @@ function CredentialsPage() {
                           onChange={(event) =>
                             field.handleChange(event.target.value)
                           }
-                          placeholder="production"
+                          placeholder={"生产"}
                           value={field.state.value}
                         />
                         {isInvalid ? (
@@ -210,7 +223,7 @@ function CredentialsPage() {
                       field.state.meta.isTouched && !field.state.meta.isValid;
                     return (
                       <Field data-invalid={isInvalid}>
-                        <FieldLabel htmlFor={field.name}>Secret</FieldLabel>
+                        <FieldLabel htmlFor={field.name}>{"密钥"}</FieldLabel>
                         <Input
                           aria-invalid={isInvalid}
                           autoComplete="off"
@@ -250,15 +263,14 @@ function CredentialsPage() {
                 {([kind, provider, keyId]) =>
                   liveCredentialFor(credentials.data, kind, provider, keyId) ? (
                     <p className="text-amber-600 text-sm dark:text-amber-500">
-                      This key already holds a live credential. Saving replaces
-                      it, and the one it replaces is revoked.
+                      {"此密钥已持有活跃凭证。保存会替换它，被替换的会被撤销。"}
                     </p>
                   ) : null
                 }
               </form.Subscribe>
               {createCredential.error ? (
                 <p className="text-destructive text-sm" role="alert">
-                  Could not save the credential. Try again.
+                  {"无法保存凭据。请重试。"}
                 </p>
               ) : null}
             </DialogBody>
@@ -269,7 +281,7 @@ function CredentialsPage() {
                 type="button"
                 variant="ghost"
               >
-                Cancel
+                {"取消"}
               </Button>
               <form.Subscribe
                 selector={(state) => [state.canSubmit, state.isSubmitting]}
@@ -283,8 +295,8 @@ function CredentialsPage() {
                     type="submit"
                   >
                     {isSubmitting || createCredential.isPending
-                      ? "Saving…"
-                      : "Save credential"}
+                      ? "正在保存…"
+                      : "保存凭证"}
                   </Button>
                 )}
               </form.Subscribe>
@@ -293,13 +305,13 @@ function CredentialsPage() {
         </DialogContent>
       </Dialog>
 
-      <PageSection title="Configured credentials">
+      <PageSection title={"已配置的凭据"}>
         {credentials.isPending ? null : credentials.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load credentials.
+            {"无法加载凭据。"}
           </p>
         ) : credentials.data?.length === 0 ? (
-          <PageEmpty>No credentials are configured.</PageEmpty>
+          <PageEmpty>{"未配置凭据。"}</PageEmpty>
         ) : (
           <PageRows>
             {credentials.data?.map((credential, index) => (
@@ -309,7 +321,7 @@ function CredentialsPage() {
                     <ItemTitle>{credential.provider}</ItemTitle>
                     <ItemDescription>
                       {credential.kind} · {credential.keyId} ·{" "}
-                      {credential.revokedAt ? "revoked" : "active"}
+                      {credential.revokedAt ? "已撤销" : "活跃"}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -322,7 +334,7 @@ function CredentialsPage() {
                       size="sm"
                       variant="outline"
                     >
-                      Revoke
+                      {"撤销"}
                     </Button>
                   </ItemActions>
                 </Item>

@@ -6,6 +6,10 @@ import {
   useState,
 } from "react";
 import {
+  readStoredPreference,
+  writeStoredPreference,
+} from "@/lib/preference-storage";
+import {
   applyDarkTheme,
   parseStoredDarkTheme,
   THEME_STORAGE_KEY,
@@ -20,12 +24,12 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(() =>
-    parseStoredDarkTheme(window.localStorage.getItem(THEME_STORAGE_KEY)),
+    parseStoredDarkTheme(readStoredPreference(THEME_STORAGE_KEY)),
   );
 
   useEffect(() => {
     applyDarkTheme(dark, {
-      setStoredValue: (key, value) => window.localStorage.setItem(key, value),
+      setStoredValue: writeStoredPreference,
       toggleRootClass: (name, force) =>
         document.documentElement.classList.toggle(name, force),
       setRootColorScheme: (scheme) => {
@@ -45,7 +49,7 @@ export function useTheme() {
   const value = useContext(ThemeContext);
 
   if (!value) {
-    throw new Error("useTheme must be used within ThemeProvider");
+    throw new Error("必须在 ThemeProvider 内部使用 useTheme");
   }
 
   return value;

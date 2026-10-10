@@ -57,8 +57,10 @@ export function StandingInstructions() {
 
   return (
     <PageSection
-      description="Applies to every coworker in every channel. Your role text on a coworker says what it does; this says how you want things done, for example writing style or how to describe your company."
-      title="Standing instructions"
+      description={
+        "适用于每个会话中的每个 AI 同事。同事的角色文本说明它做什么；这个说明你希望如何做事，例如写作风格或如何描述你的公司。"
+      }
+      title={"常驻指令"}
     >
       {stored.isPending ? null : stored.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
@@ -67,14 +69,16 @@ export function StandingInstructions() {
       ) : (
         <div className="mt-4 flex flex-col gap-2">
           <Textarea
-            aria-label="Standing instructions"
+            aria-label={"常驻指令"}
             className="min-h-40"
             disabled={save.isPending}
             onChange={(event) => {
               setDraft(event.target.value);
               setSaved(false);
             }}
-            placeholder="We are two people, not a team. Write in British English, and never call our product a platform."
+            placeholder={
+              "我们是两个人，不是一个团队。请用英式英语书写，并且永远不要将我们的产品称为平台。"
+            }
             value={text}
           />
           <div className="flex flex-row items-center justify-between gap-4">
@@ -85,7 +89,8 @@ export function StandingInstructions() {
                   : "text-muted-foreground text-xs"
               }
             >
-              {text.trim().length} of {INSTRUCTIONS_LIMIT} characters
+              {text.trim().length} {"的"}
+              {INSTRUCTIONS_LIMIT} {"字符"}
             </p>
             <div className="flex flex-row items-center gap-3">
               {/*
@@ -97,14 +102,16 @@ export function StandingInstructions() {
                   {problem}
                 </span>
               ) : saved ? (
-                <span className="text-muted-foreground text-xs">Saved</span>
+                <span className="text-muted-foreground text-xs">
+                  {"已保存"}
+                </span>
               ) : null}
               <Button
                 disabled={save.isPending || over || unchanged}
                 onClick={submit}
                 size="sm"
               >
-                Save
+                {"保存"}
               </Button>
             </div>
           </div>

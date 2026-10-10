@@ -18,7 +18,7 @@ export function userPreferencesQueryOptions(userId: string | undefined) {
     queryFn: ({ signal }): Promise<UserPreferences> =>
       client("/api/settings/preferences", "preferences", {
         signal,
-        fallback: "Could not load your preferences",
+        fallback: "无法加载您的偏好设置",
       }),
   });
 }
@@ -49,11 +49,11 @@ export function dismissSelfHostBannerMutationOptions(
   const queryKey = userPreferencesQueryOptions(userId).queryKey;
   return mutationOptions({
     mutationFn: (): Promise<UserPreferences> => {
-      if (!userId) throw new Error("Sign in to save your preferences.");
+      if (!userId) throw new Error("登录以保存您的偏好设置。");
       return client("/api/settings/preferences", "preferences", {
         method: "PATCH",
         body: { selfHostBannerDismissed: true },
-        fallback: "Could not save your preferences",
+        fallback: "无法保存您的偏好设置",
       });
     },
     onMutate: () => {
@@ -82,11 +82,11 @@ export function saveUserPreferencesMutationOptions(
     mutationFn: (
       preferences: Partial<UserPreferences>,
     ): Promise<UserPreferences> => {
-      if (!userId) throw new Error("Sign in to save your preferences.");
+      if (!userId) throw new Error("登录以保存您的偏好设置。");
       return client("/api/settings/preferences", "preferences", {
         method: "PATCH",
         body: preferences,
-        fallback: "Could not save your preferences",
+        fallback: "无法保存您的偏好设置",
       });
     },
     onSuccess: (preferences) =>

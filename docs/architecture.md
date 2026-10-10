@@ -1,5 +1,7 @@
 # Architecture
 
+> **ChisaBot 分支：** 本地模式以 PostgreSQL 会话实现替代必需的 Intelligence 连接。模型配置、每 BOT 选择、同步与运行快照详见 [模型实现说明](models.md) 和 [Magpie 请求链路](magpie.md)。以下保留上游完整架构参考。
+
 OpenBot combines a React app, a Hono API server, PostgreSQL, CopilotKit Intelligence, AG-UI Bot endpoints, and governed browser computers.
 
 <picture>

@@ -31,15 +31,15 @@ function BotsPage() {
   const byId = new Map((attention.data ?? []).map((bot) => [bot.agentId, bot]));
   return (
     <PageShell
-      description="What each of your Bots is doing, what it needs from you, and whether it is paused."
-      title="Bots"
+      description={"您每个机器人在做什么，它需要您什么，以及它是否已暂停。"}
+      title={"机器人"}
     >
       {agents.isPending ? null : agents.error ? (
         <p className="mt-6 text-destructive text-sm" role="alert">
-          Could not load your Bots.
+          {"无法加载您的机器人。"}
         </p>
       ) : agents.data.length === 0 ? (
-        <PageEmpty>You have no Bots yet.</PageEmpty>
+        <PageEmpty>{"您还没有机器人。"}</PageEmpty>
       ) : (
         <PageRows className="mt-6">
           {agents.data.map((agent, index) => {

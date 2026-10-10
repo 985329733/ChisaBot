@@ -16,6 +16,7 @@ jobs:
   # message is something anybody can write.
   metadata:
     name: classify
+    if: github.repository == 'CopilotKit/OpenBot'
     runs-on: ubuntu-latest
     permissions:
       contents: read

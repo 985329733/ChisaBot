@@ -36,24 +36,22 @@ function PasswordsPage() {
   const remove = useMutation(deleteSavedLoginMutationOptions(queryClient));
   return (
     <PageShell
-      title="Passwords"
-      description="Logins you saved when signing a Bot in to a website. A Bot never sees them, and each use needs your confirmation."
+      title={"密码"}
+      description={
+        "您在登录网站时保存的登录信息。机器人不会看到它们，每次使用都需要您的确认。"
+      }
     >
-      <PageSection title="Saved logins">
+      <PageSection title={"已保存的登录"}>
         {logins.isPending ? null : logins.error ? (
           <p className="text-destructive text-sm" role="alert">
-            Could not load your passwords.
+            {"无法加载您的密码。"}
           </p>
         ) : !logins.data.passwordManager ? (
           <PageEmpty>
-            Saved passwords are turned off for this workspace. Existing logins
-            are kept but not offered.
+            {"此工作区已关闭保存密码。现有登录被保留但不提供。"}
           </PageEmpty>
         ) : logins.data.logins.length === 0 ? (
-          <PageEmpty>
-            No saved logins. Choose Save to Passwords when you sign a Bot in to
-            a website.
-          </PageEmpty>
+          <PageEmpty>{"无保存的登录。登录网站时选择保存到密码。"}</PageEmpty>
         ) : (
           <PageRows>
             {logins.data.logins.map((login, index) => (
@@ -68,13 +66,13 @@ function PasswordsPage() {
                     <ItemDescription>
                       {login.username}
                       {login.lastUsedAt
-                        ? ` · last used ${new Date(login.lastUsedAt).toLocaleDateString()}`
-                        : " · never used"}
+                        ? `· 最后使用 ${new Date(login.lastUsedAt).toLocaleDateString("zh-CN")}`
+                        : "· 从未使用"}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
                     <Button
-                      aria-label={`Delete the login for ${login.origin}`}
+                      aria-label={`删除 ${login.origin} 的登录`}
                       size="sm"
                       variant="ghost"
                       disabled={remove.isPending}

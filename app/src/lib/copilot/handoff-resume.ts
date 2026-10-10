@@ -88,12 +88,11 @@ export async function resumeHandoffTask(
       m.role === "assistant" &&
       m.toolCalls?.some((c) => c.id === pending.toolCallId),
   );
-  if (!hasCall)
-    throw new Error("The handoff's tool call is not in this conversation.");
+  if (!hasCall) throw new Error("移交的工具调用不在此对话中。");
   if (!findPendingTool(agent.messages, pending))
-    throw new Error("This tool call is already answered.");
+    throw new Error("此工具调用已回答。");
   if (agent.isRunning || hasActiveHandoff(botId, pending.requestId))
-    throw new Error("This task is already running.");
+    throw new Error("此任务已在运行。");
   const result = await awaitHandoff(botId, pending.requestId, signal);
   if (signal?.aborted) return;
   if (result.reconnecting || result.snapshotRequired)

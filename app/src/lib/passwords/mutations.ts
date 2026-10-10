@@ -72,7 +72,7 @@ export function deleteSavedLoginMutationOptions(queryClient: QueryClient) {
     mutationFn: async (loginId: string) => {
       await client(`/api/passwords/${encodeURIComponent(loginId)}`, {
         method: "DELETE",
-        fallback: "Could not delete that password",
+        fallback: "无法删除该密码",
       });
     },
     onSuccess: () => invalidate(queryClient),

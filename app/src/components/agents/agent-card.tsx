@@ -53,11 +53,11 @@ export function AgentCard({
         <Button
           variant="ghost"
           size="xs"
-          aria-label={`View details for ${agent.name}`}
+          aria-label={`查看 ${agent.name} 的详情`}
           className="-ml-2 text-muted-foreground after:absolute after:inset-0"
           render={<Link to="/agents" search={{ agent: agent.id }} />}
         >
-          Details
+          {"详情"}
         </Button>
         <IconArrowRight
           aria-hidden="true"

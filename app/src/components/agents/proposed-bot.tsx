@@ -83,7 +83,7 @@ export function ProposedBotCard({
     const madeId = wasCreated(result) ? createdBotIdIn(result) : null;
     return (
       <GalleryFrame
-        action={<Badge tone="neutral">Done</Badge>}
+        action={<Badge tone="neutral">{"完成"}</Badge>}
         title={titleFor(args.name, clashes)}
       >
         <p className="text-sm">{result}</p>
@@ -95,7 +95,7 @@ export function ProposedBotCard({
   if (!respond) {
     return (
       <GalleryFrame title={titleFor(args.name, clashes)}>
-        <p className="text-muted-foreground text-sm">Writing the coworker…</p>
+        <p className="text-muted-foreground text-sm">{"正在编写AI同事…"}</p>
       </GalleryFrame>
     );
   }
@@ -136,33 +136,33 @@ export function ProposedBotCard({
 
   return (
     <GalleryFrame
-      action={<Badge tone="caution">Waiting on you</Badge>}
+      action={<Badge tone="caution">{"等待您"}</Badge>}
       caption={
         clashes
-          ? `There is already a ${clashes.title} here, which is ${clashes.ownership}. Names do not have to be unique, but two with the same name are hard to tell apart in a channel list.`
-          : "Nothing is created until you press the button."
+          ? `这里已有 ${clashes.title}，它是 ${clashes.ownership}。名称不必唯一，但在会话列表中相同名称的难以区分。`
+          : "直到按下按钮才会创建任何内容。"
       }
       title={titleFor(values.name, clashes)}
     >
       <dl className="grid grid-cols-[minmax(0,7rem)_1fr] gap-x-4 gap-y-1.5 text-sm">
-        <dt className="truncate text-muted-foreground">Name</dt>
+        <dt className="truncate text-muted-foreground">{"名称"}</dt>
         <dd className="min-w-0 break-words font-medium">{values.name}</dd>
-        <dt className="truncate text-muted-foreground">Job</dt>
+        <dt className="truncate text-muted-foreground">{"作业"}</dt>
         <dd className="min-w-0 break-words">{values.title}</dd>
-        <dt className="truncate text-muted-foreground">Skills</dt>
+        <dt className="truncate text-muted-foreground">{"技能"}</dt>
         <dd className="min-w-0 break-words">
           {skills.length > 0 ? (
             <span className="font-mono text-xs">
               {skills.map((slug) => `/${slug}`).join(", ")}
             </span>
           ) : (
-            <span className="text-muted-foreground">None</span>
+            <span className="text-muted-foreground">{"无"}</span>
           )}
         </dd>
       </dl>
 
       <p className="mt-3 text-muted-foreground text-xs">
-        Its standing instructions. This text is given to a model on every turn.
+        {"它的常驻指令。此文本在每次回合中提供给模型。"}
       </p>
       {/*
        * Scrolled rather than clamped, and the distinction is the whole point of the card. A clamp
@@ -174,8 +174,9 @@ export function ProposedBotCard({
       </p>
 
       <p className="mt-2 text-muted-foreground text-xs">
-        It arrives private, with no address, no connector and no tool. Anything
-        it needs to reach is granted on its profile afterwards.
+        {
+          "它以私密方式到达，没有地址，没有连接器也没有工具。它需要的一切之后在它的配置文件上被授权。"
+        }
       </p>
 
       {refusal ? (
@@ -190,7 +191,7 @@ export function ProposedBotCard({
           onClick={() => void make()}
           size="sm"
         >
-          {sending === "create" ? "Creating…" : "Create it"}
+          {sending === "create" ? "正在创建…" : "创建"}
         </Button>
         <Button
           disabled={Boolean(sending)}
@@ -198,7 +199,7 @@ export function ProposedBotCard({
           size="sm"
           variant="outline"
         >
-          {sending === "decline" ? "…" : "Don't create"}
+          {sending === "decline" ? "…" : "不要创建"}
         </Button>
       </div>
     </GalleryFrame>
@@ -233,7 +234,8 @@ function TalkToIt({
       search={{ agent: agentId }}
       to="/agents"
     >
-      Open {name?.trim() || "the coworker"}
+      {"打开"}
+      {name?.trim() || "AI 同事"}
     </Link>
   );
 }
@@ -268,12 +270,11 @@ function Unwritable({
 
   return (
     <GalleryFrame
-      action={<Badge tone="neutral">Not created</Badge>}
-      title="Create a coworker"
+      action={<Badge tone="neutral">{"未创建"}</Badge>}
+      title={"创建AI同事"}
     >
       <p className="text-sm">
-        The coworker could not be created as written, so nothing was asked of
-        you. It is being redrafted.
+        {"同事无法按原样创建，因此未要求您做任何事。它正在重新起草。"}
       </p>
     </GalleryFrame>
   );

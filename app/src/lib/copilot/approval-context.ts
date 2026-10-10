@@ -29,9 +29,7 @@ export function frontendApprovalSnapshot(context: HandlerContext) {
   const agent = context.agent;
   const input = agent ? inputs.get(agent) : undefined;
   if (!agent || !input || input.threadId !== agent.threadId)
-    throw new Error(
-      "This action needs an active conversation before it can be approved.",
-    );
+    throw new Error("此操作需要在活跃会话中才能批准。");
   return {
     runId: input.runId,
     threadId: agent.threadId,

@@ -59,7 +59,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-8 text-sm text-destructive" role="alert">
-        Could not load this coworker.
+        {"无法加载此AI同事。"}
       </p>
     );
   }
@@ -84,14 +84,14 @@ export function AgentProfile({ agentId }: { agentId: string }) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-1.5">
-          <Tag>{profile.visibility === "private" ? "Private" : "Public"}</Tag>
-          {profile.systemOwned ? <Tag>System owned</Tag> : null}
+          <Tag>{profile.visibility === "private" ? "私有" : "公开"}</Tag>
+          {profile.systemOwned ? <Tag>{"系统拥有"}</Tag> : null}
         </div>
       </header>
 
       <section className="grid gap-2">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Role
+          {"角色"}
         </h2>
         <p className="text-sm whitespace-pre-wrap text-pretty">
           {profile.roleDescription}
@@ -105,14 +105,14 @@ export function AgentProfile({ agentId }: { agentId: string }) {
             void navigate({ search: { agent: agentId }, to: "/channel/new" })
           }
         >
-          Start new channel
+          {"开始新会话"}
         </Button>
         <Button
           className="w-full text-sm!"
           onClick={() => setManaging(true)}
           variant="outline"
         >
-          Manage coworker
+          {"管理AI同事"}
         </Button>
       </div>
 

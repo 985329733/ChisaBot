@@ -68,7 +68,7 @@ import { queryClient } from "@/query-client";
  */
 /** The same way back from every state this route can be in. */
 const BACK = {
-  label: "UI Components",
+  label: "UI 组件",
   linkProps: { to: "/admin/components" },
 } as const;
 
@@ -105,9 +105,9 @@ function RouteComponent() {
 
   if (components.error) {
     return (
-      <PageShell backButton={BACK} title="Components">
+      <PageShell backButton={BACK} title={"组件"}>
         <p className="mt-8 text-destructive text-sm" role="alert">
-          Could not load components.
+          {"无法加载组件。"}
         </p>
       </PageShell>
     );
@@ -121,15 +121,14 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={BACK}
-        description="Nothing here answers to that name."
-        title="No such component"
+        description={"此处没有匹配该名称的"}
+        title={"不存在此组件"}
       >
         <Empty className="mt-12 min-h-[30dvh] border border-dashed">
           <EmptyHeader>
             <EmptyTitle>{name}</EmptyTitle>
             <EmptyDescription className="text-pretty">
-              It may have been renamed, or this deployment may no longer ship
-              it.
+              {"它可能已被重命名，或者此部署可能不再包含它。"}
             </EmptyDescription>
           </EmptyHeader>
           <Button
@@ -137,7 +136,7 @@ function RouteComponent() {
             size="sm"
             variant="outline"
           >
-            Back to components
+            {"返回组件"}
           </Button>
         </Empty>
       </PageShell>
@@ -293,7 +292,7 @@ function ComponentDetail({
       backButton={BACK}
       description={
         component.publishedDescription ??
-        "Nothing is published, so no Bot is told about this."
+        "未发布任何内容，因此未告知机器人此信息。"
       }
       title={component.title}
     >
@@ -311,8 +310,8 @@ function ComponentDetail({
       </div>
 
       <PageSection
-        description="What this component is for, and which Bots are allowed to answer with it."
-        title="Configuration"
+        description={"这个组件是做什么的，以及哪些机器人被允许使用它回答。"}
+        title={"配置"}
       >
         <PageRows>
           {/*
@@ -326,9 +325,9 @@ function ComponentDetail({
                   <IconAlertTriangle className="text-amber-600 dark:text-amber-400" />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Not in this build</ItemTitle>
+                  <ItemTitle>{"此构建中不存在"}</ItemTitle>
                   <ItemDescription>
-                    Nothing here can draw it, whatever else is set.
+                    {"此处无法绘制它，无论其他设置如何。"}
                   </ItemDescription>
                 </ItemContent>
               </Item>
@@ -341,19 +340,19 @@ function ComponentDetail({
               <IconWorld />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Published</ItemTitle>
+              <ItemTitle>{"已发布"}</ItemTitle>
               <ItemDescription>
                 {component.published
-                  ? "Bots may answer with it."
-                  : "No Bot may use it."}
+                  ? "机器人可能用它回答。"
+                  : "机器人不得使用它。"}
                 {component.hasUnpublishedChanges
-                  ? " The description has changes that are not published."
+                  ? "描述有未发布的更改。"
                   : null}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Published"
+                aria-label={"已发布"}
                 checked={component.published}
                 data-testid={`publish-${component.name}`}
                 onCheckedChange={onPublish}
@@ -365,9 +364,9 @@ function ComponentDetail({
 
           <SheetRow
             icon={<IconFileText />}
-            label="Description"
+            label={"描述"}
             onOpen={() => setSheet("description")}
-            summary={component.draftDescription || "Nothing yet"}
+            summary={component.draftDescription || "暂无"}
             testId={`description-${component.name}`}
           />
 
@@ -375,7 +374,7 @@ function ComponentDetail({
 
           <SheetRow
             icon={<IconUsers />}
-            label="Available to"
+            label={"可用于"}
             onOpen={() => setSheet("grants")}
             summary={grantSummary}
             testId={`grants-${component.name}`}
@@ -385,7 +384,7 @@ function ComponentDetail({
 
           <SheetRow
             icon={<IconDatabase />}
-            label="May read"
+            label={"可读取"}
             onOpen={() => setSheet("functions")}
             summary={functionSummary}
             testId={`functions-${component.name}`}
@@ -393,21 +392,21 @@ function ComponentDetail({
         </PageRows>
       </PageSection>
 
-      <PageSection title="Details">
+      <PageSection title={"详情"}>
         <PageRows>
-          <FactRow icon={<IconTag />} label="Kind">
+          <FactRow icon={<IconTag />} label={"类型"}>
             {component.kind}
           </FactRow>
           <Separator />
-          <FactRow icon={<IconCode />} label="Called as">
+          <FactRow icon={<IconCode />} label={"称为"}>
             <code className="rounded bg-foreground/5 px-1.5 py-0.5 text-xs">
               {component.name}
             </code>
           </FactRow>
           <Separator />
-          <FactRow icon={<IconClock />} label="Last changed">
-            {new Date(component.updatedAt).toLocaleString()}
-            {component.updatedBy ? ` by ${component.updatedBy}` : null}
+          <FactRow icon={<IconClock />} label={"最后修改"}>
+            {new Date(component.updatedAt).toLocaleString("zh-CN")}
+            {component.updatedBy ? `由 ${component.updatedBy}` : null}
           </FactRow>
         </PageRows>
       </PageSection>
@@ -428,15 +427,14 @@ function ComponentDetail({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Description</DialogTitle>
+            <DialogTitle>{"描述"}</DialogTitle>
             <DialogDescription>
-              What the model reads when deciding to call this. It changes
-              nothing until the component is published.
+              {"模型在决定调用此操作时读取什么。直到组件发布前它什么都不改变。"}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
             <Textarea
-              aria-label="Description"
+              aria-label={"描述"}
               onChange={(event) => setDraft(event.target.value)}
               rows={6}
               value={draft}
@@ -451,7 +449,7 @@ function ComponentDetail({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {"取消"}
             </Button>
             <Button
               onClick={() => {
@@ -460,7 +458,7 @@ function ComponentDetail({
               }}
               size="sm"
             >
-              Save
+              {"保存"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -473,17 +471,17 @@ function ComponentDetail({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Available to</DialogTitle>
+            <DialogTitle>{"可用于"}</DialogTitle>
             <DialogDescription>
-              Switch a Bot off and it is never told this component exists, so it
-              cannot ask for it and does not apologise for not having it. Each
-              change takes effect immediately.
+              {
+                "关闭 Bot 后，它永远不会被告知此组件存在，因此无法请求它，也不会为没有它而道歉。每次更改立即生效。"
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
             {bots.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                There are no Bots yet.
+                {"还没有机器人。"}
               </p>
             ) : (
               <div className="flex flex-col">
@@ -513,7 +511,7 @@ function ComponentDetail({
           </DialogBody>
           <DialogFooter className="mt-4">
             <Button onClick={() => setSheet(null)} size="sm">
-              Done
+              {"完成"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -525,19 +523,17 @@ function ComponentDetail({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>May read</DialogTitle>
+            <DialogTitle>{"可读取"}</DialogTitle>
             <DialogDescription>
-              A separate grant from Available to, and not implied by it: that
-              one decides who may draw this, and this decides what it may go and
-              fetch in order to draw itself. Until one of these is on it shows
-              only what the Bot passes it, and every read it does make is a row
-              in Audit. Each change takes effect immediately.
+              {
+                "单独的授权，与 Available 不同且不隐含：它决定谁可以提取此项，以及此项决定它可以去取什么来提取自己。直到其中一个开启，它只显示机器人传递的，直到它做的每次读取都是审计中的一行。每次更改立即生效。"
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
             {dataFunctions.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                This deployment grants no data functions.
+                {"此部署不授予任何数据功能。"}
               </p>
             ) : (
               <div className="flex flex-col">
@@ -570,7 +566,7 @@ function ComponentDetail({
           </DialogBody>
           <DialogFooter className="mt-4">
             <Button onClick={() => setSheet(null)} size="sm">
-              Done
+              {"完成"}
             </Button>
           </DialogFooter>
         </DialogContent>

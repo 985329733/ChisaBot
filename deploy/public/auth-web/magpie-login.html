@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f6f7f2">
+    <title>登录 · Magpie</title>
+    <link rel="stylesheet" href="/auth/login.css">
+    <script src="/auth/login.js" defer></script>
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="brand" aria-label="Magpie">
+        <a class="brand-mark" href="/login" aria-label="Magpie 登录首页">
+          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <path d="M24 7v6M19 7h10M12 18h24a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M2 26v6m44-6v6M17 33h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="17" cy="26" r="2" fill="currentColor"/>
+            <circle cx="31" cy="26" r="2" fill="currentColor"/>
+          </svg>
+          <span>MAGPIE</span>
+        </a>
+        <div class="brand-content">
+          <p class="eyebrow">你的模型服务网关</p>
+          <h1>Magpie<span class="brand-dot">.</span></h1>
+          <p class="brand-description">管理模型、接口与用量。</p>
+        </div>
+        <svg class="orbit" viewBox="0 0 560 390" fill="none" aria-hidden="true">
+          <ellipse cx="282" cy="218" rx="231" ry="110" transform="rotate(-23 282 218)"/>
+          <ellipse cx="282" cy="218" rx="184" ry="81" transform="rotate(-23 282 218)"/>
+          <path d="M103 281 282 218l179-64M224 124l58 94 57 96"/>
+          <circle class="orbit-center" cx="282" cy="218" r="32"/>
+          <path class="orbit-glyph" d="M270 211h24v16h-24zM282 205v6M276 221h12"/>
+          <circle class="orbit-node" cx="103" cy="281" r="7"/>
+          <circle class="orbit-node" cx="461" cy="154" r="7"/>
+          <circle class="orbit-node" cx="224" cy="124" r="5"/>
+          <circle class="orbit-node" cx="339" cy="314" r="5"/>
+        </svg>
+        <p class="brand-footer">模型 · 路由 · 用量</p>
+      </section>
+
+      <section class="login-section" aria-labelledby="login-heading">
+        <div class="login-content">
+          <p class="section-label">欢迎回来</p>
+          <h2 id="login-heading">登录模型管理</h2>
+          <p class="login-description">使用你的账号继续。</p>
+
+          <form id="login-form" action="/auth/login" method="post">
+            <div class="field">
+              <label for="username">账号</label>
+              <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="" required maxlength="100">
+            </div>
+            <div class="field">
+              <label for="password">密码</label>
+              <div class="password-control">
+                <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024" aria-describedby="login-error">
+                <button id="password-toggle" class="password-toggle" type="button" aria-label="显示密码" aria-pressed="false">显示</button>
+              </div>
+            </div>
+            <div class="login-options">
+              <label class="remember" for="remember">
+                <input id="remember" name="remember" type="checkbox">
+                <span>记住登录</span>
+              </label>
+            </div>
+            <p id="login-error" class="login-error" role="alert" aria-live="polite"></p>
+            <button id="login-submit" class="login-submit" type="submit">
+              <span id="submit-label">登录</span>
+              <svg class="submit-arrow" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="submit-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+          <noscript><p class="noscript-message">请启用浏览器的 JavaScript 后登录。</p></noscript>
+          <p class="login-note">登录后可配置模型服务商和网关。</p>
+        </div>
+        <p class="login-footer">Magpie 模型管理</p>
+      </section>
+    </main>
+  </body>
+</html>

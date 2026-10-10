@@ -134,7 +134,7 @@ export function ConnectionFields({
         </Item>
       ))}
       <Button className="self-end" disabled={busy} size="sm" type="submit">
-        {busy ? "Connecting…" : "Connect"}
+        {busy ? "正在连接…" : "连接"}
       </Button>
     </form>
   );

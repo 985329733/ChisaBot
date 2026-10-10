@@ -1,9 +1,18 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenBot</title>
+    <title>ChisaBot · 中文版</title>
+    <style>
+      .openbot-startup { min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; font-family: system-ui, sans-serif; color: #202124; background: #fafafa; }
+      .dark .openbot-startup { color: #ededed; background: #171717; }
+      .openbot-startup-panel { width: 100%; max-width: 360px; }
+      .openbot-startup-title { margin: 0 0 12px; font-size: 20px; font-weight: 600; }
+      .openbot-startup-detail { margin: 0; color: #777; font-size: 14px; line-height: 1.6; }
+      .openbot-startup-reload { margin-top: 24px; padding: 8px 14px; border: 1px solid #bbb; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
+      .openbot-startup-reload[hidden] { display: none; }
+    </style>
     <!-- Sets the theme before the first paint. Must stay inline and classic: `defer` or `type="module"` runs too late. -->
     <script>
       // localStorage throws in some privacy modes; a theme is not worth taking the app down for.
@@ -15,7 +24,136 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="openbot-startup" class="openbot-startup" role="status">
+        <div class="openbot-startup-panel">
+          <p id="openbot-startup-title" class="openbot-startup-title">正在加载 ChisaBot…</p>
+          <p id="openbot-startup-detail" class="openbot-startup-detail">首次打开可能需要一些时间。</p>
+          <button id="openbot-reload" class="openbot-startup-reload" type="button" hidden>重新加载</button>
+          <noscript><p class="openbot-startup-detail">请启用浏览器的 JavaScript 后重新加载。</p></noscript>
+        </div>
+      </div>
+    </div>
+    <script id="openbot-startup-script">
+      // biome-ignore-all lint/complexity/useArrowFunction: Keep the pre-module recovery script compatible with older browsers.
+      // biome-ignore-all lint/complexity/useOptionalChain: This must work even when newer module syntax fails to load.
+      (function () {
+        var startup = document.getElementById("openbot-startup");
+        var title = document.getElementById("openbot-startup-title");
+        var detail = document.getElementById("openbot-startup-detail");
+        var reload = document.getElementById("openbot-reload");
+        var failed = false;
+        var mounted = false;
+        var stage = "shell";
+        var id;
+        try {
+          var random = window.crypto.getRandomValues(new Uint32Array(3));
+          id = "boot_" + random[0].toString(16) + "_" + random[1].toString(16) + "_" + random[2].toString(16);
+        } catch {
+          id = "boot_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 12);
+        }
+        function resourceName(value) {
+          try {
+            if (typeof value !== "string" || !value) return;
+            var url = new window.URL(value, window.location.href);
+            if (url.origin !== window.location.origin || !/^\/(assets|auth|src)\//.test(url.pathname)) return;
+            var name = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+            if (/^[A-Za-z0-9._-]{1,120}$/.test(name)) return name;
+          } catch {}
+        }
+        function sameOrigin(value) {
+          try {
+            return typeof value === "string" && value.length > 0 && new window.URL(value, window.location.href).origin === window.location.origin;
+          } catch { return false; }
+        }
+        function errorName(value) {
+          if (["Error", "TypeError", "ReferenceError", "SyntaxError", "RangeError", "SecurityError", "AbortError"].indexOf(value) !== -1) return value;
+        }
+        function coordinate(value) {
+          if (typeof value === "number" && value >= 0 && value <= 10000000 && Math.floor(value) === value) return value;
+        }
+        function report(event, resource, category, info) {
+          if (mounted || typeof window.fetch !== "function") return;
+          try {
+            var payload = { id: id, event: event, stage: stage };
+            if (resource) payload.resource = resource;
+            if (category) payload.category = category;
+            if (info) {
+              if (info.name) payload.name = info.name;
+              if (typeof info.line === "number") payload.line = info.line;
+              if (typeof info.column === "number") payload.column = info.column;
+            }
+            window.fetch("/auth/startup-report", {
+              method: "POST",
+              credentials: "same-origin",
+              keepalive: true,
+              cache: "no-store",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            }).catch(function () {});
+          } catch {}
+        }
+        function showFailure(event) {
+          if (mounted || failed || !startup || !startup.isConnected) return;
+          var target = event.target;
+          var resource;
+          var category;
+          var info;
+          if (target && (target.tagName === "SCRIPT" || target.tagName === "LINK")) {
+            if ((target.tagName === "SCRIPT" && target.type !== "module") || (target.tagName === "LINK" && target.rel !== "stylesheet")) return;
+            resource = resourceName(target.src || target.href);
+            if (!resource) return;
+            category = "resource";
+          } else if (event.type === "unhandledrejection") {
+            // A blocked third-party beacon must not be mistaken for a failed app.
+            var reason = event.reason;
+            if (!reason || typeof reason.stack !== "string" || reason.stack.indexOf(window.location.origin + "/assets/") === -1) return;
+            category = "promise";
+            info = { name: errorName(reason.name) };
+          } else {
+            if (!sameOrigin(event.filename) || !event.error || typeof event.error.name !== "string") return;
+            resource = resourceName(event.filename);
+            category = event.error.name === "SyntaxError" ? "syntax" : "runtime";
+            info = { name: errorName(event.error.name), line: coordinate(event.lineno), column: coordinate(event.colno) };
+          }
+          failed = true;
+          startup.setAttribute("role", "alert");
+          title.textContent = "无法加载 ChisaBot";
+          detail.textContent = "请检查网络连接后重新加载。";
+          reload.hidden = false;
+          report("error", resource, category, info);
+        }
+        report("shell");
+        reload.addEventListener("click", function () { window.location.reload(); });
+        window.addEventListener("error", showFailure, true);
+        window.addEventListener("unhandledrejection", showFailure);
+        document.addEventListener("load", function (event) {
+          var target = event.target;
+          if (mounted || failed || !target || target.tagName !== "SCRIPT" || target.type !== "module") return;
+          var resource = resourceName(target.src);
+          if (!resource) return;
+          if (stage === "shell") stage = "entry-loaded";
+          report("entry-loaded", resource);
+        }, true);
+        window.addEventListener("openbot-boot-stage", function (event) {
+          if (mounted || (event.detail !== "entry-executing" && event.detail !== "react-mounted")) return;
+          stage = event.detail;
+          report(stage);
+          if (stage === "react-mounted") {
+            mounted = true;
+            window.clearTimeout(deadline);
+          }
+        });
+        var deadline = setTimeout(function () {
+          if (mounted || failed || !startup || !startup.isConnected) return;
+          startup.setAttribute("role", "alert");
+          title.textContent = "页面仍在加载";
+          detail.textContent = "加载时间较长，请检查网络连接后重试。";
+          reload.hidden = false;
+          report("timeout");
+        }, 30000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

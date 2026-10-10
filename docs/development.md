@@ -1,5 +1,7 @@
 # Development
 
+> **ChisaBot 分支：** 先阅读 [快速开始](getting-started.md)。使用 `OPENBOT_RUNTIME_MODE=local` 时，无需下述 Intelligence 登录、项目密钥或学习容器配置；数据库、加密密钥和登录保护仍需按自己的环境配置。以下为保留的上游开发参考。
+
 ## Setup
 
 Install Docker, [Bun](https://bun.sh) 1.3+, `lsof`, `openssl`, and `curl`. The

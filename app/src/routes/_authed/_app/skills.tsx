@@ -109,11 +109,12 @@ function SkillsPage() {
       <PageShell
         description={
           <>
-            A skill is a named instruction you invoke with <code>/</code> and a
-            Bot follows. Yours are yours alone, and go on the Bots you own.
+            {"技能是您用...调用的命名指令"}
+            <code>/</code>{" "}
+            {"和一个机器人跟随。你的属于你自己，并且属于你拥有的机器人。"}
           </>
         }
-        title="Agent Skills"
+        title={"代理技能"}
       >
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -131,10 +132,10 @@ function SkillsPage() {
               variant="ghost"
             >
               <IconPlus />
-              New skill
+              {"新技能"}
             </Button>
           }
-          title="Your skills"
+          title={"您的技能"}
         >
           {/*
            * Nothing while the two queries are still in flight. The alternative is the empty state
@@ -147,13 +148,13 @@ function SkillsPage() {
            */}
           {loading ? null : !data ? (
             <p className="mt-4 text-destructive text-sm" role="alert">
-              Your skills could not be loaded.
+              {"您的技能无法加载。"}
             </p>
           ) : mine.length === 0 ? (
             <Empty className="mt-4 h-[180px] border border-dashed">
               <EmptyHeader>
                 <EmptyTitle className="text-muted-foreground">
-                  You don't have any skills yet.
+                  {"您还没有任何技能。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -176,7 +177,7 @@ function SkillsPage() {
                         <code className="font-mono text-foreground/80 text-xs">
                           /{skill.slug}
                         </code>
-                        {skill.summary ? ` · ${skill.summary}` : null}
+                        {skill.summary ? `· ${skill.summary}` : null}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -195,7 +196,7 @@ function SkillsPage() {
                                 navigate({ search: { edit: skill.slug } })
                               }
                             >
-                              Edit
+                              {"编辑"}
                             </DropdownMenuItem>
                             {/*
                              * Deleting is immediate and there is no undo. It is behind a menu rather
@@ -210,7 +211,8 @@ function SkillsPage() {
                               }}
                               variant="destructive"
                             >
-                              Delete /{skill.slug}
+                              {"删除 /"}
+                              {skill.slug}
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
@@ -236,8 +238,10 @@ function SkillsPage() {
          */}
         {deployment.length > 0 ? (
           <PageSection
-            description="Written for everyone by an administrator. Which Bots carry them is decided in Admin."
-            title="Workspace skills"
+            description={
+              "由管理员为所有人编写。在管理员中决定哪些机器人携带它们。"
+            }
+            title={"工作区技能"}
           >
             <PageRows>
               {deployment.map((skill, index) => (
@@ -257,7 +261,7 @@ function SkillsPage() {
                         <code className="font-mono text-foreground/80">
                           /{skill.slug}
                         </code>
-                        {skill.summary ? ` · ${skill.summary}` : null}
+                        {skill.summary ? `· ${skill.summary}` : null}
                       </ItemDescription>
                     </ItemContent>
                   </Item>

@@ -47,15 +47,16 @@ export function InlineApproval({
       ];
   return (
     <section
-      aria-label="Waiting for your approval"
+      aria-label={"等待您的审批"}
       className="space-y-2 rounded-lg border p-3 text-sm"
     >
       <p className="font-medium">
-        {handOff ? "This needs you" : "Waiting for your approval"}:{" "}
+        {handOff ? "这需要你" : "等待您的审批"}:{" "}
         {request.action.toolRef
           .replace(/^computer_|^host\//, "")
           .replaceAll("_", " ")}{" "}
-        on {request.action.scope}
+        {"开"}
+        {request.action.scope}
       </p>
       {request.action.policy ? (
         <p className="text-muted-foreground">{request.action.policy.reason}</p>

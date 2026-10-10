@@ -1,5 +1,6 @@
 {
   "name": "@openbot/agent-bot",
+  "description": "ChisaBot AG-UI 示例 BOT",
   "license": "MIT",
   "private": true,
   "type": "module",

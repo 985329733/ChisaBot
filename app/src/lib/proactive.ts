@@ -33,7 +33,7 @@ export const proactiveSettingsQueryOptions = () =>
     queryKey: proactiveKeys.settings,
     queryFn: (): Promise<ProactiveSetting[]> =>
       client("/api/proactive/settings", "settings", {
-        fallback: "Could not load background research",
+        fallback: "无法加载后台研究",
       }),
     refetchInterval: 30_000,
   });
@@ -42,7 +42,7 @@ export const proactiveSuggestionsQueryOptions = () =>
     queryKey: proactiveKeys.suggestions,
     queryFn: (): Promise<ProactiveSuggestion[]> =>
       client("/api/proactive/suggestions", "suggestions", {
-        fallback: "Could not load suggestions",
+        fallback: "无法加载建议",
       }),
     refetchInterval: 30_000,
   });
@@ -56,7 +56,7 @@ export const createProactiveSetting = (input: {
   client("/api/proactive/settings", {
     method: "POST",
     body: input,
-    fallback: "Could not turn on background research",
+    fallback: "无法开启后台研究",
   });
 export const updateProactiveSetting = (
   id: string,
@@ -65,23 +65,20 @@ export const updateProactiveSetting = (
   client(`/api/proactive/settings/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: input,
-    fallback: "Could not change background research",
+    fallback: "无法更改背景研究",
   });
 export const runProactiveNow = (id: string) =>
   client(`/api/proactive/settings/${encodeURIComponent(id)}/run`, {
     method: "POST",
-    fallback: "Could not start background research",
+    fallback: "无法启动后台研究",
   });
 export const removeProactiveSetting = (id: string) =>
   client(`/api/proactive/settings/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    fallback: "Could not remove background research",
+    fallback: "无法移除后台研究",
   });
 export const resolveSuggestion = (id: string, action: "start" | "dismiss") =>
   client(`/api/proactive/suggestions/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
-    fallback:
-      action === "start"
-        ? "Could not start this suggestion"
-        : "Could not dismiss this suggestion",
+    fallback: action === "start" ? "无法开始此建议" : "无法取消此建议",
   });

@@ -70,7 +70,7 @@ function RouteComponent() {
        */
       if (authorizationUrl === null) {
         setNotice(
-          "This deployment answered without a consent link, so there was nowhere to send you and nothing was connected. Try again, and tell an administrator if it persists.",
+          "此部署回答时没有同意链接，因此没有地方发送给你且未连接任何内容。重试，如果持续存在请告诉管理员。",
         );
         return;
       }
@@ -134,11 +134,11 @@ function RouteComponent() {
    * whole of its state defaulted to "you have never connected this".
    */
   if (plugins.isPending || connections.isPending) {
-    return <PageShell title="Account">{null}</PageShell>;
+    return <PageShell title={"账号"}>{null}</PageShell>;
   }
 
   const back = {
-    label: "Connected accounts",
+    label: "已连接账号",
     linkProps: { to: "/settings/connected-accounts" as const },
   };
 
@@ -162,9 +162,9 @@ function RouteComponent() {
     return (
       <PageShell backButton={back} title={server?.title ?? key}>
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Whether you have connected this account could not be loaded, so
-          nothing about it is shown here rather than something that may be
-          wrong. Reload the page, and tell an administrator if it persists.
+          {
+            "账户连接状态无法加载，因此未显示任何内容。可能存在问题。重新加载页面，如果仍然存在，请告诉管理员。"
+          }
         </p>
       </PageShell>
     );
@@ -179,9 +179,9 @@ function RouteComponent() {
     return (
       <PageShell backButton={back} title={key}>
         <p className="mt-12 text-destructive text-sm" role="alert">
-          This connector could not be loaded, so nothing about it is shown here
-          rather than something that may be wrong. Reload the page, and tell an
-          administrator if it persists.
+          {
+            "此连接器无法加载，因此这里不显示任何关于它的内容，而是可能出错的内容。重新加载页面，如果持续存在，请告诉管理员。"
+          }
         </p>
       </PageShell>
     );
@@ -203,7 +203,9 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="Reached through Composio, which holds the account, so a Bot sees only what you can see."
+        description={
+          "通过 Composio 到达，它持有账户，所以机器人只看到你能看到的内容。"
+        }
         title={server.title}
       >
         {notice ? (
@@ -243,13 +245,13 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="This is not a service you connect for yourself."
+        description={"这不是您自己连接的服务。"}
         title={entry?.title ?? key}
       >
         <PageEmpty>
           {entry
-            ? "A Bot reaches this one with a credential the deployment holds, the same for everybody."
-            : "This deployment has no connector by that name."}
+            ? "机器人使用部署持有的凭据到达此，适用于所有人。"
+            : "此部署没有名为该名称的连接器。"}
         </PageEmpty>
       </PageShell>
     );
@@ -274,13 +276,13 @@ function RouteComponent() {
             <ItemContent>
               {/* Not "Connect your account": the row is also the connected state, and a title has to
                   read for both. */}
-              <ItemTitle>Your account</ItemTitle>
+              <ItemTitle>{"您的账号"}</ItemTitle>
               <ItemDescription>
                 {!enabled
-                  ? "An administrator has not enabled this connector, so there is nothing to connect to yet."
+                  ? "管理员尚未启用此连接器，因此目前没有可连接的内容。"
                   : connection
-                    ? "A Bot granted its tools reads this as you, and sees only what you can see."
-                    : "No Bot can read this as you. Connecting takes you to the vendor to consent."}
+                    ? "授予其工具的机器人将此读取为你的，并只看到你能看到的内容。"
+                    : "没有机器人可以像您一样读取此内容。连接会带您到供应商进行同意。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -299,7 +301,7 @@ function RouteComponent() {
                           aria-hidden="true"
                           className="size-1.5 rounded-full bg-emerald-500"
                         />
-                        Connected
+                        {"已连接"}
                         <IconChevronDown />
                       </Button>
                     }
@@ -322,13 +324,14 @@ function RouteComponent() {
                          * had not, which is the one outcome worse than not offering it.
                          */
                         setNotice(
-                          `Disconnecting is not built yet. Until it is, revoke it in your ${entry.vendor} account's third-party access settings — that stops this deployment reading anything immediately.`,
+                          `断开连接尚未构建。直到构建完成，请在您的 ${entry.vendor} 账户的第三方访问设置中撤销它——这将立即停止此部署读取任何内容。`,
                         )
                       }
                       className="whitespace-nowrap"
                       variant="destructive"
                     >
-                      Disconnect your {entry.title} account
+                      {"断开你的"}
+                      {entry.title} {"账号"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -347,7 +350,7 @@ function RouteComponent() {
                   type="button"
                   variant="outline"
                 >
-                  Connect
+                  {"连接"}
                   <IconArrowUpRight />
                 </Button>
               )}
@@ -358,26 +361,28 @@ function RouteComponent() {
 
       {connection ? (
         <PageSection
-          description="What you agreed to, as the vendor recorded it — not what was asked for. The two differ when a consent screen is only partly accepted."
-          title="Access"
+          description={
+            "您同意的，如供应商记录的——不是要求的。两者在同意屏幕仅部分接受时不同。"
+          }
+          title={"访问"}
         >
           <PageRows>
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Granted</ItemTitle>
+                <ItemTitle>{"已授权"}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  {connection.scope || "The vendor named no scope."}
+                  {connection.scope || "供应商未命名范围。"}
                 </ItemDescription>
               </ItemContent>
             </Item>
             <Separator />
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Connected</ItemTitle>
+                <ItemTitle>{"已连接"}</ItemTitle>
               </ItemContent>
               <ItemActions>
                 <span className="text-muted-foreground text-xs">
-                  {new Date(connection.connectedAt).toLocaleString()}
+                  {new Date(connection.connectedAt).toLocaleString("zh-CN")}
                 </span>
               </ItemActions>
             </Item>

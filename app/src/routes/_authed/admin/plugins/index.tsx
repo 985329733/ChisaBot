@@ -83,13 +83,13 @@ function summaryFor(
   auth: CatalogueItem["auth"] | undefined,
   youConnected: boolean,
 ): string {
-  if (auth === "user-oauth" && !youConnected) return "Not connected";
-  if (server.tools.length === 0) return "No tools yet";
+  if (auth === "user-oauth" && !youConnected) return "未连接";
+  if (server.tools.length === 0) return "尚无工具";
 
   const bots = new Set(server.tools.flatMap((tool) => tool.grantedTo)).size;
-  const tools = `${server.tools.length} ${server.tools.length === 1 ? "tool" : "tools"}`;
-  if (bots === 0) return `${tools} · no Bots`;
-  return `${tools} · ${bots} ${bots === 1 ? "Bot" : "Bots"}`;
+  const tools = `${server.tools.length} 个工具`;
+  if (bots === 0) return `${tools} · 暂无机器人`;
+  return `${tools} · ${bots} 个机器人`;
 }
 
 function RouteComponent() {
@@ -110,24 +110,26 @@ function RouteComponent() {
 
   return (
     <PageShell
-      description="What this deployment can reach, and which Bots may reach it. Adding a plugin is account-wide; which Bots hold its tools is decided on its own page."
-      title="Plugins"
+      description={
+        "此部署可以访问什么，以及哪些机器人可以访问它。添加插件是全账户的；哪些机器人拥有其工具在自己的页面决定。"
+      }
+      title={"插件"}
     >
       {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
       {plugins.isPending ? null : plugins.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Plugins could not be loaded.
+          {"插件无法加载。"}
         </p>
       ) : (
         <>
           <PageSection
-            description="Added for the whole deployment. Open one to set what it needs and which Bots hold its tools."
-            title="Connected"
+            description={
+              "已添加整个部署。打开一个以设置它需要什么以及哪些机器人拥有它的工具。"
+            }
+            title={"已连接"}
           >
             {plugins.data?.servers.length === 0 ? (
-              <PageEmpty>
-                Nothing connected yet. Everything available is below.
-              </PageEmpty>
+              <PageEmpty>{"尚未连接任何内容。所有可用内容如下。"}</PageEmpty>
             ) : (
               <PageRows>
                 {plugins.data?.servers.map((server, index) => {
@@ -189,11 +191,11 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="Reviewed, first-party servers this build will talk to. Open one to add it."
-            title="Explore plugins"
+            description={"已查看，第一方服务器此构建将与之对话。打开一个以添加"}
+            title={"探索插件"}
           >
             {explore.length === 0 ? (
-              <PageEmpty>Everything in the catalogue is connected.</PageEmpty>
+              <PageEmpty>{"目录中的所有内容均已连接。"}</PageEmpty>
             ) : (
               <PageRows>
                 {explore.map((entry: CatalogueItem, index) => {
@@ -219,7 +221,7 @@ function RouteComponent() {
                         </ItemContent>
                         <ItemActions>
                           <span className="text-muted-foreground text-xs">
-                            Not added
+                            {"未添加"}
                           </span>
                           <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                         </ItemActions>
@@ -233,8 +235,8 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="A directory this deployment has not reviewed, reached through Composio."
-            title="More apps"
+            description={"此部署未审查的目录，通过 Composio 访问。"}
+            title={"更多应用"}
           >
             <PageRows>
               {/*
@@ -254,10 +256,9 @@ function RouteComponent() {
                     <IconPlug className="size-4" />
                   </RowMark>
                   <ItemContent>
-                    <ItemTitle>Browse Composio</ItemTitle>
+                    <ItemTitle>{"浏览 Composio"}</ItemTitle>
                     <ItemDescription>
-                      A few hundred apps, reached as whoever is asking. Each
-                      person connects their own account.
+                      {"几百个应用，由询问者访问。每人连接自己的账号。"}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -272,10 +273,11 @@ function RouteComponent() {
                     <IconPlug className="size-4" />
                   </RowMark>
                   <ItemContent>
-                    <ItemTitle>Composio</ItemTitle>
+                    <ItemTitle>{"Composio"}</ItemTitle>
                     <ItemDescription>
-                      Add your Composio key to enable a catalogue of tools. Set
-                      COMPOSIO_API_KEY on this deployment.
+                      {
+                        "添加您的 Composio 密钥以启用工具目录。在此部署中设置 COMPOSIO_API_KEY。"
+                      }
                     </ItemDescription>
                   </ItemContent>
                 </Item>

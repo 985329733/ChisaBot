@@ -2,7 +2,7 @@ import type { VoiceTranscriptEntry } from "../../../shared/voice-session";
 import { PlanModel } from "../agents/plan-model";
 import type { TitlerOptions } from "../channels/titler";
 import type { RuntimeModel } from "../copilot";
-import { anthropicMessagesUrl, chatCompletionsUrl } from "../routing/model";
+import { runtimeModelEndpoint } from "../routing/model";
 
 export type VoiceSummarizer = (
   transcript: readonly VoiceTranscriptEntry[],
@@ -26,10 +26,12 @@ export function createVoiceSummarizer(
   options: VoiceSummarizerOptions,
 ): VoiceSummarizer {
   return async (transcript) => {
+    const connection = await options.resolveConnection?.();
+    const runtimeModel = connection?.model ?? options.model;
     const content = JSON.stringify(
       transcript.map(({ role, text }) => ({ role, text })),
     );
-    if (options.model.plan) {
+    if (runtimeModel.plan) {
       // Reuse the authenticated owned-harness transport, with no tools or shared conversation state.
       const controller = new AbortController();
       // HttpAgent handles AbortError cancellation; a TimeoutError from AbortSignal.timeout
@@ -40,7 +42,7 @@ export function createVoiceSummarizer(
       );
       const abortSignal = controller.signal;
       const model = new PlanModel(
-        options.model.plan,
+        runtimeModel.plan,
         "voice-summary",
         { threadId: crypto.randomUUID() },
         new Set(),
@@ -60,30 +62,44 @@ export function createVoiceSummarizer(
             .flatMap((part) => (part.type === "text" ? [part.text] : []))
             .join(""),
         );
+      } catch (error) {
+        if (connection)
+          throw new Error(
+            "The configured plan could not summarize this voice conversation.",
+          );
+        throw error;
       } finally {
         clearTimeout(timer);
         controller.abort();
       }
     }
 
-    const apiKey = await options.resolveApiKey();
-    if (!apiKey) throw new Error("Voice summary model is not configured.");
-    const anthropic = options.model.provider === "anthropic";
+    const apiKey = connection
+      ? connection.apiKey
+      : await options.resolveApiKey();
+    if (!apiKey && runtimeModel.useApiKey !== false)
+      throw new Error("Voice summary model is not configured.");
+    const anthropic = runtimeModel.provider === "anthropic";
     const environment = options.environment ?? process.env;
     const response = await (options.fetchImpl ?? fetch)(
-      anthropic
-        ? anthropicMessagesUrl(environment)
-        : chatCompletionsUrl(environment),
+      runtimeModelEndpoint(runtimeModel, environment),
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
           ...(anthropic
-            ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
-            : { authorization: `Bearer ${apiKey}` }),
+            ? {
+                "anthropic-version": "2023-06-01",
+                ...(runtimeModel.useApiKey === false
+                  ? {}
+                  : { "x-api-key": apiKey ?? "" }),
+              }
+            : runtimeModel.useApiKey === false
+              ? {}
+              : { authorization: `Bearer ${apiKey}` }),
         },
         body: JSON.stringify({
-          model: options.model.defaultModel,
+          model: runtimeModel.defaultModel,
           ...(anthropic
             ? {
                 system: INSTRUCTION,
@@ -99,15 +115,20 @@ export function createVoiceSummarizer(
               }),
         }),
         signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
+        redirect: "error",
       },
-    );
+    ).catch(() => {
+      throw new Error("The voice summary model could not be reached.");
+    });
     if (!response.ok) {
       await response.body?.cancel();
       throw new Error(
         `Voice summary model request failed (${response.status}).`,
       );
     }
-    const body: unknown = await response.json();
+    const body: unknown = await response.json().catch(() => {
+      throw new Error("The voice summary model returned invalid JSON.");
+    });
     const answer =
       body && typeof body === "object"
         ? anthropic

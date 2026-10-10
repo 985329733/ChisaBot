@@ -61,7 +61,7 @@ export function signInRequestQueryOptions(id: string) {
     queryFn: async (): Promise<SignInRequest> =>
       (
         await client(`/api/sign-in-requests/${encodeURIComponent(id)}`, {
-          fallback: "Could not load this sign-in request",
+          fallback: "无法加载此登录请求",
         })
       ).json(),
   });
@@ -76,7 +76,7 @@ export function savedLoginsQueryOptions() {
     }> =>
       (
         await client("/api/passwords", {
-          fallback: "Could not load your passwords",
+          fallback: "无法加载您的密码",
         })
       ).json(),
   });

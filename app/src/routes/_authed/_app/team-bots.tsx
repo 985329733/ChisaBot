@@ -41,8 +41,10 @@ function TeamBotsPage() {
 
   return (
     <PageShell
-      description="Bots your teammates published, and the ones you share. Each chat with a Team Bot is private to the person having it."
-      title="Team Bots"
+      description={
+        "您AI 同事发布的机器人，以及您共享的机器人。与团队机器人的每次聊天对拥有者是私密的。"
+      }
+      title={"团队 Bot"}
       width="wide"
     >
       {data.isError ? (
@@ -50,16 +52,16 @@ function TeamBotsPage() {
           {data.error.message}
         </p>
       ) : null}
-      <PageSection title="Available to you">
+      <PageSection title={"可供你使用"}>
         {shared.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nobody has published a Bot to you yet.
+            {"尚未有人将机器人发布给您。"}
           </p>
         ) : (
           shared.map((bot) => <TeamBotRow bot={bot} key={bot.id} />)
         )}
       </PageSection>
-      <PageSection title="Yours">
+      <PageSection title={"您的"}>
         {mine.map((bot) => (
           <div className="flex flex-col gap-2" key={bot.id}>
             <TeamBotRow bot={bot} />
@@ -70,25 +72,27 @@ function TeamBotsPage() {
           <PublishNew publishable={data.data?.publishable ?? []} />
         ) : mine.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            You have no Bots of your own to publish.
+            {"您没有自己的机器人可以发布。"}
           </p>
         ) : null}
       </PageSection>
       {me?.role === "admin" ? (
-        <PageSection title="Assign to groups">
+        <PageSection title={"分配到组"}>
           <p className="text-sm text-muted-foreground">
-            An assigned Bot appears in every member's sidebar, and they cannot
-            hide it. Use * for the whole team.
+            {
+              "分配的机器人出现在每个成员的侧边栏中，他们无法隐藏它。使用 * 表示整个团队。"
+            }
           </p>
           {bots.map((bot) => (
             <Assignments bot={bot} key={bot.id} />
           ))}
         </PageSection>
       ) : null}
-      <PageSection title="Your accounts">
+      <PageSection title={"您的账号"}>
         <p className="text-sm text-muted-foreground">
-          A Team Bot uses its owner's connected apps. It uses your own account
-          only when you allow it on the card it shows you.
+          {
+            "团队机器人使用其所有者的连接应用。它仅在您允许它在显示的卡片上时使用您的账号。"
+          }
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -97,11 +101,11 @@ function TeamBotsPage() {
             size="sm"
             variant="outline"
           >
-            Clear connector preferences
+            {"清除连接器偏好"}
           </Button>
           {clear.isSuccess ? (
             <span className="text-sm text-muted-foreground" role="status">
-              Cleared. Team Bots will ask again.
+              {"已清除。团队机器人将再次询问。"}
             </span>
           ) : null}
         </div>
@@ -124,14 +128,14 @@ function TeamBotRow({ bot }: { bot: TeamBot }) {
         <span className="text-sm font-medium">{bot.name}</span>
         <span className="truncate text-sm text-muted-foreground">
           {bot.title}
-          {bot.assigned ? " · assigned to you" : ""}
+          {bot.assigned ? "· 分配给你" : ""}
           {bot.mine && !bot.visibleToTeam
-            ? " · hidden from teammates until it has a real name and a description"
+            ? "· 直到有真实名称和描述才对同事隐藏"
             : ""}
           {bot.mine
             ? bot.audience === "team"
-              ? " · published to the whole team"
-              : ` · published to ${[...(bot.people ?? []), ...(bot.groups ?? []).map((group) => `group ${group}`)].join(", ")}`
+              ? "· 发布到整个团队"
+              : `· 发布到 ${[...(bot.people ?? []), ...(bot.groups ?? []).map((group) => `group ${group}`)].join(", ")}`
             : ""}
         </span>
       </div>
@@ -141,7 +145,7 @@ function TeamBotRow({ bot }: { bot: TeamBot }) {
         )}
         size="sm"
       >
-        Start a private chat
+        {"开始私聊"}
       </Button>
       <Button
         onClick={() =>
@@ -152,7 +156,7 @@ function TeamBotRow({ bot }: { bot: TeamBot }) {
         size="sm"
         variant="outline"
       >
-        {copied ? "Copied" : "Copy link"}
+        {copied ? "已复制" : "复制链接"}
       </Button>
       {bot.mine ? (
         <Button
@@ -161,7 +165,7 @@ function TeamBotRow({ bot }: { bot: TeamBot }) {
           size="sm"
           variant="ghost"
         >
-          Unpublish
+          {"取消发布"}
         </Button>
       ) : null}
     </div>
@@ -177,7 +181,7 @@ function PublishNew({
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
       <label className="grid gap-1 text-sm">
-        Publish one of your Bots
+        {"发布您的机器人之一"}
         <select
           className="h-9 rounded-md border bg-background px-3 text-sm"
           onChange={(event) => setBotId(event.target.value)}
@@ -225,7 +229,7 @@ function PublishForm({ botId, current }: { botId: string; current?: TeamBot }) {
             onChange={() => setAudience("team")}
             type="radio"
           />
-          The whole team
+          {"整个团队"}
         </label>
         <label className="flex items-center gap-1.5">
           <input
@@ -234,28 +238,28 @@ function PublishForm({ botId, current }: { botId: string; current?: TeamBot }) {
             onChange={() => setAudience("people")}
             type="radio"
           />
-          Specific people or groups
+          {"特定的人或群组"}
         </label>
       </div>
       {audience === "people" ? (
         <div className="grid gap-2 sm:grid-cols-2">
           <Input
-            aria-label="People, by email"
+            aria-label={"人员，按电子邮件"}
             onChange={(event) => setEmails(event.target.value)}
-            placeholder="People, by email, comma separated"
+            placeholder={"人员，按电子邮件，逗号分隔"}
             value={emails}
           />
           <Input
-            aria-label="Groups"
+            aria-label={"组"}
             onChange={(event) => setGroups(event.target.value)}
-            placeholder="Groups, comma separated"
+            placeholder={"组，用逗号分隔"}
             value={groups}
           />
         </div>
       ) : null}
       <div className="flex items-center gap-2">
         <Button disabled={publish.isPending} size="sm" type="submit">
-          {current ? "Update" : "Publish to team"}
+          {current ? "更新" : "发布到团队"}
         </Button>
         {publish.error ? (
           <span className="text-sm text-destructive" role="alert">
@@ -276,7 +280,7 @@ function Assignments({ bot }: { bot: TeamBot }) {
       <span className="font-medium">{bot.name}</span>
       {(bot.assignments ?? []).map((name) => (
         <Button
-          aria-label={`Remove ${name}`}
+          aria-label={`移除 ${name}`}
           key={name}
           onClick={() =>
             assign.mutate({ botId: bot.id, group: name, remove: true })
@@ -284,7 +288,7 @@ function Assignments({ bot }: { bot: TeamBot }) {
           size="sm"
           variant="outline"
         >
-          {name === "*" ? "Whole team" : name} ×
+          {name === "*" ? "整个团队" : name} ×
         </Button>
       ))}
       <form
@@ -298,10 +302,10 @@ function Assignments({ bot }: { bot: TeamBot }) {
         }}
       >
         <Input
-          aria-label={`Assign ${bot.name} to a group`}
+          aria-label={`将 ${bot.name} 分配给一个组`}
           className="w-40"
           onChange={(event) => setGroup(event.target.value)}
-          placeholder="Group, or *"
+          placeholder={"组，或 *"}
           value={group}
         />
         <Button
@@ -309,7 +313,7 @@ function Assignments({ bot }: { bot: TeamBot }) {
           size="sm"
           type="submit"
         >
-          Assign
+          {"分配"}
         </Button>
       </form>
       {assign.error ? (

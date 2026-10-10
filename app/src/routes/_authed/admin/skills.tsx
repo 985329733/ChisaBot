@@ -91,11 +91,13 @@ function RouteComponent() {
       action={
         <Button onClick={() => setWriting(true)} size="lg" type="button">
           <IconPlus />
-          Write a skill
+          {"编写技能"}
         </Button>
       }
-      description="Named instructions anybody here can invoke with a slash. A skill adds no capability: it can only ask a Bot to use what that Bot already holds, and every one of those calls is still decided and recorded."
-      title="Skills"
+      description={
+        "命名指令，任何人都可用斜杠调用。技能不添加能力：它只能要求机器人使用机器人已持有的内容，而每次调用仍由管理员决定并记录。"
+      }
+      title={"技能"}
     >
       {error ? (
         <p className="text-destructive text-sm" role="alert">
@@ -104,16 +106,16 @@ function RouteComponent() {
       ) : null}
 
       <PageSection
-        description="Written for the whole deployment. People write their own on their Skills page."
-        title="Installed"
+        description={"为整个部署编写。人们在他们的技能页面上编写自己的。"}
+        title={"已安装"}
       >
         {/* A read that failed says so; `isPending` goes false on it too, and it is not "none". */}
         {plugins.isPending ? null : !plugins.data ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Skills could not be loaded.
+            {"无法加载技能。"}
           </p>
         ) : skills.length === 0 ? (
-          <PageEmpty>No skills yet.</PageEmpty>
+          <PageEmpty>{"暂无技能。"}</PageEmpty>
         ) : (
           <PageRows>
             {skills.map((skill, index) => (
@@ -164,7 +166,7 @@ function RouteComponent() {
                       type="button"
                       variant="ghost"
                     >
-                      Remove
+                      {"移除"}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -178,17 +180,17 @@ function RouteComponent() {
       <Dialog onOpenChange={setWriting} open={writing}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Write a skill for the deployment</DialogTitle>
+            <DialogTitle>{"为部署编写技能"}</DialogTitle>
             <DialogDescription>
-              The slug is what a person types after a slash, and the
-              instructions are added to the run when they do. Everybody here can
-              use it, and you decide which Bots have it.
+              {
+                "slug 是人斜杠后输入的内容，指令在输入时添加到运行中。这里每个人都可以使用它，您决定哪些机器人可以使用它。"
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="skill-slug">Slug</FieldLabel>
+                <FieldLabel htmlFor="skill-slug">{"标识名"}</FieldLabel>
                 <Input
                   id="skill-slug"
                   onChange={(event) =>
@@ -202,7 +204,7 @@ function RouteComponent() {
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="skill-title">Title</FieldLabel>
+                <FieldLabel htmlFor="skill-title">{"标题"}</FieldLabel>
                 <Input
                   id="skill-title"
                   onChange={(event) =>
@@ -211,12 +213,12 @@ function RouteComponent() {
                       title: event.target.value,
                     }))
                   }
-                  placeholder="Title"
+                  placeholder={"标题"}
                   value={draft.title}
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="skill-summary">Summary</FieldLabel>
+                <FieldLabel htmlFor="skill-summary">{"摘要"}</FieldLabel>
                 <Input
                   id="skill-summary"
                   onChange={(event) =>
@@ -225,14 +227,12 @@ function RouteComponent() {
                       summary: event.target.value,
                     }))
                   }
-                  placeholder="One line"
+                  placeholder={"一行"}
                   value={draft.summary}
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="skill-instructions">
-                  Instructions
-                </FieldLabel>
+                <FieldLabel htmlFor="skill-instructions">{"指令"}</FieldLabel>
                 <Textarea
                   className="h-28 font-mono text-sm"
                   id="skill-instructions"
@@ -242,7 +242,7 @@ function RouteComponent() {
                       instructions: event.target.value,
                     }))
                   }
-                  placeholder="What the Bot should do when this skill is used."
+                  placeholder={"当使用此技能时，机器人应该做什么。"}
                   value={draft.instructions}
                 />
               </Field>
@@ -250,7 +250,7 @@ function RouteComponent() {
           </DialogBody>
           <DialogFooter className="mt-4">
             <Button onClick={() => setWriting(false)} size="sm" variant="ghost">
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={!(draft.slug && draft.title && draft.instructions)}
@@ -262,7 +262,7 @@ function RouteComponent() {
               }}
               size="sm"
             >
-              Install skill
+              {"安装技能"}
             </Button>
           </DialogFooter>
         </DialogContent>

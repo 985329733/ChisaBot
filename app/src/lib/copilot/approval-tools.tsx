@@ -75,8 +75,7 @@ export function useFrontendTool<T extends Record<string, unknown>>(
           );
           const payload: unknown = await response.json();
           if (response.status === 202) {
-            if (!context.agent)
-              throw new Error("The interrupted conversation is unavailable.");
+            if (!context.agent) throw new Error("中断的对话不可用。");
             // Stop signals the SDK to discard this handler's unfinished result. The server owns
             // resume: the decision executes the action once and continues this conversation.
             copilotkit.stopAgent({ agent: context.agent });
@@ -91,10 +90,10 @@ export function useFrontendTool<T extends Record<string, unknown>>(
                 "error" in payload &&
                 typeof payload.error === "string"
                 ? payload.error
-                : "The computer action could not be approved.",
+                : "无法批准计算机操作。",
             );
           if (!payload || typeof payload !== "object" || !("result" in payload))
-            throw new Error("The computer action returned no result.");
+            throw new Error("计算机操作未返回结果。");
           return payload.result;
         }
       : undefined,

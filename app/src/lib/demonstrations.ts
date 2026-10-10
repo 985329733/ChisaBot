@@ -45,7 +45,7 @@ export const demonstrationsQueryOptions = (botId: string) =>
       client(
         `/api/demonstrations?botId=${encodeURIComponent(botId)}`,
         "demonstrations",
-        { fallback: "Could not load demonstrations" },
+        { fallback: "无法加载演示" },
       ),
     refetchInterval: 2000,
   });
@@ -56,28 +56,28 @@ export const startDemonstration = (
   client("/api/demonstrations", "demonstration", {
     method: "POST",
     body: { botId, title },
-    fallback: "Could not start recording",
+    fallback: "无法开始录音",
   });
 export const stopDemonstration = (id: string) =>
   client(`/api/demonstrations/${encodeURIComponent(id)}/stop`, {
     method: "POST",
-    fallback: "Could not stop recording",
+    fallback: "无法停止录音",
   });
 export const draftDemonstration = (id: string): Promise<DemonstrationDraft> =>
   client(`/api/demonstrations/${encodeURIComponent(id)}/draft`, "draft", {
     method: "POST",
-    fallback: "Could not draft a skill",
+    fallback: "无法起草技能",
   });
 export const publishDemonstration = (id: string, slug: string) =>
   client(`/api/demonstrations/${encodeURIComponent(id)}/published`, {
     method: "POST",
     body: { slug },
-    fallback: "The skill was saved, but its demonstration could not be linked",
+    fallback: "技能已保存，但其演示无法链接",
   });
 export const deleteDemonstration = (id: string) =>
   client(`/api/demonstrations/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    fallback: "Could not delete the demonstration",
+    fallback: "无法删除演示",
   });
 /** Run the demonstration's saved skill on a schedule, as an ordinary routine. */
 export const scheduleDemonstration = (
@@ -92,5 +92,5 @@ export const scheduleDemonstration = (
   client(`/api/demonstrations/${encodeURIComponent(id)}/schedule`, "routine", {
     method: "POST",
     body: input,
-    fallback: "Could not schedule this skill",
+    fallback: "无法安排此技能",
   });

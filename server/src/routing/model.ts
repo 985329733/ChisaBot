@@ -1,4 +1,4 @@
-import type { RuntimeModel } from "../copilot";
+import type { RuntimeModel, RuntimeModelResolver } from "../copilot";
 
 /**
  * The one model call the router makes, kept apart from the routing logic so that logic stays a pure
@@ -11,53 +11,57 @@ import type { RuntimeModel } from "../copilot";
 export function createModelCompleter(deps: {
   model: RuntimeModel;
   resolveApiKey: () => Promise<string | null>;
+  resolveConnection?: RuntimeModelResolver;
 }): (prompt: string, signal?: AbortSignal) => Promise<string> {
   return async (prompt: string, signal?: AbortSignal) => {
     signal?.throwIfAborted();
-    const key = await deps.resolveApiKey();
+    const connection = await deps.resolveConnection?.();
+    const model = connection?.model ?? deps.model;
+    const key = connection ? connection.apiKey : await deps.resolveApiKey();
     signal?.throwIfAborted();
-    if (!key) throw new Error("no model key");
-    const anthropic = deps.model.provider === "anthropic";
-    const response = await fetch(
-      anthropic
-        ? anthropicMessagesUrl(process.env)
-        : chatCompletionsUrl(process.env),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(anthropic
-            ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
+    if (!key && model.useApiKey !== false) throw new Error("no model key");
+    const anthropic = model.provider === "anthropic";
+    const response = await fetch(runtimeModelEndpoint(model), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(anthropic ? { "anthropic-version": "2023-06-01" } : {}),
+        ...(model.useApiKey === false
+          ? {}
+          : anthropic
+            ? { "x-api-key": key ?? "" }
             : { authorization: `Bearer ${key}` }),
-        },
-        body: JSON.stringify({
-          model: deps.model.defaultModel,
-          /*
-           * No temperature.
-           *
-           * It was zero, for a router that answers the same way twice. Reasoning models refuse the
-           * setting outright — "Unsupported value: 'temperature' does not support 0 with this model.
-           * Only the default (1) value is supported" — and this call treats a throw as "not sure", so
-           * every routing decision quietly became the default coworker and the roster was never
-           * consulted. A question naming Google Drive went to a Bot holding no Drive tools, which is
-           * the exact failure the roster exists to prevent, and nothing said so.
-           *
-           * Omitted rather than set per model, because a list of which models accept it is a list that
-           * goes stale. `response_format` and a prompt that asks for one object keep the answer tight,
-           * and the confidence floor still sends an unsure match to the default.
-           */
-          ...(anthropic
-            ? { max_tokens: 1024 }
-            : { response_format: { type: "json_object" } }),
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
-          : AbortSignal.timeout(10_000),
       },
-    );
-    if (!response.ok)
+      body: JSON.stringify({
+        model: model.defaultModel,
+        /*
+         * No temperature.
+         *
+         * It was zero, for a router that answers the same way twice. Reasoning models refuse the
+         * setting outright — "Unsupported value: 'temperature' does not support 0 with this model.
+         * Only the default (1) value is supported" — and this call treats a throw as "not sure", so
+         * every routing decision quietly became the default coworker and the roster was never
+         * consulted. A question naming Google Drive went to a Bot holding no Drive tools, which is
+         * the exact failure the roster exists to prevent, and nothing said so.
+         *
+         * Omitted rather than set per model, because a list of which models accept it is a list that
+         * goes stale. `response_format` and a prompt that asks for one object keep the answer tight,
+         * and the confidence floor still sends an unsure match to the default.
+         */
+        ...(anthropic
+          ? { max_tokens: 1024 }
+          : { response_format: { type: "json_object" } }),
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.timeout(10_000),
+      redirect: "error",
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
       throw new Error(`router model answered ${response.status}`);
+    }
     const body = (await response.json()) as {
       choices?: { message?: { content?: unknown } }[];
       content?: { type?: string; text?: unknown }[];
@@ -74,6 +78,17 @@ export function createModelCompleter(deps: {
       throw new Error("router model returned no text");
     return content;
   };
+}
+
+export function runtimeModelEndpoint(
+  model: RuntimeModel,
+  environment: Record<string, string | undefined> = process.env,
+): string {
+  if (model.baseUrl)
+    return `${model.baseUrl.replace(/\/+$/, "")}/${model.provider === "anthropic" ? "messages" : "chat/completions"}`;
+  return model.provider === "anthropic"
+    ? anthropicMessagesUrl(environment)
+    : chatCompletionsUrl(environment);
 }
 
 /**

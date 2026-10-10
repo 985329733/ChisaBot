@@ -81,7 +81,7 @@ export function BotTools() {
   useFrontendTool({
     name: "list_bots",
     description:
-      "The coworkers that already exist here, one line each, with whose each one is and where it runs. Read this before proposing a coworker: the most expensive mistake this job can make is rebuilding one somebody already maintains.",
+      "此处已存在的同事，每行一个，说明每个人的身份和运行位置。在提出同事前请阅读此内容：此工作最昂贵的错误是重建某人已维护的同事。",
     parameters: z.object({}),
     available: authoring,
     handler: async () => answerListBots(queryClient),
@@ -90,7 +90,7 @@ export function BotTools() {
   useFrontendTool({
     name: "read_bot",
     description:
-      "One existing coworker in full, including the standing instructions it runs on. Use this when somebody asks for one like an existing coworker — never paraphrase a role description you have not read.",
+      "一个现有的 AI 同事，包含其运行的常驻指令。当有人要求一个像现有 AI 同事时使用此选项——切勿改写未阅读过的角色描述。",
     parameters: z.object({
       name: z.string().describe("The coworker's name, as list_bots spells it."),
     }),
@@ -101,7 +101,7 @@ export function BotTools() {
   useFrontendTool({
     name: "list_bot_skills",
     description:
-      "The skills that could be put on a new coworker, by slug. Putting a skill on a coworker is the only capability the card grants: a skill is an instruction, so one naming a tool the coworker was not granted simply loads nothing.",
+      "可以按 slug 放在新AI同事上的技能。放在AI同事上的技能是卡片授予的唯一能力：技能是指令，因此命名未授予的工具的技能只会加载空内容。",
     parameters: z.object({}),
     available: authoring,
     handler: async () => answerListBotSkills(queryClient),
@@ -198,7 +198,7 @@ export function BotTools() {
   useHumanInTheLoop({
     name: "save_bot",
     description:
-      "Put a finished coworker in front of the person to create. They see its name, its job, the whole of its standing instructions and the skills it will hold, and nothing is written unless they press the button. Call this once, at the end, after they have agreed to what the coworker will be told to do — not to check your draft.",
+      "将一个完成的 AI 同事放在要创建的人面前。他们看到它的名字、它的工作、它的全部站立指令和它将持有的技能，除非他们按下按钮，否则什么都不会被写入。在他们同意 AI 同事将被告诉做什么之后，在最后一次调用它——不要检查你的草稿。",
     parameters: proposedBotSchema,
     available: authoring,
     render: Card,

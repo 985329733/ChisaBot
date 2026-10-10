@@ -1,23 +1,48 @@
-# OpenBot docs
+# ChisaBot 文档
 
-Start with the root [README](../README.md), then use these references:
+ChisaBot 是中文自托管 AI 助手平台，提供网页登录、本地会话持久化、可配置模型和 Magpie 多模型接入。以下指南从部署、使用到实现说明逐层展开。
 
-- [Architecture](architecture.md): services, ports, browser governance, computers, components, plugins, knowledge, and security boundaries.
-- [Configuration](configuration.md): environment variables and tenant package YAML.
-- [Development](development.md): local setup, migrations, ports, and quality checks.
-- [Coworkers](coworkers.md): durable Bot profiles, channels, visibility, deletion, and external AG-UI registration.
-- [Routines](routines.md): standing instructions a Bot runs on a schedule, the worker that fires them, and who they run as.
-- [Automatic Learning](automatic-learning.md): which Bots contribute conversations to a Learning container, and receive its published skills.
-- [Parallel research](parallel-research.md): public-web search and extraction through the Parallel Search connector.
-- Plugins, one connector per page — what an administrator registers, what each person consents to, and what the failures mean:
-  - [Composio](plugins/composio.md): the broker, and so the one page here that is a catalogue of apps rather than a single connector.
-  - [Google Drive](plugins/google-drive.md)
-  - [Notion](plugins/notion.md)
-- [Deployment](deployment.md): the container, what is in the image, minimum sizes, and the platform notes.
-- [Kubernetes](../charts/openbot/README.md): the Helm chart, what a cluster needs before it, and the values that differ per cloud.
-- [Releasing](releasing.md): how a release is proposed, reviewed and published.
-- [Windows desktop signing](windows-signing.md): protected Azure Key Vault signing and verification of the app and NSIS installer.
-- [Desktop provider OAuth](../desktop/PROVIDER_OAUTH.md): what a distributor configures to offer Google and xAI sign-in in a desktop build.
-- [Desktop telemetry](../desktop/TELEMETRY.md): every event the desktop app sends, and what it carries.
+## 使用与部署
 
-Do not include credential values, customer data, transcripts, or local-only notes in public docs.
+| 文档 | 适合解决的问题 |
+| --- | --- |
+| [快速开始](getting-started.md) | 第一次部署，配置完成后怎样开始聊天 |
+| [自托管部署](../deploy/README.zh-CN.md) | 镜像、持久化、认证网关与 Magpie 部署模板 |
+| [模型配置与切换](models.md) | 全局连接、默认模型、每 BOT 独立选择和两处同步 |
+| [Magpie 深度集成](magpie.md) | 网关协议、完整模型 ID、开放目录、调用密钥与排错 |
+| [维护与排错](operations.md) | 备份、升级、连接故障与部署验收 |
+| [分支与能力边界](chisabot.md) | 本地模式、第三方推理、数据兼容和客户端状态 |
+| [来源与许可](THIRD_PARTY_NOTICES.md) | 上游项目与保留的许可证声明 |
+
+需要找到具体答案：
+
+- [在哪里填写模型 API 和密钥](models.md#管理员配置连接)
+- [聊天输入框与 BOT 设置为什么是同一个值](models.md#bot-模型选择)
+- [怎样让 Magpie 的多个模型进入选择器](magpie.md#配置顺序)
+- [为什么 Magpie 模型多，而 ChisaBot 只显示少数](magpie.md#目录与调用密钥)
+- [切换模型何时生效，运行中的回复使用哪个模型](models.md#目录缓存和运行快照)
+- [模型不可用，怎样定位网关、权限或上游问题](operations.md#模型问题排查)
+
+## 开发实现
+
+[模型配置](models.md#api-与保存结构) 说明 API、共享类型、数据库结构和权限；[运行快照](models.md#目录缓存和运行快照) 说明缓存及策略与执行的一致性；[Magpie 请求链路](magpie.md#每-bot-选择与请求链路) 说明网关对接。各页附有对应源码入口。
+
+默认中文租户包见 [examples/zh-CN](../examples/zh-CN/README.md)。内部 `OPENBOT_*` 环境变量、包名、协议及数据目录保留兼容，展示品牌为 ChisaBot。
+
+## 上游技术参考
+
+以下资料继承自 [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot)，用于查阅保留的工具、权限、框架与可选集成。Intelligence、上游镜像/发布基础设施和自动学习步骤，仅在选用相应能力时适用；本地自托管不要求 CopilotKit 托管服务。
+
+- [架构](architecture.md)：服务、端口、电脑、工具及安全边界。
+- [环境配置](configuration.md)：环境变量和租户包 YAML。
+- [开发参考](development.md)：迁移、分开启动服务与质量检查。
+- [BOT 配置](coworkers.md)：持久配置、可见性、删除及外部 AG-UI 注册。
+- [定时任务](routines.md)：后台工作进程、调度及执行身份。
+- [自动学习](automatic-learning.md)：依赖 Intelligence 的可选能力。
+- [联网研究](parallel-research.md)：Parallel Search 连接器。
+- [Composio](plugins/composio.md)、[Google Drive](plugins/google-drive.md)、[Notion](plugins/notion.md)：按需配置的外部连接器。
+- [上游容器参考](deployment.md)、[Kubernetes](../charts/openbot/README.md)：原镜像与平台资料。
+- [上游发布参考](releasing.md)、[Windows 签名](windows-signing.md)：继承的发布和签名流程。
+- [桌面模型 OAuth](../desktop/PROVIDER_OAUTH.md)、[桌面遥测](../desktop/TELEMETRY.md)：客户端可选配置。
+
+文档只保存可复用说明与脱敏示例。真实登录密码、模型密钥、客户数据、对话和私人部署资料不写入文档或仓库。

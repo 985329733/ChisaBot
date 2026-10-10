@@ -1,0 +1,4 @@
+admin.htpasswd
+auth/config.json
+auth-data/
+magpie-private.conf

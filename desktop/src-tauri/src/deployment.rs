@@ -104,7 +104,7 @@ pub fn reference(root: &Path, published: &str) -> Result<String, String> {
         .images
         .get(published)
         .map(|image| image.reference.clone())
-        .ok_or_else(|| format!("OpenBot {} does not include {published}.", manifest.version))
+        .ok_or_else(|| format!("ChisaBot {} does not include {published}.", manifest.version))
 }
 
 /// Every image the stack runs, or a failure that names the one that is missing.
@@ -462,7 +462,7 @@ mod tests {
     fn the_test_archive_really_carries_the_traversal() {
         // Guards the guard: if the archive did not hold `..` the next test would
         // pass for the wrong reason.
-        let archive = tarball(&[("OpenBot-0.0.8/app/../../escaped.txt", b"owned")]);
+        let archive = tarball(&[("ChisaBot-0.0.8/app/../../escaped.txt", b"owned")]);
         let decoder = flate2::read::GzDecoder::new(&archive[..]);
         let mut tar = tar::Archive::new(decoder);
         let paths: Vec<String> = tar
@@ -477,7 +477,7 @@ mod tests {
                     .to_string()
             })
             .collect();
-        assert_eq!(paths, ["OpenBot-0.0.8/app/../../escaped.txt"]);
+        assert_eq!(paths, ["ChisaBot-0.0.8/app/../../escaped.txt"]);
     }
 
     #[test]
@@ -491,7 +491,7 @@ mod tests {
         let root = dir.join("deployment");
         std::fs::create_dir_all(&root).expect("the root is made");
 
-        let archive = tarball(&[("OpenBot-0.0.8/app/../../escaped.txt", b"owned")]);
+        let archive = tarball(&[("ChisaBot-0.0.8/app/../../escaped.txt", b"owned")]);
         let outcome = unpack(&root, &archive);
 
         let climbed = dir.join("escaped.txt");
@@ -511,10 +511,10 @@ mod tests {
         let dir = scratch("ordinary");
 
         let archive = tarball(&[
-            ("OpenBot-0.0.8/app/index.ts", b"export {}"),
-            ("OpenBot-0.0.8/docker-compose.yml", b"services: {}"),
+            ("ChisaBot-0.0.8/app/index.ts", b"export {}"),
+            ("ChisaBot-0.0.8/docker-compose.yml", b"services: {}"),
             // Not part of a deployment: skipped, not refused.
-            ("OpenBot-0.0.8/docs/readme.md", b"# hi"),
+            ("ChisaBot-0.0.8/docs/readme.md", b"# hi"),
         ]);
         unpack(&dir, &archive).expect("an ordinary download is laid out");
 

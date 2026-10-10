@@ -104,13 +104,13 @@ export function BrowserActivity({
       <ToolLine
         label={
           running
-            ? "Browsing…"
+            ? "正在浏览…"
             : pages
-              ? `Browsed ${pages} ${pages === 1 ? "page" : "pages"}`
-              : "Browser activity"
+              ? `浏览了 ${pages} ${pages === 1 ? "页" : "页"}`
+              : "浏览器活动"
         }
         detail={
-          issues ? `${issues} ${issues === 1 ? "issue" : "issues"}` : undefined
+          issues ? `${issues} 项问题` : undefined
         }
         running={running}
       >
@@ -133,13 +133,13 @@ export function BrowserActivity({
                 ) : null}
                 {step.pending && (
                   <span className="text-muted-foreground">
-                    {active ? "In progress" : "Not completed"}
+                    {active ? "进行中" : "未完成"}
                   </span>
                 )}
               </div>
               {step.failed && (
                 <p className="mt-0.5 text-destructive">
-                  {step.reason ?? "This step could not be completed."}
+                  {step.reason ?? "此步骤无法完成。"}
                 </p>
               )}
             </li>

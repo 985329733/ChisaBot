@@ -76,7 +76,7 @@ describe("serving port configuration", () => {
       expect(result.stdout).toContain(
         'PORT_PROBE:{"port":3010,"target":"http://127.0.0.1:3001/api/port-check"}',
       );
-      expect(result.stdout).toContain("OpenBot app on http://127.0.0.1:3010");
+      expect(result.stdout).toContain("ChisaBot app on http://127.0.0.1:3010");
     },
   );
 
@@ -107,7 +107,7 @@ describe("serving port configuration", () => {
           `${name} must be a whole number from 1 to 65535`,
         );
         expect(result.stdout).not.toContain("PORT_PROBE:");
-        expect(result.stdout).not.toContain("OpenBot app on");
+        expect(result.stdout).not.toContain("ChisaBot app on");
       },
     );
   }

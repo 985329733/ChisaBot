@@ -157,11 +157,7 @@ function SignInCard({
     <div className="flex flex-col gap-2">
       <ToolLine
         label={
-          running
-            ? "Waiting for you to sign in"
-            : outcome.signedIn
-              ? "Signed in"
-              : "Sign-in did not complete"
+          running ? "等待您登录" : outcome.signedIn ? "已登录" : "登录未完成"
         }
         detail={site}
         running={running}
@@ -178,14 +174,17 @@ function SignInCard({
         <div>
           <Button size="sm" onClick={() => setOpen(true)}>
             <IconLock />
-            Open private sign-in
+            {"打开私有登录"}
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Sign in to {site}</DialogTitle>
+                <DialogTitle>
+                  {"登录到"}
+                  {site}
+                </DialogTitle>
                 <DialogDescription>
-                  Goes to your Bot's browser, not into this conversation.
+                  {"在您的机器人浏览器中打开，不进入此对话。"}
                 </DialogDescription>
               </DialogHeader>
               <DialogBody className="mt-4 overflow-y-auto">

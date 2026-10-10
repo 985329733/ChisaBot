@@ -1,5 +1,7 @@
 import type { BaseEvent, Message, RunAgentInput } from "@ag-ui/client";
 import { AbstractAgent, HttpAgent } from "@ag-ui/client";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import type { BuiltInAgentConfiguration } from "@copilotkit/runtime/v2";
 import {
   BuiltInAgent,
@@ -23,6 +25,7 @@ import {
   planModelForEnvironment,
 } from "./agents/plan-model";
 import type { AgentActor } from "./agents/profile-types";
+import { modelOverrideFromValue } from "./agents/model-selection";
 import {
   executeNativeApprovalTool,
   nativeApprovalRun,
@@ -40,6 +43,7 @@ import type { DeploymentConfig } from "./config";
 import { observeModelConnection } from "./desktop-connection-failure";
 import { desktopTelemetryProperties } from "./desktop-telemetry";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
+import type { LocalConversationBackend } from "./local-conversations";
 import { RemoteLearnedSkillsMiddleware } from "./learning/remote";
 import {
   type AcquireLearnedSkills,
@@ -64,17 +68,15 @@ import { grantedToolGuidance, parametersFor } from "./plugins/tools";
 import { UNTRUSTED_GUIDANCE } from "./untrusted-content";
 
 /**
- * The CopilotKit runtime, always in Intelligence mode.
+ * The CopilotKit runtime, using Intelligence or an operator-owned OSS runner.
  *
  * Package-declared built-in Bots run as CopilotKit `BuiltInAgent` instances. External Bots are
  * reached over AG-UI as `HttpAgent` instances, so anything that speaks the protocol remains a Bot
  * with no framework adapter here: LangGraph, Pydantic-AI, CrewAI, Mastra, ADK, or a hand-written
  * server.
  *
- * There is no SSE branch. Intelligence is a requirement of the product, not a tier: it owns
- * durable threads, memory and learning, and a deployment without it silently forgets every
- * conversation. config.ts refuses to boot without the full contract, so by the time this runs the
- * settings are present and this file has one mode.
+ * Intelligence supplies managed persistence. The local OSS mode uses operator-owned Postgres
+ * persistence and personal memory; managed Automatic Learning is unavailable in that mode.
  */
 
 /** Resolve the signed-in person for a request. Threads and memory are scoped to whoever this returns. */
@@ -87,6 +89,8 @@ type RegisteredBuiltInAgent = {
   name: string;
   type: "built_in";
   systemPrompt: string;
+  /** This BOT's durable gateway model ID; absent inherits the deployment default. */
+  model?: string;
 };
 
 type RegisteredRemoteAgentFacts = {
@@ -183,7 +187,38 @@ export type RuntimeModel = {
   provider: "openai" | "anthropic";
   defaultModel: string;
   plan?: PlanModelConfig;
+  /** A saved connection's exact API base; scoped to this run rather than process.env. */
+  baseUrl?: string;
+  useApiKey?: boolean;
 };
+
+export type RuntimeModelConnection = {
+  model: RuntimeModel;
+  apiKey: string | null;
+};
+export type RuntimeModelResolver = () => Promise<RuntimeModelConnection>;
+
+function connectionLanguageModel(model: RuntimeModel, apiKey: string | null) {
+  const connectionFetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    );
+    if (model.useApiKey === false) {
+      headers.delete("authorization");
+      headers.delete("x-api-key");
+    }
+    // An API endpoint cannot redirect a credential to a different host.
+    return fetch(input, { ...init, headers, redirect: "error" });
+  }) as typeof fetch;
+  const options = {
+    apiKey: apiKey ?? "",
+    baseURL: model.baseUrl,
+    fetch: connectionFetch,
+  };
+  return model.provider === "anthropic"
+    ? createAnthropic(options)(model.defaultModel)
+    : createOpenAI(options).chat(model.defaultModel);
+}
 
 /** Optional desktop environment values may be present but blank; SDKs treat them as URLs. */
 export function normalizeModelBaseUrls(
@@ -240,6 +275,7 @@ type RuntimeAgentRow = {
   name: string;
   type: "built_in" | "remote_ag_ui" | "remote_mastra";
   configuration: unknown;
+  override?: unknown;
   title: string;
   roleDescription: string;
 };
@@ -253,6 +289,7 @@ export function registeredAgentFromRow(
   const configuration = row.configuration;
   if (row.type === "built_in") {
     const systemPrompt = configuration?.systemPrompt;
+    const selectedModel = modelOverrideFromValue(row.override);
     const trimmedSystemPrompt =
       typeof systemPrompt === "string" ? systemPrompt.trim() : "";
     return trimmedSystemPrompt.length > 0
@@ -261,6 +298,7 @@ export function registeredAgentFromRow(
           name: row.name,
           type: "built_in",
           systemPrompt: trimmedSystemPrompt,
+          ...(selectedModel ? { model: selectedModel } : {}),
         }
       : null;
   }
@@ -377,7 +415,7 @@ export function builtInAgentConfiguration(
   planModel?: PlanModel,
   learnedSkills?: LearnedSkillInvocation,
 ): BuiltInAgentConfiguration {
-  if (!apiKey && !planModel) {
+  if (!apiKey && !planModel && model.useApiKey !== false) {
     return {
       type: "custom",
       // biome-ignore lint/correctness/useYield: this agent must fail when iteration starts.
@@ -401,7 +439,11 @@ export function builtInAgentConfiguration(
   ];
 
   return {
-    model: planModel ?? `${model.provider}/${model.defaultModel}`,
+    model:
+      planModel ??
+      (model.baseUrl || model.useApiKey === false
+        ? connectionLanguageModel(model, apiKey)
+        : `${model.provider}/${model.defaultModel}`),
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
      * holds, then the computer.
@@ -527,6 +569,9 @@ export async function buildAgents(
   markAttachmentsSent?: MarkAttachmentsSent,
   acquireLearnedSkills?: AcquireLearnedSkills,
   loadPersonalMemory?: LoadPersonalMemory,
+  resolveConnectionForAgent?: (
+    agentId: string,
+  ) => Promise<RuntimeModelConnection>,
 ): Promise<Record<string, AbstractAgent>> {
   let vendors: readonly string[] = [];
   try {
@@ -566,10 +611,19 @@ export async function buildAgents(
   return Object.fromEntries(
     await Promise.all(
       agents.map(async (agent) => {
+        const connection =
+          agent.type === "built_in"
+            ? await resolveConnectionForAgent?.(agent.id)
+            : undefined;
+        const selectedModel =
+          connection?.model ??
+          (agent.type === "built_in" && agent.model
+            ? { ...model, defaultModel: agent.model, plan: undefined }
+            : model);
         const built = await buildAgent(
           agent,
-          model,
-          apiKey,
+          selectedModel,
+          connection ? connection.apiKey : apiKey,
           stallGuard,
           loadTools,
           signRun,
@@ -1870,6 +1924,9 @@ export async function resolveRuntimeAgents(
   markAttachmentsSent?: MarkAttachmentsSent,
   acquireLearnedSkills?: AcquireLearnedSkills,
   loadPersonalMemory?: LoadPersonalMemory,
+  resolveConnectionForAgent?: (
+    agentId: string,
+  ) => Promise<RuntimeModelConnection>,
 ): Promise<Record<string, AbstractAgent>> {
   const all = await loadAgents();
   if (all.length === 0) {
@@ -1906,6 +1963,7 @@ export async function resolveRuntimeAgents(
     markAttachmentsSent,
     acquireLearnedSkills,
     loadPersonalMemory,
+    resolveConnectionForAgent,
   );
 }
 
@@ -2044,10 +2102,31 @@ export function mountCopilotRuntime(
     basePath?: string;
     onRunBusy?: (input: { threadId: string; busy: boolean }) => void;
     learningSettings?: LearningSettingsStore;
+    localBackend?: LocalConversationBackend;
   } = {},
 ) {
-  const { intelligence } = config.runtime;
+  const intelligence =
+    config.runtime.mode === "intelligence"
+      ? config.runtime.intelligence
+      : undefined;
+  const localBackend =
+    config.runtime.mode === "local" ? options.localBackend : undefined;
+  if (!intelligence && !localBackend) {
+    throw new Error(
+      "The local conversation backend must be initialized before mounting the runtime.",
+    );
+  }
+  if (localBackend) {
+    // /info reads these switches at request time so the browser also disables its own telemetry.
+    process.env.COPILOTKIT_TELEMETRY_DISABLED = "true";
+    process.env.DO_NOT_TRACK = "1";
+  }
   const { basePath = "/api/copilotkit", onRunBusy, learningSettings } = options;
+  if (localBackend && basePath !== "/api/copilotkit") {
+    throw new Error(
+      "The local runtime requires /api/copilotkit so every request passes the owner guard.",
+    );
+  }
 
   /**
    * The same Bot a person's run would get, built without a request.
@@ -2086,54 +2165,66 @@ export function mountCopilotRuntime(
    * One client, used by the runtime and by anything reading a thread beside it, so a hop reads the
    * history a person's run would read rather than a second view of it that could disagree.
    */
-  const intelligenceClient: CopilotKitIntelligence =
-    observeIntelligenceAuthentication(
-      new IntelligenceKnowingANewThread({
-        apiUrl: intelligence.apiUrl,
-        wsUrl: intelligence.gatewayWsUrl,
-        apiKey: intelligence.apiKey,
-        getLearningContainerId: async ({
-          agentId,
-          input,
-          user,
-        }): Promise<string | undefined> => {
-          if (!user)
-            throw new Error(
-              "Learning Thread assignment requires a verified user.",
-            );
-          return learning?.containerForThread({
+  const intelligenceClient: CopilotKitIntelligence = localBackend
+    ? (localBackend.client as unknown as CopilotKitIntelligence)
+    : observeIntelligenceAuthentication(
+        new IntelligenceKnowingANewThread({
+          apiUrl: intelligence!.apiUrl,
+          wsUrl: intelligence!.gatewayWsUrl,
+          apiKey: intelligence!.apiKey,
+          getLearningContainerId: async ({
             agentId,
-            threadId: input.threadId,
-            userId: user.id,
-          });
-        },
-      }),
-    );
+            input,
+            user,
+          }): Promise<string | undefined> => {
+            if (!user)
+              throw new Error(
+                "Learning Thread assignment requires a verified user.",
+              );
+            return learning?.containerForThread({
+              agentId,
+              threadId: input.threadId,
+              userId: user.id,
+            });
+          },
+        }),
+      );
 
-  const learning: LearningRuntime | undefined = learningSettings
-    ? createLearningRuntime({
-        store: learningSettings,
-        client: intelligenceClient,
-      })
-    : undefined;
+  const learning: LearningRuntime | undefined =
+    intelligence && learningSettings
+      ? createLearningRuntime({
+          store: learningSettings,
+          client: intelligenceClient,
+        })
+      : undefined;
 
   const runtime = new CopilotRuntime({
     // `mode` is inferred from the presence of `intelligence`; passing it is a type error.
     //
-    // identifyUser is NOT optional in practice. Threads and memory are scoped to the user it
-    // returns, so omitting it puts every person in the deployment in the same thread space and one
-    // person's conversations become another's.
-    identifyUser,
-    // The subclass, not the base: a thread nobody has run yet reads as empty rather than as a 500.
-    // See IntelligenceKnowingANewThread.
-    intelligence: intelligenceClient,
-    licenseToken: intelligence.licenseToken,
+    // Intelligence needs identifyUser to scope its managed threads. Local SSE requests are guarded
+    // by OpenBot's verified actor and owner checks in app.ts before the SDK handler is reached.
+    ...(localBackend
+      ? {
+          runner: localBackend.runner,
+          // A local runtime reports no usage to CopilotKit. This capture scope is supported by
+          // the OSS SDK and avoids its process-global telemetry fallback.
+          ɵtelemetry: { capture: async () => {} },
+        }
+      : {
+          identifyUser,
+          intelligence: intelligenceClient,
+          licenseToken: intelligence!.licenseToken,
+        }),
     // Carried on the events the runtime already sends, so OpenBot's traffic is separable from any
     // other deployment's. Adds no events of its own.
-    telemetryProperties: {
-      ...(config.accessibility ? { accessibility_title: "OpenBot" } : {}),
-      ...desktopTelemetryProperties(),
-    },
+    ...(!localBackend
+      ? {
+          telemetryProperties: {
+            ...(config.accessibility ? { accessibility_title: "OpenBot" } : {}),
+            ...desktopTelemetryProperties(),
+          },
+        }
+      : {}),
     /*
      * What lets a Bot answer with an interface it wrote itself.
      *
@@ -2162,6 +2253,7 @@ export function mountCopilotRuntime(
   return {
     handler: createCopilotHonoHandler({ runtime, basePath }),
     learning,
+    runner: runtime.runner,
     /**
      * How to reach the platform's runner, exactly as the runtime reaches it.
      *
@@ -2171,10 +2263,14 @@ export function mountCopilotRuntime(
      * the token that holds it is not the API key. The runtime asks the client for both, so anything
      * else driving a run has to ask the same client the same way.
      */
-    runnerConnection: () => ({
-      url: intelligenceClient.ɵgetRunnerWsUrl(),
-      authToken: intelligenceClient.ɵgetRunnerAuthToken(),
-    }),
+    runnerConnection: () => {
+      if (!intelligence)
+        throw new Error("The local runtime has no Intelligence gateway.");
+      return {
+        url: intelligenceClient.ɵgetRunnerWsUrl(),
+        authToken: intelligenceClient.ɵgetRunnerAuthToken(),
+      };
+    },
     /**
      * The conversation's run lock, as the platform issues it.
      *

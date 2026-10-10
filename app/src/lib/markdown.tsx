@@ -27,9 +27,9 @@ import type { ComponentProps } from "react";
  * is not something to claim about a URL a model wrote.
  */
 const DRIVE_KINDS = [
-  { match: "/document/", icon: IconFileText, label: "Doc" },
-  { match: "/spreadsheets/", icon: IconTable, label: "Sheet" },
-  { match: "/presentation/", icon: IconPresentation, label: "Slides" },
+  { match: "/document/", icon: IconFileText, label: "文档" },
+  { match: "/spreadsheets/", icon: IconTable, label: "表格" },
+  { match: "/presentation/", icon: IconPresentation, label: "幻灯片" },
 ] as const;
 
 export function documentChipKind(href: string | undefined) {
@@ -54,10 +54,10 @@ export function documentChipKind(href: string | undefined) {
       url.pathname.includes(entry.match),
     );
     // A docs.google.com URL of some other shape is still a Drive document, just not one of the three.
-    return kind ?? { match: "", icon: IconFile, label: "Drive" };
+    return kind ?? { match: "", icon: IconFile, label: "云盘" };
   }
   if (url.hostname === "drive.google.com") {
-    return { match: "", icon: IconFile, label: "Drive" };
+    return { match: "", icon: IconFile, label: "云盘" };
   }
   /*
    * Same exact-host rule as Drive: a chip asserts "this is a document in a system you have

@@ -83,9 +83,9 @@ export function SignInForm({ requestId }: { requestId: string }) {
 
   if (FINAL_SIGN_IN.includes(data.status))
     return (
-      <PageSection title={data.status === "signed_in" ? "Signed in" : "Closed"}>
+      <PageSection title={data.status === "signed_in" ? "已登录" : "已关闭"}>
         <p className="text-muted-foreground text-sm">
-          {data.outcome ?? "This sign-in request is no longer open."}
+          {data.outcome ?? "此登录请求已关闭。"}
         </p>
       </PageSection>
     );
@@ -93,8 +93,10 @@ export function SignInForm({ requestId }: { requestId: string }) {
   if (data.status === "taken_over")
     return (
       <PageSection
-        title="Sign in by hand"
-        description="Take the Bot's browser, sign in, and hand it back. Then say you are done so the Bot carries on."
+        title={"手动登录"}
+        description={
+          "获取 Bot 的浏览器，登录，然后交还。然后说您已完成，以便 Bot 继续。"
+        }
       >
         <div className="flex flex-wrap gap-2">
           <Button
@@ -104,14 +106,14 @@ export function SignInForm({ requestId }: { requestId: string }) {
               <Link to="/bot" search={{ agent: data.botId, watch: true }} />
             }
           >
-            Open the Bot's browser
+            {"打开机器人的浏览器"}
           </Button>
           <Button
             size="sm"
             disabled={busy}
             onClick={() => finish.mutate(requestId)}
           >
-            {finish.isPending ? "Finishing…" : "I've signed in"}
+            {finish.isPending ? "正在完成…" : "我已登录"}
           </Button>
           <Button
             size="sm"
@@ -119,7 +121,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
             disabled={busy}
             onClick={() => cancel.mutate(requestId)}
           >
-            Cancel
+            {"取消"}
           </Button>
         </div>
         {failure ? (
@@ -139,8 +141,8 @@ export function SignInForm({ requestId }: { requestId: string }) {
       ) : null}
       {data.savedLogins.length > 0 ? (
         <PageSection
-          title="Use a saved login"
-          description={`Choosing one confirms it may be used for this sign-in to ${data.origin}.`}
+          title={"使用保存的登录"}
+          description={`选择一个确认它可用于此登录到 ${data.origin}。`}
         >
           <PageRows>
             {data.savedLogins.map((login, index) => (
@@ -169,7 +171,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
                         )
                       }
                     >
-                      Confirm and sign in
+                      {"确认并登录"}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -179,8 +181,8 @@ export function SignInForm({ requestId }: { requestId: string }) {
         </PageSection>
       ) : null}
       <PageSection
-        title="Enter your login"
-        description="Typed straight into the Bot's browser. The Bot is only told whether it worked."
+        title={"输入您的登录"}
+        description={"直接键入到机器人的浏览器中。机器人只被告知它是否成功。"}
       >
         <form
           className="flex flex-col gap-3"
@@ -212,7 +214,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
             className="flex flex-col gap-1 text-sm"
             htmlFor={`${id}-username`}
           >
-            Username or email
+            {"用户名或邮箱"}
             <Input
               id={`${id}-username`}
               autoComplete="username"
@@ -225,7 +227,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
             className="flex flex-col gap-1 text-sm"
             htmlFor={`${id}-password`}
           >
-            Password
+            {"密码"}
             <Input
               id={`${id}-password`}
               autoComplete="current-password"
@@ -237,7 +239,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm" htmlFor={`${id}-code`}>
-            Verification code, if the site asks for one
+            {"验证码（如站点要求）"}
             <Input
               id={`${id}-code`}
               autoComplete="one-time-code"
@@ -258,7 +260,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
                 checked={save}
                 onCheckedChange={(checked) => setSave(checked === true)}
               />
-              Save to Passwords
+              {"保存到密码"}
             </label>
           ) : null}
           {failure ? (
@@ -269,7 +271,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
           <div className="flex flex-wrap gap-2">
             <Button size="sm" type="submit" disabled={busy || !password}>
               <IconLock />
-              {submit.isPending ? "Signing in…" : "Sign in"}
+              {submit.isPending ? "正在登录…" : "登录"}
             </Button>
             <Button
               size="sm"
@@ -279,7 +281,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
               onClick={() => takeOver.mutate(requestId)}
             >
               <IconPointer />
-              Take over to sign in
+              {"接管以登录"}
             </Button>
             <Button
               size="sm"
@@ -288,7 +290,7 @@ export function SignInForm({ requestId }: { requestId: string }) {
               disabled={busy}
               onClick={() => cancel.mutate(requestId)}
             >
-              Decline
+              {"拒绝"}
             </Button>
           </div>
         </form>

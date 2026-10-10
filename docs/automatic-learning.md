@@ -1,5 +1,7 @@
 # Automatic Learning
 
+> **ChisaBot 分支：** 此能力依赖 CopilotKit Intelligence。本地 `local` 模式无需配置学习容器，不提供本文的 Intelligence 自动学习管理与交付。纯自托管运行参考 [分支说明](chisabot.md)。
+
 Open **Admin → Automatic Learning** to choose which Bots contribute completed conversations to a CopilotKit Intelligence Learning container and receive its published skills. Learning defaults on for managed and self-hosted deployments; a saved off setting is preserved. Collection and delivery require an existing, assigned container. OpenBot still starts and chats without one.
 
 Desktop sign-in creates or reuses the selected project's `openbot` container. Managed setup uses CopilotKit sign-in; self-hosted setup uses that deployment's normal browser sign-in and requires installed Chrome or Edge. Start saves the assignment only while the provisioned key and API still match, and preserves an explicit custom container in `.env`. Saved Admin settings, including off or an empty default, remain authoritative.

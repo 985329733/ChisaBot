@@ -23,7 +23,7 @@ export function BotPausedBanner({ agentId }: { agentId: string }) {
       variant="secondary"
     >
       <IconPlayerPause />
-      {resume.isPending ? "Resuming…" : "Paused, tap to resume"}
+      {resume.isPending ? "正在恢复…" : "已暂停，轻点以恢复"}
     </Button>
   );
 }

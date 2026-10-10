@@ -20,10 +20,10 @@ function SignInPage() {
   const request = useQuery(signInRequestQueryOptions(requestId));
   return (
     <PageShell
-      title={request.data ? `Sign in to ${request.data.origin}` : "Sign in"}
+      title={request.data ? `登录到 ${request.data.origin}` : "登录"}
       description={
         request.data?.reason ??
-        "Your Bot needs to be signed in to continue. What you enter here goes to its browser, not to the conversation."
+        "您的机器人需要登录才能继续。您在此输入的内容将发送到其浏览器，而非对话。"
       }
     >
       <SignInForm requestId={requestId} />

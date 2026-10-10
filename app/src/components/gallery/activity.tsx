@@ -93,27 +93,24 @@ export function ActivityReportCard({
 
   if (!report) {
     return (
-      <GalleryFrame title="Report">
-        <p className="text-sm text-muted-foreground">Choosing a report…</p>
+      <GalleryFrame title={"报告"}>
+        <p className="text-sm text-muted-foreground">{"正在选择报告…"}</p>
       </GalleryFrame>
     );
   }
 
   if (state.status === "reading") {
     return (
-      <GalleryFrame
-        caption="Reading from this deployment"
-        title={title ?? "Report"}
-      >
-        <p className="text-sm text-muted-foreground">Reading…</p>
+      <GalleryFrame caption={"正在从此部署读取"} title={title ?? "报告"}>
+        <p className="text-sm text-muted-foreground">{"正在读取……"}</p>
       </GalleryFrame>
     );
   }
 
   if (state.status === "refused") {
     return (
-      <GalleryFrame title={title ?? "Report"}>
-        <p className="text-sm text-destructive">Not shown</p>
+      <GalleryFrame title={title ?? "报告"}>
+        <p className="text-sm text-destructive">{"未显示"}</p>
         <p className="mt-1 text-sm text-foreground/80">{state.reason}</p>
       </GalleryFrame>
     );
@@ -146,9 +143,10 @@ function ActivityChart({
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Bot activity"}>
+      <GalleryFrame title={title ?? "机器人活动"}>
         <p className="text-sm text-muted-foreground">
-          No Bot has done anything in the last {data?.days ?? 7} days.
+          {"没有机器人最近做过任何事"}
+          {data?.days ?? 7} {"天。"}
         </p>
       </GalleryFrame>
     );
@@ -170,12 +168,12 @@ function ActivityChart({
             size="sm"
             variant="outline"
           >
-            Ask about the busiest
+            {"询问最繁忙的"}
           </Button>
         ) : undefined
       }
-      caption={`Counted from this deployment's audit trail, last ${data.days} days`}
-      title={title ?? "Bot activity"}
+      caption={`从此部署的审计轨迹中计数，最后 ${data.days} 天`}
+      title={title ?? "机器人活动"}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row, index) => (
@@ -215,9 +213,9 @@ function RefusalList({
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Recent refusals"}>
+      <GalleryFrame title={title ?? "最近的拒绝"}>
         <p className="text-sm text-muted-foreground">
-          This deployment has refused nothing.
+          {"此部署没有拒绝任何内容。"}
         </p>
       </GalleryFrame>
     );
@@ -236,12 +234,12 @@ function RefusalList({
             size="sm"
             variant="outline"
           >
-            Explain the latest
+            {"解释最新内容"}
           </Button>
         ) : undefined
       }
-      caption="Read from this deployment's audit trail"
-      title={title ?? "Recent refusals"}
+      caption={"从此部署的审计轨迹读取"}
+      title={title ?? "最近的拒绝"}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
@@ -252,7 +250,7 @@ function RefusalList({
                 <span className="text-xs text-muted-foreground">{row.bot}</span>
               ) : null}
               <span className="ml-auto text-xs text-muted-foreground">
-                {new Date(row.at).toLocaleString()}
+                {new Date(row.at).toLocaleString("zh-CN")}
               </span>
             </div>
             {row.reason ? (
@@ -274,10 +272,10 @@ export const GALLERY: GalleryComponent[] = [
      * only means to show what the component looks like. Admin draws it as unpreviewable instead.
      */
     name: "showActivityReport",
-    title: "Activity report",
+    title: "活动报告",
     kind: "card",
     description:
-      "Show what this deployment has actually been doing, read from its own records rather than from anything you know. Use for 'what have the Bots been up to' and 'what has been refused'. You choose the report and the period; the figures are read for you and you will not see them.",
+      "从自身记录读取显示此部署实际在做什么，而非你所知。用于'机器人一直在做什么'和'什么被拒绝'。你选择报告和时期；数字由你读取，你不会看到它们。",
     parameters: ActivityReportProps,
     Component: ActivityReportCard as GalleryComponent["Component"],
     confirmation:

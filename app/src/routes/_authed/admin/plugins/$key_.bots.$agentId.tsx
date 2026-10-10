@@ -149,7 +149,7 @@ function RouteComponent() {
 
   /* Nothing rather than a placeholder, so no sentence asserts anything while a fetch is open. */
   if (plugins.isPending || agents.isPending || hiddenAgents.isPending) {
-    return <PageShell title="Bot">{null}</PageShell>;
+    return <PageShell title={"机器人"}>{null}</PageShell>;
   }
 
   /*
@@ -163,11 +163,11 @@ function RouteComponent() {
   if (plugins.data && !server) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-        description="This deployment has not enabled an app by that name."
+        backButton={{ label: "插件", linkProps: { to: "/admin/plugins" } }}
+        description={"此部署未启用名为该名称的应用程序。"}
         title={appTitle}
       >
-        <PageEmpty>There is nothing here to grant.</PageEmpty>
+        <PageEmpty>{"这里没有可授权的内容。"}</PageEmpty>
       </PageShell>
     );
   }
@@ -182,11 +182,11 @@ function RouteComponent() {
   if (!server) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-        title="Plugins"
+        backButton={{ label: "插件", linkProps: { to: "/admin/plugins" } }}
+        title={"插件"}
       >
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Plugins could not be loaded.
+          {"插件无法加载。"}
         </p>
       </PageShell>
     );
@@ -208,12 +208,12 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="This deployment has no Bot by that name, so there is nobody to grant these actions to."
-        title="Not a Bot"
+        description={
+          "此部署没有名为该名称的机器人，因此没有人可以授予这些操作。"
+        }
+        title={"不是机器人"}
       >
-        <PageEmpty>
-          It may have been deleted since this page was opened.
-        </PageEmpty>
+        <PageEmpty>{"它可能在此页面打开后已被删除。"}</PageEmpty>
       </PageShell>
     );
   }
@@ -256,7 +256,7 @@ function RouteComponent() {
             <ItemContent>
               <ItemTitle className="font-mono text-xs">{tool.name}</ItemTitle>
               <ItemDescription>
-                {tool.description || "This action came with no description."}
+                {tool.description || "此操作没有描述。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -271,9 +271,7 @@ function RouteComponent() {
                * say about this row is that what it changes does not come back.
                */}
               {tool.destructive ? (
-                <span className="text-destructive text-xs">
-                  destroys things
-                </span>
+                <span className="text-destructive text-xs">{"销毁东西"}</span>
               ) : null}
               {/*
                * Binary and immediate, which is what a Switch is for: it takes effect when switched
@@ -282,7 +280,7 @@ function RouteComponent() {
                * while its own write is in flight, so switching one action does not freeze the list.
                */}
               <Switch
-                aria-label={`Let ${botName} call ${tool.name}`}
+                aria-label={`让 ${botName} 调用 ${tool.name}`}
                 checked={held(tool)}
                 disabled={
                   granting !== null ||
@@ -309,8 +307,8 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={`Which of ${appTitle}'s actions ${botName} may call. Every call is decided again when it happens, so switching one off takes effect on the next one.`}
-      title={`${botName} and ${appTitle}`}
+      description={` ${appTitle} 的哪些操作 ${botName} 可以调用。每次调用都会重新决定，因此关闭一个会在下一次生效。`}
+      title={`${botName} 和 ${appTitle}`}
     >
       {error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
@@ -321,15 +319,15 @@ function RouteComponent() {
       {server.tools.length === 0 ? (
         <PageEmpty>
           {server.lastError ??
-            `${appTitle} lists no actions. Refresh its tools to ask again.`}
+            `${appTitle} 未列出任何操作。刷新其工具以再次提问。`}
         </PageEmpty>
       ) : (
         <>
           <Input
-            aria-label={`Search ${appTitle} actions`}
+            aria-label={`搜索 ${appTitle} 操作`}
             className="mt-6"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by action name"
+            placeholder={"按操作名称搜索"}
             value={search}
           />
 
@@ -344,9 +342,7 @@ function RouteComponent() {
           {ungranted.length > 0 ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <p className="text-muted-foreground text-xs">
-                {`This Bot would then hold ${wouldHold} ${
-                  wouldHold === 1 ? "tool" : "tools"
-                } from this app.`}
+                {`此机器人将从此应用中持有 ${wouldHold} ${wouldHold === 1 ? "工具" : "工具"}。`}
               </p>
               <Button
                 disabled={granting !== null}
@@ -357,21 +353,21 @@ function RouteComponent() {
               >
                 {/* The one in flight, not the ones finished: a count starting at zero of forty reads as nothing happening. */}
                 {granting
-                  ? `Granting ${Math.min(granting.done + 1, granting.total)} of ${granting.total}…`
-                  : "Turn on every read-only action"}
+                  ? `授予 ${Math.min(granting.done + 1, granting.total)} 的 ${granting.total}…`
+                  : "开启所有只读操作"}
               </Button>
             </div>
           ) : null}
 
           <PageSection
-            description="These only read. A boundary written about writes does not apply to them."
-            title="Reads"
+            description={"这些仅可读取。关于写入的边界规则不适用于它们。"}
+            title={"读取"}
           >
             {reads.length === 0 ? (
               <PageEmpty>
                 {needle
-                  ? `Nothing that only reads matches "${search.trim()}".`
-                  : `${appTitle} offers nothing that only reads.`}
+                  ? `没有仅读取的匹配 "${search.trim()}"。`
+                  : `${appTitle} 什么也不提供，只提供读取。`}
               </PageEmpty>
             ) : (
               rows(reads)
@@ -379,14 +375,16 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="These change something at the vendor. A boundary written about writes applies to them, and each call is refused when one matches."
-            title="Changes things"
+            description={
+              "这些在供应商处更改某些内容。关于写入的边界规则适用于它们，当匹配时每个调用被拒绝。"
+            }
+            title={"更改事物"}
           >
             {writes.length === 0 ? (
               <PageEmpty>
                 {needle
-                  ? `Nothing that changes things matches "${search.trim()}".`
-                  : `${appTitle} offers nothing that changes anything.`}
+                  ? `没有可以改变事物的匹配 "${search.trim()}"。`
+                  : `${appTitle} 什么也不提供，无法更改任何内容。`}
               </PageEmpty>
             ) : (
               rows(writes)

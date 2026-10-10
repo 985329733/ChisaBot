@@ -29,7 +29,7 @@ export function setComputerStateMutationOptions(queryClient: QueryClient) {
         `/api/computers/${encodeURIComponent(variables.botId)}/computers/${variables.action}`,
         {
           method: "POST",
-          fallback: `The computer could not be ${PAST[variables.action]}.`,
+          fallback: `计算机无法 ${PAST[variables.action]}。`,
         },
       );
     },
@@ -54,7 +54,7 @@ export function saveActionPolicyMutationOptions(queryClient: QueryClient) {
       client("/api/computers/policy", "policy", {
         method: "PUT",
         body: next,
-        fallback: "The boundary could not be saved.",
+        fallback: "权限规则无法保存。",
       }),
     onSuccess: () => invalidateComputers(queryClient),
   });

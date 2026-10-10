@@ -1,0 +1,57 @@
+services:
+  auth:
+    # Reuse Bun from the locally built ChisaBot image; override s6 init.
+    image: ${CHISABOT_IMAGE:-local/chisabot:latest}
+    pull_policy: never
+    container_name: openbot-web-auth
+    network_mode: host
+    user: "1002:1002"
+    working_dir: /auth
+    entrypoint: [/usr/local/bin/bun, /auth/server.ts]
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 384m
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - ./auth:/auth:ro
+      - ./auth-data:/auth-data:rw
+    healthcheck:
+      test: [CMD, /usr/local/bin/bun, -e, "const r=await fetch('http://127.0.0.1:3002/_internal/health');process.exit(r.ok?0:1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+  gateway:
+    image: ${CHISABOT_NGINX_IMAGE:-nginx:alpine}
+    container_name: openbot-public-gateway
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /var/cache/nginx:size=32m,mode=0755
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - .:/public:ro
+      # Mount live and archive together so existing certificate symlinks resolve.
+      - ${CHISABOT_CERT_DIRECTORY:-/etc/letsencrypt}:/etc/letsencrypt:ro
+    command: [nginx, -g, "daemon off;"]
+    depends_on:
+      auth:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

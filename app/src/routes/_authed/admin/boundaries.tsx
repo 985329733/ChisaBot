@@ -25,7 +25,7 @@ import { queryClient } from "@/query-client";
  */
 const PRESETS: { label: string; rule: string; cost?: string }[] = [
   {
-    label: "Never submit a form",
+    label: "从未提交表单",
     // `key` is guarded by tool name so the clause short-circuits before it on actions that have no
     // keypress in them. Both tools that can press Enter are named: `computer_type` takes a `submit`
     // flag that presses it once the text is in, and a rule naming only `computer_key` left that door
@@ -34,12 +34,12 @@ const PRESETS: { label: string; rule: string; cost?: string }[] = [
     cost: "Also stops the Bot pressing Enter for anything else, because a form submits from Enter in any of its fields.",
   },
   {
-    label: "Never type into a password field",
+    label: "从未在密码字段中输入",
     rule: 'intent == "type" && contains(element.name, "password")',
     cost: "A password box the page labels something else is not covered, the rule matches the label.",
   },
   {
-    label: "Stay off social media",
+    label: "远离社交媒体",
     rule: 'intent == "navigate" && (contains(page.host, "facebook.com") || contains(page.host, "x.com"))',
     cost: "Only the two hosts named. A link that redirects there from somewhere else is allowed.",
   },
@@ -87,7 +87,7 @@ function BoundariesPage() {
   const unreadable = problem ?? stored.error?.message ?? null;
   if (unreadable && !policy) {
     return (
-      <PageShell title="Boundaries">
+      <PageShell title={"权限规则"}>
         <p className="mt-4 text-destructive text-sm" role="alert">
           {unreadable}
         </p>
@@ -97,7 +97,7 @@ function BoundariesPage() {
 
   /* Nothing until the policy is known: a rule list that guesses is worse than a blank. */
   if (!policy) {
-    return <PageShell title="Boundaries">{null}</PageShell>;
+    return <PageShell title={"权限规则"}>{null}</PageShell>;
   }
 
   const addRule = (rule: string) => {
@@ -136,19 +136,22 @@ function BoundariesPage() {
     <PageShell
       description={
         <>
-          What every Bot may and may not do with its computer. Rules are checked
-          on every action before it happens, and a refusal is recorded in{" "}
+          {
+            "每个机器人可以和不可以对计算机做什么。规则在每次操作发生前检查，拒绝被记录在"
+          }{" "}
           <Link className="underline" to="/admin/audit">
-            Audit
+            {"审计"}
           </Link>{" "}
-          with the rule that refused it.
+          {"被拒绝的规则"}
         </>
       }
-      title="Boundaries"
+      title={"权限规则"}
     >
       <PageSection
-        description="Enforce stops the action. Record it and allow it writes the same row and lets the action through, which is how a rule is tried on real traffic before it starts refusing anybody."
-        title="When a rule matches"
+        description={
+          "强制执行会停止该操作。记录它并允许它在同一行写入并让操作通过，这是规则在真实流量上尝试之前如何开始拒绝任何人的方式。"
+        }
+        title={"当规则匹配时"}
       >
         <div className="mt-2 flex gap-2">
           {(["enforce", "dry-run"] as PolicyMode[]).map((mode) => (
@@ -161,44 +164,44 @@ function BoundariesPage() {
               size="sm"
               variant="outline"
             >
-              {mode === "enforce"
-                ? "Stop the action"
-                : "Record it and allow it"}
+              {mode === "enforce" ? "停止操作" : "记录它并允许它"}
             </Button>
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {policy.mode === "enforce"
-            ? "The Bot is stopped and told which rule refused it."
-            : "Nothing is stopped. Every action a rule matches is recorded as it would have been refused, which is how a rule is tried out before it is switched on."}
+            ? "机器人已停止，并被告知哪个规则拒绝了它。"
+            : "没有停止。规则匹配的每个操作都会被记录，就像它会被拒绝一样，这是规则在切换前尝试的方式。"}
         </p>
       </PageSection>
 
       <PageSection
         description={
           <>
-            Checked first, and a match ends it: nothing below is consulted and
-            the Bot is told which rule refused it. Rules are CEL, and can ask
-            about <code>tool.name</code>, <code>intent</code>,{" "}
-            <code>bot.id</code>, <code>actor.id</code>, <code>page.url</code>{" "}
-            and <code>page.host</code>, the element being acted on, the{" "}
-            <code>key</code> being pressed, the file being touched, the{" "}
-            <code>command</code> being run, and <code>mcp.server</code>,{" "}
-            <code>mcp.tool</code> and <code>mcp.effect</code> for a call to
-            somebody else&rsquo;s tools. <code>initiator.kind</code> says what
-            started the run &mdash; <code>person</code>, <code>routine</code> or{" "}
-            <code>handoff</code> &mdash; which <code>actor.id</code> cannot,
-            because a scheduled run carries its owner&rsquo;s authority while
-            nobody is watching. A rule that cannot be evaluated counts as a
-            match, so a mistyped deny refuses rather than quietly permitting
-            what it was meant to forbid.
+            {
+              "已检查，首先匹配则结束：下方不予咨询，机器人被告知拒绝它的规则。规则是CEL，可以询问关于"
+            }
+            <code>tool.name</code>, <code>intent</code>, <code>bot.id</code>,{" "}
+            <code>actor.id</code>, <code>page.url</code> {"和"}
+            <code>page.host</code>
+            {", 被操作的元素，"} <code>key</code> {"按下时，文件被触摸，"}{" "}
+            <code>command</code> {"正在运行，并且"}
+            <code>mcp.server</code>, <code>mcp.tool</code> {"和"}
+            <code>mcp.effect</code> {"用于调用他人工具。"}
+            <code>initiator.kind</code> {"表示启动运行的内容 &mdash;"}
+            <code>person</code>, <code>routine</code> {"或"}{" "}
+            <code>handoff</code> {"&mdash; 哪个"}
+            <code>actor.id</code>{" "}
+            {
+              "无法，因为计划运行携带其所有者的权限而无人监督。无法评估的规则被视为匹配，因此打错的拒绝会拒绝而不是悄悄允许本应禁止的东西。"
+            }
           </>
         }
-        title="It may never"
+        title={"它可能永远不会"}
       >
         {policy.deny.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            No rules. Every action is allowed and recorded.
+            {"无规则。所有操作都被允许并记录。"}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -221,7 +224,7 @@ function BoundariesPage() {
                   size="sm"
                   variant="ghost"
                 >
-                  Remove
+                  {"移除"}
                 </Button>
               </li>
             ))}
@@ -230,7 +233,7 @@ function BoundariesPage() {
 
         <div className="mt-3 flex gap-2">
           <Input
-            aria-label="A rule, written in CEL"
+            aria-label={"规则，用 CEL 编写"}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -245,7 +248,9 @@ function BoundariesPage() {
               // rule into the policy in force.
               if (event.key === "Enter" && !isComposing(event)) addRule(draft);
             }}
-            placeholder='tool.name == "computer_click" && contains(element.name, "submit")'
+            placeholder={
+              'tool.name == "computer_click" && contains(element.name, "submit")'
+            }
             value={draft}
           />
           <Button
@@ -254,14 +259,14 @@ function BoundariesPage() {
             size="sm"
             variant="outline"
           >
-            {testing ? "Testing…" : "Test first"}
+            {testing ? "测试中…" : "先测试"}
           </Button>
           <Button
             disabled={saving || draft.trim().length === 0}
             onClick={() => addRule(draft)}
             size="sm"
           >
-            Add rule
+            {"添加规则"}
           </Button>
         </div>
 
@@ -290,13 +295,15 @@ function BoundariesPage() {
       </PageSection>
 
       <PageSection
-        description="The floor, applied to anything the deny list did not catch. It is not a formality: an empty list here permits nothing, so a deployment that clears this refuses every action rather than allowing every action."
-        title="Otherwise it may"
+        description={
+          "地板，应用于拒绝列表未捕获的任何内容。这不是形式主义：此处空列表允许什么都没有，因此清除此处的部署拒绝每个操作而不是允许每个操作。"
+        }
+        title={"否则它可能"}
       >
         <ul className="mt-2 space-y-1">
           {policy.allow.map((rule) => (
             <li className="font-mono text-xs text-muted-foreground" key={rule}>
-              {rule === "true" ? "true, anything not refused above" : rule}
+              {rule === "true" ? "true，任何未被拒绝的" : rule}
             </li>
           ))}
         </ul>
@@ -308,9 +315,9 @@ function BoundariesPage() {
             {problem}
           </span>
         ) : saved ? (
-          "Saved. It applies to the next action any Bot takes."
+          "已保存。它适用于机器人执行的下一个操作。"
         ) : (
-          "Changes apply to the next action any Bot takes, and are kept: a restart comes back up enforcing what is here."
+          "更改适用于任何机器人采取的下一个操作，并被保留：重启会重新应用这里的内容。"
         )}
       </p>
     </PageShell>
@@ -327,8 +334,9 @@ function DryRunResult({ report }: { report: DryRunReport }) {
   if (report.scanned === 0) {
     return (
       <p className="mt-2 text-xs text-muted-foreground" role="status">
-        No recorded computer actions to test against yet. The rule is valid;
-        what it matches will only be known once Bots have acted.
+        {
+          "暂无记录的计算机操作可供测试。规则有效；匹配的内容只有在机器人行动后才会知道。"
+        }
       </p>
     );
   }
@@ -337,8 +345,8 @@ function DryRunResult({ report }: { report: DryRunReport }) {
     <div className="mt-2" role="status">
       <p className="text-xs text-muted-foreground">
         {report.wouldRefuse === 0
-          ? `Tested against the last ${report.scanned} recorded actions: this rule would have refused none of them. It may still match future actions.`
-          : `Tested against the last ${report.scanned} recorded actions: this rule would have refused ${report.wouldRefuse}.`}
+          ? `针对最近 ${report.scanned} 次记录的操作进行测试：此规则本应拒绝其中任何操作。它可能仍匹配未来的操作。`
+          : `针对最近 ${report.scanned} 次记录的操作进行测试：此规则本应拒绝 ${report.wouldRefuse}。`}
       </p>
       {report.changes.length > 0 ? (
         <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -346,24 +354,35 @@ function DryRunResult({ report }: { report: DryRunReport }) {
             <li className="px-3 py-2" key={change.id}>
               <p className="text-xs">
                 <span className="font-medium">
-                  {change.would === "refused"
-                    ? "Would refuse"
-                    : "Would now allow"}
+                  {change.would === "refused" ? "将拒绝" : "现在允许"}
                 </span>{" "}
                 <code className="font-mono">{change.action}</code>
-                {change.element?.name ? <> on “{change.element.name}”</> : null}
+                {change.element?.name ? (
+                  <>
+                    {" "}
+                    {"开 “"}
+                    {change.element.name}”
+                  </>
+                ) : null}
                 {change.command ? (
                   <>
                     {" "}
-                    running <code className="font-mono">{change.command}</code>
+                    {"运行中"}
+                    <code className="font-mono">{change.command}</code>
                   </>
                 ) : null}
-                {change.file ? <> touching {change.file}</> : null}
+                {change.file ? (
+                  <>
+                    {" "}
+                    {"触摸"}
+                    {change.file}
+                  </>
+                ) : null}
               </p>
               <p className="mt-0.5 text-muted-foreground text-xs">
                 {change.bot}
                 {change.page ? <> · {change.page}</> : null} ·{" "}
-                {new Date(change.createdAt).toLocaleString()}
+                {new Date(change.createdAt).toLocaleString("zh-CN")}
               </p>
             </li>
           ))}
@@ -371,8 +390,9 @@ function DryRunResult({ report }: { report: DryRunReport }) {
       ) : null}
       {report.wouldRefuse > report.changes.length ? (
         <p className="mt-1 text-muted-foreground text-xs">
-          Showing the first {report.changes.length}; the count above covers
-          everything scanned.
+          {"显示第一个"}
+          {report.changes.length}
+          {"; 上面的计数涵盖了所有扫描的内容。"}
         </p>
       ) : null}
     </div>

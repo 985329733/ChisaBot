@@ -59,14 +59,14 @@ function lastRunLabel(lastRun: RoutineRecord["lastRun"]): {
 } {
   if (lastRun === null) {
     return {
-      text: "Never run yet",
+      text: "从未运行",
       className: "text-muted-foreground",
       dot: "bg-muted-foreground/40",
     };
   }
   if (lastRun.status === null) {
     return {
-      text: "Running…",
+      text: "运行中…",
       className: "text-muted-foreground",
       dot: "animate-pulse bg-muted-foreground",
     };
@@ -74,21 +74,21 @@ function lastRunLabel(lastRun: RoutineRecord["lastRun"]): {
   const when = lastRun.at ? relativeTime(lastRun.at) : "recently";
   if (lastRun.status === "failed") {
     return {
-      text: `Failed ${when}`,
+      text: `失败 ${when}`,
       className: "text-destructive",
       dot: "bg-destructive",
     };
   }
   if (lastRun.status === "skipped") {
     return {
-      text: `Skipped ${when}`,
+      text: `跳过 ${when}`,
       className: "text-amber-600 dark:text-amber-500",
       dot: "bg-amber-500",
     };
   }
   if (lastRun.status === "succeeded") {
     return {
-      text: `Ran ${when}`,
+      text: `运行了 ${when}`,
       className: "text-muted-foreground",
       dot: "bg-emerald-500",
     };
@@ -97,7 +97,7 @@ function lastRunLabel(lastRun: RoutineRecord["lastRun"]): {
   // success — the contract typing (`RoutineRunOutcome | null`) makes a fourth outcome a build-time
   // error, but this is the runtime fallback if that ever slips through.
   return {
-    text: `Finished ${when}`,
+    text: `完成 ${when}`,
     className: "text-muted-foreground",
     dot: "bg-muted-foreground/40",
   };
@@ -131,29 +131,29 @@ const RUN_STATUS: Record<
   { text: string; dot: string; className: string }
 > = {
   running: {
-    text: "Running",
+    text: "运行中",
     dot: "animate-pulse bg-muted-foreground",
     className: "",
   },
-  succeeded: { text: "Succeeded", dot: "bg-emerald-500", className: "" },
+  succeeded: { text: "成功", dot: "bg-emerald-500", className: "" },
   failed: {
-    text: "Failed",
+    text: "失败",
     dot: "bg-destructive",
     className: "text-destructive",
   },
   skipped: {
-    text: "Skipped",
+    text: "已跳过",
     dot: "bg-amber-500",
     className: "text-amber-600 dark:text-amber-500",
   },
-  waiting: { text: "Waiting for you", dot: "bg-sky-500", className: "" },
+  waiting: { text: "等待您", dot: "bg-sky-500", className: "" },
 };
 
 /** Every firing of one routine, newest first, each linking to the thread it ran in. */
 function RoutineRuns({ routine }: { routine: RoutineRecord }) {
   const runs = useQuery(routineRunsQueryOptions(routine.id));
   if (runs.isPending)
-    return <p className="text-muted-foreground text-xs">Loading runs…</p>;
+    return <p className="text-muted-foreground text-xs">{"正在加载运行…"}</p>;
   if (runs.error)
     return (
       <p className="text-destructive text-xs" role="alert">
@@ -161,7 +161,7 @@ function RoutineRuns({ routine }: { routine: RoutineRecord }) {
       </p>
     );
   if (!runs.data?.length)
-    return <p className="text-muted-foreground text-xs">No runs yet.</p>;
+    return <p className="text-muted-foreground text-xs">{"暂无运行。"}</p>;
   return (
     <ul className="flex w-full flex-col gap-1.5">
       {runs.data.map((run) => {
@@ -182,10 +182,10 @@ function RoutineRuns({ routine }: { routine: RoutineRecord }) {
             </span>
             <span className="text-muted-foreground">
               {run.source === "run_now"
-                ? "Run now"
+                ? "立即运行"
                 : run.source === "trigger"
-                  ? "Triggered"
-                  : "Scheduled"}{" "}
+                  ? "已触发"
+                  : "已计划"}{" "}
               · {relativeTime(run.startedAt)}
             </span>
             {routine.channel.gone ? null : (
@@ -194,7 +194,7 @@ function RoutineRuns({ routine }: { routine: RoutineRecord }) {
                 params={{ channelId: routine.channel.id }}
                 to="/channel/$channelId"
               >
-                Open thread
+                {"打开线程"}
               </Link>
             )}
             {run.error ? (
@@ -256,12 +256,12 @@ export function RoutinesList({
         >
           <ItemContent>
             <ItemTitle className="text-amber-600 dark:text-amber-500">
-              Nothing is running these
+              {"没有正在运行这些"}
             </ItemTitle>
             <ItemDescription>
               {sweep?.lastSweptAt
-                ? `The routines worker last checked ${relativeTime(sweep.lastSweptAt)}. Until it is running again, none of these will fire.`
-                : "No routines worker has ever checked in, so none of these will fire. A deployment needs one running to carry them out."}
+                ? `定时任务工作者上次检查 ${relativeTime(sweep.lastSweptAt)}。直到再次运行，这些都不会触发。`
+                : "没有例行程序工作者检查过，所以这些都不会触发。部署需要一个正在运行的例行程序工作者来执行它们。"}
             </ItemDescription>
           </ItemContent>
         </Item>
@@ -270,20 +270,18 @@ export function RoutinesList({
       {/* Pending renders nothing: the empty-state sentence would otherwise flash for the fetch. */}
       {routines.isPending ? null : routines.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Your routines could not be loaded.
+          {"您的定时任务无法加载。"}
         </p>
       ) : rows.length === 0 ? (
         <Empty className="h-[180px] border border-dashed">
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
-              {agentId
-                ? "Nothing scheduled for this coworker"
-                : "Nothing scheduled"}
+              {agentId ? "此AI同事未计划" : "未计划"}
             </EmptyTitle>
             <EmptyDescription>
               {agentId
-                ? 'Ask it in a channel — "every weekday at 9, …" — and it will appear here.'
-                : 'Ask a Bot — "every weekday at 9, …" — and it will appear here.'}
+                ? '在会话中询问它 — "每周工作日上午 9 点，…" — 它将出现在这里。'
+                : '询问机器人 — "每周工作日上午 9 点，…" — 它将出现在这里。'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -309,7 +307,7 @@ export function RoutinesList({
                     <div className="flex flex-wrap items-center gap-1.5">
                       {routine.channel.gone ? (
                         <Chip className="border-destructive/40 text-destructive">
-                          This channel is gone
+                          {"此会话已消失"}
                         </Chip>
                       ) : (
                         // Where it posts is a place, so the chip goes there.
@@ -318,7 +316,7 @@ export function RoutinesList({
                           to="/channel/$channelId"
                         >
                           <Chip className="text-muted-foreground transition-colors hover:text-foreground">
-                            {routine.channel.name ?? "Unnamed channel"}
+                            {routine.channel.name ?? "未命名的会话"}
                           </Chip>
                         </Link>
                       )}
@@ -335,7 +333,9 @@ export function RoutinesList({
                        * takes its place, so the switch's state has a word as well as a position.
                        */}
                       {!routine.enabled ? (
-                        <Chip className="text-muted-foreground">Paused</Chip>
+                        <Chip className="text-muted-foreground">
+                          {"已暂停"}
+                        </Chip>
                       ) : new Date(routine.nextRunAt).getTime() <=
                         Date.now() ? (
                         /*
@@ -344,11 +344,12 @@ export function RoutinesList({
                          */
                         <Chip className="text-amber-600 dark:text-amber-500">
                           <span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
-                          Due
+                          {"到期"}
                         </Chip>
                       ) : (
                         <Chip className="text-muted-foreground">
-                          Next {relativeTime(routine.nextRunAt)}
+                          {"下一步"}
+                          {relativeTime(routine.nextRunAt)}
                         </Chip>
                       )}
                     </div>
@@ -366,7 +367,7 @@ export function RoutinesList({
                    * because a paused routine never runs.
                    */}
                   <Button
-                    aria-label={`Run the routine scheduled ${routine.schedule} now`}
+                    aria-label={`立即运行定时任务 ${routine.schedule}`}
                     disabled={
                       !routine.enabled ||
                       (runNow.isPending && runNow.variables === routine.id)
@@ -379,18 +380,18 @@ export function RoutinesList({
                     size="sm"
                     title={
                       routine.enabled
-                        ? "Runs it for real, now: the Bot does the work and posts in the channel."
-                        : "Paused routines never run. Switch it on first."
+                        ? "立即真实运行：机器人执行工作并在会话中发布。"
+                        : "暂停的定时任务永远不会运行。先打开它。"
                     }
                     type="button"
                     variant="outline"
                   >
                     <IconPlayerPlay />
-                    Run now
+                    {"立即运行"}
                   </Button>
                   <Button
                     aria-expanded={historyId === routine.id}
-                    aria-label={`Run history for the routine scheduled ${routine.schedule}`}
+                    aria-label={`定时任务 ${routine.schedule} 的运行历史`}
                     onClick={() =>
                       setHistoryId(historyId === routine.id ? null : routine.id)
                     }
@@ -407,7 +408,7 @@ export function RoutinesList({
                    * page uses for its per-Bot grant switches.
                    */}
                   <Switch
-                    aria-label={`Enable the routine scheduled ${routine.schedule}`}
+                    aria-label={`启用定时任务 ${routine.schedule}`}
                     checked={routine.enabled}
                     disabled={
                       setEnabled.isPending &&
@@ -418,7 +419,7 @@ export function RoutinesList({
                     }
                   />
                   <Button
-                    aria-label={`Delete the routine scheduled ${routine.schedule}`}
+                    aria-label={`删除定时任务 ${routine.schedule}`}
                     onClick={() => {
                       deleteRoutine.reset();
                       setConfirmingId(routine.id);
@@ -452,10 +453,14 @@ export function RoutinesList({
             UI would otherwise render a nested dialog with no backdrop at all. */}
         <DialogContent overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm">
           <DialogHeader>
-            <DialogTitle>Delete "{confirming?.schedule}"?</DialogTitle>
+            <DialogTitle>
+              {'删除 "'}
+              {confirming?.schedule}"?
+            </DialogTitle>
             <DialogDescription>
-              This standing instruction stops for good. Nothing further runs on
-              this schedule, and there is no undo.
+              {
+                "此常驻指令永久停止。没有任何进一步在此计划上运行，并且没有撤销。"
+              }
             </DialogDescription>
           </DialogHeader>
           {deleteRoutine.error ? (
@@ -469,7 +474,7 @@ export function RoutinesList({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={deleteRoutine.isPending}
@@ -482,7 +487,7 @@ export function RoutinesList({
               size="sm"
               variant="destructive"
             >
-              {deleteRoutine.isPending ? "Deleting…" : "Delete"}
+              {deleteRoutine.isPending ? "正在删除…" : "删除"}
             </Button>
           </DialogFooter>
         </DialogContent>

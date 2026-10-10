@@ -134,35 +134,28 @@ function NothingToSee({
           */}
           {page?.url ? (
             <>
-              <span className="font-medium">{page.title || "A page"}</span>
+              <span className="font-medium">{page.title || "一个页面"}</span>
               <span className="break-all">{hostOf(page.url)}</span>
-              <span>
-                Opened during this turn. The screen has moved on since.
-              </span>
+              <span>{"在此轮次中打开。屏幕已在此之后移动。"}</span>
             </>
           ) : (
             /*
              * A turn that ended without getting anywhere: refused by a boundary, stopped, or failed.
              * Saying "opened during this turn" here would describe something that did not happen.
              */
-            <span>This turn did not open a page.</span>
+            <span>{"此轮次未打开页面。"}</span>
           )}
         </>
       ) : problem ? (
         <>
-          <span className="font-medium">
-            You cannot see the screen right now
-          </span>
+          <span className="font-medium">{"您现在看不到屏幕"}</span>
           <span>{problem}</span>
-          <span>
-            The assistant may still be working. An administrator can check
-            whether its computer is running.
-          </span>
+          <span>{"助手可能仍在工作。管理员可以检查其计算机是否在运行。"}</span>
         </>
       ) : blankBrowser ? (
-        <span>The assistant has not opened a page yet.</span>
+        <span>{"助手尚未打开页面。"}</span>
       ) : (
-        <span>Waiting for the assistant's screen…</span>
+        <span>{"正在等待助手的屏幕…"}</span>
       )}
     </span>
   );
@@ -430,7 +423,7 @@ export function ComputerView({
   const polledScreen = showScreen ? (
     <img
       src={`data:image/png;base64,${drawn.base64}`}
-      alt="What the assistant is looking at"
+      alt={"助理正在查看什么"}
       // Keep unexpected screenshot dimensions inside the reserved frame.
       className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 starting:opacity-0"
     />
@@ -452,7 +445,7 @@ export function ComputerView({
            */
           className="relative block w-full cursor-pointer bg-muted"
           style={frameStyle}
-          aria-label="Open the assistant's screen full size"
+          aria-label={"打开助手屏幕全尺寸"}
         >
           {polledScreen}
 
@@ -467,7 +460,7 @@ export function ComputerView({
               ) : null}
               {wheelHere ? (
                 <span className="rounded-full bg-white px-2.5 py-1 font-medium text-black text-xs shadow-sm">
-                  You have control
+                  {"您拥有控制权"}
                 </span>
               ) : null}
             </span>
@@ -487,7 +480,7 @@ export function ComputerView({
         {!driving && !settled && control?.requested ? (
           <div className="flex items-start justify-between gap-3 border-t bg-amber-500/10 px-3 py-2 text-sm">
             <span>
-              <strong className="font-medium">The assistant needs you.</strong>{" "}
+              <strong className="font-medium">{"助手需要您。"}</strong>{" "}
               {control.reason}
             </span>
           </div>
@@ -501,19 +494,19 @@ export function ComputerView({
               disabled={changingControl}
               onClick={() => void changeControl?.("cancel")}
             >
-              Cancel request
+              {"取消请求"}
             </button>
           </div>
         ) : null}
         {!settled && control?.transitioning ? (
           <p className="px-3 py-2 text-sm">
-            Finishing the assistant's current action before giving you control…
+            {"在将控制权交给您之前完成助理的当前操作…"}
           </p>
         ) : null}
         {!settled && control?.request?.status === "interrupted" ? (
           <p className="px-3 py-2 text-sm">
-            The browser was interrupted. {control.request.interruption} Open the
-            screen and take control again to check it.
+            {"浏览器被中断。"}
+            {control.request.interruption} {"重新打开屏幕并重新接管以检查它。"}
           </p>
         ) : null}
         {/*
@@ -537,7 +530,7 @@ export function ComputerView({
             }}
           >
             <label className="block" htmlFor="openbot-secret">
-              <span className="font-medium">The assistant needs </span>
+              <span className="font-medium">{"助手需要"}</span>
               <span>{control.secretWanted}</span>
             </label>
             <div className="mt-1.5 flex gap-2">
@@ -549,7 +542,7 @@ export function ComputerView({
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
-                placeholder="Typed here, never shown to the assistant"
+                placeholder={"在此键入，从不显示给助手"}
                 className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm"
               />
               <button
@@ -557,12 +550,11 @@ export function ComputerView({
                 disabled={!secret || sendingSecret}
                 className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
               >
-                {sendingSecret ? "Sending…" : "Send to the page"}
+                {sendingSecret ? "发送中…" : "发送到页面"}
               </button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              This goes straight to the page. It is not shown in the
-              conversation and the assistant never receives it.
+              {"此直接跳转到页面。它不会在会话中显示，助手也不会收到。"}
             </p>
             {secretProblem ? (
               <p className="mt-1 text-xs text-destructive">{secretProblem}</p>
@@ -574,12 +566,12 @@ export function ComputerView({
           <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2">
             <span className="text-xs text-muted-foreground">
               {!control
-                ? "Checking who has control…"
+                ? "正在检查谁有控制权…"
                 : control.transitioning
-                  ? "Finishing the current action…"
+                  ? "正在完成当前操作…"
                   : driving
-                    ? "You have control. Open the screen to click and type."
-                    : "The assistant has control."}
+                    ? "您拥有控制权。打开屏幕以点击和输入。"
+                    : "助手已获得控制权。"}
             </span>
             <ComputerControlButton
               computerId={computerId}
@@ -597,7 +589,7 @@ export function ComputerView({
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="The assistant's screen"
+              aria-label={"助手的屏幕"}
               className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-8"
             >
               {/*
@@ -607,7 +599,7 @@ export function ComputerView({
               <button
                 type="button"
                 onClick={() => !wheelHere && setExpanded(false)}
-                aria-label="Close the assistant's screen"
+                aria-label={"关闭助理的屏幕"}
                 aria-hidden={wheelHere}
                 tabIndex={wheelHere ? -1 : 0}
                 className={`absolute inset-0 bg-black/80 ${wheelHere ? "cursor-default" : "cursor-zoom-out"}`}
@@ -633,7 +625,7 @@ export function ComputerView({
                      */
                     <div className="relative w-full" style={{ aspectRatio }}>
                       <img
-                        alt="What this turn had open"
+                        alt={"此轮次开放了什么"}
                         className="absolute inset-0 h-full w-full object-contain"
                         src={`data:image/png;base64,${drawn.base64}`}
                       />
@@ -663,7 +655,7 @@ export function ComputerView({
                               setRetryKey((value) => value + 1);
                             }}
                           >
-                            Retry
+                            {"重试"}
                           </button>
                         </div>
                       ) : null}
@@ -687,7 +679,7 @@ export function ComputerView({
                 */}
                 {control?.transitioning ? (
                   <p className="mt-3 text-center text-sm">
-                    Finishing the current action before giving you control…
+                    {"在将控制权交给您之前完成当前操作…"}
                   </p>
                 ) : null}
                 {settled ? null : (
@@ -704,13 +696,13 @@ export function ComputerView({
                       ) : null}
                       {driving ? (
                         <span className="truncate text-muted-foreground">
-                          You have control — click and type on the page.
-                          {control?.reason ? ` ${control.reason}` : null}
+                          {"您拥有控制权 — 在页面上点击并输入。"}
+                          {control?.reason ? `${control.reason}` : null}
                         </span>
                       ) : control?.requested ? (
                         <span className="truncate text-muted-foreground">
                           <strong className="font-medium text-foreground">
-                            The assistant needs you.
+                            {"助手需要您。"}
                           </strong>{" "}
                           {control.reason}
                         </span>

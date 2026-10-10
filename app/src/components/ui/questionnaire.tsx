@@ -226,7 +226,7 @@ function QuestionnairePrevious({
       )}
       {...props}
     >
-      {children ?? "Previous"}
+      {children ?? "上一页"}
     </QuestionnairePrimitive.Previous>
   );
 }
@@ -251,7 +251,7 @@ function QuestionnaireSkip({
       )}
       {...props}
     >
-      {children ?? "Skip"}
+      {children ?? "跳过"}
     </QuestionnairePrimitive.Skip>
   );
 }
@@ -276,7 +276,7 @@ function QuestionnaireNext({
       )}
       {...props}
     >
-      {children ?? "Next"}
+      {children ?? "下一步"}
     </QuestionnairePrimitive.Next>
   );
 }
@@ -301,7 +301,7 @@ function QuestionnaireSubmit({
       )}
       {...props}
     >
-      {children ?? "Submit"}
+      {children ?? "提交"}
     </QuestionnairePrimitive.Submit>
   );
 }

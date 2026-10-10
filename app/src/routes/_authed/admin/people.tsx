@@ -52,15 +52,15 @@ function describe(person: Person): string {
     .map((provider) => PROVIDER_NAMES[provider] ?? provider)
     .join(", ");
   const when = person.lastSignedInAt
-    ? `last signed in ${new Date(person.lastSignedInAt).toLocaleDateString()}`
-    : "never signed in";
+    ? `最近登录：${new Date(person.lastSignedInAt).toLocaleDateString("zh-CN")}`
+    : "尚未登录过";
 
   if (person.revoked)
-    return `Access removed · ${providers || "no provider"} · ${when}`;
+    return `访问权限已移除 · ${providers || "未配置登录提供商"} · ${when}`;
   if (person.configuredAdmin) {
-    return `Administrator by configuration · ${when}`;
+    return `由配置指定的管理员 · ${when}`;
   }
-  return `${providers || "no provider"} · ${when}`;
+  return `${providers || "未配置登录提供商"} · ${when}`;
 }
 
 function PeoplePage() {
@@ -89,12 +89,16 @@ function PeoplePage() {
 
   return (
     <PageShell
-      description="Everybody who has signed in. Administrators reach these screens; everybody else talks to Bots."
-      title="People"
+      description={
+        "所有已签入的人员。管理员可访问这些屏幕；其他人则与机器人对话。"
+      }
+      title={"人员"}
     >
       <PageSection
-        description="An address named in INITIAL_ADMIN_EMAILS is an administrator whatever this screen says, so it cannot be changed here."
-        title="Who is here"
+        description={
+          "INITIAL_ADMIN_EMAILS 中命名的地址无论此屏幕说什么都是管理员，因此这里无法更改。"
+        }
+        title={"谁在这里"}
       >
         {failure ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -103,12 +107,13 @@ function PeoplePage() {
         ) : null}
         {terminate.data ? (
           <p className="mt-4 text-muted-foreground text-sm" role="status">
-            Stopped {terminate.data.stopped.length}{" "}
-            {terminate.data.stopped.length === 1 ? "computer" : "computers"}
+            {"已停止"}
+            {terminate.data.stopped.length}{" "}
+            {terminate.data.stopped.length === 1 ? "计算机" : "计算机"}
             {terminate.data.failed.length > 0
-              ? `; ${terminate.data.failed.length} could not be stopped`
+              ? `；${terminate.data.failed.length} 无法停止`
               : ""}
-            . Their disks are kept.
+            {". 他们的磁盘被保留。"}
           </p>
         ) : null}
         {/*
@@ -116,22 +121,22 @@ function PeoplePage() {
           is the opposite of what somebody looking for a colleague needs.
         */}
         <Input
-          aria-label="Search people"
+          aria-label={"搜索人员"}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or address"
+          placeholder={"按名称或地址搜索"}
           value={search}
         />
 
         {people.isPending ? null : people.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load people.
+            {"无法加载人员。"}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
             {query
-              ? `Nobody here matches "${query}".`
-              : "Nobody has signed in yet. People appear here once they do."}
+              ? `没有人匹配 "${query}"。`
+              : "尚未有人登录。人们登录后会出现在这里。"}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -154,7 +159,7 @@ function PeoplePage() {
                     <ItemContent>
                       <ItemTitle>{person.name ?? person.email}</ItemTitle>
                       <ItemDescription>
-                        {person.name ? `${person.email} · ` : ""}
+                        {person.name ? `${person.email} ·` : ""}
                         {describe(person)}
                       </ItemDescription>
                     </ItemContent>
@@ -170,7 +175,7 @@ function PeoplePage() {
                         size="sm"
                         variant="outline"
                       >
-                        Stop computers
+                        {"停止计算机"}
                       </Button>
                       <Button
                         disabled={busy || isSelf || person.configuredAdmin}
@@ -183,10 +188,10 @@ function PeoplePage() {
                         size="sm"
                         variant={person.revoked ? "outline" : "destructive"}
                       >
-                        {person.revoked ? "Restore" : "Remove"}
+                        {person.revoked ? "恢复" : "移除"}
                       </Button>
                       <Switch
-                        aria-label={`Administrator: ${person.email}`}
+                        aria-label={`管理员：${person.email}`}
                         checked={person.role === "admin"}
                         disabled={busy || person.configuredAdmin || isSelf}
                         onCheckedChange={(checked) =>
@@ -217,7 +222,7 @@ function PeoplePage() {
             size="sm"
             variant="outline"
           >
-            {people.isFetchingNextPage ? "Loading…" : "Show more"}
+            {people.isFetchingNextPage ? "正在加载…" : "显示更多"}
           </Button>
         ) : null}
       </PageSection>

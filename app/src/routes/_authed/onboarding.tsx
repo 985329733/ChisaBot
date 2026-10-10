@@ -32,7 +32,8 @@ function WelcomeStep() {
   return (
     <div className="w-full flex flex-col items-center justify-center">
       <h1 className="text-3xl font-semibold tracking-tight max-w-md text-center">
-        Welcome to {appConfig.brand.productName}
+        {"欢迎来到"}
+        {appConfig.brand.productName}
       </h1>
       <div className="h-32" />
       <AgentOrb size="72px" />
@@ -67,7 +68,7 @@ function ComputerUseStep() {
   return (
     <div className="w-full flex flex-col items-center justify-center">
       <h1 className="text-3xl font-semibold tracking-tight max-w-md text-center">
-        Each agent has its own computer
+        {"每个机器人都有自己的计算机"}
       </h1>
       <div className="h-8" />
       <div className="relative aspect-5/3 w-full max-w-lg rounded-2xl overflow-hidden border border-border">
@@ -116,7 +117,7 @@ function RosterStep() {
   return (
     <div className="w-full flex flex-col items-center justify-center">
       <h1 className="text-3xl font-semibold tracking-tight max-w-md text-center">
-        Choose from a variety of agents or create your own
+        {"从各种代理中选择或创建自己的"}
       </h1>
       <div className="h-8" />
       <div className="w-full max-w-lg overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -133,7 +134,9 @@ function RosterStep() {
                   {a.name}
                 </h3>
                 {a.example ? (
-                  <span className="text-xs text-muted-foreground">Example</span>
+                  <span className="text-xs text-muted-foreground">
+                    {"示例"}
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -142,7 +145,7 @@ function RosterStep() {
         <div className="bg-card p-4 rounded-lg flex flex-row gap-4 items-center">
           <div className="rounded-full size-[40px] border border-foreground/30 border-dashed" />
           <h3 className="line-clamp-1 text-base font-medium tracking-tight text-foreground/70">
-            Your own agent
+            {"您的代理"}
           </h3>
         </div>
       </div>
@@ -247,10 +250,10 @@ function RouteComponent() {
                   size="lg"
                 >
                   {complete.isPending
-                    ? "Saving…"
+                    ? "正在保存…"
                     : last
-                      ? "Get started"
-                      : "Continue"}
+                      ? "开始使用"
+                      : "继续"}
                 </Button>
                 {step !== 0 && (
                   <Button
@@ -259,7 +262,7 @@ function RouteComponent() {
                     variant="secondary"
                     size="lg"
                   >
-                    Back
+                    {"返回"}
                   </Button>
                 )}
               </motion.div>

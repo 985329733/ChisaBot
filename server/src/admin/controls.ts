@@ -78,7 +78,9 @@ export type EnterpriseDeps = {
   provider?: ComputerProvider;
   computerToken?: string;
   /** `provider/model` the built-in Bot runs on, for the model allowlist and usage view. */
-  builtInModel?: string;
+  builtInModel?: string | (() => Promise<string>);
+  /** Effective per-BOT model, sharing its request snapshot with runtime construction. */
+  builtInModelForAgent?: (agentId: string) => Promise<string>;
   /** Offboarding: ends sessions and deny-lists, and retires what a person granted. */
   people?: {
     revoke: (userId: string, by: string) => Promise<void>;
@@ -116,6 +118,19 @@ let installed: EnterpriseControls | undefined;
 /** The running controls, or undefined in a test or a script that never installed them. */
 export function enterpriseControls(): EnterpriseControls | undefined {
   return installed;
+}
+
+/** The current configured model, resolved once for each gate or admin request. */
+export async function resolveBuiltInModel(
+  deps: EnterpriseDeps,
+  agentId?: string,
+): Promise<string | undefined> {
+  if (agentId !== undefined && deps.builtInModelForAgent) {
+    return deps.builtInModelForAgent(agentId);
+  }
+  return typeof deps.builtInModel === "function"
+    ? deps.builtInModel()
+    : deps.builtInModel;
 }
 
 function refusal(matched: string, reason: string): PolicyDecision {
@@ -896,7 +911,9 @@ export async function headlessTurnRefusal(input: {
       .where(eq(agents.id, input.agentId))
       .limit(1);
     const model =
-      row?.type === "built_in" ? controls.deps.builtInModel : undefined;
+      row?.type === "built_in"
+        ? await resolveBuiltInModel(controls.deps, input.agentId)
+        : undefined;
     if (!model || allowlist.models.includes(model)) return null;
     await controls.store
       .recordModelUsage({
@@ -917,12 +934,11 @@ export async function headlessTurnRefusal(input: {
       payload: { model, source: "configured", headless: true },
     }).catch(() => undefined);
     return `This Bot runs on ${model}, which is not on this deployment's model allowlist. An administrator can add it.`;
-  } catch (error) {
+  } catch {
     console.error(
       JSON.stringify({
         type: "headless-capability-check-failed",
         agentId: input.agentId,
-        error: String(error),
       }),
     );
     return "This deployment's enterprise controls could not be checked, so the Bot did not run.";

@@ -1,5 +1,6 @@
 {
   "name": "@openbot/example-mastra-bot",
+  "description": "ChisaBot Mastra 接入示例",
   "private": true,
   "type": "module",
   "scripts": {

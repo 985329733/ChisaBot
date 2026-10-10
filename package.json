@@ -1,5 +1,6 @@
 {
-  "name": "openbot",
+  "name": "chisabot",
+  "description": "ChisaBot 中文自托管 AI 助手与 Magpie 模型集成",
   "version": "0.1.2",
   "license": "MIT",
   "private": true,

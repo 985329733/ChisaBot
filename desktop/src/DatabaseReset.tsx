@@ -29,7 +29,7 @@ export function DatabaseReset({
         Delete the previous installation’s data?
       </h2>
       <p>
-        This permanently deletes the local OpenBot database, including saved
+        This permanently deletes the local ChisaBot database, including saved
         chats, Bots, and settings. Only continue if you want a fresh
         installation and do not need that data.
       </p>

@@ -101,15 +101,17 @@ function IdentityProvidersPage() {
     <PageShell
       action={
         <Button onClick={() => setOpen(true)} size="lg">
-          Add a provider
+          {"添加提供者"}
         </Button>
       }
-      description="A company's own identity provider, by SAML or OpenID Connect. Somebody types their email address and the domain decides which one they are sent to."
-      title="Identity providers"
+      description={
+        "公司的自有身份提供程序，通过 SAML 或 OpenID Connect。某人键入他们的电子邮件地址，域决定发送到哪个。"
+      }
+      title={"身份提供者"}
     >
       <PageSection
-        description="Google, Microsoft and Okta are configured in the environment instead and do not appear here."
-        title="Registered"
+        description={"Google、Microsoft 和 Okta 已配置在环境中，不在此处显示。"}
+        title={"已注册"}
       >
         {failure ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -118,12 +120,11 @@ function IdentityProvidersPage() {
         ) : null}
         {providers.isPending ? null : providers.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load identity providers.
+            {"无法加载身份提供者。"}
           </p>
         ) : providers.data?.length === 0 ? (
           <PageEmpty>
-            No identity providers are registered. Add one with the metadata your
-            identity team supplied.
+            {"未注册身份提供者。请使用身份团队提供的元数据添加一个。"}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -148,7 +149,7 @@ function IdentityProvidersPage() {
                       variant="destructive"
                     >
                       <IconTrash />
-                      Remove
+                      {"移除"}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -162,7 +163,7 @@ function IdentityProvidersPage() {
       <Dialog onOpenChange={setOpen} open={open}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add an identity provider</DialogTitle>
+            <DialogTitle>{"添加身份提供商"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={submit}>
             <DialogBody className="mt-4 space-y-4 overflow-y-auto">
@@ -183,7 +184,7 @@ function IdentityProvidersPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="providerId">Name</Label>
+                <Label htmlFor="providerId">{"名称"}</Label>
                 <Input
                   id="providerId"
                   onChange={(event) =>
@@ -196,25 +197,24 @@ function IdentityProvidersPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="domain">Email domain</Label>
+                <Label htmlFor="domain">{"电子邮件域名"}</Label>
                 <Input
                   id="domain"
                   onChange={(event) =>
                     setDraft({ ...draft, domain: event.target.value })
                   }
-                  placeholder="acme.com"
+                  placeholder={"acme.com"}
                   required
                   value={draft.domain}
                 />
                 {/* Said out loud because it is the field that decides who this applies to. */}
                 <p className="text-muted-foreground text-xs">
-                  Anybody signing in with an address at this domain is sent
-                  here. Separate several with commas.
+                  {"使用此域地址登录的任何人都会被发送到这里。用逗号分隔多个。"}
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="issuer">Issuer</Label>
+                <Label htmlFor="issuer">{"发行人"}</Label>
                 <Input
                   id="issuer"
                   onChange={(event) =>
@@ -230,7 +230,7 @@ function IdentityProvidersPage() {
               {draft.protocol === "saml" ? (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="entryPoint">Sign-on URL</Label>
+                    <Label htmlFor="entryPoint">{"登录 URL"}</Label>
                     <Input
                       id="entryPoint"
                       onChange={(event) =>
@@ -243,28 +243,27 @@ function IdentityProvidersPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="metadata">Metadata XML</Label>
+                    <Label htmlFor="metadata">{"元数据 XML"}</Label>
                     <Textarea
                       className="font-mono text-xs"
                       id="metadata"
                       onChange={(event) =>
                         setDraft({ ...draft, metadata: event.target.value })
                       }
-                      placeholder="<EntityDescriptor …>"
+                      placeholder={"<EntityDescriptor …>"}
                       required
                       rows={6}
                       value={draft.metadata}
                     />
                     <p className="text-muted-foreground text-xs">
-                      The document your identity team supplied. It carries the
-                      signing certificate.
+                      {"您的身份团队提供的文档。它包含签名证书。"}
                     </p>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="clientId">Client ID</Label>
+                    <Label htmlFor="clientId">{"客户端 ID"}</Label>
                     <Input
                       id="clientId"
                       onChange={(event) =>
@@ -275,7 +274,7 @@ function IdentityProvidersPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="clientSecret">Client secret</Label>
+                    <Label htmlFor="clientSecret">{"客户端密钥"}</Label>
                     <Input
                       id="clientSecret"
                       onChange={(event) =>
@@ -307,10 +306,10 @@ function IdentityProvidersPage() {
                 type="button"
                 variant="outline"
               >
-                Cancel
+                {"取消"}
               </Button>
               <Button disabled={register.isPending} size="sm" type="submit">
-                {register.isPending ? "Adding…" : "Add"}
+                {register.isPending ? "正在添加…" : "添加"}
               </Button>
             </DialogFooter>
           </form>

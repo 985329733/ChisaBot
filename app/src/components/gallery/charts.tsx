@@ -25,7 +25,7 @@ const HEIGHT = 180;
 
 function formatNumber(value: number): string {
   if (Math.abs(value) >= 1000) {
-    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    return value.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
   }
   return String(Math.round(value * 100) / 100);
 }
@@ -34,7 +34,7 @@ function formatNumber(value: number): string {
 function Empty() {
   return (
     <p className="py-10 text-center text-sm text-muted-foreground">
-      There is no data to chart.
+      {"没有数据可绘制图表。"}
     </p>
   );
 }
@@ -399,52 +399,52 @@ export function ProgressChartCard({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showBarChart",
-    title: "Bar chart",
+    title: "柱状图",
     kind: "chart",
     description:
-      "Show values as a bar chart. Use when comparing a handful of named things, teams, months, categories. Not for a trend over time, which is showLineChart.",
+      "以柱状图显示值。用于比较少量命名事物、团队、月份、类别。不用于时间趋势，这是showLineChart。",
     parameters: BarChartProps,
     Component: BarChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Revenue by team",
-      caption: "Sales leads, and Engineering is closing the gap.",
+      title: "按团队收入",
+      caption: "销售线索，工程正在缩小差距。",
       points: [
-        { label: "Sales", value: 120 },
-        { label: "Engineering", value: 80 },
-        { label: "Support", value: 45 },
+        { label: "销售", value: 120 },
+        { label: "工程", value: 80 },
+        { label: "支持", value: 45 },
       ],
     },
     confirmation: "The bar chart is now on screen for the person.",
   },
   {
     name: "showPieChart",
-    title: "Donut chart",
+    title: "甜甜圈图",
     kind: "chart",
     description:
-      "Show how a whole is divided, as a donut with a legend. Use only when the parts sum to something meaningful, and prefer a bar chart above about six slices.",
+      "以甜甜圈图和图例显示整体分割。只在部分总和有意义时使用，六片以上优先柱状图。",
     parameters: PieChartProps,
     Component: PieChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Where the month went",
+      title: "月份去了哪里",
       points: [
-        { label: "Build", value: 48 },
-        { label: "Support", value: 26 },
-        { label: "Meetings", value: 26 },
+        { label: "构建", value: 48 },
+        { label: "支持", value: 26 },
+        { label: "会议", value: 26 },
       ],
     },
     confirmation: "The donut chart is now on screen for the person.",
   },
   {
     name: "showLineChart",
-    title: "Line chart",
+    title: "折线图",
     kind: "chart",
     description:
-      "Show one or more series over an ordered axis, usually time. Every series must have one value per label.",
+      "在有序轴上（通常是时间）显示一个或多个系列。每个系列必须在每个标签有一个值。",
     parameters: LineChartProps,
     Component: LineChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Signups",
-      caption: "Six weeks, one release.",
+      title: "注册",
+      caption: "六周一次发布。",
       labels: ["W1", "W2", "W3", "W4", "W5", "W6"],
       series: [{ name: "Signups", values: [120, 180, 160, 240, 300, 420] }],
     },
@@ -452,15 +452,15 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showAreaChart",
-    title: "Area chart",
+    title: "面积图",
     kind: "chart",
     description:
-      "The same as showLineChart with the area under each line filled. Use for volume or accumulation rather than for a rate.",
+      "与 showLineChart 相同，填充每条线下的区域。用于体积或累积，而不是用于比率。",
     parameters: AreaChartProps,
     Component: AreaChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Storage used",
-      caption: "Growing steadily since the migration.",
+      title: "存储使用",
+      caption: "自迁移以来稳步增长。",
       labels: ["Jan", "Feb", "Mar", "Apr", "May"],
       series: [{ name: "TB", values: [12, 19, 26, 31, 44] }],
     },
@@ -468,18 +468,18 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showProgress",
-    title: "Progress against target",
+    title: "进度与目标",
     kind: "chart",
     description:
-      "Show values against their targets as progress bars. Use for 'are we there yet' questions, budget spent against budget, done against planned.",
+      "以进度条显示值与目标。用于'是否已到达'问题、预算支出与预算、已完成与计划。",
     parameters: ProgressChartProps,
     Component: ProgressChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Migration to the new runtime",
-      caption: "Two services left.",
+      title: "迁移到新运行时",
+      caption: "还剩两个服务。",
       points: [
-        { label: "Services moved", value: 18, target: 20 },
-        { label: "Tests ported", value: 240, target: 240 },
+        { label: "服务已移动", value: 18, target: 20 },
+        { label: "测试已移植", value: 240, target: 240 },
       ],
     },
     confirmation: "The progress chart is now on screen for the person.",

@@ -48,7 +48,7 @@ export function GalleryPreview({
 }) {
   if (!available) {
     return (
-      <p className="text-muted-foreground text-sm">Loading what it can draw…</p>
+      <p className="text-muted-foreground text-sm">{"正在加载它可以绘制的…"}</p>
     );
   }
 
@@ -62,7 +62,7 @@ export function GalleryPreview({
   if (shown.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        This Bot has not been granted any components, so it answers in prose.
+        {"此机器人未被授予任何组件，因此它用散文回答。"}
       </p>
     );
   }
@@ -117,8 +117,7 @@ function PreviewOf({ name }: { name: string }) {
      */
     return (
       <p className="text-muted-foreground text-sm">
-        Draws this deployment's own records, so it has nothing to show until a
-        Bot asks for it.
+        {"绘制此部署的自身记录，因此在机器人请求之前它什么都不显示。"}
       </p>
     );
   }

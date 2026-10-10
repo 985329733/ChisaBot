@@ -12,25 +12,25 @@ import { silenceOf } from "../src/lib/audit/silence";
 describe("what a stalled turn says on the audit page", () => {
   test("names the silence and how much came before it", () => {
     expect(silenceOf({ silentForMs: 120_000, chunks: 14 })).toBe(
-      "Silent for 120s, after 14 chunks",
+      "已静默 120 秒，此前返回了 14 个数据块",
     );
   });
 
   test("says outright when nothing ever arrived", () => {
     expect(silenceOf({ silentForMs: 60_000, chunks: 0 })).toBe(
-      "Silent for 60s, having said nothing at all",
+      "已静默 60 秒，尚未返回任何内容",
     );
   });
 
   test("counts one chunk as one", () => {
     expect(silenceOf({ silentForMs: 60_000, chunks: 1 })).toBe(
-      "Silent for 60s, after 1 chunk",
+      "已静默 60 秒，此前返回了 1 个数据块",
     );
   });
 
   test("never says nought seconds, whatever the deployment configured", () => {
     expect(silenceOf({ silentForMs: 60, chunks: 0 })).toBe(
-      "Silent for 1s, having said nothing at all",
+      "已静默 1 秒，尚未返回任何内容",
     );
   });
 

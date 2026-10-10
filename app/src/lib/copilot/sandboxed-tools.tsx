@@ -104,7 +104,7 @@ function SandboxedTool({
 
       // Wait for complete arguments because sandbox source is injected once per keyed instance.
       if (props.status !== "complete") {
-        return <ToolLine label="Drawing" detail={component.name} running />;
+        return <ToolLine label={"绘制"} detail={component.name} running />;
       }
 
       return (
@@ -132,9 +132,7 @@ function SandboxedTool({
 
   useFrontendTool({
     name: component.name,
-    description:
-      description ??
-      `A component authored in this deployment: ${component.name}.`,
+    description: description ?? `此部署中编写的组件：${component.name}。`,
     parameters: parametersFor(component.argumentSchema),
     // Keep the hook mounted and hide revoked grants from the model to preserve hook order.
     available: isHeld,

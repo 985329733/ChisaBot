@@ -13,7 +13,7 @@ stream opens, says `RUN_STARTED`, says `STEP_STARTED`, and then simply stops. No
 reason, nothing to show. The whole of `OpenAIAuthenticationError: Error code: 401` went to the
 container's log, which is where the framework's own handler put it. Passing that experience through
 would leave somebody staring at a screen that stopped, so a run that produces no text is treated as
-a failure here, the sentence is OpenBot's own, and the container's log is fetched to fill the
+a failure here, the sentence is ChisaBot's own, and the container's log is fetched to fill the
 developer half, because otherwise there is no developer half at all.
 */
 
@@ -70,7 +70,7 @@ pub fn ask(endpoint: &str, token: &str, question: &str) -> Result<String, Proble
         .send()
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not reach the Bot it just set up.",
+                "ChisaBot could not reach the Bot it just set up.",
                 error.to_string(),
             )
         })?;
@@ -81,7 +81,7 @@ pub fn ask(endpoint: &str, token: &str, question: &str) -> Result<String, Proble
         // "check your API key" would send them to fix the wrong thing.
         return Err(Problem::with(
             if status == reqwest::StatusCode::UNAUTHORIZED {
-                "The Bot refused OpenBot's own request. Stop OpenBot and start it again."
+                "The Bot refused ChisaBot's own request. Stop ChisaBot and start it again."
             } else {
                 "The Bot could not answer."
             },
@@ -120,7 +120,7 @@ pub fn ask_mastra(
     let agent_id = agent_id.trim();
     if agent_id.is_empty() {
         return Err(Problem::plain(
-            "OpenBot cannot find the Mastra Bot it just set up. Stop OpenBot and start it again.",
+            "ChisaBot cannot find the Mastra Bot it just set up. Stop ChisaBot and start it again.",
         ));
     }
 
@@ -148,7 +148,7 @@ pub fn ask_mastra(
         .send()
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not reach the Bot it just set up.",
+                "ChisaBot could not reach the Bot it just set up.",
                 error.to_string(),
             )
         })?;
@@ -157,7 +157,7 @@ pub fn ask_mastra(
     if !status.is_success() {
         return Err(Problem::with(
             if status == reqwest::StatusCode::UNAUTHORIZED {
-                "The Bot refused OpenBot's own request. Stop OpenBot and start it again."
+                "The Bot refused ChisaBot's own request. Stop ChisaBot and start it again."
             } else {
                 "The Bot could not answer."
             },
@@ -179,7 +179,7 @@ fn read_response(
             if status.is_success() {
                 "The Bot started answering and then stopped. Its own record of what happened is below."
             } else if status == reqwest::StatusCode::UNAUTHORIZED {
-                "The Bot refused OpenBot's own request. Stop OpenBot and start it again."
+                "The Bot refused ChisaBot's own request. Stop ChisaBot and start it again."
             } else {
                 "The Bot could not answer."
             },
@@ -219,14 +219,14 @@ pub fn answer_in(body: &str) -> Option<String> {
 fn mastra_stream_url(endpoint: &str, agent_id: &str) -> Result<reqwest::Url, Problem> {
     let mut url = reqwest::Url::parse(endpoint.trim()).map_err(|error| {
         Problem::with(
-            "OpenBot cannot find the Bot it just set up. Stop OpenBot and start it again.",
+            "ChisaBot cannot find the Bot it just set up. Stop ChisaBot and start it again.",
             error.to_string(),
         )
     })?;
     url.path_segments_mut()
         .map_err(|_| {
             Problem::plain(
-                "OpenBot cannot find the Bot it just set up. Stop OpenBot and start it again.",
+                "ChisaBot cannot find the Bot it just set up. Stop ChisaBot and start it again.",
             )
         })?
         .clear()
@@ -288,7 +288,7 @@ pub fn why_nothing_came_back(log: &str) -> Problem {
     }
     if lower.contains("rate limit") || lower.contains("429") {
         return Problem::with(
-            "The model provider is asking OpenBot to slow down. Wait a minute and ask again.",
+            "The model provider is asking ChisaBot to slow down. Wait a minute and ask again.",
             log,
         );
     }

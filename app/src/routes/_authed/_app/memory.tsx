@@ -46,8 +46,8 @@ function MemoryPage() {
   });
   return (
     <PageShell
-      title="Memory"
-      description="Review what your Bots remember, and choose which connected apps can contribute facts."
+      title={"记忆"}
+      description={"查看机器人记住的内容，并选择哪些连接应用可贡献事实"}
     >
       <div className="grid gap-6">
         <SuggestionsInbox />
@@ -58,9 +58,9 @@ function MemoryPage() {
             remember.mutate(content);
           }}
         >
-          <h2 className="font-semibold">Remember a fact</h2>
+          <h2 className="font-semibold">{"记住一个事实"}</h2>
           <label className={field} htmlFor={formId}>
-            Something you want your Bots to know
+            {"您希望您的机器人知道的一些内容"}
           </label>
           <Textarea
             id={formId}
@@ -68,14 +68,14 @@ function MemoryPage() {
             maxLength={6000}
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder="I prefer meetings in the morning."
+            placeholder={"我喜欢早上开会"}
           />
           <Button
             type="submit"
             disabled={remember.isPending || !content.trim()}
             className="justify-self-start"
           >
-            Remember
+            {"记住"}
           </Button>
           {remember.error && (
             <p role="alert" className="text-destructive">
@@ -86,9 +86,9 @@ function MemoryPage() {
         <ProactiveResearchSettings />
         <Sources />
         <section className="grid gap-3">
-          <h2 className="font-semibold">Your memories</h2>
+          <h2 className="font-semibold">{"您的记忆"}</h2>
           {memories.isPending ? (
-            <p>Loading memories…</p>
+            <p>{"正在加载记忆…"}</p>
           ) : memories.error ? (
             <p role="alert" className="text-destructive">
               {memories.error.message}
@@ -98,7 +98,7 @@ function MemoryPage() {
               <MemoryCard key={memory.id} memory={memory} />
             ))
           ) : (
-            <p className="text-muted-foreground">You have no memories yet.</p>
+            <p className="text-muted-foreground">{"您还没有记忆。"}</p>
           )}
         </section>
       </div>
@@ -128,19 +128,20 @@ function MemoryCard({ memory }: { memory: MemoryRecord }) {
         </label>
         <span className="text-xs text-muted-foreground">
           {!memory.enabled
-            ? "Disabled"
+            ? "已禁用"
             : memory.reviewState === "unreviewed"
               ? memory.formedBy === "bot"
-                ? "Formed by your Bot · awaiting review"
-                : "Imported · awaiting review"
-              : "Reviewed"}
+                ? "由您的机器人创建 · 等待审核"
+                : "已导入 · 待审核"
+              : "已查看"}
         </span>
       </div>
       {memory.formedBy === "bot" && (
         <p className="text-xs text-muted-foreground">
-          From {memory.sourceApp ?? "a conversation"}
+          {"从"}
+          {memory.sourceApp ?? "一个会话"}
           {memory.observedAt
-            ? `, read ${new Date(memory.observedAt).toLocaleString()}`
+            ? `，读取 ${new Date(memory.observedAt).toLocaleString("zh-CN")}`
             : ""}
           {memory.sourceLink && (
             <>
@@ -151,7 +152,7 @@ function MemoryCard({ memory }: { memory: MemoryRecord }) {
                 target="_blank"
                 rel="noreferrer"
               >
-                Open record
+                {"打开记录"}
               </a>
             </>
           )}
@@ -169,7 +170,7 @@ function MemoryCard({ memory }: { memory: MemoryRecord }) {
           disabled={save.isPending || !content.trim()}
           onClick={() => save.mutate({ content })}
         >
-          Save
+          {"保存"}
         </Button>
         {memory.reviewState === "unreviewed" && (
           <Button
@@ -177,7 +178,7 @@ function MemoryCard({ memory }: { memory: MemoryRecord }) {
             variant="outline"
             onClick={() => save.mutate({ reviewState: "confirmed" })}
           >
-            Confirm
+            {"确认"}
           </Button>
         )}
         <Button
@@ -185,7 +186,7 @@ function MemoryCard({ memory }: { memory: MemoryRecord }) {
           variant="outline"
           onClick={() => save.mutate({ enabled: !memory.enabled })}
         >
-          {memory.enabled ? "Disable" : "Enable"}
+          {memory.enabled ? "禁用" : "启用"}
         </Button>
         <Button
           size="sm"
@@ -193,7 +194,7 @@ function MemoryCard({ memory }: { memory: MemoryRecord }) {
           disabled={forget.isPending}
           onClick={() => forget.mutate()}
         >
-          Forget
+          {"忘记"}
         </Button>
       </div>
       {(save.error || forget.error) && (
@@ -256,11 +257,11 @@ function Sources() {
   });
   return (
     <section className="grid gap-3">
-      <h2 className="font-semibold">Connected app sources</h2>
+      <h2 className="font-semibold">{"已连接应用来源"}</h2>
       <p className="text-sm text-muted-foreground">
-        Opt in to a read from an app your Bot can already access. Enabled
-        sources refresh every 15 minutes. Their facts are available to the
-        selected Bot.
+        {
+          "选择从您机器人已能访问的应用读取数据。已启用的源每15分钟刷新一次。其事实可供选定机器人使用。"
+        }
       </p>
       <form
         className="grid gap-3 rounded-lg border p-4"
@@ -277,7 +278,7 @@ function Sources() {
               ) {
                 const number = Number(value);
                 if (!Number.isFinite(number))
-                  throw new Error(`Enter a number for ${setting.name}.`);
+                  throw new Error(`为 ${setting.name} 输入一个数字。`);
                 values[setting.name] = number;
               } else if (setting.schema.type === "boolean")
                 values[setting.name] = value === "true";
@@ -287,9 +288,7 @@ function Sources() {
                   .map((entry) => entry.trim())
                   .filter(Boolean);
               else if (setting.schema.type === "object")
-                throw new Error(
-                  "Choose an action with simple search settings.",
-                );
+                throw new Error("选择一个带有简单搜索设置的操作。");
               else values[setting.name] = value;
             }
             setError("");
@@ -300,17 +299,13 @@ function Sources() {
               args: values,
             });
           } catch (cause) {
-            setError(
-              cause instanceof Error
-                ? cause.message
-                : "Check the source settings.",
-            );
+            setError(cause instanceof Error ? cause.message : "检查源设置。");
           }
         }}
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={field}>
-            Bot
+            {"机器人"}
             <select
               required
               className={select}
@@ -320,7 +315,7 @@ function Sources() {
                 setToolRef("");
               }}
             >
-              <option value="">Choose a Bot</option>
+              <option value="">{"选择一个机器人"}</option>
               {bots.data?.map((bot) => (
                 <option key={bot.id} value={bot.id}>
                   {bot.name}
@@ -329,7 +324,7 @@ function Sources() {
             </select>
           </label>
           <label className={field}>
-            Connected app action
+            {"已连接应用操作"}
             <select
               required
               className={select}
@@ -339,7 +334,7 @@ function Sources() {
                 setArgs({});
               }}
             >
-              <option value="">Choose a read action</option>
+              <option value="">{"选择一个读取操作"}</option>
               {tools.data?.map((tool) => (
                 <option key={tool.ref} value={tool.ref}>
                   {tool.title}
@@ -352,14 +347,14 @@ function Sources() {
           <p className="text-sm text-muted-foreground">{chosen.description}</p>
         )}
         <label className={field} htmlFor={`${id}-name`}>
-          Source name
+          {"来源名称"}
           <Input
             id={`${id}-name`}
             required
             maxLength={160}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="My project documents"
+            placeholder={"我的项目文档"}
           />
         </label>
         {settings.map(({ name, schema }) => (
@@ -376,7 +371,7 @@ function Sources() {
                   setArgs({ ...args, [name]: event.target.value })
                 }
               >
-                <option value="">Choose a value</option>
+                <option value="">{"选择一个值"}</option>
                 {(schema.enum ?? ["true", "false"]).map((value) => (
                   <option key={String(value)} value={String(value)}>
                     {String(value)}
@@ -410,7 +405,7 @@ function Sources() {
           className="justify-self-start"
           disabled={add.isPending || !toolRef}
         >
-          {add.isPending ? "Reading source…" : "Add and sync source"}
+          {add.isPending ? "正在读取源……" : "添加并同步源"}
         </Button>
         {(error || add.error || tools.error) && (
           <p role="alert" className="text-destructive">
@@ -430,14 +425,15 @@ function Sources() {
             <span className="text-sm text-muted-foreground">
               {source.enabled
                 ? source.syncStatus === "succeeded"
-                  ? "Up to date"
+                  ? "最新"
                   : source.syncStatus
-                : "Disabled"}
+                : "已禁用"}
             </span>
           </div>
           {source.lastSyncAt && (
             <p className="text-xs text-muted-foreground">
-              Last read {new Date(source.lastSyncAt).toLocaleString()}
+              {"最后读取"}
+              {new Date(source.lastSyncAt).toLocaleString("zh-CN")}
             </p>
           )}
           {source.syncError && (
@@ -454,7 +450,7 @@ function Sources() {
                 action.mutate({ sourceId: source.id, name: "sync" })
               }
             >
-              Sync now
+              {"立即同步"}
             </Button>
             <Button
               size="sm"
@@ -466,7 +462,7 @@ function Sources() {
                 })
               }
             >
-              {source.enabled ? "Disable" : "Enable"}
+              {source.enabled ? "禁用" : "启用"}
             </Button>
             <Button
               size="sm"
@@ -475,7 +471,7 @@ function Sources() {
                 action.mutate({ sourceId: source.id, name: "remove" })
               }
             >
-              Remove
+              {"移除"}
             </Button>
           </div>
         </article>

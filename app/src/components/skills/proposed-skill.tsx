@@ -60,7 +60,7 @@ export function ProposedSkillCard({
   if (result !== undefined) {
     return (
       <GalleryFrame
-        action={<Badge tone="neutral">Done</Badge>}
+        action={<Badge tone="neutral">{"完成"}</Badge>}
         title={titleFor(args.slug, replaces)}
       >
         <p className="text-sm">{result}</p>
@@ -74,7 +74,7 @@ export function ProposedSkillCard({
   if (!respond) {
     return (
       <GalleryFrame title={titleFor(args.slug, replaces)}>
-        <p className="text-sm text-muted-foreground">Writing the skill…</p>
+        <p className="text-sm text-muted-foreground">{"正在编写技能…"}</p>
       </GalleryFrame>
     );
   }
@@ -108,28 +108,28 @@ export function ProposedSkillCard({
 
   return (
     <GalleryFrame
-      action={<Badge tone="caution">Waiting on you</Badge>}
+      action={<Badge tone="caution">{"等待您"}</Badge>}
       caption={
         replaces
-          ? `This replaces ${replaces.title}, which is ${replaces.ownership}.`
-          : "Nothing is saved until you press the button."
+          ? `这将替换 ${replaces.title}，它是 ${replaces.ownership}。`
+          : "直到按下按钮才会保存任何内容。"
       }
       title={titleFor(values.slug, replaces)}
     >
       <dl className="grid grid-cols-[minmax(0,7rem)_1fr] gap-x-4 gap-y-1.5 text-sm">
-        <dt className="truncate text-muted-foreground">Command</dt>
+        <dt className="truncate text-muted-foreground">{"命令"}</dt>
         <dd className="min-w-0 break-words font-mono">/{values.slug}</dd>
-        <dt className="truncate text-muted-foreground">Title</dt>
+        <dt className="truncate text-muted-foreground">{"标题"}</dt>
         <dd className="min-w-0 break-words">{values.title}</dd>
         {values.summary ? (
           <>
-            <dt className="truncate text-muted-foreground">One-liner</dt>
+            <dt className="truncate text-muted-foreground">{"单行命令"}</dt>
             <dd className="min-w-0 break-words">{values.summary}</dd>
           </>
         ) : null}
         {values.tools.length > 0 ? (
           <>
-            <dt className="truncate text-muted-foreground">Needs</dt>
+            <dt className="truncate text-muted-foreground">{"需要"}</dt>
             <dd className="min-w-0 break-words font-mono text-xs">
               {values.tools.join(", ")}
             </dd>
@@ -137,7 +137,7 @@ export function ProposedSkillCard({
         ) : null}
       </dl>
 
-      <p className="mt-3 text-muted-foreground text-xs">Instructions</p>
+      <p className="mt-3 text-muted-foreground text-xs">{"指令"}</p>
       {/* Scrolled rather than clamped: this is the part worth reading before agreeing to it. */}
       <p className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
         {values.instructions}
@@ -145,8 +145,9 @@ export function ProposedSkillCard({
 
       {values.tools.length > 0 ? (
         <p className="mt-2 text-muted-foreground text-xs">
-          Naming a tool grants nothing. A Bot is offered these only if an
-          administrator has already granted them to it.
+          {
+            "命名工具不会授予任何权限。只有管理员已授予机器人这些工具时，机器人才能使用。"
+          }
         </p>
       ) : null}
 
@@ -162,11 +163,7 @@ export function ProposedSkillCard({
           onClick={() => void create()}
           size="sm"
         >
-          {sending === "save"
-            ? "Saving…"
-            : replaces
-              ? "Replace it"
-              : "Create it"}
+          {sending === "save" ? "正在保存…" : replaces ? "替换它" : "创建"}
         </Button>
         <Button
           disabled={Boolean(sending)}
@@ -174,7 +171,7 @@ export function ProposedSkillCard({
           size="sm"
           variant="outline"
         >
-          {sending === "decline" ? "…" : "Don't save"}
+          {sending === "decline" ? "…" : "不要保存"}
         </Button>
       </div>
     </GalleryFrame>
@@ -197,7 +194,7 @@ function PutItOnABot({ slug }: { slug: string }) {
       search={{ edit: slug }}
       to="/skills"
     >
-      Put it on a Bot
+      {"将其放在机器人上"}
     </Link>
   );
 }
@@ -232,12 +229,11 @@ function Unwritable({
 
   return (
     <GalleryFrame
-      action={<Badge tone="negative">Not saved</Badge>}
-      title="Skill"
+      action={<Badge tone="negative">{"未保存"}</Badge>}
+      title={"技能"}
     >
       <p className="text-sm">
-        The Bot's draft was not a valid skill, so nothing was saved. It has been
-        told what to fix.
+        {"机器人的草稿不是有效的技能，因此未保存任何内容。已告知如何修复。"}
       </p>
     </GalleryFrame>
   );

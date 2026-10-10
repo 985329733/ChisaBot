@@ -9,7 +9,7 @@
 //! vendor's command is the same call as reaching Mastra through Mastra's own bridge.
 //!
 //! AND NOTHING HAS TO BE INSTALLED FOR IT. The Claude Agent SDK ships a self-contained `claude`
-//! binary inside the Python package, so the harness image OpenBot already pulls has a working CLI
+//! binary inside the Python package, so the harness image ChisaBot already pulls has a working CLI
 //! at `_bundled/claude` and the person's machine needs no Node, no npm and no CLI of their own.
 //!
 //! The flow runs in that container, which is why the code is pasted rather than redirected. The
@@ -638,7 +638,7 @@ impl SigningInToChatGpt {
 
         let mut child = command.spawn().map_err(|error| {
             crate::problem::Problem::with(
-                "OpenBot could not start the sign-in with OpenAI.",
+                "ChisaBot could not start the sign-in with OpenAI.",
                 error.to_string(),
             )
         })?;
@@ -677,7 +677,7 @@ impl SigningInToChatGpt {
     not a thing to be almost sure about.
     */
     fn gave_up(&mut self) -> crate::problem::Problem {
-        let said = String::from("OpenBot could not start the sign-in with OpenAI.");
+        let said = String::from("ChisaBot could not start the sign-in with OpenAI.");
         let detail = self
             .output
             .lock()
@@ -763,7 +763,7 @@ pub fn chatgpt_store_in(output: &str) -> Option<String> {
 /// The address a browser has to open for the ChatGPT sign-in.
 ///
 /// Printed by the vendor's login as its fallback when `open_browser` is off, which is how this gets
-/// it: OpenBot opens the browser itself so the window can also show the link.
+/// it: ChisaBot opens the browser itself so the window can also show the link.
 pub fn openai_url_in(output: &str) -> Option<String> {
     plain(output)
         .split_whitespace()

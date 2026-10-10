@@ -96,9 +96,7 @@ export function HandoffResumeNotice({
     >
       <span>
         {problem ??
-          (busy
-            ? "Waiting for this browser handoff to finish."
-            : "A browser task is paused in this conversation.")}
+          (busy ? "等待此浏览器切换完成。" : "此会话中浏览器任务已暂停。")}
       </span>
       {busy ? (
         <button
@@ -106,7 +104,7 @@ export function HandoffResumeNotice({
           className="underline"
           onClick={() => controller.current?.abort()}
         >
-          Stop waiting
+          {"停止等待"}
         </button>
       ) : (
         <button
@@ -115,7 +113,7 @@ export function HandoffResumeNotice({
           disabled={!pending || agent.isRunning}
           onClick={() => void resume()}
         >
-          Resume task
+          {"恢复任务"}
         </button>
       )}
     </div>

@@ -36,7 +36,7 @@ export function teamBotsQueryOptions() {
     queryKey: teamBotKeys.all,
     queryFn: async (): Promise<TeamBotsData> => {
       const response = await client("/api/team-bots", {
-        fallback: "Team Bots could not be loaded.",
+        fallback: "团队机器人无法加载。",
       });
       return (await response.json()) as TeamBotsData;
     },
@@ -70,7 +70,7 @@ export function publishTeamBotMutationOptions(queryClient: QueryClient) {
       await client(path(botId, "/publication"), {
         method: "PUT",
         body,
-        fallback: "The Bot could not be published.",
+        fallback: "机器人无法发布。",
       });
     },
     onSettled: () => refresh(queryClient),
@@ -82,7 +82,7 @@ export function unpublishTeamBotMutationOptions(queryClient: QueryClient) {
     mutationFn: async (botId: string) => {
       await client(path(botId, "/publication"), {
         method: "DELETE",
-        fallback: "The Bot could not be unpublished.",
+        fallback: "机器人无法取消发布。",
       });
     },
     onSettled: () => refresh(queryClient),
@@ -103,7 +103,7 @@ export function assignTeamBotMutationOptions(queryClient: QueryClient) {
         {
           method: input.remove ? "DELETE" : "POST",
           ...(input.remove ? {} : { body: { group: input.group } }),
-          fallback: "The assignment could not be saved.",
+          fallback: "任务无法保存。",
         },
       );
     },
@@ -127,7 +127,7 @@ export function teamBotConsentMutationOptions() {
       await client(path(input.botId, "/consents"), {
         method: "POST",
         body: { serverId: input.serverId, decision: input.decision },
-        fallback: "Your answer could not be saved.",
+        fallback: "您的回答无法保存。",
       });
     },
   });
@@ -138,7 +138,7 @@ export function clearTeamBotConsentsMutationOptions() {
     mutationFn: async () => {
       await client("/api/team-bots/consents", {
         method: "DELETE",
-        fallback: "Your connector preferences could not be cleared.",
+        fallback: "您的连接器偏好无法清除。",
       });
     },
   });

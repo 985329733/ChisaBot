@@ -1,7 +1,7 @@
 # Model provider OAuth
 
-OpenBot's Google and xAI model connections are separate from signing in to
-OpenBot or CopilotKit. API keys remain available for both providers.
+ChisaBot's Google and xAI model connections are separate from signing in to
+ChisaBot or CopilotKit. API keys remain available for both providers.
 
 ## Google Gemini
 
@@ -34,7 +34,7 @@ When calling the Desktop workflow as a reusable workflow, pass its optional
 requests. Missing settings do not fail the build; API-key connections remain
 available, and Google sign-in requires a configured build or runtime settings.
 
-Do not reuse OpenBot's web SSO credentials (`GOOGLE_OAUTH_CLIENT_ID` and
+Do not reuse ChisaBot's web SSO credentials (`GOOGLE_OAUTH_CLIENT_ID` and
 `GOOGLE_OAUTH_CLIENT_SECRET`): their callback and permissions serve a different
 purpose. Configure the consent screen and test users, and complete Google's
 verification requirements before wider distribution.
@@ -44,8 +44,8 @@ References: [Gemini API OAuth](https://ai.google.dev/gemini-api/docs/oauth) and
 
 ## xAI
 
-xAI sign-in uses device authorization: OpenBot opens the provider's verification
-page, the user approves the displayed code, and OpenBot receives refreshable
+xAI sign-in uses device authorization: ChisaBot opens the provider's verification
+page, the user approves the displayed code, and ChisaBot receives refreshable
 credentials. API calls use `https://api.x.ai/v1`.
 
 The integration follows the public OAuth flow in xAI's endorsed OpenCode

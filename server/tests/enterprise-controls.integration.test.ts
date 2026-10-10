@@ -7,6 +7,7 @@ import { EMPTY } from "rxjs";
 import {
   type EnterpriseControls,
   guardDeliveryStore,
+  headlessTurnRefusal,
   installEnterpriseControls,
 } from "../src/admin/controls";
 import { createEnterpriseGate } from "../src/admin/gate";
@@ -36,6 +37,7 @@ import {
 } from "../src/db/schema";
 import { createTurnRunner } from "../src/routines/run-turn";
 import { createTeamBots } from "../src/team-bots/team-bots";
+import { withModelConnectionScope } from "../src/model-connection-context";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**
@@ -136,6 +138,7 @@ afterAll(async () => {
 
 function appFor(actor: { id: string; email: string; role: "admin" | "user" }) {
   const app = new Hono<{ Variables: AppVariables }>();
+  app.use("*", (_context, next) => withModelConnectionScope(next));
   const requireUser = async (
     context: Parameters<Parameters<typeof app.use>[1]>[0],
     next: () => Promise<void>,
@@ -323,6 +326,70 @@ describe("models", () => {
         (row: { model: string }) => row.model === "openai/gpt-test",
       ),
     ).toBe(true);
+  });
+
+  test("live configured models update the admin view, browser gate, unattended guard and audit", async () => {
+    const previous = controls.deps.builtInModel;
+    let current = "openai/gpt-test";
+    controls.deps.builtInModel = async () => current;
+    try {
+      await put(asAdmin, "/api/admin/enterprise/settings/modelAllowlist", {
+        value: { enabled: true, models: ["openai/gpt-test"] },
+      });
+      const run = () =>
+        asMember.request(`/api/copilotkit/agent/${bot}/run`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ threadId: "dynamic", runId: current }),
+        });
+      expect((await run()).status).toBe(200);
+      current = "anthropic/claude-new";
+      const view = await (
+        await asAdmin.request("/api/admin/enterprise")
+      ).json();
+      expect(view.builtInModel).toBe(current);
+      expect((await run()).status).toBe(403);
+      expect(
+        await headlessTurnRefusal({ ownerUserId: member.id, agentId: bot }),
+      ).toContain(current);
+      const usage = await database
+        .select()
+        .from(modelUsage)
+        .where(and(eq(modelUsage.agentId, bot), eq(modelUsage.model, current)));
+      expect(usage).toHaveLength(2);
+      expect(
+        usage.every(
+          (row) => row.source === "configured" && row.allowed === false,
+        ),
+      ).toBe(true);
+    } finally {
+      controls.deps.builtInModel = previous;
+    }
+  });
+
+  test("per-BOT selected models govern browser and background runs and record the selected ID", async () => {
+    const previous = controls.deps.builtInModelForAgent;
+    const selected = "openai/vendor/full/selected-model";
+    const resolved: string[] = [];
+    controls.deps.builtInModelForAgent = async (agentId) => { resolved.push(agentId); return selected; };
+    const run = () => asMember.request(`/api/copilotkit/agent/${bot}/run`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ threadId: "per-bot", runId: `per-bot-${randomUUID()}` }),
+    });
+    try {
+      await put(asAdmin, "/api/admin/enterprise/settings/modelAllowlist", { value: { enabled: true, models: ["openai/gpt-test"] } });
+      expect((await run()).status).toBe(403);
+      expect(await headlessTurnRefusal({ ownerUserId: member.id, agentId: bot })).toContain(selected);
+      await put(asAdmin, "/api/admin/enterprise/settings/modelAllowlist", { value: { enabled: true, models: [selected] } });
+      expect((await run()).status).toBe(200);
+      const usage = await database.select().from(modelUsage).where(and(eq(modelUsage.agentId, bot), eq(modelUsage.model, selected)));
+      expect(usage.map((row) => row.allowed).sort()).toEqual([false, false, true]);
+      expect(usage.every((row) => row.source === "configured")).toBe(true);
+      expect(resolved).toEqual([bot, bot, bot]);
+    } finally {
+      controls.deps.builtInModelForAgent = previous;
+      await put(asAdmin, "/api/admin/enterprise/settings/modelAllowlist", { value: { enabled: false, models: [] } });
+    }
   });
 });
 

@@ -26,11 +26,11 @@ export function ComputerControlButton({
           }
         }}
       >
-        {human ? "Hand back" : "Take control"}
+        {human ? "交还" : "接管控制"}
       </Button>
       {control?.transitioning ? (
         <span className="text-xs text-muted-foreground" role="status">
-          Finishing the current action…
+          {"正在完成当前操作…"}
         </span>
       ) : null}
       {problem ? (
@@ -74,18 +74,18 @@ export function ComputerChatControls({
       <Button
         size="sm"
         variant={open ? "secondary" : "ghost"}
-        aria-label={open ? "Close Computer" : "Open Computer"}
+        aria-label={open ? "关闭计算机" : "打开计算机"}
         aria-expanded={open}
         disabled={!computerId}
         onClick={() => onOpenChange(!open)}
       >
         <IconDeviceDesktop className="size-4" />
-        Computer
+        {"计算机"}
         {needsYou ? (
           <span
             className="size-2 rounded-full bg-amber-500"
             role="img"
-            aria-label="Needs you"
+            aria-label={"需要你"}
           />
         ) : null}
       </Button>

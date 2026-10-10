@@ -128,13 +128,15 @@ function RouteComponent() {
 
   return (
     <PageShell
-      backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-      description="Composio's own directory. Adding an app makes its tools available to grant; each person still connects their own account before any of them reads anything."
-      title="Browse Composio"
+      backButton={{ label: "插件", linkProps: { to: "/admin/plugins" } }}
+      description={
+        "Composio 自己的目录。添加应用使其工具可用于授权；每个人仍需连接自己的账号才能读取任何内容。"
+      }
+      title={"浏览 Composio"}
     >
       <PageSection
-        description="Search by name. The directory is too long to read, and nothing here has been reviewed by this deployment."
-        title="Apps"
+        description={"按名称搜索。目录太长无法阅读，此部署未审查任何内容。"}
+        title={"应用"}
       >
         {enableError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -143,10 +145,10 @@ function RouteComponent() {
         ) : null}
 
         <Input
-          aria-label="Search Composio apps"
+          aria-label={"搜索 Composio 应用"}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by app name"
+          placeholder={"按应用名称搜索"}
           value={search}
         />
 
@@ -159,14 +161,13 @@ function RouteComponent() {
              * thing an operator who reached this URL needs to read; the hardcoded line stays as
              * the fallback for a failure that arrived carrying no message of its own.
              */}
-            {apps.error.message ||
-              "Composio's app directory could not be read."}
+            {apps.error.message || "无法读取 Composio 的应用目录。"}
           </p>
         ) : listed.length === 0 ? (
           <PageEmpty>
             {query
-              ? `Nothing in Composio's directory matches "${query}".`
-              : "Composio returned no apps."}
+              ? `Composio 的目录中没有匹配 "${query}" 的内容。`
+              : "Composio 未返回任何应用。"}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -195,7 +196,7 @@ function RouteComponent() {
                       {/* The size of the decision, stated before it is made: an app is not one
                           tool, and "167 actions" is what says so. */}
                       <span className="text-muted-foreground text-xs">
-                        {entry.actionCount} actions
+                        {entry.actionCount} {"动作"}
                       </span>
                       {/*
                        * An app this deployment already has says so rather than offering Add again.
@@ -204,7 +205,7 @@ function RouteComponent() {
                        */}
                       {entry.enabled ? (
                         <span className="text-muted-foreground text-xs">
-                          Added
+                          {"已添加"}
                         </span>
                       ) : (
                         <Button
@@ -213,7 +214,7 @@ function RouteComponent() {
                           size="sm"
                           variant="outline"
                         >
-                          {isAdding ? "Adding…" : "Add"}
+                          {isAdding ? "正在添加…" : "添加"}
                         </Button>
                       )}
                     </ItemActions>

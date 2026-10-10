@@ -21,10 +21,10 @@ export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-sm text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
           <IconWaveform className="size-3.5" />
-          <span className="flex-1 font-medium">Voice chat</span>
+          <span className="flex-1 font-medium">{"语音聊天"}</span>
           {saving && (
             <IconLoader2
-              aria-label="Saving voice chat"
+              aria-label={"正在保存语音聊天"}
               className="size-3 motion-safe:animate-spin"
             />
           )}
@@ -35,7 +35,7 @@ export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
           {call.transcript.map((entry) => (
             <div key={entry.id}>
               <p className="mb-0.5 text-xs font-medium text-muted-foreground">
-                {entry.role === "user" ? "You" : "Agent"}
+                {entry.role === "user" ? "您" : "代理"}
               </p>
               <p className="whitespace-pre-wrap text-sm leading-relaxed">
                 {entry.text}
@@ -47,22 +47,22 @@ export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
       <p className="mt-1 text-sm leading-snug" aria-live="polite">
         {call.summary ??
           (saving
-            ? "Saving your conversation and preparing a summary…"
+            ? "正在保存您的会话并准备摘要…"
             : unsaved
-              ? "Couldn’t confirm this voice chat was saved."
-              : "Transcript saved. A summary couldn’t be generated.")}
+              ? "无法确认此语音聊天已保存。"
+              : "转录已保存。无法生成摘要。")}
       </p>
       {(unsaved || (!saving && call.summaryStatus === "failed")) && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
-            {call.saveError ?? "You can still expand the transcript."}
+            {call.saveError ?? "您仍可展开转录。"}
           </span>
           <Button
             size="xs"
             variant="ghost"
             onClick={() => saveVoiceSession(voiceSessionInput(call))}
           >
-            {unsaved ? "Retry save" : "Retry summary"}
+            {unsaved ? "重试保存" : "重试总结"}
           </Button>
         </div>
       )}

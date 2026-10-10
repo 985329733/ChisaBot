@@ -104,7 +104,7 @@ export function terminateMemberComputersMutationOptions() {
           `/api/admin/enterprise/people/${userId}/terminate-computers`,
           {
             method: "POST",
-            fallback: "Could not stop that person's computers",
+            fallback: "无法停止该人的电脑",
           },
         )
       ).json(),
@@ -117,7 +117,7 @@ export function terminateInactiveComputersMutationOptions() {
       (
         await client("/api/admin/enterprise/computers/terminate-inactive", {
           method: "POST",
-          fallback: "Could not sweep inactive computers",
+          fallback: "无法清理不活跃电脑",
         })
       ).json(),
   });

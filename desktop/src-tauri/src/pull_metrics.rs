@@ -260,7 +260,7 @@ fn run_with_progress(
         bytes,
     });
     let output = output.map_err(|error| {
-        Problem::plain(format!("Could not pull the images OpenBot needs: {error}"))
+        Problem::plain(format!("Could not pull the images ChisaBot needs: {error}"))
     })?;
     if output.status.success() {
         return Ok(());

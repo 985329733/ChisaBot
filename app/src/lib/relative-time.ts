@@ -6,7 +6,7 @@ const RELATIVE_UNITS = [
   { limit: Number.POSITIVE_INFINITY, divisor: 604_800_000, unit: "week" },
 ] as const;
 
-const relativeFormat = new Intl.RelativeTimeFormat(undefined, {
+const relativeFormat = new Intl.RelativeTimeFormat("zh-CN", {
   numeric: "auto",
 });
 

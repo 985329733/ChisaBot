@@ -1,12 +1,15 @@
 import {
+  IconBrain,
   IconBuildingBank,
   IconChevronRight,
   IconCode,
   IconDeviceDesktop,
+  IconExternalLink,
   IconFileText,
   IconKey,
   IconLayoutGrid,
   IconListDetails,
+  IconNetwork,
   IconPuzzle,
   IconShieldCheck,
   IconUsers,
@@ -30,6 +33,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { MAGPIE_ADMIN_URL } from "@/lib/magpie";
 
 export const Route = createFileRoute("/_authed/admin/")({
   component: RouteComponent,
@@ -44,110 +48,123 @@ export const Route = createFileRoute("/_authed/admin/")({
 const SECTIONS: {
   title: string;
   description: string;
-  items: {
+  items: ({
     description: string;
     icon: React.ComponentType<{ className?: string }>;
-    linkOptions: LinkOptions;
     title: string;
-  }[];
+  } & (
+    | { linkOptions: LinkOptions; href?: never }
+    | { href: string; linkOptions?: never }
+  ))[];
 }[] = [
   {
-    title: "What Bots can reach",
-    description:
-      "Everything a Bot can touch outside this app, and the limits on it.",
+    title: "机器人可以访问什么",
+    description: "机器人可以在此应用外部触及的一切，以及对其的限制。",
     items: [
       {
-        title: "Credentials",
-        description: "Keys and tokens held for this deployment.",
+        title: "模型设置",
+        description: "配置聊天模型、接口地址和 API Key，保存后即时生效。",
+        icon: IconBrain,
+        linkOptions: { to: "/admin/models" },
+      },
+      ...(MAGPIE_ADMIN_URL
+        ? [{
+            title: "Magpie 模型管理",
+            description: "管理模型供应商、模型与网关，在新标签页打开。",
+            icon: IconNetwork,
+            href: MAGPIE_ADMIN_URL,
+          }]
+        : []),
+      {
+        title: "凭据",
+        description: "为该部署持有的密钥和令牌。",
         icon: IconKey,
         linkOptions: { to: "/admin/credentials" },
       },
       {
-        title: "Boundaries",
-        description: "Rules that decide what a Bot may never do.",
+        title: "权限规则",
+        description: "决定机器人永远不能做什么的规则",
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
       {
-        title: "Computers",
-        description: "The machines Bots run their tools on.",
+        title: "计算机",
+        description: "机器人运行其工具的机器。",
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
       },
     ],
   },
   {
-    title: "What Bots can do",
-    description: "Capabilities and interface pieces available across Bots.",
+    title: "机器人可以做什么",
+    description: "跨机器人可用的能力和界面元素。",
     items: [
       {
-        title: "Plugins",
-        description:
-          "The services this deployment can reach, and which Bots may.",
+        title: "插件",
+        description: "此部署可以访问的服务，以及机器人可以访问的服务。",
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
       {
-        title: "Skills",
-        description: "Named instructions anybody can invoke with a slash.",
+        title: "技能",
+        description: "命名指令，任何人可用斜杠调用。",
         icon: IconFileText,
         linkOptions: { to: "/admin/skills" },
       },
       {
-        title: "Automatic Learning",
-        description:
-          "Learn from completed conversations and review proposed skills.",
+        title: "自动学习",
+        description: "从已完成的会话中学习并审查建议的技能。",
         icon: IconFileText,
         linkOptions: { to: "/admin/learning" },
       },
       {
-        title: "UI Components",
-        description: "Custom pieces a Bot can draw in a conversation.",
+        title: "UI 组件",
+        description: "Bot可以在对话中绘制的自定义片段。",
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
       {
-        title: "Playground",
-        description: "Write a component and watch it render as you type.",
+        title: "游乐场",
+        description: "编写组件并在输入时观看其渲染。",
         icon: IconCode,
         linkOptions: { to: "/admin/playground" },
       },
     ],
   },
   {
-    title: "Who can get in",
+    title: "谁可以进入",
     description: "",
     items: [
       {
-        title: "People",
+        title: "人员",
         description:
-          "Everybody who has signed in, who administers this deployment, and whose access has been removed.",
+          "所有已签入、负责此部署的人员，以及已被移除访问权限的人员。",
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
       },
       {
-        title: "Enterprise controls",
+        title: "企业控制",
         description:
-          "Capabilities by role and group, SSO required, SCIM, network policy, MCP and model allowlists, Action Recording.",
+          "按角色和组的能力，SSO必需，SCIM，网络策略，MCP和模型白名单，动作记录。",
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/enterprise" },
       },
       {
-        title: "Identity providers",
+        title: "身份提供者",
         description:
-          "A company's own SAML or OpenID Connect provider, routed by email domain.",
+          "公司的自有 SAML 或 OpenID Connect 提供程序，按电子邮件域路由。",
         icon: IconBuildingBank,
         linkOptions: { to: "/admin/identity-providers" },
       },
     ],
   },
   {
-    title: "What happened",
+    title: "发生了什么",
     description: "",
     items: [
       {
-        title: "Audit",
-        description: "Every action taken in this deployment, and by whom.",
+        title: "审计",
+        description: "此部署中采取的每个操作，以及由谁采取。",
         icon: IconListDetails,
         linkOptions: { to: "/admin/audit" },
       },
@@ -158,8 +175,10 @@ const SECTIONS: {
 function RouteComponent() {
   return (
     <PageShell
-      description="Settings that apply to everybody in this deployment. Anything here affects every person and every Bot, which is what separates it from your own preferences."
-      title="Admin"
+      description={
+        "适用于此部署中所有人的设置。此处的任何内容都会影响每个人和每个机器人，这与您的个人偏好不同。"
+      }
+      title={"管理员"}
     >
       {SECTIONS.map((section) => (
         <PageSection
@@ -175,7 +194,11 @@ function RouteComponent() {
                  * goes exactly one place, so there is nothing else the row could mean.
                  */}
                 <Item
-                  render={(props) => <Link {...item.linkOptions} {...props} />}
+                  render={(props) => item.href ? (
+                    <a {...props} href={item.href} target="_blank" rel="noopener noreferrer" />
+                  ) : (
+                    <Link {...item.linkOptions} {...props} />
+                  )}
                   size="sm"
                 >
                   <ItemMedia>
@@ -185,7 +208,11 @@ function RouteComponent() {
                     <ItemTitle>{item.title}</ItemTitle>
                     <ItemDescription>{item.description}</ItemDescription>
                   </ItemContent>
-                  <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  {item.href ? (
+                    <IconExternalLink className="size-4 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  )}
                 </Item>
                 {index !== section.items.length - 1 && <Separator />}
               </StaggerItem>

@@ -296,10 +296,10 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Read the page"
+          label={"读取页面"}
           detail={
             elements.length
-              ? `${elements.length} thing${elements.length === 1 ? "" : "s"} it can act on`
+              ? `${elements.length} 个可操作元素`
               : undefined
           }
         />
@@ -346,7 +346,7 @@ export function ComputerTools() {
     render: ({ args, result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Filled in"
+        label={"已填写"}
         detail={
           // Never show typed values; identify only the target field.
           labelOf(result) ??
@@ -390,7 +390,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Clicked"
+          label={"已点击"}
           detail={
             // Show refusal reason instead of an internal element ref.
             outcome.refused === true
@@ -439,7 +439,7 @@ export function ComputerTools() {
     render: ({ args, result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Pressed"
+        label={"已按下"}
         detail={typeof args?.key === "string" ? args.key : undefined}
         refused={outcomeOf(result).refused === true}
         failed={didNotWork(outcomeOf(result))}
@@ -607,13 +607,13 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Listed files"
+          label={"列出的文件"}
           detail={
             outcome.refused === true || didNotWork(outcome)
               ? String(outcome.reason ?? "")
               : entries.length
-                ? `${entries.length} item${entries.length === 1 ? "" : "s"} in the workspace`
-                : "nothing saved yet"
+                ? `工作区中有 ${entries.length} 项内容`
+                : "尚未保存任何内容"
           }
           refused={outcome.refused === true}
           failed={didNotWork(outcome)}
@@ -653,7 +653,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Read file"
+          label={"读取文件"}
           detail={
             outcome.refused === true
               ? String(outcome.reason ?? "")
@@ -730,7 +730,7 @@ export function ComputerTools() {
       return (
         <ToolLine
           running={status !== "complete"}
-          label="Ran a command"
+          label={"运行了命令"}
           detail={
             outcome.refused === true
               ? String(outcome.reason ?? "")
@@ -806,7 +806,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label={args?.append === true ? "Added to file" : "Saved file"}
+          label={args?.append === true ? "已添加到文件" : "已保存的文件"}
           // Show the path, never file contents.
           detail={
             outcome.refused === true
@@ -825,8 +825,7 @@ export function ComputerTools() {
   useFrontendTool({
     available,
     name: "computer_scroll",
-    description:
-      "Scroll the page down, or up with a negative amount, to bring more of a long page into view.",
+    description: "向下滚动页面，或向上滚动负量，以查看长页面的更多内容。",
     parameters: z.object({
       deltaY: z
         .number()
@@ -849,7 +848,7 @@ export function ComputerTools() {
     render: ({ result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Scrolled"
+        label={"已滚动"}
         refused={outcomeOf(result).refused === true}
         failed={didNotWork(outcomeOf(result))}
       />

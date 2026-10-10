@@ -273,6 +273,6 @@ if (import.meta.main) {
   });
 
   console.log(
-    `OpenBot app on http://127.0.0.1:${PORT} and http://[::1]:${PORT}`,
+    `ChisaBot app on http://127.0.0.1:${PORT} and http://[::1]:${PORT}`,
   );
 }

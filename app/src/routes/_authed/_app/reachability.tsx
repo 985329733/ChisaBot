@@ -97,8 +97,10 @@ function ReachabilityPage() {
     deviceRemove.error;
   return (
     <PageShell
-      title="Reachability"
-      description="Continue a conversation in Slack, Microsoft Teams, by text message, or on your phone. Questions and approval requests reach the same person who owns the conversation."
+      title={"可达性"}
+      description={
+        "在 Slack、Microsoft Teams、通过短信或手机继续对话。问题和审批请求会发送到拥有对话的同一人。"
+      }
     >
       <div className="grid gap-5">
         {error && (
@@ -107,9 +109,9 @@ function ReachabilityPage() {
           </p>
         )}
         <div className="grid gap-3 rounded-lg border p-4">
-          <h2 className="font-semibold">Connect a conversation</h2>
+          <h2 className="font-semibold">{"连接一个会话"}</h2>
           <label className="grid gap-1 text-sm">
-            Conversation
+            {"对话"}
             <select
               className="h-9 rounded border bg-background px-3"
               value={channelId}
@@ -118,7 +120,7 @@ function ReachabilityPage() {
                 setAgentId("");
               }}
             >
-              <option value="">Choose a conversation</option>
+              <option value="">{"选择一个对话"}</option>
               {channels.data
                 ?.filter((channel) => channel.active)
                 .map((channel) => (
@@ -129,13 +131,13 @@ function ReachabilityPage() {
             </select>
           </label>
           <label className="grid gap-1 text-sm">
-            Bot
+            {"机器人"}
             <select
               className="h-9 rounded border bg-background px-3"
               value={agentId}
               onChange={(event) => setAgentId(event.target.value)}
             >
-              <option value="">Choose a Bot</option>
+              <option value="">{"选择一个机器人"}</option>
               {selected?.agentIds.map((id) => (
                 <option key={id} value={id}>
                   {botName(id)}
@@ -145,7 +147,7 @@ function ReachabilityPage() {
           </label>
           {channels.hasNextPage && (
             <Button variant="outline" onClick={() => channels.fetchNextPage()}>
-              Load more conversations
+              {"加载更多会话"}
             </Button>
           )}
           <div className="flex flex-wrap gap-2">
@@ -155,7 +157,7 @@ function ReachabilityPage() {
               }
               onClick={() => link.mutate("slack")}
             >
-              Link Slack
+              {"链接 Slack"}
             </Button>
             <Button
               variant="outline"
@@ -164,16 +166,17 @@ function ReachabilityPage() {
               }
               onClick={() => link.mutate("teams")}
             >
-              Link Microsoft Teams
+              {"链接 Microsoft Teams"}
             </Button>
           </div>
           {link.data && (
             <div className="grid gap-2 rounded border bg-muted/40 p-3 text-sm">
               <p>
-                Send this message to the OpenBot app in{" "}
+                {"将此消息发送到 ChisaBot 应用中的"}{" "}
                 {link.data.platform === "teams" ? "Microsoft Teams" : "Slack"}{" "}
-                within {link.data.expiresInMinutes} minutes. It links that
-                account to this conversation and Bot.
+                {"在...内"}
+                {link.data.expiresInMinutes}{" "}
+                {"分钟。它将该账号链接到此会话和机器人。"}
               </p>
               <div className="flex items-center gap-2">
                 <code className="min-w-0 flex-1 break-all rounded bg-background px-2 py-1">
@@ -189,19 +192,19 @@ function ReachabilityPage() {
                     setCopied(true);
                   }}
                 >
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? "已复制" : "复制"}
                 </Button>
               </div>
             </div>
           )}
           <p className="text-sm text-muted-foreground">
-            In a channel other people can read, the Bot answers you in a direct
-            message instead.
+            {"在其他人可阅读的会话中，机器人会以私信方式回复你"}
           </p>
           {reach.data && !reach.data.available.slack && (
             <p className="text-sm text-muted-foreground">
-              An administrator needs to pair OpenBot with OpenTag before Slack
-              or Teams can be linked.
+              {
+                "管理员需要先将 ChisaBot 与 OpenTag 配对，才能将 Slack 或 Teams 链接起来。"
+              }
             </p>
           )}
           <form
@@ -212,7 +215,7 @@ function ReachabilityPage() {
             }}
           >
             <label htmlFor="delivery-phone" className="grid gap-1 text-sm">
-              Phone number
+              {"电话号码"}
               <Input
                 id="delivery-phone"
                 type="tel"
@@ -227,7 +230,7 @@ function ReachabilityPage() {
               type="submit"
               disabled={!agentId || !reach.data?.available.sms || sms.isPending}
             >
-              Send verification code
+              {"发送验证码"}
             </Button>
           </form>
           {challengeId && (
@@ -239,22 +242,22 @@ function ReachabilityPage() {
               }}
             >
               <Input
-                aria-label="Verification code"
+                aria-label={"验证码"}
                 autoComplete="one-time-code"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
                 required
               />
               <Button type="submit" disabled={confirm.isPending}>
-                Confirm phone
+                {"确认电话"}
               </Button>
             </form>
           )}
         </div>
         <section className="grid gap-3 rounded-lg border p-4">
-          <h2 className="font-semibold">Connected destinations</h2>
+          <h2 className="font-semibold">{"已连接目的地"}</h2>
           {reach.isPending ? (
-            <p>Loading connections…</p>
+            <p>{"正在加载连接器…"}</p>
           ) : (
             reach.data?.bindings
               .filter((binding) => binding.enabled)
@@ -269,7 +272,7 @@ function ReachabilityPage() {
                       : binding.transport === "teams"
                         ? "Microsoft Teams"
                         : binding.optedOutAt
-                          ? `${binding.address} (replied STOP; text START to resume)`
+                          ? `${binding.address} (回复 STOP；发送 START 恢复)`
                           : binding.address}{" "}
                     · {botName(binding.agentId)}
                   </p>
@@ -279,22 +282,19 @@ function ReachabilityPage() {
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(binding.id)}
                   >
-                    Disconnect
+                    {"断开连接"}
                   </Button>
                 </div>
               ))
           )}
           {reach.data?.bindings.every((binding) => !binding.enabled) && (
-            <p className="text-sm text-muted-foreground">
-              No destinations connected.
-            </p>
+            <p className="text-sm text-muted-foreground">{"未连接目的地。"}</p>
           )}
         </section>
         <section className="grid gap-3 rounded-lg border p-4">
-          <h2 className="font-semibold">Native devices</h2>
+          <h2 className="font-semibold">{"原生设备"}</h2>
           <p className="text-sm text-muted-foreground">
-            Sign in to the OpenBot native app and enable notifications to
-            register your device.
+            {"登录 ChisaBot 原生应用并启用通知以注册设备。"}
           </p>
           {reach.data?.devices.map((device) => (
             <div key={device.id} className="flex items-center justify-between">
@@ -305,18 +305,18 @@ function ReachabilityPage() {
                 disabled={deviceRemove.isPending}
                 onClick={() => deviceRemove.mutate(device.id)}
               >
-                Remove device
+                {"移除设备"}
               </Button>
             </div>
           ))}
         </section>
         <section className="grid gap-2 rounded-lg border p-4">
-          <h2 className="font-semibold">Recent deliveries</h2>
+          <h2 className="font-semibold">{"最近交付"}</h2>
           {reach.data?.deliveries.map((delivery) => (
             <div key={delivery.id} className="border-t pt-2 text-sm">
               <p>
                 {delivery.transport} · {delivery.kind} · {delivery.state} ·{" "}
-                {new Date(delivery.createdAt).toLocaleString()}
+                {new Date(delivery.createdAt).toLocaleString("zh-CN")}
               </p>
               {delivery.error && (
                 <p className="text-destructive">{delivery.error}</p>
@@ -324,7 +324,7 @@ function ReachabilityPage() {
             </div>
           ))}
           {reach.data?.deliveries.length === 0 && (
-            <p className="text-sm text-muted-foreground">No deliveries yet.</p>
+            <p className="text-sm text-muted-foreground">{"暂无交付。"}</p>
           )}
         </section>
       </div>

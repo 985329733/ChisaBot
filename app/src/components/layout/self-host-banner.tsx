@@ -32,7 +32,7 @@ export function SelfHostBanner() {
 
   return (
     <aside
-      aria-label="Self-host OpenBot"
+      aria-label={"自托管 ChisaBot"}
       className="flex shrink-0 flex-wrap items-center gap-x-2 border-b border-border bg-muted/60 px-4 py-1.5 text-sm"
     >
       {/*
@@ -43,9 +43,7 @@ export function SelfHostBanner() {
        * Wraps rather than truncates, so a phone reads the whole sentence. The link and Dismiss stay
        * together and drop to the next line as one, which keeps Dismiss on the left there too.
        */}
-      <p className="text-foreground">
-        Self-host OpenBot for your organization.
-      </p>
+      <p className="text-foreground">{"为您的组织自托管 ChisaBot。"}</p>
       <span className="flex items-center gap-2">
         {/* An anchor, not Button: Base UI gives a rendered anchor role="button", and this is a link. */}
         <a
@@ -58,10 +56,10 @@ export function SelfHostBanner() {
           rel="noopener noreferrer"
           target="_blank"
         >
-          Talk to an engineer
+          {"联系工程师"}
         </a>
         <Button
-          aria-label="Dismiss"
+          aria-label={"关闭"}
           onClick={() => dismiss.mutate()}
           size="icon-xs"
           variant="ghost"

@@ -83,7 +83,7 @@ export function agentCapabilitiesQueryOptions() {
     queryKey: agentKeys.capabilities(),
     queryFn: (): Promise<AgentCapabilities> =>
       client("/api/agents/capabilities", "capabilities", {
-        fallback: "Could not load what this deployment supports",
+        fallback: "无法加载此部署支持的内容",
       }),
     // Deployment configuration, not data: it cannot change without the server restarting.
     staleTime: Number.POSITIVE_INFINITY,
@@ -118,7 +118,7 @@ export function agentListQueryOptions(hidden = false) {
     queryKey: agentKeys.list(hidden),
     queryFn: (): Promise<AgentProfile[]> =>
       client(`/api/agents${hidden ? "?hidden=true" : ""}`, "agents", {
-        fallback: "Could not load coworkers",
+        fallback: "无法加载 AI 同事",
       }),
   });
 }
@@ -133,7 +133,7 @@ export function agentQueryOptions(agentId: string) {
     queryKey: agentKeys.detail(agentId),
     queryFn: (): Promise<AgentProfile> =>
       client(agentApiPath(agentId), "agent", {
-        fallback: "Could not load this coworker",
+        fallback: "无法加载此AI同事",
       }),
   });
 }
@@ -143,7 +143,7 @@ export function agentHandoffQueryOptions(agentId: string) {
     queryKey: agentKeys.handoff(agentId),
     queryFn: (): Promise<HandoffGrants> =>
       client(`${agentApiPath(agentId)}/handoff`, "handoff", {
-        fallback: "Could not load which Bots this one may ask",
+        fallback: "无法加载此机器人可询问哪些机器人",
       }),
   });
 }

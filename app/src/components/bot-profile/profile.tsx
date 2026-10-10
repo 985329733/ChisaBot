@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
+import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { PageRows, PageSection } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,24 +60,24 @@ const NOTIFY_LABEL: Record<BotNotify, string> = {
 
 const KIND_LABEL: Record<UpdateKind, { title: string; description: string }> = {
   progress: {
-    title: "Progress",
-    description: "Replies and results from work you were not watching.",
+    title: "进度",
+    description: "您未关注的工作的回复和结果。",
   },
   decision: {
-    title: "Decisions",
-    description: "Approvals a Bot needs before it acts.",
+    title: "决策",
+    description: "机器人执行前需要的审批。",
   },
   question: {
-    title: "Questions",
-    description: "Things a Bot asked you and is waiting on.",
+    title: "问题",
+    description: "机器人向您询问并等待的内容。",
   },
 };
 
 const TRANSPORTS: { id: UpdateTransport; label: string }[] = [
-  { id: "push", label: "Push" },
+  { id: "push", label: "推送" },
   { id: "slack", label: "Slack" },
   { id: "teams", label: "Microsoft Teams" },
-  { id: "sms", label: "SMS" },
+  { id: "sms", label: "短信" },
 ];
 
 const selectClass = "h-8 rounded-md border bg-background px-2 text-sm";
@@ -118,27 +119,33 @@ function ResetDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reset {agent.name}?</DialogTitle>
+          <DialogTitle>
+            {"重置"}
+            {agent.name}?
+          </DialogTitle>
           <DialogDescription>
-            This deletes what {agent.name} has with you, and only with you.
-            Nobody else's conversations or data are touched. It cannot be
-            undone.
+            {"此操作将删除什么"}
+            {agent.name}{" "}
+            {"与您有，仅与您。没有人触及其他人的对话或数据。这不可撤销。"}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="mt-4 overflow-y-auto">
           {plan.isPending ? null : plan.error ? (
             <p className="text-destructive text-sm" role="alert">
-              Could not count what a reset would delete.
+              {"无法计算重置会删除的内容。"}
             </p>
           ) : reset.isSuccess ? (
-            <p className="text-sm">Done. {agent.name} starts fresh with you.</p>
+            <p className="text-sm">
+              {"完成。"}
+              {agent.name} {"与你重新开始。"}
+            </p>
           ) : (
             <div className="grid gap-2 text-sm">
               {lines.length === 0 ? (
-                <p>There is nothing of yours to delete.</p>
+                <p>{"没有您的可删除内容。"}</p>
               ) : (
                 <>
-                  <p>This will delete:</p>
+                  <p>{"这将删除："}</p>
                   <ul className="list-disc pl-5">
                     {lines.map((line) => (
                       <li key={line}>{line}</li>
@@ -148,13 +155,13 @@ function ResetDialog({
               )}
               {plan.data.sharedConversationsKept > 0 ? (
                 <p className="text-muted-foreground">
-                  {plan.data.sharedConversationsKept} conversation
-                  {plan.data.sharedConversationsKept === 1 ? " is" : "s are"}{" "}
-                  shared with other people or Bots and will be kept.
+                  {plan.data.sharedConversationsKept} {"对话"}
+                  {plan.data.sharedConversationsKept === 1 ? "是" : "运行中"}{" "}
+                  {"与其他人或机器人共享并将被保留。"}
                 </p>
               ) : null}
               <p className="text-muted-foreground">
-                Your own memories, the ones you told a Bot directly, are kept.
+                {"您自己的记忆，即您直接告诉机器人的那些记忆，被保留。"}
               </p>
             </div>
           )}
@@ -170,7 +177,7 @@ function ResetDialog({
             size="sm"
             variant="outline"
           >
-            {reset.isSuccess ? "Close" : "Cancel"}
+            {reset.isSuccess ? "关闭" : "取消"}
           </Button>
           {reset.isSuccess ? null : (
             <Button
@@ -179,7 +186,7 @@ function ResetDialog({
               size="sm"
               variant="destructive"
             >
-              {reset.isPending ? "Resetting…" : "Delete and reset"}
+              {reset.isPending ? "正在重置…" : "删除并重置"}
             </Button>
           )}
         </DialogFooter>
@@ -193,12 +200,14 @@ function UpdateRoutingSection() {
   const save = useMutation(setUpdateRoutingMutationOptions(queryClient));
   return (
     <PageSection
-      description="Where each kind of update goes when you are not looking. The web always shows everything. Applies to all your Bots."
-      title="Where updates go"
+      description={
+        "当您不在时，每种更新去哪里。网页总是显示一切。适用于所有您的机器人。"
+      }
+      title={"更新去哪里"}
     >
       {routing.isPending ? null : routing.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Could not load where your updates go.
+          {"无法加载更新去向。"}
         </p>
       ) : (
         <PageRows>
@@ -226,7 +235,7 @@ function UpdateRoutingSection() {
                         key={transport.id}
                       >
                         <Switch
-                          aria-label={`${KIND_LABEL[kind].title} by ${transport.label}`}
+                          aria-label={`${KIND_LABEL[kind].title} 由 ${transport.label}`}
                           checked={allowed(transport.id)}
                           disabled={save.isPending}
                           onCheckedChange={(checked) => {
@@ -289,10 +298,14 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
         <BotPausedBanner agentId={agent.id} />
       </div>
 
-      <PageSection title="For you">
+      <PageSection title="模型设置" description="此 BOT 的模型与聊天输入框保持同步。">
+        <PageRows><Item size="sm"><ItemContent><BotModelSelector agentId={agent.id} /></ItemContent></Item></PageRows>
+      </PageSection>
+
+      <PageSection title={"为您"}>
         {lifecycle.isPending ? null : lifecycle.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load this Bot's state.
+            {"无法加载此机器人的状态。"}
           </p>
         ) : (
           <PageRows>
@@ -301,16 +314,16 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                 <IconPlayerPause />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>Paused</ItemTitle>
+                <ItemTitle>{"已暂停"}</ItemTitle>
                 <ItemDescription>
                   {lifecycle.data.paused
-                    ? "No routine, responsibility, hand-off or follow-up starts for you, and what was running has stopped."
-                    : "Runs its routines, responsibilities, hand-offs and follow-ups for you."}
+                    ? "您没有定时任务、长期任务、移交或后续任务开始运行，已运行的已停止。"
+                    : "为您运行定时任务、长期任务、交接和后续工作。"}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <Switch
-                  aria-label="Paused"
+                  aria-label={"已暂停"}
                   checked={lifecycle.data.paused}
                   disabled={pause.isPending}
                   onCheckedChange={(paused) =>
@@ -325,15 +338,15 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                 <IconBell />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>Notifications</ItemTitle>
+                <ItemTitle>{"通知"}</ItemTitle>
                 <ItemDescription>
-                  {NOTIFY_LABEL[lifecycle.data.notify]}. Sidebar badges always
-                  show.
+                  {NOTIFY_LABEL[lifecycle.data.notify]}
+                  {". 侧边栏徽章始终显示。"}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <select
-                  aria-label="Notifications"
+                  aria-label={"通知"}
                   className={selectClass}
                   disabled={notify.isPending}
                   onChange={(event) =>
@@ -360,10 +373,9 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                     <IconBell />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>Browser notifications</ItemTitle>
+                    <ItemTitle>{"浏览器通知"}</ItemTitle>
                     <ItemDescription>
-                      Off in this browser. Turn them on to hear when a Bot needs
-                      you.
+                      {"此浏览器中关闭。打开它们以在机器人需要您时听到。"}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -378,7 +390,7 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                       size="sm"
                       variant="outline"
                     >
-                      Turn on
+                      {"开启"}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -393,8 +405,11 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                 <IconMessage />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>Message {agent.name}</ItemTitle>
-                <ItemDescription>Start a conversation.</ItemDescription>
+                <ItemTitle>
+                  {"消息"}
+                  {agent.name}
+                </ItemTitle>
+                <ItemDescription>{"开始对话。"}</ItemDescription>
               </ItemContent>
             </Item>
             <Separator />
@@ -408,10 +423,11 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                 <IconRefresh />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>Reset</ItemTitle>
+                <ItemTitle>{"重置"}</ItemTitle>
                 <ItemDescription>
-                  Delete your conversations with it, what it remembers for you,
-                  and its scheduled work. You see what will go first.
+                  {
+                    "删除与它的对话、它记住的内容以及它的定时任务。你可以看到先删除什么。"
+                  }
                 </ItemDescription>
               </ItemContent>
             </Item>

@@ -84,7 +84,7 @@ export function AttachmentStrip({
     <Collapse open={occupied}>
       <ul
         aria-hidden={!occupied}
-        aria-label="Attachments"
+        aria-label={"附件"}
         className="flex flex-wrap items-start gap-2 pb-3"
       >
         {images.map((image) => (
@@ -100,13 +100,13 @@ export function AttachmentStrip({
                * region, and a paste of eight images would interrupt eight times to say so.
                */
               <Skeleton
-                aria-label={`${image.alt ?? "Attachment"}, uploading`}
+                aria-label={`${image.alt ?? "附件"}，正在上传`}
                 className="size-20 rounded-xl"
                 role="img"
               />
             ) : (
               <img
-                alt={image.alt ?? "Attachment"}
+                alt={image.alt ?? "附件"}
                 className="size-20 rounded-xl border border-border object-cover"
                 src={image.url}
               />
@@ -138,7 +138,7 @@ export function AttachmentStrip({
                 {file.name}
               </p>
               {file.loading ? (
-                <p className="text-muted-foreground text-xs">Uploading…</p>
+                <p className="text-muted-foreground text-xs">{"上传中…"}</p>
               ) : file.size === undefined ? null : (
                 /*
                  * ON THE SIZE LINE, NOT UNDER IT, AND THAT IS A LAYOUT CONSTRAINT RATHER THAN A
@@ -157,12 +157,12 @@ export function AttachmentStrip({
                   className="truncate text-muted-foreground text-xs"
                   title={
                     file.mayTruncate === true
-                      ? "The model reads the first 120,000 characters of this file."
+                      ? "该模型读取此文件的头 120,000 个字符。"
                       : undefined
                   }
                 >
                   {formatBytes(file.size)}
-                  {file.mayTruncate === true ? " · may be cut" : null}
+                  {file.mayTruncate === true ? "· 可能被截断" : null}
                 </p>
               )}
             </div>
@@ -225,7 +225,7 @@ function RemoveButton({
 }) {
   return (
     <button
-      aria-label={`Remove ${name}`}
+      aria-label={`移除 ${name}`}
       className="absolute top-1 right-1 grid size-5 place-items-center rounded-full border border-border bg-background/90 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
       onClick={onRemove}
       type="button"

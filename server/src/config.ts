@@ -1,8 +1,4 @@
-/**
- * What the runtime can do. There is exactly one answer because CopilotKit Intelligence is required
- * for durable threads and memory. Configuration the product cannot function without belongs at the
- * boot boundary.
- */
+/** Runtime storage is chosen explicitly at the boot boundary. */
 import {
   isLearningContainerId,
   type LearningTarget,
@@ -18,11 +14,17 @@ import {
 } from "./dictation/config";
 import { type VoiceConfig, voiceConfig } from "./voice/config";
 
-export type RuntimeCapabilities = {
-  mode: "intelligence";
-  durableHistory: true;
-  intelligence: IntelligenceSettings;
-};
+export type RuntimeCapabilities =
+  | {
+      mode: "intelligence";
+      durableHistory: true;
+      intelligence: IntelligenceSettings;
+    }
+  | {
+      mode: "local";
+      durableHistory: true;
+      intelligence?: never;
+    };
 
 /**
  * The Intelligence contract. Three values are required; see runtimeCapabilities.
@@ -878,20 +880,13 @@ function oktaAuth(
   return { ...client, issuer };
 }
 
-/**
- * Resolve the Intelligence contract, or refuse to start.
- *
- * The three addressing values are required together. A partial set is the more dangerous shape than
- * none at all: it means somebody intended to configure Intelligence and got it wrong, so failing on
- * the partial set alone (as this did) let a completely unconfigured deployment through as if that
- * were a choice.
- *
- * COPILOTKIT_LICENSE_TOKEN IS NO LONGER ONE OF THEM. Managed Intelligence issues a single project
- * key and derives entitlement from it, and requiring a second credential here sent people hunting
- * for a token the platform had stopped handing out. It is still read and still forwarded when a
- * deployment sets one, which is what a self-hosted Intelligence with its own licence needs.
- */
+/** Local mode owns its storage; the default Intelligence mode retains its existing contract. */
 function runtimeCapabilities(environment: Environment): RuntimeCapabilities {
+  const mode = optional(environment, "OPENBOT_RUNTIME_MODE") ?? "intelligence";
+  if (mode === "local") return { mode: "local", durableHistory: true };
+  if (mode !== "intelligence") {
+    throw new Error("OPENBOT_RUNTIME_MODE must be intelligence or local.");
+  }
   const settings = {
     apiUrl: url(environment, "INTELLIGENCE_API_URL"),
     gatewayWsUrl: url(environment, "INTELLIGENCE_GATEWAY_WS_URL"),
@@ -1270,6 +1265,7 @@ export function loadConfig(
     : undefined;
   const managedAgent = managedAgentConfig(environment);
   const workerSharedSecret = optional(environment, "WORKER_SHARED_SECRET");
+  const runtime = runtimeCapabilities(environment);
 
   return {
     port: serverPort(environment),
@@ -1291,9 +1287,12 @@ export function loadConfig(
       auth?.baseUrl
     )?.replace(/\/+$/, ""),
     tenantPackageDirectory:
-      optional(environment, "TENANT_PACKAGE_DIR") ?? "../examples/fintech",
-    runtime: runtimeCapabilities(environment),
-    learning: learningDefault(environment),
+      optional(environment, "TENANT_PACKAGE_DIR") ?? "../examples/zh-CN",
+    runtime,
+    learning:
+      runtime.mode === "intelligence"
+        ? learningDefault(environment)
+        : undefined,
     agentStallTimeoutMs: agentStallTimeoutMs(environment),
     auditRetentionDays: auditRetentionDays(environment),
     oauth: { google },

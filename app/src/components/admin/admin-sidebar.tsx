@@ -1,12 +1,15 @@
 import {
   IconArrowLeft,
+  IconBrain,
   IconBuildingBank,
   IconCode,
   IconDeviceDesktop,
+  IconExternalLink,
   IconFileText,
   IconKey,
   IconLayoutGrid,
   IconListDetails,
+  IconNetwork,
   IconPuzzle,
   IconShieldCheck,
   IconUsers,
@@ -24,6 +27,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { MAGPIE_ADMIN_URL } from "@/lib/magpie";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
@@ -37,82 +41,96 @@ const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
  */
 const GROUPS: {
   label: string;
-  items: {
+  items: ({
     icon: React.ComponentType<{ className?: string }>;
-    linkOptions: LinkOptions;
     title: string;
-  }[];
+  } & (
+    | { linkOptions: LinkOptions; href?: never }
+    | { href: string; linkOptions?: never }
+  ))[];
 }[] = [
   {
-    label: "What Bots can reach",
+    label: "机器人可以访问什么",
     items: [
       {
-        title: "Credentials",
+        title: "模型设置",
+        icon: IconBrain,
+        linkOptions: { to: "/admin/models" },
+      },
+      ...(MAGPIE_ADMIN_URL
+        ? [{
+            title: "Magpie 模型管理",
+            icon: IconNetwork,
+            href: MAGPIE_ADMIN_URL,
+          }]
+        : []),
+      {
+        title: "凭据",
         icon: IconKey,
         linkOptions: { to: "/admin/credentials" },
       },
       {
-        title: "Boundaries",
+        title: "权限规则",
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
       {
-        title: "Computers",
+        title: "计算机",
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
       },
     ],
   },
   {
-    label: "What Bots can do",
+    label: "机器人可以做什么",
     items: [
       {
-        title: "Plugins",
+        title: "插件",
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
       {
-        title: "Skills",
+        title: "技能",
         icon: IconFileText,
         linkOptions: { to: "/admin/skills" },
       },
       {
-        title: "Automatic Learning",
+        title: "自动学习",
         icon: IconFileText,
         linkOptions: { to: "/admin/learning" },
       },
       {
-        title: "UI Components",
+        title: "UI 组件",
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
       {
-        title: "Playground",
+        title: "游乐场",
         icon: IconCode,
         linkOptions: { to: "/admin/playground" },
       },
     ],
   },
   {
-    label: "Who can get in",
+    label: "谁可以进入",
     items: [
       {
-        title: "People",
+        title: "人员",
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
       },
       {
-        title: "Identity providers",
+        title: "身份提供者",
         icon: IconBuildingBank,
         linkOptions: { to: "/admin/identity-providers" },
       },
     ],
   },
   {
-    label: "What happened",
+    label: "发生了什么",
     items: [
       {
-        title: "Audit",
+        title: "审计",
         icon: IconListDetails,
         linkOptions: { to: "/admin/audit" },
       },
@@ -141,7 +159,7 @@ export function AdminSidebar({
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
                   <IconArrowLeft className="mr-2 h-4 w-4" />
-                  Back to app
+                  {"返回应用"}
                 </Link>
               )}
             />
@@ -164,7 +182,7 @@ export function AdminSidebar({
                     activeProps={{ className: "bg-foreground/5" }}
                     {...props}
                   >
-                    Overview
+                    {"概览"}
                   </Link>
                 )}
               />
@@ -178,7 +196,18 @@ export function AdminSidebar({
               {group.items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    render={(props) => (
+                    render={(props) => item.href ? (
+                      <a
+                        {...props}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        <span>{item.title}</span>
+                        <IconExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+                      </a>
+                    ) : (
                       <Link
                         {...item.linkOptions}
                         activeProps={{ className: "bg-foreground/5" }}

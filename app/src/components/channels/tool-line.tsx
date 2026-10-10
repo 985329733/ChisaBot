@@ -43,11 +43,7 @@ export function ToolLine({
       }`}
     >
       <span className="shrink-0">
-        {refused
-          ? `Blocked: ${label}`
-          : failed
-            ? `${label}, didn't work`
-            : label}
+        {refused ? `已阻止：${label}` : failed ? `${label}，无法工作` : label}
       </span>
       {detail ? <span className="truncate opacity-70">{detail}</span> : null}
     </span>

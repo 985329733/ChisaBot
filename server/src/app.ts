@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { MAX_IMAGE_BYTES } from "../../shared/attachments";
 import { enterpriseControls } from "./admin/controls";
-import { createEnterpriseGate } from "./admin/gate";
+import { createEnterpriseGate, runtimeRun } from "./admin/gate";
 import { createEnterpriseAdminRoutes } from "./admin/routes";
 import {
   authoriseAgentCall,
@@ -19,6 +19,10 @@ import {
 } from "./agents/lifecycle-routes";
 import type { BotAccessCheck } from "./agents/profile-policy";
 import type { AgentProfileStore } from "./agents/profile-store";
+import {
+  type AgentModelService,
+  ModelSelectionError,
+} from "./agents/model-selection";
 import { createAgentRoutes } from "./agents/routes";
 import { createApprovalRoutes } from "./approvals/routes";
 import type { ApprovalService } from "./approvals/service";
@@ -67,6 +71,12 @@ import {
   CredentialRefusedError,
 } from "./credentials";
 import type { Database } from "./db/client";
+import { withModelConnectionScope } from "./model-connection-context";
+import { type ModelCatalogService, ModelCatalogError } from "./model-catalog";
+import {
+  type ModelSettingsService,
+  ModelSettingsValidationError,
+} from "./model-settings";
 import { withoutStatement } from "./db/query-failure";
 import {
   createDeliveryRoutes,
@@ -81,6 +91,7 @@ import { createDictationRoutes } from "./dictation/routes";
 import type { HostAccessBroker } from "./host-access/broker";
 import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
+import type { LocalConversationBackend } from "./local-conversations";
 import {
   createLearningRoutes,
   type LearningAdminDependencies,
@@ -421,8 +432,13 @@ export function createApp(
    * resolver still answers from `config.selfHostBanner` rather than asking the network.
    */
   selfHostBanner?: SelfHostBanner,
+  localBackend?: LocalConversationBackend,
+  modelSettings?: ModelSettingsService,
+  agentModels?: AgentModelService,
+  modelCatalog?: ModelCatalogService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
+  app.use("*", async (_context, next) => withModelConnectionScope(next));
   mountDesktopConnectionFailure(app, desktopHostToken);
   mountProviderOAuthProxy(app, modelProviderProxy);
 
@@ -434,6 +450,7 @@ export function createApp(
     context.json({
       mode: config.runtime.mode,
       durableHistory: config.runtime.durableHistory,
+      ...(config.runtime.mode === "local" ? { learning: false } : {}),
       /*
        * Whether a Bot may answer with an interface it wrote itself.
        *
@@ -750,7 +767,22 @@ export function createApp(
 
     return context.json({ instructions: saved });
   });
-  if (learning) {
+  if (config.runtime.mode === "local") {
+    app.all("/api/admin/learning/*", requireUser, (context) => {
+      const denied = requireAdmin(context);
+      return (
+        denied ??
+        context.json(
+          {
+            error:
+              "Automatic Learning is unavailable in the local OSS runtime. Personal memory remains available.",
+            code: "learning_unavailable_in_local_runtime",
+          },
+          503,
+        )
+      );
+    });
+  } else if (learning) {
     app.route(
       "/api/admin/learning",
       createLearningRoutes(
@@ -1041,6 +1073,122 @@ export function createApp(
     },
   );
 
+  app.get("/api/models", requireUser, async (context) => {
+    context.header("Cache-Control", "no-store");
+    if (!modelCatalog)
+      return context.json({ error: "模型列表暂时不可用。" }, 503);
+    try {
+      return context.json(
+        await modelCatalog.list({
+          refresh: context.req.query("refresh") === "1",
+        }),
+      );
+    } catch (error) {
+      return context.json(
+        {
+          error:
+            error instanceof ModelCatalogError
+              ? error.message
+              : "模型列表暂时无法获取，请稍后重试。",
+        },
+        503,
+      );
+    }
+  });
+
+  app.put(
+    "/api/agents/:agentId/model",
+    requireUser,
+    bodyLimit({
+      maxSize: 2048,
+      onError: (context) => context.json({ error: "模型设置请求过大。" }, 413),
+    }),
+    async (context) => {
+      context.header("Cache-Control", "no-store");
+      if (!agentModels)
+        return context.json({ error: "BOT 模型设置暂时不可用。" }, 503);
+      const body: unknown = await context.req.json().catch(() => null);
+      if (
+        !body ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 1 ||
+        !("model" in body) ||
+        (body.model !== null &&
+          (typeof body.model !== "string" ||
+            !body.model ||
+            body.model.length > 200 ||
+            /[\s\x00-\x1f\x7f]/u.test(body.model)))
+      )
+        return context.json({ error: "请选择有效的模型。" }, 400);
+      try {
+        return context.json(
+          await agentModels.set(
+            context.var.actor,
+            context.req.param("agentId"),
+            body.model as string | null,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof ModelSelectionError)
+          return context.json({ error: error.message }, error.status);
+        if (error instanceof ModelCatalogError)
+          return context.json({ error: error.message }, 503);
+        return context.json(
+          { error: "BOT 模型暂时无法保存，请稍后重试。" },
+          503,
+        );
+      }
+    },
+  );
+
+  app.get("/api/agents/:agentId/model", requireUser, async (context) => {
+    context.header("Cache-Control", "no-store");
+    if (!agentModels)
+      return context.json({ error: "BOT 模型设置暂时不可用。" }, 503);
+    try {
+      return context.json(
+        await agentModels.get(context.var.actor, context.req.param("agentId")),
+      );
+    } catch (error) {
+      if (error instanceof ModelSelectionError)
+        return context.json({ error: error.message }, error.status);
+      return context.json({ error: "BOT 模型暂时无法读取，请稍后重试。" }, 503);
+    }
+  });
+
+  for (const [method, path, action] of [
+    ["GET", "/api/admin/model-settings", "get"],
+    ["PUT", "/api/admin/model-settings", "save"],
+    ["POST", "/api/admin/model-settings/test", "test"],
+  ] as const) {
+    app.on(method, path, requireUser, async (context) => {
+      const denied = requireAdmin(context);
+      if (denied) return denied;
+      context.header("Cache-Control", "no-store");
+      if (!modelSettings)
+        return context.json({ error: "模型设置暂时不可用。" }, 503);
+      try {
+        if (action === "get")
+          return context.json({ config: await modelSettings.get() });
+        const body = await context.req.json().catch(() => null);
+        if (action === "test")
+          return context.json(await modelSettings.test(body));
+        return context.json({
+          config: await modelSettings.save(body, context.var.actor.id),
+        });
+      } catch (error) {
+        if (error instanceof ModelSettingsValidationError)
+          return context.json({ error: error.message }, 400);
+        // Storage/provider errors may include secrets. Only a static failure reaches the browser.
+        return context.json(
+          { error: "模型配置暂时无法读取或保存，请稍后重试。" },
+          503,
+        );
+      }
+    });
+  }
+
   app.get("/api/admin/credentials", requireUser, async (context) => {
     const denied = requireAdmin(context);
     if (denied) {
@@ -1234,6 +1382,107 @@ export function createApp(
   // The CopilotKit runtime, behind the same session guard as every other API route. Mounted last so
   // its own routing under /api/copilotkit cannot shadow an OpenBot route declared above.
   if (copilotHandler) {
+    if (config.runtime.mode === "local") {
+      if (!localBackend)
+        throw new Error("The local conversation backend is required.");
+      // SSE mode has no SDK identity callback. Every local history and execution request therefore
+      // enters through OpenBot's existing session guard before the public SDK handler.
+      app.use("/api/copilotkit/*", requireUser, async (context, next) => {
+        const actor = context.var.actor;
+        const request = context.req.raw;
+        const localResponse = await localBackend.handle(request, actor.id);
+        if (localResponse) return localResponse;
+        const action = runtimeRun(context.req.path);
+        // The SDK routes by its final nonempty segments, including nested paths and repeated or
+        // trailing slashes. The owner check must recognize every spelling that reaches stop.
+        const segments = context.req.path.split("/").filter(Boolean);
+        const count = segments.length;
+        const stop =
+          count >= 4 &&
+          segments[count - 4] === "agent" &&
+          segments[count - 2] === "stop"
+            ? { agentId: segments[count - 3]!, threadId: segments[count - 1]! }
+            : undefined;
+        if (action || stop) {
+          try {
+            const agentId =
+              action?.agentId ?? decodeURIComponent(stop!.agentId);
+            if (
+              agentProfileStore &&
+              !(await agentProfileStore.get(actor, agentId))
+            ) {
+              return context.json({ error: "That Bot is not available." }, 404);
+            }
+            const body = await request
+              .clone()
+              .json()
+              .catch(() => null);
+            const threadId = stop
+              ? decodeURIComponent(stop.threadId)
+              : body?.threadId;
+            if (
+              typeof threadId !== "string" ||
+              !threadId.trim() ||
+              threadId.length > 256
+            ) {
+              return context.json(
+                { error: "A valid threadId is required." },
+                400,
+              );
+            }
+            if (action?.action === "run" || action?.action === "connect") {
+              await localBackend.client.getOrCreateThread({
+                threadId,
+                userId: actor.id,
+                agentId,
+              });
+            } else {
+              const thread = await localBackend.client.getThread({
+                threadId,
+                userId: actor.id,
+              });
+              if (thread.agentId !== agentId) {
+                return context.json({ error: "Thread access denied." }, 404);
+              }
+            }
+          } catch (error) {
+            const status =
+              error instanceof Error && "status" in error
+                ? error.status
+                : undefined;
+            if (status !== 403 && status !== 404 && status !== 409) {
+              return context.json(
+                { error: "Local conversation storage is unavailable." },
+                503,
+              );
+            }
+            return context.json(
+              { error: "Thread access denied." },
+              status === 409 ? 409 : 404,
+            );
+          }
+        }
+        await next();
+        if (context.req.path.endsWith("/info") && context.res.ok) {
+          // The SDK can discover only synchronous local runners. Our Postgres history endpoints
+          // are asynchronous and mounted above it, so advertise their actual read capabilities.
+          const info = await context.res.json();
+          context.res = Response.json(
+            {
+              ...info,
+              threadEndpoints: {
+                list: true,
+                inspect: true,
+                mutations: false,
+                realtimeMetadata: false,
+              },
+              telemetryDisabled: true,
+            },
+            { status: context.res.status, headers: context.res.headers },
+          );
+        }
+      });
+    }
     // Mounted at the ROOT with the handler carrying its own basePath. Mounting it at
     // "/api/copilotkit" as well double-prefixes it: Hono strips the prefix before the handler sees
     // the path, so every route lands at /api/copilotkit/api/copilotkit/* and /info 404s. The browser
@@ -1776,13 +2025,16 @@ export function createApp(
       createThreadRoutes(
         threadIdentity,
         requireUser,
-        // config.ts refuses to boot without the full Intelligence contract (see copilot.ts's
-        // header comment), so `config.runtime.intelligence` is never missing here. Built from it
-        // rather than assumed, though: this is the one place besides the runtime mount itself that
-        // needs to reach Intelligence, and it should keep working unmodified if that guarantee ever
-        // loosens and a deployment can legitimately have no reader to build.
         createThreadReader(
-          createIntelligenceClient(config.runtime.intelligence),
+          config.runtime.mode === "local"
+            ? (() => {
+                if (!localBackend)
+                  throw new Error(
+                    "The local conversation backend is required.",
+                  );
+                return localBackend.client;
+              })()
+            : createIntelligenceClient(config.runtime.intelligence),
         ),
       ),
     );

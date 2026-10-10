@@ -2,6 +2,10 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
 import {
+  readStoredPreference,
+  writeStoredPreference,
+} from "@/lib/preference-storage";
+import {
   applySidebarOpen,
   parseStoredSidebarOpen,
   SIDEBAR_STORAGE_KEY,
@@ -29,12 +33,12 @@ export function SidebarShell({
 }) {
   // Read before the first paint, so a shell somebody left collapsed never flashes open.
   const [open, setOpen] = useState(() =>
-    parseStoredSidebarOpen(window.localStorage.getItem(SIDEBAR_STORAGE_KEY)),
+    parseStoredSidebarOpen(readStoredPreference(SIDEBAR_STORAGE_KEY)),
   );
 
   useEffect(() => {
     applySidebarOpen(open, {
-      setStoredValue: (key, value) => window.localStorage.setItem(key, value),
+      setStoredValue: writeStoredPreference,
     });
   }, [open]);
 

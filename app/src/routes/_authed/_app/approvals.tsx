@@ -7,8 +7,8 @@ export const Route = createFileRoute("/_authed/_app/approvals")({
 function ApprovalsPage() {
   return (
     <PageShell
-      title="Approvals"
-      description="Choose what your Bots may do, and review actions waiting for you."
+      title={"审批"}
+      description={"选择你的机器人可以做什么，并查看等待你的操作。"}
     >
       <ApprovalInbox />
     </PageShell>

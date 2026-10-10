@@ -141,7 +141,8 @@ export function ChecklistCard({
             done === items.length && items.length > 0 ? "positive" : "neutral"
           }
         >
-          {done} of {items.length}
+          {done} {"的"}
+          {items.length}
         </Badge>
       }
       caption={caption}
@@ -224,44 +225,42 @@ export function NoticeCard({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showRecord",
-    title: "Record",
+    title: "记录",
     kind: "card",
-    description:
-      "Show one thing and its fields, an order, a person, a ticket. Use instead of describing a record in prose.",
+    description: "显示一个事物及其字段、订单、人员、票据。代替用散文描述记录。",
     parameters: RecordCardProps,
     Component: RecordCard as GalleryComponent["Component"],
     preview: {
-      title: "Invoice 2043",
+      title: "发票 2043",
       subtitle: "Northwind Traders",
       status: "Approved",
       fields: [
-        { label: "Amount", value: "$4,280.00" },
-        { label: "Raised", value: "12 March" },
-        { label: "Owner", value: "Priya Raman" },
+        { label: "数量", value: "$4,280.00" },
+        { label: "已提出", value: "12 March" },
+        { label: "所有者", value: "Priya Raman" },
       ],
     },
     confirmation: "The record is now on screen for the person.",
   },
   {
     name: "showMetrics",
-    title: "Headline figures",
+    title: "关键指标",
     kind: "card",
-    description:
-      "Show up to six headline figures, each with an optional movement. Use for a summary somebody reads at a glance.",
+    description: "显示最多六个头条数字，每个可有可选变动。用于快速浏览的摘要。",
     parameters: MetricsCardProps,
     Component: MetricsCard as GalleryComponent["Component"],
     preview: {
-      title: "This month",
+      title: "本月",
       metrics: [
         {
-          label: "Revenue",
+          label: "收入",
           value: "$412k",
           change: "+12% on last month",
           changeTone: "positive",
         },
-        { label: "Open deals", value: "38" },
+        { label: "打开交易", value: "38" },
         {
-          label: "Churn",
+          label: "流失",
           value: "1.4%",
           change: "+0.3pt",
           changeTone: "caution",
@@ -272,32 +271,30 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showChecklist",
-    title: "Checklist",
+    title: "检查清单",
     kind: "card",
-    description:
-      "Show a list of things and which are done. Reporting only, the person cannot tick these, so do not use it to ask for anything.",
+    description: "显示已完成的事物列表。只报告，不能勾选，不要用于询问。",
     parameters: ChecklistCardProps,
     Component: ChecklistCard as GalleryComponent["Component"],
     preview: {
-      title: "Before the release",
+      title: "发布前",
       items: [
-        { text: "Migrations applied", done: true },
-        { text: "Changelog written", done: true },
-        { text: "Load test", done: false, note: "Waiting on staging" },
+        { text: "已应用迁移", done: true },
+        { text: "更改日志已写入", done: true },
+        { text: "加载测试", done: false, note: "Waiting on staging" },
       ],
     },
     confirmation: "The checklist is now on screen for the person.",
   },
   {
     name: "showNotice",
-    title: "Notice",
+    title: "注意",
     kind: "card",
-    description:
-      "Show a headline, a short explanation and optional supporting points. Use instead of writing several paragraphs of prose.",
+    description: "显示标题、简短解释和可选支持点。代替写几段散文。",
     parameters: NoticeCardProps,
     Component: NoticeCard as GalleryComponent["Component"],
     preview: {
-      title: "Certificate expires in 30 days",
+      title: "证书将在30天后过期",
       body: "The checkout certificate has an owner now, and this is the first of the new alerts.",
       tone: "caution",
       points: ["Owner: Platform", "Renews automatically once approved"],

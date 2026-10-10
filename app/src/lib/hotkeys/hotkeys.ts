@@ -32,8 +32,8 @@ export type Hotkey = {
 export const HOTKEYS = [
   {
     id: "new-chat",
-    label: "New chat",
-    description: "Start a new chat from anywhere in the app.",
+    label: "新聊天",
+    description: "从应用任何位置开始新聊天。",
     combo: { key: "n", shift: true },
   },
 ] as const satisfies readonly Hotkey[];
@@ -43,7 +43,7 @@ export type HotkeyId = (typeof HOTKEYS)[number]["id"];
 export function getHotkey(id: HotkeyId): Hotkey {
   const hotkey = HOTKEYS.find((candidate) => candidate.id === id);
   if (!hotkey) {
-    throw new Error(`Unknown hotkey "${id}".`);
+    throw new Error(`未知快捷键 "${id}"。`);
   }
   return hotkey;
 }

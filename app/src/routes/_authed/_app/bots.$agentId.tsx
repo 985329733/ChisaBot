@@ -13,13 +13,13 @@ function BotProfilePage() {
   const agent = useQuery(agentQueryOptions(agentId));
   return (
     <PageShell
-      backButton={{ label: "Bots", linkProps: { to: "/bots" } }}
-      description="What this Bot is doing for you, and how it runs."
-      title={agent.data?.name ?? "Bot"}
+      backButton={{ label: "机器人", linkProps: { to: "/bots" } }}
+      description={"这个机器人为您做什么，以及它如何运行。"}
+      title={agent.data?.name ?? "机器人"}
     >
       {agent.isPending ? null : agent.error ? (
         <p className="mt-6 text-destructive text-sm" role="alert">
-          This Bot is not one you can reach.
+          {"此机器人不可达。"}
         </p>
       ) : (
         <BotProfile agent={agent.data} />

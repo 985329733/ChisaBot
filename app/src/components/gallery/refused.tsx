@@ -15,7 +15,10 @@ export function RefusedCard({
       data-testid="component-refused"
       role="status"
     >
-      <p className="text-sm font-medium text-destructive">Not shown: {title}</p>
+      <p className="text-sm font-medium text-destructive">
+        {"未显示："}
+        {title}
+      </p>
       <p className="mt-1 text-sm text-foreground/80">{reason}</p>
     </div>
   );

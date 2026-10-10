@@ -37,7 +37,7 @@ function useCarousel() {
   const context = React.useContext(CarouselContext);
 
   if (!context) {
-    throw new Error("useCarousel must be used within a <Carousel />");
+    throw new Error("useCarousel 必须在 <Carousel /> 内使用");
   }
 
   return context;
@@ -220,7 +220,7 @@ function CarouselPrevious({
       {...props}
     >
       <IconChevronLeft />
-      <span className="sr-only">Previous slide</span>
+      <span className="sr-only">{"上一页"}</span>
     </Button>
   );
 }
@@ -250,7 +250,7 @@ function CarouselNext({
       {...props}
     >
       <IconChevronRight />
-      <span className="sr-only">Next slide</span>
+      <span className="sr-only">{"下一页"}</span>
     </Button>
   );
 }

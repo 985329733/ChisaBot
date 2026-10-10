@@ -15,7 +15,7 @@ import { recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import { agents } from "../db/schema";
 import { type Capability, capabilityRefusal } from "./capabilities";
-import { enterpriseControls } from "./controls";
+import { enterpriseControls, resolveBuiltInModel } from "./controls";
 
 type Ctx = Context<{ Variables: AppVariables }>;
 
@@ -238,7 +238,20 @@ async function governRun(
   const allowlist = controls.snapshot()?.settings.modelAllowlist;
   const isAllowed = (model: string) =>
     !allowlist?.enabled || allowlist.models.includes(model);
-  const configured = builtIn ? controls.deps.builtInModel : undefined;
+  let configured: string | undefined;
+  try {
+    configured = builtIn
+      ? await resolveBuiltInModel(controls.deps, agentId)
+      : undefined;
+  } catch {
+    return context.json(
+      {
+        error:
+          "This deployment's model configuration could not be checked, so the Bot did not run.",
+      },
+      503,
+    );
+  }
 
   const record = (
     model: string,

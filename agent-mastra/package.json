@@ -1,5 +1,6 @@
 {
   "name": "@openbot/agent-mastra",
+  "description": "ChisaBot Mastra BOT 服务",
   "private": true,
   "type": "module",
   "dependencies": {

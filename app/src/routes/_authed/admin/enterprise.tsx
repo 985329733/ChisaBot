@@ -75,9 +75,9 @@ export const Route = createFileRoute("/_authed/admin/enterprise")({
 });
 
 const MODE_NAMES: Record<NetworkMode, string> = {
-  allow_all: "Allow all network access",
-  defaults_plus_allowlist: "Defaults plus team allowlist",
-  allowlist_only: "Team allowlist only",
+  allow_all: "允许所有网络访问",
+  defaults_plus_allowlist: "默认规则加团队允许列表",
+  allowlist_only: "仅团队允许列表",
 };
 
 /** One rule per line: `example.com`, `*.corp.example`, or `10.0.0.0/8 443,8443`. */
@@ -107,10 +107,9 @@ function rulesToText(rules: EgressRule[]): string {
 }
 
 function summarizePolicy(policy: NetworkPolicy | undefined): string {
-  if (!policy)
-    return "No policy: Bot computers may reach anything the cluster allows";
+  if (!policy) return "未设置网络规则：机器人计算机可访问集群允许的地址";
   const count = policy.rules.length;
-  return `${MODE_NAMES[policy.mode]} · ${count} ${count === 1 ? "rule" : "rules"}${policy.locked ? " · locked" : ""}`;
+  return `${MODE_NAMES[policy.mode]} · ${count} 条规则${policy.locked ? " · 已锁定" : ""}`;
 }
 
 function EnterprisePage() {
@@ -123,8 +122,10 @@ function EnterprisePage() {
 
   return (
     <PageShell
-      description="What members may use, how Bot computers reach the network, and what is recorded about it. Every change is on the audit trail."
-      title="Enterprise controls"
+      description={
+        "成员可以使用什么，机器人计算机如何连接网络，以及关于它的记录。每次更改都在审计轨迹上。"
+      }
+      title={"企业控制"}
     >
       {failure ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
@@ -133,7 +134,7 @@ function EnterprisePage() {
       ) : null}
       {overview.isPending ? null : overview.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Could not load enterprise controls.
+          {"无法加载企业控制。"}
         </p>
       ) : (
         <EnterpriseSections
@@ -193,8 +194,10 @@ function EnterpriseSections({
   return (
     <>
       <PageSection
-        description="Social sign-in stays available to addresses in INITIAL_ADMIN_EMAILS as a break-glass way in, and every such sign-in is audited."
-        title="Sign-in"
+        description={
+          "社交登录对 INITIAL_ADMIN_EMAILS 中的地址保持可用，作为 break-glass 方式，并且每次此类登录都会被审计。"
+        }
+        title={"登录"}
       >
         <PageRows>
           <Item size="sm">
@@ -202,16 +205,16 @@ function EnterpriseSections({
               <IconShieldLock />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Require SSO</ItemTitle>
+              <ItemTitle>{"要求 SSO"}</ItemTitle>
               <ItemDescription>
                 {settings.ssoRequired
-                  ? "Only a registered SAML or OpenID Connect provider may sign anybody in."
-                  : "People may also sign in with Google, Microsoft or Okta."}
+                  ? "仅注册的 SAML 或 OpenID Connect 提供者可允许任何人登录。"
+                  : "人员还可使用 Google、Microsoft 或 Okta 登录。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Require SSO"
+                aria-label={"要求 SSO"}
                 checked={settings.ssoRequired}
                 disabled={saving}
                 onCheckedChange={(checked) => onSetting("ssoRequired", checked)}
@@ -224,16 +227,16 @@ function EnterpriseSections({
               <IconFingerprint />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>SCIM provisioning</ItemTitle>
+              <ItemTitle>{"SCIM 配置"}</ItemTitle>
               <ItemDescription className="line-clamp-none">
                 {data.scim.configured
-                  ? `Directory base URL ${data.scim.baseUrl ?? "(set BETTER_AUTH_URL)"} with the SCIM_BEARER_TOKEN bearer token. Deprovisioning ends sessions, deny-lists the address, retires connector credentials and stops their computers.`
-                  : "Off. Set SCIM_BEARER_TOKEN to accept provisioning from Okta, Entra or another directory."}
+                  ? `目录基础 URL ${data.scim.baseUrl ?? "（设置 BETTER_AUTH_URL）"} 使用 SCIM_BEARER_TOKEN 持有者令牌。停用将结束会话、拒绝地址列表、退役连接器凭据并停止他们的电脑。`
+                  : "关。设置 SCIM_BEARER_TOKEN 以接受来自 Okta、Entra 或其他目录的配置。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <span className="text-muted-foreground text-sm">
-                {data.scim.configured ? "On" : "Off"}
+                {data.scim.configured ? "开" : "关闭"}
               </span>
             </ItemActions>
           </Item>
@@ -241,8 +244,10 @@ function EnterpriseSections({
       </PageSection>
 
       <PageSection
-        description="The switch is the whole organization. Roles can be given a different answer, and a directory group can be granted a capability the organization has off."
-        title="Capabilities"
+        description={
+          "开关是整个组织。角色可以被赋予不同的答案，目录组可以被授予组织关闭的能力。"
+        }
+        title={"能力"}
       >
         <PageRows>
           {data.capabilities.map((capability) => {
@@ -258,7 +263,7 @@ function EnterpriseSections({
                     <ItemDescription>
                       {effective
                         ? capability.description
-                        : "Nobody may, unless a role or group grants it."}
+                        : "除非角色或组授予，否则无人可以。"}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -286,11 +291,11 @@ function EnterpriseSections({
               <IconUsersGroup />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Role and group overrides</ItemTitle>
+              <ItemTitle>{"角色和组覆盖"}</ItemTitle>
               <ItemDescription>
                 {overrideCount === 0
-                  ? "None: everybody gets the switches above"
-                  : `${overrideCount} set`}
+                  ? "无：每个人都获得上面的开关"
+                  : `${overrideCount} 设置`}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -301,8 +306,10 @@ function EnterpriseSections({
       </PageSection>
 
       <PageSection
-        description="Where Bot computers may connect. Applied to running computers within seconds, without a restart. A group policy replaces the organization's unless it is locked."
-        title="Network"
+        description={
+          "机器人计算机可以连接的位置。应用于运行中的计算机，几秒内，无需重启。组策略替换组织的除非被锁定。"
+        }
+        title={"网络"}
       >
         <PageRows>
           <Item
@@ -320,7 +327,7 @@ function EnterpriseSections({
               <IconWorld />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Organization</ItemTitle>
+              <ItemTitle>{"组织"}</ItemTitle>
               <ItemDescription>
                 {summarizePolicy(organizationPolicy)}
               </ItemDescription>
@@ -350,7 +357,10 @@ function EnterpriseSections({
                   <IconNetwork />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Group: {policy.scopeId}</ItemTitle>
+                  <ItemTitle>
+                    {"组："}
+                    {policy.scopeId}
+                  </ItemTitle>
                   <ItemDescription>{summarizePolicy(policy)}</ItemDescription>
                 </ItemContent>
                 <ItemActions>
@@ -367,14 +377,16 @@ function EnterpriseSections({
             size="sm"
             variant="outline"
           >
-            Add a group policy
+            {"添加群组策略"}
           </Button>
         ) : null}
       </PageSection>
 
       <PageSection
-        description="With the allowlist on, a Bot may call tools only on the MCP servers approved here. Every other server's calls are refused."
-        title="MCP servers"
+        description={
+          "启用白名单后，机器人只能调用此处批准的MCP服务器上的工具。其他服务器的调用将被拒绝。"
+        }
+        title={"MCP服务器"}
       >
         <PageRows>
           <Item size="sm">
@@ -382,16 +394,16 @@ function EnterpriseSections({
               <IconPlug />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Only approved servers</ItemTitle>
+              <ItemTitle>{"仅批准的服务器"}</ItemTitle>
               <ItemDescription>
                 {settings.mcpAllowlist.enabled
-                  ? `${settings.mcpAllowlist.servers.length} approved`
-                  : "Off: every registered server may be used as its grants allow."}
+                  ? `${settings.mcpAllowlist.servers.length} 已批准`
+                  : "关：每个已注册服务器可按其授权使用。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Only approved MCP servers"
+                aria-label={"仅批准的 MCP 服务器"}
                 checked={settings.mcpAllowlist.enabled}
                 disabled={saving}
                 onCheckedChange={(enabled) =>
@@ -418,7 +430,7 @@ function EnterpriseSections({
                   </ItemContent>
                   <ItemActions>
                     <Switch
-                      aria-label={`Approve ${server.title}`}
+                      aria-label={`批准 ${server.title}`}
                       checked={approved}
                       disabled={saving}
                       onCheckedChange={(checked) =>
@@ -441,8 +453,8 @@ function EnterpriseSections({
       </PageSection>
 
       <PageSection
-        description={`The built-in Bot runs on ${data.builtInModel ?? "the deployment's configured model"}. A remote Bot chooses its own; the model its stream names is recorded.`}
-        title="Models"
+        description={`内置机器人运行在 ${data.builtInModel ?? "此部署配置的模型"}。远程机器人自行选择；其流名称的模型被记录。`}
+        title={"模型"}
       >
         <PageRows>
           <Item size="sm">
@@ -450,16 +462,16 @@ function EnterpriseSections({
               <IconShieldLock />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Model allowlist</ItemTitle>
+              <ItemTitle>{"模型白名单"}</ItemTitle>
               <ItemDescription>
                 {settings.modelAllowlist.enabled
-                  ? "A built-in Bot on a model not listed is refused before it runs."
-                  : "Off: any model may serve a run."}
+                  ? "未列出的模型上的内置机器人将在运行前被拒绝。"
+                  : "关闭：任何模型都可以服务运行。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Model allowlist"
+                aria-label={"模型白名单"}
                 checked={settings.modelAllowlist.enabled}
                 disabled={saving}
                 onCheckedChange={(enabled) =>
@@ -482,10 +494,10 @@ function EnterpriseSections({
               <IconKey />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Allowed models</ItemTitle>
+              <ItemTitle>{"允许的模型"}</ItemTitle>
               <ItemDescription>
                 {settings.modelAllowlist.models.length === 0
-                  ? "None listed"
+                  ? "未列出"
                   : settings.modelAllowlist.models.join(", ")}
               </ItemDescription>
             </ItemContent>
@@ -498,8 +510,10 @@ function EnterpriseSections({
       </PageSection>
 
       <PageSection
-        description="Audit events and Bot actions stream to your OpenTelemetry collector or SIEM when OTEL_EXPORTER_OTLP_ENDPOINT is set, tagged openbot.surface."
-        title="Recording and export"
+        description={
+          "当设置 OTEL_EXPORTER_OTLP_ENDPOINT 时，审计事件和机器人操作流式传输到你的 OpenTelemetry 收集器或 SIEM，并标记为 openbot.surface。"
+        }
+        title={"录音和导出"}
       >
         <PageRows>
           <Item size="sm">
@@ -507,16 +521,16 @@ function EnterpriseSections({
               <IconTerminal2 />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Action Recording</ItemTitle>
+              <ItemTitle>{"动作记录"}</ItemTitle>
               <ItemDescription>
                 {settings.actionRecording
-                  ? `Shell commands Bots run are recorded with secrets scrubbed and kept ${data.actionRecordRetentionDays} days.`
-                  : "Off: commands are on the audit trail only."}
+                  ? `机器人运行的 Shell 命令被记录，秘密已去除并保存 ${data.actionRecordRetentionDays} 天。`
+                  : "关闭：命令仅在审计轨迹上。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Action Recording"
+                aria-label={"动作记录"}
                 checked={settings.actionRecording}
                 disabled={saving}
                 onCheckedChange={(checked) =>
@@ -531,16 +545,16 @@ function EnterpriseSections({
               <IconChartBar />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>OpenTelemetry export</ItemTitle>
+              <ItemTitle>{"OpenTelemetry 导出"}</ItemTitle>
               <ItemDescription>
                 {data.otel.configured
-                  ? "Exporting over OTLP/HTTP."
-                  : "Not configured. Set OTEL_EXPORTER_OTLP_ENDPOINT on the server."}
+                  ? "通过 OTLP/HTTP 导出。"
+                  : "未配置。在服务器上设置 OTEL_EXPORTER_OTLP_ENDPOINT。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <span className="text-muted-foreground text-sm">
-                {data.otel.configured ? "On" : "Off"}
+                {data.otel.configured ? "开" : "关闭"}
               </span>
             </ItemActions>
           </Item>
@@ -549,8 +563,10 @@ function EnterpriseSections({
       </PageSection>
 
       <PageSection
-        description="Stopping a computer ends its running Bots and keeps its disk. The Bot gets a fresh computer next session. Stop one person's from People."
-        title="Computers"
+        description={
+          "停止计算机会结束其运行的机器人并保留其磁盘。机器人下次会话获得新计算机。停止一个人的从People。"
+        }
+        title={"计算机"}
       >
         <PageRows>
           <Item
@@ -561,11 +577,11 @@ function EnterpriseSections({
               <IconDeviceDesktop />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Stop inactive computers</ItemTitle>
+              <ItemTitle>{"停止非活跃计算机"}</ItemTitle>
               <ItemDescription>
                 {settings.inactiveComputerDays === 0
-                  ? "Off"
-                  : `After ${settings.inactiveComputerDays} days without use`}
+                  ? "关闭"
+                  : `在 ${settings.inactiveComputerDays} 天未使用后`}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -589,14 +605,16 @@ function EnterpriseSections({
         />
       ) : null}
       <ListDialog
-        description="One model per line, as provider/model, for example openai/gpt-5.6-terra."
+        description={
+          "每行一个模型，格式为 provider/model，例如 openai/gpt-5.6-terra。"
+        }
         initial={settings.modelAllowlist.models}
         onClose={() => setModelsOpen(false)}
         onSave={(models) =>
           onSetting("modelAllowlist", { ...settings.modelAllowlist, models })
         }
         open={modelsOpen}
-        title="Allowed models"
+        title={"允许的模型"}
       />
       <DaysDialog
         initial={settings.inactiveComputerDays}
@@ -614,13 +632,11 @@ function ModelUsage() {
   if (usage.error)
     return (
       <p className="mt-4 text-destructive text-sm" role="alert">
-        Could not load model usage.
+        {"无法加载模型使用情况。"}
       </p>
     );
   if (usage.data.summary.length === 0)
-    return (
-      <PageEmpty>No Bot runs have been recorded in the last 30 days.</PageEmpty>
-    );
+    return <PageEmpty>{"最近30天内未记录机器人运行。"}</PageEmpty>;
   return (
     <PageRows>
       {usage.data.summary.map((row, index) => (
@@ -633,15 +649,15 @@ function ModelUsage() {
             <ItemContent>
               <ItemTitle>{row.model}</ItemTitle>
               <ItemDescription>
-                {row.runs} runs by {row.people}{" "}
-                {row.people === 1 ? "person" : "people"} in 30 days
-                {row.refused > 0 ? ` · ${row.refused} off the allowlist` : ""} ·{" "}
+                {row.runs} {"由...运行"}
+                {row.people} {row.people === 1 ? "人员" : "人员"} {"30天内"}
+                {row.refused > 0 ? `· ${row.refused} 已从允许列表移除` : ""} ·{" "}
                 {row.source}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <span className="text-muted-foreground text-sm">
-                {new Date(row.lastUsedAt).toLocaleDateString()}
+                {new Date(row.lastUsedAt).toLocaleDateString("zh-CN")}
               </span>
             </ItemActions>
           </Item>
@@ -657,11 +673,11 @@ function RecordedActions() {
   if (actions.error)
     return (
       <p className="mt-4 text-destructive text-sm" role="alert">
-        Could not load recorded actions.
+        {"无法加载录制的操作。"}
       </p>
     );
   if (actions.data.length === 0)
-    return <PageEmpty>No commands recorded yet.</PageEmpty>;
+    return <PageEmpty>{"尚未记录命令。"}</PageEmpty>;
   return (
     <PageRows>
       {actions.data.map((action, index) => (
@@ -674,10 +690,10 @@ function RecordedActions() {
               </ItemTitle>
               <ItemDescription>
                 {action.surface === "local"
-                  ? "Member's machine"
-                  : `Bot ${action.botId ?? "?"}`}{" "}
+                  ? "成员的机器"
+                  : `机器人 ${action.botId ?? "?"}`}{" "}
                 · {action.outcome} ·{" "}
-                {new Date(action.createdAt).toLocaleString()}
+                {new Date(action.createdAt).toLocaleString("zh-CN")}
               </ItemDescription>
             </ItemContent>
           </Item>
@@ -697,11 +713,12 @@ function SweepNow() {
         size="sm"
         variant="outline"
       >
-        {sweep.isPending ? "Stopping…" : "Stop inactive computers now"}
+        {sweep.isPending ? "正在停止…" : "立即停止非活跃计算机"}
       </Button>
       {sweep.data ? (
         <span className="text-muted-foreground text-sm">
-          Stopped {sweep.data.stopped.length}.
+          {"已停止"}
+          {sweep.data.stopped.length}.
         </span>
       ) : null}
       {sweep.error ? (
@@ -726,12 +743,12 @@ function OverridesDialog({
 }) {
   const setCapability = useMutation(setCapabilityMutationOptions(queryClient));
   const scopes: { kind: "role" | "group"; id: string; label: string }[] = [
-    { kind: "role", id: "admin", label: "Administrators" },
-    { kind: "role", id: "user", label: "Members" },
+    { kind: "role", id: "admin", label: "管理员" },
+    { kind: "role", id: "user", label: "成员" },
     ...data.groups.map((group) => ({
       kind: "group" as const,
       id: group,
-      label: `Group: ${group}`,
+      label: `组：${group}`,
     })),
   ];
   const [scopeIndex, setScopeIndex] = useState(0);
@@ -741,14 +758,14 @@ function OverridesDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Role and group overrides</DialogTitle>
+          <DialogTitle>{"角色和组覆盖"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="mt-4 space-y-4 overflow-y-auto">
           <Select
             onValueChange={(value) => setScopeIndex(Number(value))}
             value={String(scopeIndex)}
           >
-            <SelectTrigger aria-label="Scope">
+            <SelectTrigger aria-label={"范围"}>
               <SelectValue>{scope?.label}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -766,8 +783,8 @@ function OverridesDialog({
           </Select>
           <p className="text-muted-foreground text-xs">
             {scope?.kind === "group"
-              ? "A group can only widen: Grant gives its members the capability even where the organization has it off."
-              : "A role's answer replaces the organization switch for everybody holding that role."}
+              ? "群组只能扩大：Grant 赋予成员能力，即使组织已关闭。"
+              : "角色的回答替换持有该角色的每个人组织的切换。"}
           </p>
           {scope
             ? data.capabilities.map((capability) => {
@@ -795,19 +812,19 @@ function OverridesDialog({
                       value={value}
                     >
                       <SelectTrigger
-                        aria-label={`${capability.title} for ${scope.label}`}
+                        aria-label={`${capability.title} 用于 ${scope.label}`}
                         className="w-36"
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          <SelectItem value="inherit">Inherit</SelectItem>
+                          <SelectItem value="inherit">{"继承"}</SelectItem>
                           <SelectItem value="on">
-                            {scope.kind === "group" ? "Grant" : "On"}
+                            {scope.kind === "group" ? "授权" : "开"}
                           </SelectItem>
                           {scope.kind === "role" ? (
-                            <SelectItem value="off">Off</SelectItem>
+                            <SelectItem value="off">{"关闭"}</SelectItem>
                           ) : null}
                         </SelectGroup>
                       </SelectContent>
@@ -824,7 +841,7 @@ function OverridesDialog({
         </DialogBody>
         <DialogFooter className="mt-4">
           <Button onClick={() => onOpenChange(false)} size="sm" type="button">
-            Done
+            {"完成"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -861,8 +878,8 @@ function NetworkDialog({
         <DialogHeader>
           <DialogTitle>
             {initial.scopeKind === "organization"
-              ? "Organization network policy"
-              : "Group network policy"}
+              ? "组织网络策略"
+              : "组网络策略"}
           </DialogTitle>
         </DialogHeader>
         <form
@@ -883,12 +900,12 @@ function NetworkDialog({
           <DialogBody className="mt-4 space-y-4 overflow-y-auto">
             {initial.scopeKind === "group" && !initial.scopeId ? (
               <div className="space-y-1.5">
-                <Label>Group</Label>
+                <Label>{"组"}</Label>
                 <Select
                   onValueChange={(value) => setGroup(String(value))}
                   value={group}
                 >
-                  <SelectTrigger aria-label="Group">
+                  <SelectTrigger aria-label={"组"}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -904,12 +921,12 @@ function NetworkDialog({
               </div>
             ) : null}
             <div className="space-y-1.5">
-              <Label>Mode</Label>
+              <Label>{"模式"}</Label>
               <Select
                 onValueChange={(value) => setMode(value as NetworkMode)}
                 value={mode}
               >
-                <SelectTrigger aria-label="Mode">
+                <SelectTrigger aria-label={"模式"}>
                   <SelectValue>{MODE_NAMES[mode]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -926,27 +943,27 @@ function NetworkDialog({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="network-rules">Allowlist</Label>
+              <Label htmlFor="network-rules">{"允许列表"}</Label>
               <Textarea
                 className="font-mono text-xs"
                 id="network-rules"
                 onChange={(event) => setRules(event.target.value)}
-                placeholder={"example.com\n*.corp.example\n10.0.0.0/8 443,5432"}
+                placeholder={"example.com *.corp.example 10.0.0.0/8 443,5432"}
                 rows={8}
                 value={rules}
               />
               <p className="text-muted-foreground text-xs">
-                One per line. A domain covers its subdomains; *.name covers only
-                subdomains. An IP range may name ports. Defaults are{" "}
-                {data.defaultDestinations.slice(0, 4).join(", ")} and{" "}
-                {data.defaultDestinations.length - 4} more package and source
-                hosts.
+                {
+                  "每行一个。域名覆盖其子域名；*.name 仅覆盖子域名。IP 范围可指定端口。默认值为"
+                }{" "}
+                {data.defaultDestinations.slice(0, 4).join(", ")} {"和"}{" "}
+                {data.defaultDestinations.length - 4} {"更多包和源主机。"}
               </p>
             </div>
             {initial.scopeKind === "organization" ? (
               <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="network-locked">
-                  Lock: groups may not replace this policy
+                  {"锁定：组不得替换此策略"}
                 </Label>
                 <Switch
                   checked={locked}
@@ -975,11 +992,11 @@ function NetworkDialog({
                 type="button"
                 variant="destructive"
               >
-                Remove policy
+                {"移除策略"}
               </Button>
             ) : null}
             <Button onClick={onClose} size="sm" type="button" variant="outline">
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={
@@ -988,7 +1005,7 @@ function NetworkDialog({
               size="sm"
               type="submit"
             >
-              {save.isPending ? "Saving…" : "Save"}
+              {save.isPending ? "正在保存…" : "保存"}
             </Button>
           </DialogFooter>
         </form>
@@ -1033,7 +1050,7 @@ function ListDialog({
         </DialogBody>
         <DialogFooter className="mt-4">
           <Button onClick={onClose} size="sm" type="button" variant="outline">
-            Cancel
+            {"取消"}
           </Button>
           <Button
             onClick={() => {
@@ -1048,7 +1065,7 @@ function ListDialog({
             size="sm"
             type="button"
           >
-            Save
+            {"保存"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1077,10 +1094,10 @@ function DaysDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Stop inactive computers</DialogTitle>
+          <DialogTitle>{"停止非活跃计算机"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="mt-4 space-y-2">
-          <Label htmlFor="inactive-days">Days without use</Label>
+          <Label htmlFor="inactive-days">{"未使用天数"}</Label>
           <Input
             id="inactive-days"
             inputMode="numeric"
@@ -1088,12 +1105,12 @@ function DaysDialog({
             value={days}
           />
           <p className="text-muted-foreground text-xs">
-            0 turns it off. Checked hourly.
+            {"0 关闭它。每小时检查一次。"}
           </p>
         </DialogBody>
         <DialogFooter className="mt-4">
           <Button onClick={onClose} size="sm" type="button" variant="outline">
-            Cancel
+            {"取消"}
           </Button>
           <Button
             disabled={!valid}
@@ -1104,7 +1121,7 @@ function DaysDialog({
             size="sm"
             type="button"
           >
-            Save
+            {"保存"}
           </Button>
         </DialogFooter>
       </DialogContent>

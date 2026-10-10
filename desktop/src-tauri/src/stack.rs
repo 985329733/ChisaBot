@@ -25,7 +25,7 @@ use crate::problem::Problem;
 const SERVICES: [&str; 3] = ["postgres", "supervisor", "agent-computer"];
 
 /**
-The Bots that ship with OpenBot, which only run on an API key.
+The Bots that ship with ChisaBot, which only run on an API key.
 
 BOTH REFUSE TO START WITHOUT ONE, saying so themselves: "OPENAI_API_KEY is not set. This Bot cannot
 answer without a model." That is correct of them and wrong of us to ignore. Somebody who signs in
@@ -109,7 +109,7 @@ pub const HOST_PROCESSES: [HostProcess; 3] = [
     },
     // `serve`, not `dev`. The dev server sets NODE_ENV to development, and the SDK reads that to
     // decide whether to draw its developer inspector, so a desktop install opened its first window
-    // on CopilotKit's "What's New" panel covering OpenBot entirely. An installed application should
+    // on CopilotKit's "What's New" panel covering ChisaBot entirely. An installed application should
     // not be running a development server at all: this builds once and serves the build.
     HostProcess {
         name: "app",
@@ -132,7 +132,7 @@ pub const HOST_PROCESSES: [HostProcess; 3] = [
 /// than through its shebang. `node_modules/.bin/vite` begins `#!/usr/bin/env node`, so a machine
 /// with bun and no Node starts the app, fails with `node: command not found`, and is restarted
 /// five more times before this gives up on it. Which is what happened on the Linux machine this
-/// was tested on, and would happen to anybody who installed OpenBot without also having Node.
+/// was tested on, and would happen to anybody who installed ChisaBot without also having Node.
 pub struct HostProcess {
     pub name: &'static str,
     pub cwd: &'static str,
@@ -232,7 +232,7 @@ fn named_volume_exists(engine: &Address, root: &Path, volume: &str) -> Result<bo
 
 fn postgres_volume_problem(detail: impl Into<String>) -> Problem {
     Problem::with(
-        "OpenBot could not verify whether this installation has saved database data. No encryption key was created. Check the selected container engine and Compose configuration, then try again.",
+        "ChisaBot could not verify whether this installation has saved database data. No encryption key was created. Check the selected container engine and Compose configuration, then try again.",
         detail,
     )
 }
@@ -324,7 +324,7 @@ pub fn reset_leftover_database(
     confirmed_volume: &str,
 ) -> Result<(), Problem> {
     if leftover_database_volume(engine, root, secrets)?.as_deref() != Some(confirmed_volume) {
-        return Err(Problem::plain("The leftover database no longer matches the volume you confirmed, or OpenBot could not verify that it owns the volume. Nothing was removed. Try Start again."));
+        return Err(Problem::plain("The leftover database no longer matches the volume you confirmed, or ChisaBot could not verify that it owns the volume. Nothing was removed. Try Start again."));
     }
     // Never force this operation: the engine must refuse any container attachment, including a
     // stopped container or one created after inspection. Do not stop containers to make it pass.
@@ -335,12 +335,12 @@ pub fn reset_leftover_database(
         .output()
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not reset the leftover database. Nothing else was removed.",
+                "ChisaBot could not reset the leftover database. Nothing else was removed.",
                 format!("Could not run volume removal: {error}"),
             )
         })?;
     if !removed.status.success() {
-        return Err(Problem::with("OpenBot could not reset the leftover database. It may still be attached to a container. Nothing else was removed; stop the installation using it before trying again.", format!("Volume removal exited with {}. Output omitted because it can contain credentials.", removed.status)));
+        return Err(Problem::with("ChisaBot could not reset the leftover database. It may still be attached to a container. Nothing else was removed; stop the installation using it before trying again.", format!("Volume removal exited with {}. Output omitted because it can contain credentials.", removed.status)));
     }
     Ok(())
 }
@@ -403,7 +403,7 @@ fn harness_port_overlay(root: &Path, ipv4_only: bool) -> Result<Option<String>, 
     )
     .map_err(|error| {
         Problem::with(
-            "OpenBot could not read the Bot's local port.",
+            "ChisaBot could not read the Bot's local port.",
             error.to_string(),
         )
     })?;
@@ -459,13 +459,13 @@ fn compose_start_command(
         .output()
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not read the deployment's Compose settings.",
+                "ChisaBot could not read the deployment's Compose settings.",
                 error.to_string(),
             )
         })?;
     if !environment.status.success() {
         return Err(Problem::with(
-            "OpenBot could not read the deployment's Compose settings.",
+            "ChisaBot could not read the deployment's Compose settings.",
             command_said(&environment.stderr),
         ));
     }
@@ -487,7 +487,7 @@ fn compose_start_command(
             if std::fs::read(&overlay).ok().as_deref() != Some(contents.as_bytes()) {
                 std::fs::write(&overlay, contents).map_err(|error| {
                     Problem::with(
-                        "OpenBot could not prepare its local port settings.",
+                        "ChisaBot could not prepare its local port settings.",
                         error.to_string(),
                     )
                 })?;
@@ -558,13 +558,13 @@ pub fn installation_images(
         .output()
         .map_err(|e| {
             Problem::with(
-                "OpenBot could not check which software to install.",
+                "ChisaBot could not check which software to install.",
                 e.to_string(),
             )
         })?;
     if !output.status.success() {
         return Err(Problem::with(
-            "OpenBot could not check which software to install.",
+            "ChisaBot could not check which software to install.",
             command_said(&output.stderr),
         ));
     }
@@ -576,7 +576,7 @@ pub fn installation_images(
         .collect();
     if images.is_empty() {
         return Err(Problem::plain(
-            "This deployment does not identify the software OpenBot needs to install.",
+            "This deployment does not identify the software ChisaBot needs to install.",
         ));
     }
     Ok(images.into_iter().collect())
@@ -952,7 +952,7 @@ fn record_windows_host_processes_with(
 ) -> Result<(), Problem> {
     let problem = |detail| {
         Problem::with(
-            "OpenBot could not verify its Windows host process ownership.",
+            "ChisaBot could not verify its Windows host process ownership.",
             format!(
                 "{}: {detail}; ownership records retained",
                 host_pids_path(root).display()
@@ -1044,7 +1044,7 @@ fn recorded_host_pid_file(root: &Path) -> Result<Option<RecordedHostPidFile>, Pr
     let path = host_pids_path(root);
     let problem = |detail| {
         Problem::with(
-            "OpenBot could not read its recorded host processes.",
+            "ChisaBot could not read its recorded host processes.",
             format!("{}: {detail}", path.display()),
         )
     };
@@ -1074,7 +1074,7 @@ fn write_host_pid_file<T: Serialize>(root: &Path, value: &T) -> Result<(), Probl
     let path = host_pids_path(root);
     let problem = |operation: &str, error: &dyn std::fmt::Display| {
         Problem::with(
-            "OpenBot could not record its host processes.",
+            "ChisaBot could not record its host processes.",
             format!("{}: {operation}: {error}", path.display()),
         )
     };
@@ -1211,7 +1211,7 @@ pub fn replace_windows_host_process_with(
     let pid = child.id();
     let problem = |detail| {
         Problem::with(
-            "OpenBot could not verify its Windows replacement process ownership.",
+            "ChisaBot could not verify its Windows replacement process ownership.",
             format!("{name}, pid {pid}: {detail}; ownership retained"),
         )
     };
@@ -1252,7 +1252,7 @@ pub fn replace_windows_host_process_with(
 #[cfg(unix)]
 fn unix_ownership_problem(detail: impl Into<String>) -> Problem {
     Problem::with(
-        "OpenBot could not verify its host process ownership.",
+        "ChisaBot could not verify its host process ownership.",
         detail,
     )
 }
@@ -1514,7 +1514,7 @@ fn stop_windows_host_children_with(
             .try_wait()
             .map_err(|error| {
                 Problem::with(
-                    "OpenBot could not inspect a held host process.",
+                    "ChisaBot could not inspect a held host process.",
                     format!("{name}: {error}"),
                 )
             })?
@@ -1537,7 +1537,7 @@ fn stop_windows_host_children_with(
         let record = live.and_then(|live| RecordedHostProcess::from_live(name, live))
             .filter(|record| !record.executable_path.is_empty() && !record.command_line.is_empty() && !record.creation_date.is_empty())
             .ok_or_else(|| Problem::with(
-                "OpenBot could not verify a held host process.",
+                "ChisaBot could not verify a held host process.",
                 format!("{name}, pid {pid}: current direct-child identity is unavailable; ownership retained"),
             ))?;
         // Preserve any earlier instance too. Each is independently verified before termination.
@@ -1778,7 +1778,7 @@ where
         return Ok(true);
     }
     Err(Problem::with(
-        "OpenBot could not stop one of its host processes.",
+        "ChisaBot could not stop one of its host processes.",
         format!(
             "pid {pid} is still running after SIGKILL; ownership ancestor and records retained"
         ),
@@ -1817,7 +1817,7 @@ fn signal_unix_process(pid: i32, signal: i32) -> Result<bool, Problem> {
         return Ok(false);
     }
     Err(Problem::with(
-        "OpenBot could not stop one of its host processes.",
+        "ChisaBot could not stop one of its host processes.",
         format!("could not send signal {signal} to pid {pid}: {error}"),
     ))
 }
@@ -1832,7 +1832,7 @@ pub fn stop_processes_under(_root: &Path) -> Result<usize, Problem> {
      *
      * MEASURED ON WINDOWS SERVER 2022. Stop took the five containers down, reported success, and
      * left every host process running: the server on 3001, the worker, and both halves of the app
-     * still answering 200 on 3010. Somebody who pressed Stop still had OpenBot serving.
+     * still answering 200 on 3010. Somebody who pressed Stop still had ChisaBot serving.
      *
      * So they are found by the ports the deployment publishes, which the shell already owns and
      * already checks for clashes, and each is ended WITH ITS CHILDREN: `bun run serve` starts the
@@ -1859,7 +1859,7 @@ fn stop_windows_processes_with_inventory(
             // A previous Start wrote these PIDs, but a reopened window cannot prove their
             // process instances. Keep that unresolved evidence without authorizing a signal.
             return Err(Problem::with(
-                "OpenBot could not verify its recorded host processes.",
+                "ChisaBot could not verify its recorded host processes.",
                 format!(
                     "{}: legacy PID-only evidence lacks Windows process-instance identity; cleanup unresolved; ownership records retained",
                     host_pids_path(root).display()
@@ -1900,7 +1900,7 @@ fn stop_windows_processes_under_with(
         })
     }) {
         return Err(Problem::with(
-            "OpenBot could not verify one of its recorded host processes.",
+            "ChisaBot could not verify one of its recorded host processes.",
             format!(
                 "{}: process inventory lacks usable identity metadata for pid {}; ownership records retained",
                 host_pids_path(root).display(),
@@ -1920,7 +1920,7 @@ fn stop_windows_processes_under_with(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => {
             return Err(Problem::with(
-                "OpenBot could not remove its recorded host processes.",
+                "ChisaBot could not remove its recorded host processes.",
                 format!("{}: could not remove pidfile: {error}", path.display()),
             ));
         }
@@ -1978,7 +1978,7 @@ where
 
 fn cleanup_spawn_problem(operation: &str, error: std::io::Error) -> Problem {
     Problem::with(
-        "OpenBot could not inspect or stop its host processes.",
+        "ChisaBot could not inspect or stop its host processes.",
         format!("could not run {operation}: {error}"),
     )
 }
@@ -1996,14 +1996,14 @@ fn cleanup_status_problem(operation: &str, output: &std::process::Output) -> Pro
         detail.push_str(&stdout);
     }
     Problem::with(
-        "OpenBot could not inspect or stop its host processes.",
+        "ChisaBot could not inspect or stop its host processes.",
         detail,
     )
 }
 
 fn combined_cleanup_problem(failures: Vec<Problem>) -> Problem {
     Problem::with(
-        "OpenBot could not inspect or stop its host processes.",
+        "ChisaBot could not inspect or stop its host processes.",
         failures
             .into_iter()
             .map(problem_detail)
@@ -2108,7 +2108,7 @@ fn windows_processes_with(powershell: &Path) -> Result<Vec<WindowsProcess>, Prob
     if !output.status.success() {
         // The inventory includes other processes' command lines. Never echo a partial snapshot.
         return Err(Problem::with(
-            "OpenBot could not inspect its Windows host processes.",
+            "ChisaBot could not inspect its Windows host processes.",
             format!("{operation} exited with status {}", output.status),
         ));
     }
@@ -2119,7 +2119,7 @@ fn windows_processes_with(powershell: &Path) -> Result<Vec<WindowsProcess>, Prob
 fn windows_process_output(output: &[u8]) -> Result<Vec<WindowsProcess>, Problem> {
     let invalid_encoding = || {
         Problem::with(
-            "OpenBot could not inspect its Windows host processes.",
+            "ChisaBot could not inspect its Windows host processes.",
             "powershell Get-CimInstance Win32_Process returned invalid UTF-8 or UTF-16LE",
         )
     };
@@ -2152,7 +2152,7 @@ enum WindowsProcessListing {
 pub fn windows_processes_in(listing: &str) -> Result<Vec<WindowsProcess>, Problem> {
     let listing = serde_json::from_str::<WindowsProcessListing>(listing).map_err(|error| {
         Problem::with(
-            "OpenBot could not inspect its Windows host processes.",
+            "ChisaBot could not inspect its Windows host processes.",
             format!(
                 "powershell Get-CimInstance Win32_Process returned invalid process JSON: {error}"
             ),
@@ -2164,7 +2164,7 @@ pub fn windows_processes_in(listing: &str) -> Result<Vec<WindowsProcess>, Proble
     })
 }
 
-/// Recorded OpenBot root processes whose live identity still matches the pid file.
+/// Recorded ChisaBot root processes whose live identity still matches the pid file.
 pub fn verified_openbot_root_pids(
     recorded: &[RecordedHostProcess],
     processes: &[WindowsProcess],
@@ -2181,7 +2181,7 @@ pub fn verified_openbot_root_pids(
         .collect()
 }
 
-/// Recorded OpenBot processes, or their live children, listening on one of the host ports.
+/// Recorded ChisaBot processes, or their live children, listening on one of the host ports.
 ///
 /// A pid file entry is not ownership by itself: the live process must still match the recorded
 /// executable, command line and creation time before its tree is eligible for cleanup.
@@ -2554,7 +2554,7 @@ pub fn services_that_exited_among(
         .output()
         .map_err(|error| {
             crate::problem::Problem::with(
-                "OpenBot could not inspect its Compose services.",
+                "ChisaBot could not inspect its Compose services.",
                 format!("could not run {operation}: {error}"),
             )
         })?;
@@ -2572,7 +2572,7 @@ pub fn services_that_exited_among(
             detail.push_str(&stdout);
         }
         return Err(crate::problem::Problem::with(
-            "OpenBot could not inspect its Compose services.",
+            "ChisaBot could not inspect its Compose services.",
             detail,
         ));
     }
@@ -2584,7 +2584,7 @@ pub fn services_that_exited_among(
         }
         let Some((service, state)) = line.split_once('\t') else {
             return Err(crate::problem::Problem::with(
-                "OpenBot could not inspect its Compose services.",
+                "ChisaBot could not inspect its Compose services.",
                 format!("unusable {operation} row: {line}"),
             ));
         };
@@ -2592,7 +2592,7 @@ pub fn services_that_exited_among(
         let state = state.trim();
         if service.is_empty() || state.is_empty() {
             return Err(crate::problem::Problem::with(
-                "OpenBot could not inspect its Compose services.",
+                "ChisaBot could not inspect its Compose services.",
                 format!("unusable {operation} row: {line}"),
             ));
         }
@@ -2628,8 +2628,8 @@ The ports this deployment's own containers already publish.
 
 MEASURED, AND IT LEAVES A PERSON STUCK. A start that fails after `compose up` leaves the containers
 it raised running, so the next press of Start finds the harness port held and refuses with
-"something is already listening on port 4206, which OpenBot uses for the Bot you picked" — about a
-container OpenBot itself started, which the person never saw and cannot find. There is no way
+"something is already listening on port 4206, which ChisaBot uses for the Bot you picked" — about a
+container ChisaBot itself started, which the person never saw and cannot find. There is no way
 forward from that screen.
 
 Our own containers are not a conflict: `compose up` is idempotent and reuses them. The check exists
@@ -2727,7 +2727,7 @@ pub fn port_already_taken_except(
         }
         if something_answers(*port) {
             return Some(format!(
-                "Port {port} for the {name} became unavailable. Try Start again so OpenBot can choose another local port."
+                "Port {port} for the {name} became unavailable. Try Start again so ChisaBot can choose another local port."
             ));
         }
     }
@@ -2893,7 +2893,7 @@ pub fn startup_problem(problem: Problem, secrets: &Secrets) -> Problem {
         detail = detail.replace(value, &format!("<{key}>"));
     }
     let mut problem = Problem::with(
-        "OpenBot could not finish starting. Try Start again, or share the details below for help.",
+        "ChisaBot could not finish starting. Try Start again, or share the details below for help.",
         detail,
     );
     problem.database_reset = database_reset;
@@ -2908,14 +2908,14 @@ pub fn startup_problem(problem: Problem, secrets: &Secrets) -> Problem {
 pub fn deployment_problem(root: &Path) -> Option<String> {
     if !root.exists() {
         return Some(format!(
-            "{} does not exist yet. OpenBot needs a copy of the deployment there before it can \
+            "{} does not exist yet. ChisaBot needs a copy of the deployment there before it can \
              start one.",
             root.display()
         ));
     }
     if !root.join("docker-compose.yml").exists() {
         return Some(format!(
-            "{} is not an OpenBot deployment: it has no docker-compose.yml.",
+            "{} is not an ChisaBot deployment: it has no docker-compose.yml.",
             root.display()
         ));
     }
@@ -2946,7 +2946,7 @@ fn missing_script(root: &Path) -> Option<String> {
      * An unreadable manifest and one without the script are different things.
      *
      * Read as one, a `package.json` that will not parse was reported as a deployment "older than
-     * this version of OpenBot", which sent somebody looking for a newer installer over a file with
+     * this version of ChisaBot", which sent somebody looking for a newer installer over a file with
      * a byte-order mark in front of it. `serde_json` refuses a document that begins with one, and
      * plenty of Windows tooling writes one: `Set-Content -Encoding UTF8` does.
      */
@@ -2968,8 +2968,8 @@ fn missing_script(root: &Path) -> Option<String> {
         return None;
     }
     Some(format!(
-        "The deployment in {} is older than this version of OpenBot: its app has no \"{APP_SCRIPT}\" \
-         script, so there is no way to serve it. Install a newer OpenBot, or delete that directory \
+        "The deployment in {} is older than this version of ChisaBot: its app has no \"{APP_SCRIPT}\" \
+         script, so there is no way to serve it. Install a newer ChisaBot, or delete that directory \
          and start again to fetch a deployment that matches.",
         root.display()
     ))
@@ -5116,7 +5116,7 @@ fn main() {
 
         assert_eq!(
             problem.said,
-            "OpenBot could not inspect its Compose services."
+            "ChisaBot could not inspect its Compose services."
         );
         assert!(
             problem
@@ -5145,7 +5145,7 @@ fn main() {
 
         assert_eq!(
             problem.said,
-            "OpenBot could not inspect its Compose services."
+            "ChisaBot could not inspect its Compose services."
         );
         let detail = problem.detail.as_deref().unwrap_or_default();
         assert!(
@@ -5211,7 +5211,7 @@ fn main() {
 
             assert_eq!(
                 problem.said,
-                "OpenBot could not inspect its Compose services."
+                "ChisaBot could not inspect its Compose services."
             );
             assert!(
                 problem
@@ -5262,7 +5262,7 @@ fn main() {
             attempted.push(pid);
             if pid == 9000 {
                 Err(Problem::with(
-                    "OpenBot could not inspect or stop its host processes.",
+                    "ChisaBot could not inspect or stop its host processes.",
                     format!("taskkill /PID {pid} /T /F exited with status 5"),
                 ))
             } else {
@@ -5274,7 +5274,7 @@ fn main() {
         assert_eq!(attempted, vec![9000, 9001]);
         assert_eq!(
             problem.said,
-            "OpenBot could not inspect or stop its host processes."
+            "ChisaBot could not inspect or stop its host processes."
         );
         assert!(
             problem
@@ -6553,7 +6553,7 @@ fn main() {
     ///
     /// Windows tooling writes one freely (`Set-Content -Encoding UTF8` does), `serde_json` refuses
     /// a document that begins with one, and the refusal was reported as a deployment older than
-    /// this version of OpenBot. That sent somebody looking for a newer installer over three bytes.
+    /// this version of ChisaBot. That sent somebody looking for a newer installer over three bytes.
     #[test]
     fn a_byte_order_mark_does_not_make_a_deployment_look_old() {
         let dir = temp_root("bom");
@@ -6669,7 +6669,7 @@ fn main() {
     #[test]
     fn a_space_inside_the_path_is_part_of_the_path() {
         // Only the ends. "Documents and Settings" is a directory, and a person whose home has a
-        // space in it must still be able to say where OpenBot lives.
+        // space in it must still be able to say where ChisaBot lives.
         assert_eq!(
             root_from("/home/me/My Files/OpenBot"),
             PathBuf::from("/home/me/My Files/OpenBot")

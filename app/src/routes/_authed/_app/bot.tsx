@@ -3,6 +3,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ComputerChatControls } from "@/components/computer/computer-controls";
+import { BotModelInput } from "@/components/agents/bot-model-input";
 import { ComputerViewPanel } from "@/components/computer/computer-panel";
 import { DetailPanel } from "@/components/layout/detail-panel";
 import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
@@ -60,10 +61,10 @@ async function loadExplicitBot(agentId: string): Promise<BotDetailLookup> {
     `/api/agents/${encodeURIComponent(agentId)}`,
   );
   if (response.status === 404) return { status: "missing" };
-  if (!response.ok) throw new Error("Bot couldn't be loaded.");
+  if (!response.ok) throw new Error("机器人无法加载。");
 
   const body: unknown = await response.json().catch(() => null);
-  if (!isAgentEnvelope(body)) throw new Error("Bot couldn't be loaded.");
+  if (!isAgentEnvelope(body)) throw new Error("机器人无法加载。");
   return { bot: body.agent, status: "found" };
 }
 
@@ -99,7 +100,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Bots couldn't be loaded.
+          {"机器人无法加载。"}
         </p>
       </div>
     );
@@ -108,7 +109,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Bot couldn't be loaded.
+          {"机器人无法加载。"}
         </p>
       </div>
     );
@@ -118,8 +119,8 @@ function RouteComponent() {
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-muted-foreground text-sm">
           {agent
-            ? `This deployment has no Bot called "${agent}".`
-            : "This deployment has no Bots yet."}
+            ? `此部署中没有名为 "${agent}" 的机器人。`
+            : "此部署还没有机器人。"}
         </p>
       </div>
     );
@@ -160,7 +161,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
 
   return (
     <DetailPanel
-      title="Computer"
+      title={"计算机"}
       open={watch === true}
       onClose={() => showComputer(false)}
       detail={<ComputerViewPanel agentId={agentId} name={name} />}
@@ -190,12 +191,12 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
               />
               <Button onClick={startNew} size="sm" variant="ghost">
                 <IconPlus />
-                New chat
+                {"新聊天"}
               </Button>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Ask it to open a page and watch it work.
+            {"询问它打开一个页面并观看其工作。"}
           </p>
         </header>
         {/*
@@ -209,8 +210,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
             data-testid="bot-chat-history-unavailable"
             role="alert"
           >
-            Earlier messages in this conversation could not be loaded, and the
-            Bot is answering without them.
+            {"此会话中的较早消息无法加载，机器人正在没有它们的情况下回答。"}
           </p>
         ) : null}
         {/*
@@ -242,6 +242,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
            */}
           {threadId ? (
             <CopilotChat
+              input={BotModelInput}
               agentId={agentId}
               key={`${agentId}:${threadId}`}
               threadId={threadId}

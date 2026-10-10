@@ -99,7 +99,7 @@ test("a failed send puts the words back rather than throwing at nobody", async (
   );
 
   await act(async () => {
-    fireEvent.click(getByLabelText("Send message"));
+    fireEvent.click(getByLabelText("发送消息"));
   });
   // Cleared optimistically, which is the state the restore has to undo.
   expect(typedText(container)).toBe("");
@@ -108,7 +108,7 @@ test("a failed send puts the words back rather than throwing at nobody", async (
 
   expect(typedText(container)).toContain("ship it");
   // Back to a composer that can be sent from again, rather than one stuck mid-send.
-  expect((getByLabelText("Send message") as HTMLButtonElement).disabled).toBe(
+  expect((getByLabelText("发送消息") as HTMLButtonElement).disabled).toBe(
     false,
   );
 });
@@ -129,7 +129,7 @@ test("a failed send keeps what was typed while it was in flight", async () => {
   );
 
   await act(async () => {
-    fireEvent.click(getByLabelText("Send message"));
+    fireEvent.click(getByLabelText("发送消息"));
   });
   expect(typedText(container)).toBe("");
 

@@ -55,7 +55,7 @@ async function signInOptions(): Promise<SignInOptions> {
   // returns without a key quietly yields undefined: the screen would say no provider is configured
   // while the server was saying it has one.
   const body = (await (
-    await client("/api/capabilities", { fallback: "Could not load sign-in" })
+    await client("/api/capabilities", { fallback: "无法加载登录" })
   ).json()) as {
     authProviders?: AuthProviderId[];
     ssoConfigured?: boolean;
@@ -84,21 +84,38 @@ export function authProvidersQueryOptions() {
   });
 }
 
-async function currentUser(): Promise<AuthenticatedUser | null> {
-  /*
-   * `tryClient` rather than `client`: not being signed in is an answer here, not a failure, and it
-   * arrives as a 401 that has to be read before anything decides the request went wrong.
-   */
-  const response = await tryClient("/api/me");
-  if (response.status === 401) {
-    return null;
-  }
-  if (!response.ok) {
-    throw new Error(`Could not load the current user (${response.status})`);
-  }
+async function currentUser({ signal }: { signal: AbortSignal }): Promise<AuthenticatedUser | null> {
+  const request = new AbortController();
+  const forwardCancellation = () => request.abort(signal.reason);
+  let rejectAborted!: (reason: unknown) => void;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAborted = reject; });
+  const onRequestAbort = () => rejectAborted(request.signal.reason);
+  request.signal.addEventListener("abort", onRequestAbort, { once: true });
+  signal.addEventListener("abort", forwardCancellation, { once: true });
+  if (signal.aborted) forwardCancellation();
+  const deadline = setTimeout(() => {
+    request.abort(new Error("登录检查超时，请稍后重试。"));
+  }, 15_000);
 
-  const body = (await response.json()) as { user: AuthenticatedUser };
-  return body.user;
+  try {
+    // Cover both response headers and JSON decoding: receiving headers alone must not leave the
+    // authentication route waiting forever. The transport also receives the abort signal.
+    return await Promise.race([
+      (async () => {
+        /* A 401 is the signed-out state, rather than a failed request. */
+        const response = await tryClient("/api/me", { signal: request.signal });
+        if (response.status === 401) return null;
+        if (!response.ok) throw new Error(`无法加载当前用户 (${response.status})`);
+        const body = (await response.json()) as { user: AuthenticatedUser };
+        return body.user;
+      })(),
+      aborted,
+    ]);
+  } finally {
+    clearTimeout(deadline);
+    signal.removeEventListener("abort", forwardCancellation);
+    request.signal.removeEventListener("abort", onRequestAbort);
+  }
 }
 
 export function currentUserQueryOptions() {
@@ -106,5 +123,6 @@ export function currentUserQueryOptions() {
     queryKey: authKeys.currentUser(),
     queryFn: currentUser,
     staleTime: 60_000,
+    retry: false,
   });
 }

@@ -92,8 +92,10 @@ function ComputersPage() {
 
   return (
     <PageShell
-      description="Each Bot's browser and the profile it keeps. A profile is what makes a Bot still signed in tomorrow, and resetting one signs it out of everything."
-      title="Computers"
+      description={
+        "每个机器人的浏览器和它保存的配置文件。配置文件让机器人明天还能保持登录，重置配置文件会让它退出所有内容。"
+      }
+      title={"计算机"}
     >
       {problem ? (
         <p
@@ -106,17 +108,17 @@ function ComputersPage() {
 
       {isolation === "shared" ? (
         <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          <span className="font-medium">
-            Every Bot is sharing one computer.
-          </span>{" "}
-          They share its logins, its files and its session, so a Bot can reach
-          what another signed into. Set <code>COMPUTER_SUPERVISOR_URL</code> to
-          give each Bot its own.
+          <span className="font-medium">{"每个机器人共享一个计算机。"}</span>{" "}
+          {
+            "他们共享其登录、文件和会话，因此机器人可以访问另一个登录的用户设置。"
+          }
+          <code>COMPUTER_SUPERVISOR_URL</code> {"给每个机器人自己的。"}
         </p>
       ) : isolation === "per-bot" ? (
         <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-          Each Bot has a computer of its own: its own container, its own files
-          and its own browser profile.
+          {
+            "每个机器人都有自己的计算机：自己的容器、自己的文件和自己的浏览器配置文件。"
+          }
         </p>
       ) : null}
 
@@ -144,7 +146,7 @@ function ComputersPage() {
         stopping={stopHostAccess.isPending}
       />
 
-      <PageSection title="Computers in this deployment">
+      <PageSection title={"此部署中的计算机"}>
         {setState.error ? (
           <p
             className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
@@ -154,10 +156,10 @@ function ComputersPage() {
           </p>
         ) : null}
         {computers === null && problem ? (
-          <PageEmpty>The list could not be loaded.</PageEmpty>
+          <PageEmpty>{"列表无法加载。"}</PageEmpty>
         ) : computers === null ? null : computers.length === 0 ? (
           <PageEmpty>
-            No computers yet. One appears the first time a Bot opens a page.
+            {"尚未有计算机。下次机器人打开页面时会出现一个。"}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -170,15 +172,15 @@ function ComputersPage() {
                     </ItemTitle>
                     <ItemDescription>
                       {computer.running
-                        ? `Browser running since ${new Date(computer.startedAt ?? "").toLocaleTimeString()}`
-                        : "No browser running. It starts when the Bot next needs it."}
+                        ? `浏览器运行于 ${new Date(computer.startedAt ?? "").toLocaleTimeString("zh-CN")}`
+                        : "没有正在运行的浏览器。下次机器人需要时它会启动。"}
                       {" · "}
                       {computer.egress === undefined
-                        ? "Egress not reported"
+                        ? "出口未报告"
                         : computer.egress === null
-                          ? "Leaves directly"
-                          : `Leaves through ${computer.egress}`}
-                      {computer.updateAvailable ? " · Update available" : ""}
+                          ? "直接离开"
+                          : `通过 ${computer.egress} 离开`}
+                      {computer.updateAvailable ? "· 有更新可用" : ""}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -189,7 +191,7 @@ function ComputersPage() {
                         size="sm"
                         variant="outline"
                       >
-                        Update computer
+                        {"更新计算机"}
                       </Button>
                     ) : null}
                     <Button
@@ -198,7 +200,7 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      {busy === computer.botId ? "Working…" : "Stop browser"}
+                      {busy === computer.botId ? "正在处理中…" : "停止浏览器"}
                     </Button>
                     <Button
                       disabled={busy === computer.botId}
@@ -206,7 +208,7 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      Reset
+                      {"重置"}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -232,11 +234,14 @@ function ComputersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Reset {confirming ? nameFor(confirming) : ""}'s computer?
+              {"重置"}
+              {confirming ? nameFor(confirming) : ""}
+              {"'s 计算机？"}
             </DialogTitle>
             <DialogDescription>
-              Its profile is deleted, so the Bot is signed out of every service
-              it had logged into and starts clean. This cannot be undone.
+              {
+                "它的配置文件被删除，因此机器人已从它登录的每个服务中注销并开始干净。这不能被撤销。"
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -245,7 +250,7 @@ function ComputersPage() {
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={busy === confirming}
@@ -255,7 +260,7 @@ function ComputersPage() {
               size="sm"
               variant="destructive"
             >
-              {busy === confirming ? "Resetting…" : "Reset it"}
+              {busy === confirming ? "正在重置…" : "重置它"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -270,13 +275,14 @@ function ComputersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Update {confirmingUpdate ? nameFor(confirmingUpdate) : ""}'s
-              computer?
+              {"更新"}
+              {confirmingUpdate ? nameFor(confirmingUpdate) : ""}
+              {"'s 计算机？"}
             </DialogTitle>
             <DialogDescription>
-              It moves onto the computer image this deployment now runs. Its
-              files and sign-ins are kept. If it is running it restarts, which
-              interrupts anything it is doing right now.
+              {
+                "它移动到此部署现在运行的计算机镜像上。它的文件和登录被保留。如果它正在运行，它会重新启动，这会中断它当前正在做的任何事情。"
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -285,7 +291,7 @@ function ComputersPage() {
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={busy === confirmingUpdate}
@@ -294,22 +300,25 @@ function ComputersPage() {
               }}
               size="sm"
             >
-              {busy === confirmingUpdate ? "Updating…" : "Update it"}
+              {busy === confirmingUpdate ? "更新中…" : "更新它"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <p className="mt-4 text-muted-foreground text-sm">
-        <strong>Stop</strong> closes the browser and keeps its logins: the next
-        thing the Bot does starts it again where it left off.{" "}
-        <strong>Reset</strong> deletes the profile, so the Bot is signed out of
-        everything and starts clean. <strong>Update computer</strong> appears
-        when a computer runs an older image than this deployment, and moves it
-        onto the new one with its files and sign-ins kept. All three are
-        recorded in{" "}
+        <strong>{"停止"}</strong>{" "}
+        {
+          "关闭浏览器并保留其登录信息：机器人接下来要做的第一件事是在它离开的地方重新启动它。"
+        }{" "}
+        <strong>{"重置"}</strong>{" "}
+        {"删除配置文件，这样机器人退出所有内容并干净开始。"}
+        <strong>{"更新计算机"}</strong>{" "}
+        {
+          "当计算机运行比此部署更旧的镜像时出现，并将其移动到新版本，保留其文件和登录记录。三者都记录在"
+        }{" "}
         <Link className="underline" to="/admin/audit">
-          Audit
+          {"审计"}
         </Link>
         .
       </p>
@@ -358,8 +367,10 @@ function HostFoldersSection({
 
   return (
     <PageSection
-      description="Choose folders a Bot can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot."
-      title="Folders on this computer"
+      description={
+        "选择机器人可以在此计算机上读取的文件夹。桌面应用在每次编辑或命令前都会询问。访问在你停止 ChisaBot 时结束。"
+      }
+      title={"此计算机上的文件夹"}
     >
       {problem ? (
         <p
@@ -372,15 +383,14 @@ function HostFoldersSection({
 
       {!connected && !loading ? (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          The desktop app is offline. Folders can only be approved from the
-          desktop app, and command access stays unavailable while it is offline.
+          {
+            "桌面应用离线。文件夹只能从桌面应用批准，命令访问在离线时保持不可用。"
+          }
         </p>
       ) : null}
 
       {loading ? null : botIds.length === 0 ? (
-        <PageEmpty>
-          No Bots yet. Create a Bot before choosing folders.
-        </PageEmpty>
+        <PageEmpty>{"尚无机器人。在选择文件夹之前创建机器人。"}</PageEmpty>
       ) : (
         <PageRows>
           {botIds.map((botId, index) => (
@@ -406,7 +416,7 @@ function HostFoldersSection({
                     size="sm"
                     variant="outline"
                   >
-                    {requestingBotId === botId ? "Waiting…" : "Choose folder"}
+                    {requestingBotId === botId ? "等待中…" : "选择文件夹"}
                   </Button>
                 </ItemActions>
               </Item>
@@ -417,10 +427,7 @@ function HostFoldersSection({
       )}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-muted-foreground text-sm">
-        <p>
-          Grants are read-only by default. Writes are requested from the native
-          desktop prompt when a Bot needs them.
-        </p>
+        <p>{"授权默认只读。当机器人需要时，从原生桌面提示请求写入。"}</p>
         <div className="flex items-center gap-3">
           <Button
             disabled={!connected || stopping}
@@ -428,10 +435,10 @@ function HostFoldersSection({
             size="sm"
             variant="outline"
           >
-            {stopping ? "Stopping…" : "Stop folder access"}
+            {stopping ? "正在停止…" : "停止文件夹访问"}
           </Button>
           <Link className="underline" to="/admin/audit">
-            View audit
+            {"查看审计"}
           </Link>
         </div>
       </div>
@@ -469,7 +476,7 @@ function FolderGrantList({
           <div className="min-w-0">
             <p className="truncate font-medium text-sm">{grant.displayName}</p>
             <p className="text-muted-foreground text-xs">
-              {ownerLabel(grant)} · Read-only
+              {ownerLabel(grant)} {"· 只读"}
             </p>
           </div>
           <Button
@@ -478,7 +485,7 @@ function FolderGrantList({
             size="sm"
             variant="ghost"
           >
-            {revokingGrantId === grant.id ? "Revoking…" : "Revoke"}
+            {revokingGrantId === grant.id ? "撤销中…" : "撤销"}
           </Button>
         </div>
       ))}
@@ -487,8 +494,9 @@ function FolderGrantList({
           className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
           key={request.operationId}
         >
-          {pendingLabel(request)} from {ownerLabel(request)}
-          {request.displayName ? ` for ${request.displayName}` : ""}.
+          {pendingLabel(request)} {"从"}
+          {ownerLabel(request)}
+          {request.displayName ? `用于 ${request.displayName}` : ""}.
         </div>
       ))}
     </div>
@@ -505,31 +513,29 @@ function summaryFor(
   ).length;
   const waiting = pending.filter((request) => request.botId === botId).length;
   const parts = [];
-  if (active > 0)
-    parts.push(`${active} read-only ${active === 1 ? "folder" : "folders"}`);
-  if (waiting > 0)
-    parts.push(`${waiting} pending ${waiting === 1 ? "request" : "requests"}`);
-  return parts.length > 0 ? parts.join(" · ") : "No folders approved.";
+  if (active > 0) parts.push(`${active} 个只读文件夹`);
+  if (waiting > 0) parts.push(`${waiting} 项待处理请求`);
+  return parts.length > 0 ? parts.join(" · ") : "尚未批准任何文件夹访问。";
 }
 
 function ownerLabel(grant: { ownerName?: string; ownerEmail?: string }) {
-  return grant.ownerName ?? grant.ownerEmail ?? "the desktop owner";
+  return grant.ownerName ?? grant.ownerEmail ?? "桌面所有者";
 }
 
 function pendingLabel(request: HostAccessPendingOperation) {
   switch (request.kind) {
     case "write_file":
-      return "File change awaiting approval or completion";
+      return "文件修改正在等待审批或完成";
     case "run_command":
-      return "Command awaiting approval or completion";
+      return "命令正在等待审批或完成";
     case "list_files":
-      return "Listing files";
+      return "正在列出文件";
     case "read_file":
-      return "Reading a file";
+      return "正在读取文件";
     case "cancel":
     case "stop":
-      return "Stopping folder work";
+      return "正在停止文件夹操作";
     default:
-      return "Folder access awaiting approval";
+      return "文件夹访问正在等待审批";
   }
 }

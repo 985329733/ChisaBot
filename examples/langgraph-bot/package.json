@@ -1,5 +1,6 @@
 {
   "name": "@openbot/example-langgraph-bot",
+  "description": "ChisaBot LangGraph 接入示例",
   "private": true,
   "type": "module",
   "scripts": {

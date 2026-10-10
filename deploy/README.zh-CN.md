@@ -1,0 +1,85 @@
+# ChisaBot 自托管部署
+
+此目录是可自行配置的 Linux 部署模板。使用 `OPENBOT_RUNTIME_MODE=local` 后，会话运行、聊天记录和个人记忆保存在自己的 PostgreSQL 中，无需 CopilotKit Intelligence 项目密钥。模型推理由接入的模型服务处理，支持自托管模型、兼容 API 和自部署 Magpie。
+
+需要 Bun 1.3.14、Docker Engine、Docker Compose v2。主应用使用上游公开基础镜像，并将本分支源码及构建后的中文界面覆盖进去；不是已发布的 ChisaBot 公共镜像。
+
+## 构建与启动
+
+在仓库根目录执行：
+
+```sh
+bun install --frozen-lockfile
+cp deploy/.env.example deploy/.env
+chmod 600 deploy/.env
+# 仅为首次安装的空字段生成随机密钥，不打印密钥。
+bun -e 'let text=await Bun.file("deploy/.env").text();for(const name of ["KEY_ENCRYPTION_KEY","WORKER_SHARED_SECRET"]){text=text.replace(new RegExp("^"+name+"=\\s*$","m"),name+"="+require("node:crypto").randomBytes(32).toString("hex"))}await Bun.write("deploy/.env",text)'
+TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build
+sh deploy/start.sh
+```
+
+`deploy/.env` 中的 `BOT_PROVIDER`、`BOT_MODEL`、对应 API 地址及密钥是首次启动的模型连接。可以先保留示例模型，再通过网页登录后的“管理 → 模型设置”配置和测试真实连接。启动不要求先调用模型，旧 `preflight-model.ts` 仅作为手动 OpenAI 兼容接口诊断工具。
+
+主服务默认只监听 `127.0.0.1:3001`。公网使用需要继续配置 [HTTPS 登录网关](public/README.zh-CN.md)。网关保护下的后端沿用单管理员工作空间；不要将该单用户后端端口直接对外开放。
+
+`start.sh` 检查 `.env`、前端产物和 Compose 配置，创建共享模型网络，再构建并启动容器。`app/dist` 必须先构建；首次构建会拉取固定的上游基础镜像并安装锁定依赖。完整默认镜像名为 `local/chisabot:latest`，可通过 `CHISABOT_IMAGE` 修改。
+
+## Magpie
+
+主模板与 `magpie.compose.yaml` 使用相同的 `MAGPIE_NETWORK`，默认为 `openbot_magpie`。独立使用其他模型 API 时该空网络仍会创建，不依赖其他部署的 New API 网络。
+
+主服务启动后，在 `deploy/` 执行：
+
+```sh
+install -d -m 700 private magpie-data
+umask 077
+{ printf 'MAGPIE_WEB_KEY='; openssl rand -hex 32; } > private/magpie.env
+docker compose --env-file .env -p magpie -f magpie.compose.yaml up -d --wait
+```
+
+已有安装请保留并复用 `private/magpie.env` 与 `magpie-data`，不要重新生成 Web key。模板固定使用已验证的 Magpie v0.1.1141 镜像 digest；升级应先备份配置和独立验证。
+
+API 端口 `3425`、管理端口 `3430` 只绑定 loopback。ChisaBot 容器通过 `http://magpie:3425/v1` 访问网关；公网浏览器的管理入口由登录网关提供，例如 `https://chisabot.example.com:2053`。接入步骤、专用调用密钥及全模型目录见 [Magpie 指南](../docs/magpie.md)。
+
+管理入口是前端构建配置。需要显示这个入口时，在仓库根目录的 `.env` 设置 `VITE_MAGPIE_MANAGEMENT_URL`，或使用以下构建命令，然后重新执行 `start.sh`：
+
+```sh
+VITE_MAGPIE_MANAGEMENT_URL=https://chisabot.example.com:2053 \
+  TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build
+```
+
+只修改 `deploy/.env` 中的 `VITE_*` 不会改变已经构建的网页。
+
+## 数据与兼容性
+
+Compose 项目仍使用 `openbot-zh`，容器为 `openbot-zh`，数据卷为该项目的 `database`、`workspace`、`profiles`，环境变量及内部协议继续使用上游名称。这样已有部署不会因展示名称变化而切换数据库卷。首次安装可以沿用这些名字。
+
+`KEY_ENCRYPTION_KEY` 加密持久化的模型密钥，必须随数据库备份保存；更新已有安装时不可重置它。`.env`、Magpie 私密配置、网页登录配置、会话数据库、证书与备份不能提交 Git。
+
+例行任务和附件清理使用原兼容的 systemd 服务名。需要时由 root 执行 `CHISABOT_ENABLE_TIMERS=1 sh deploy/start.sh`；容器名称应与模板相同。证书重载定时器在 `public/` 中，安装前按实际部署目录修改其路径。
+
+## 可选 SSH 维护
+
+日常使用走 HTTPS 网页。Windows 维护脚本只针对已经上传或克隆、已构建前端的服务器源码目录，不负责首次传输整个仓库。先通过可信渠道核对服务器指纹并写入 known_hosts；脚本使用 `StrictHostKeyChecking=yes`。
+
+```powershell
+./deploy/configure.ps1 -Server server.example.com -User root -Port 22 `
+  -IdentityFile C:/keys/server_ed25519 -KnownHostsFile C:/keys/known_hosts `
+  -DeploymentDirectory /opt/chisabot/deploy
+# 可选临时访问 loopback 工作台，后台启动的窗口隐藏。
+./deploy/connect.ps1 -Server server.example.com -IdentityFile C:/keys/server_ed25519 `
+  -KnownHostsFile C:/keys/known_hosts
+```
+
+`configure.ps1` 上传本地 `deploy/.env` 并更新模型/运行设置；已有加密密钥和其他配置保留。它随后调用服务器的 `start.sh`，不会打印配置值。`connect.ps1` 默认转发本地 `3001` 到服务器 `127.0.0.1:3001`，可用 `-LocalPort` 改本地端口。
+
+## 验证
+
+```sh
+node scripts/check-zh-localization.cjs
+TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app typecheck
+bun run --cwd server typecheck
+docker compose --env-file deploy/.env -p openbot-zh -f deploy/compose.yaml config --quiet
+```
+
+构建、类型检查及指定功能测试的通过结果不能代替全量测试；当前分支保留上游测试，其中部分 UI 文案断言及全局 SDK mock 仍待适配中文分支，详见 [维护指南](../docs/operations.md)。

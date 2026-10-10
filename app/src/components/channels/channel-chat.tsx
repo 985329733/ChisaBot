@@ -7,13 +7,16 @@ import {
   useCopilotKit,
 } from "@copilotkit/react-core/v2";
 import { observeApprovalAgent } from "@/lib/copilot/approval-context";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HandoffResumeNotice } from "@/components/computer/handoff-resume-notice";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
 import { ConversationView } from "@/components/channels/conversation-view";
 import { VoiceCallWidget } from "@/components/channels/voice-call-widget";
+import { BotModelSelector } from "@/components/agents/bot-model-selector";
+import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
+import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
 import {
   seedMessage,
   takeFirstMessage,
@@ -107,7 +110,7 @@ export function channelHistoryNotice({
     historyAvailability === "unavailable" &&
     (historyReadFailed || (messageCount === 0 && lastMessageAt !== null))
   ) {
-    return "Earlier messages are temporarily unavailable. You can keep using this conversation.";
+    return "较早的消息暂时无法加载，你仍可继续使用此会话。";
   }
 
   if (unreadable > 0) {
@@ -162,7 +165,7 @@ function uploadedAttachment(attachment: Attachment): {
     | undefined;
   const attachmentId = metadata?.attachmentId;
   if (typeof attachmentId !== "string") {
-    throw new Error("Attachment is missing its uploaded id.");
+    throw new Error("附件缺少其上传的 ID。");
   }
   const filename =
     typeof metadata?.filename === "string" ? metadata.filename : undefined;
@@ -233,7 +236,7 @@ function describeAttachments(attachments: readonly Attachment[]): string {
     const { filename } = uploadedAttachment(attachments[0]);
     return filename ? `Sent ${filename}` : "Sent an attachment";
   }
-  return `Sent ${attachments.length} attachments`;
+  return `已发送 ${attachments.length} 个附件`;
 }
 
 /**
@@ -251,6 +254,8 @@ export function ChannelChat({
 }) {
   // The core attaches the frontend tool registry; direct agent runs do not.
   const { copilotkit } = useCopilotKit();
+  const modelQueryClient = useQueryClient();
+  const modelSaving = useModelSelectionSaving(runtimeAgentId);
   // Mentions are scoped to the channel's permitted agents.
   const { data: agentProfiles } = useQuery(agentListQueryOptions());
   const channelAgentId = `channel:${channel.id}`;
@@ -644,7 +649,7 @@ export function ChannelChat({
       loadVoiceArchive(channel.id),
       new Promise<never>((_resolve, reject) => {
         voiceHistoryTimer = setTimeout(
-          () => reject(new Error("Voice history timed out")),
+          () => reject(new Error("语音历史记录超时")),
           2000,
         );
       }),
@@ -656,6 +661,8 @@ export function ChannelChat({
         return cachedVoiceArchive(channel.id);
       })
       .finally(() => clearTimeout(voiceHistoryTimer));
+    // A model write may have started while readiness or history was being awaited.
+    assertModelSelectionNotSaving(modelQueryClient, runtimeAgentId);
     const target = agentRef.current;
     const existingMessageIds = new Set(
       target.messages.map((message) => message.id),
@@ -776,11 +783,12 @@ export function ChannelChat({
     // enabled and inert.
     if (!trimmed && attachments.length === 0) return "";
 
+    // Seeds, component actions and voice calls share the same gate as the composer.
+    assertModelSelectionNotSaving(modelQueryClient, runtimeAgentId);
+
     // Voice and typed requests share this turn boundary, including gaps between frontend tools.
     if (turnsRef.current > 0 || agentRef.current.isRunning) {
-      throw new Error(
-        "The agent is still working on another request. Please wait or stop that task first.",
-      );
+      throw new Error("代理仍在处理另一个请求。请等待或先停止该任务。");
     }
 
     turnsRef.current += 1;
@@ -857,7 +865,7 @@ export function ChannelChat({
         send: (text) => sayRef.current(text),
       });
       if (started !== stopEpoch.current)
-        throw new Error("The user stopped this task before it completed.");
+        throw new Error("用户在任务完成前停止了此任务。");
       return answer;
     },
   });
@@ -922,6 +930,8 @@ export function ChannelChat({
             taskRunning={agent.isRunning || runsInFlight > 0}
           />
           <ConversationView
+            modelControl={<BotModelSelector agentId={runtimeAgentId} compact disabled={!channel.active} />}
+            sendBlocked={modelSaving}
             voiceCall={
               call.available
                 ? {
@@ -968,7 +978,7 @@ export function ChannelChat({
                 />
                 {voiceArchive.error && (
                   <p className="pb-2 text-sm text-destructive" role="alert">
-                    Voice chats couldn’t be loaded. Refresh to try again.
+                    {"语音聊天加载失败。请刷新重试。"}
                   </p>
                 )}
                 {voiceContextNotice && (
@@ -992,13 +1002,13 @@ export function ChannelChat({
                     className="pb-2 text-sm text-muted-foreground"
                     role="status"
                   >
-                    This coworker has been deleted. The conversation stays
-                    readable, but it can no longer reply.
+                    {"此 AI 同事已被删除。会话保持可读，但无法再回复。"}
                   </p>
                 )}
               </>
             }
             onSubmit={async (draft) => {
+              assertModelSelectionNotSaving(modelQueryClient, runtimeAgentId);
               // `draft.agentId` carries the @mentioned coworker, but nothing routes on it yet: this
               // channel is pinned to one `runtimeAgentId` for the life of its thread, so honouring a
               // per-message mention is a change to that binding, not to the composer.

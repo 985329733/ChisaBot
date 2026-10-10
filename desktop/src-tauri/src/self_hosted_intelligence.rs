@@ -95,7 +95,7 @@ impl SigningIn {
         patience: Duration,
     ) -> Result<Arc<Self>, Problem> {
         let mut child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()
-            .map_err(|_| Problem::plain("The Intelligence sign-in helper could not start. Finish installing OpenBot and try again."))?;
+            .map_err(|_| Problem::plain("The Intelligence sign-in helper could not start. Finish installing ChisaBot and try again."))?;
         let stdout = child.stdout.take().expect("piped stdout");
         let (sender, events) = mpsc::channel();
         std::thread::spawn(move || {

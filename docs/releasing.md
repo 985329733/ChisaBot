@@ -1,5 +1,7 @@
 # Releasing
 
+> **ChisaBot 分支：** 本文描述上游发布基础设施。私有分支的源码提交不代表发布公共镜像或客户端安装包；分发前需使用自己的构建、签名、镜像与发布配置。当前分支的验证范围见实际 CI 和部署验收记录，不能将定向检查通过描述为整个上游测试集通过。
+
 A release is one person choosing a version, and a reviewed pull request doing everything else. No
 step involves a terminal, a tag pushed by hand, or an image built on somebody's laptop.
 
@@ -147,10 +149,12 @@ the server reaches the supervisor, the supervisor builds a computer, the gateway
 browser acts, and the trail records it. It cannot run in CI, and this is not a gap to be closed
 later.
 
-OpenBot only runs in Intelligence mode, and `loadConfig` refuses to start without the project's
-Intelligence values, which a hosted runner has no business holding. The `image` check gets around
-this with placeholder values, because nothing is contacted at start-up, but the journey asserts
-`licenseStatus` is `valid`, and no placeholder can make that true.
+The inherited upstream smoke journey assumes Intelligence mode and asserts that `licenseStatus`
+is `valid`. Its configuration requires real Intelligence project values, which a hosted runner
+has no business holding. The `image` check uses placeholders because nothing is contacted at
+startup, but placeholders do not satisfy that journey's licence assertion. ChisaBot also supports
+`OPENBOT_RUNTIME_MODE=local` without these project values; verify that mode with the local runtime
+checks and the deployment acceptance steps in [operations.md](operations.md).
 
 So it is a step a person takes, on a machine with real Intelligence credentials, before merging
 the release PR:

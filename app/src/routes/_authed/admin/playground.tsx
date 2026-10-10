@@ -71,13 +71,13 @@ export function parseJsonObject(raw: string, label: string): JsonObjectResult {
   } catch (thrown) {
     const reason =
       thrown instanceof SyntaxError ? thrown.message : "invalid JSON";
-    return { ok: false, message: `${label} must be valid JSON: ${reason}` };
+    return { ok: false, message: `${label} 必须是有效 JSON：${reason}` };
   }
 
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {
       ok: false,
-      message: `${label} must be a JSON object, not ${jsonKind(value)}.`,
+      message: `${label} 必须是 JSON 对象，不是 ${jsonKind(value)}。`,
     };
   }
 
@@ -154,10 +154,7 @@ function PlaygroundPage() {
     const current = validatePlaygroundDraft(draft);
     if (!current.ok) {
       setNotice(null);
-      setError(
-        Object.values(current.fields)[0] ??
-          "Fix the JSON fields before saving.",
-      );
+      setError(Object.values(current.fields)[0] ?? "在保存前修复 JSON 字段。");
       return null;
     }
     return current.input;
@@ -168,7 +165,7 @@ function PlaygroundPage() {
     setNotice(null);
     const payload = input();
     if (!payload) return;
-    saveDraft.mutate(payload, { onSuccess: () => setNotice("Draft saved.") });
+    saveDraft.mutate(payload, { onSuccess: () => setNotice("草稿已保存。") });
   };
 
   const publish = () => {
@@ -176,7 +173,7 @@ function PlaygroundPage() {
     setNotice(null);
     const payload = input();
     if (!payload) return;
-    publishDraft.mutate(payload, { onSuccess: () => setNotice("Published.") });
+    publishDraft.mutate(payload, { onSuccess: () => setNotice("已发布。") });
   };
 
   const load = (component: SandboxedRecord) =>
@@ -205,11 +202,11 @@ function PlaygroundPage() {
         <div className="flex items-start gap-2">
           <SidebarToggle className="-ml-2 shrink-0" />
           <div>
-            <h1 className="font-bold text-2xl">Playground</h1>
+            <h1 className="font-bold text-2xl">{"游乐场"}</h1>
             <p className="mt-1 max-w-prose text-pretty text-muted-foreground text-sm leading-relaxed">
-              Write a component here and publish it without a deployment. What
-              you edit is a draft; a conversation only ever draws what is
-              published.
+              {
+                "在此处编写组件并在不部署的情况下发布。编辑的是草稿；对话只显示已发布的。"
+              }
             </p>
           </div>
         </div>
@@ -221,7 +218,7 @@ function PlaygroundPage() {
             type="button"
             variant="outline"
           >
-            Save draft
+            {"保存草稿"}
           </Button>
           <Button
             /* `publish` saves first, since publishing acts on the stored draft, not the editors. */
@@ -230,7 +227,7 @@ function PlaygroundPage() {
             size="sm"
             type="button"
           >
-            Publish
+            {"发布"}
           </Button>
         </div>
       </header>
@@ -256,28 +253,28 @@ function PlaygroundPage() {
         <div className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
             <TextField
-              label="Name"
+              label={"名称"}
               onChange={set("slug")}
               placeholder="refund_card"
               value={draft.slug}
             />
             <TextField
-              label="Title"
+              label={"标题"}
               onChange={set("title")}
-              placeholder="Refund card"
+              placeholder={"退款卡"}
               value={draft.title}
             />
           </div>
           <TextField
-            label="What the model is told about it"
+            label={"模型被告知什么"}
             onChange={set("description")}
-            placeholder="Show a refund with its amount, reason and status."
+            placeholder={"显示退款金额、原因和状态。"}
             value={draft.description}
           />
           <CodeField label="HTML" onChange={set("html")} value={draft.html} />
-          <CodeField label="CSS" onChange={set("css")} value={draft.css} />
+          <CodeField label={"CSS"} onChange={set("css")} value={draft.css} />
           <CodeField
-            label="JavaScript"
+            label={"JavaScript"}
             onChange={set("jsFunctions")}
             value={draft.jsFunctions}
           />
@@ -285,7 +282,7 @@ function PlaygroundPage() {
             error={
               !validation.ok ? validation.fields.argumentSchema : undefined
             }
-            label="Arguments (JSON Schema)"
+            label={"参数（JSON Schema）"}
             onChange={set("argumentSchema")}
             value={draft.argumentSchema}
           />
@@ -293,7 +290,7 @@ function PlaygroundPage() {
             error={
               !validation.ok ? validation.fields.sampleArguments : undefined
             }
-            label="Sample arguments"
+            label={"示例参数"}
             onChange={set("sampleArguments")}
             value={draft.sampleArguments}
           />
@@ -301,13 +298,13 @@ function PlaygroundPage() {
 
         <div className="space-y-4">
           <div className="rounded-lg border p-4">
-            <div className="mb-2 text-sm font-medium">Preview</div>
+            <div className="mb-2 text-sm font-medium">{"预览"}</div>
             {sample === null ? (
               <p className="text-sm text-destructive">
                 {validation.ok
-                  ? "The sample arguments are not available."
+                  ? "样本参数不可用。"
                   : (validation.fields.sampleArguments ??
-                    "Fix the JSON fields before previewing.")}
+                    "在预览前修复 JSON 字段。")}
               </p>
             ) : (
               <OpenGenerativeUIActivityRenderer
@@ -331,11 +328,11 @@ function PlaygroundPage() {
 
           <div className="rounded-lg border border-border bg-card">
             <div className="border-border border-b px-4 py-2 font-medium text-sm">
-              Saved here
+              {"已保存于此"}
             </div>
             {(components ?? []).length === 0 ? (
               <p className="px-4 py-3 text-muted-foreground text-sm">
-                Nothing yet.
+                {"暂无。"}
               </p>
             ) : (
               <ul className="divide-y divide-border">
@@ -348,11 +345,9 @@ function PlaygroundPage() {
                       <div className="font-mono text-xs">{component.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {component.published
-                          ? `published, revision ${component.revision}`
-                          : "draft only, no Bot can draw it"}
-                        {component.hasUnpublishedChanges
-                          ? " · edited since publishing"
-                          : ""}
+                          ? `已发布，修订版 ${component.revision}`
+                          : "仅草稿，机器人无法绘制它"}
+                        {component.hasUnpublishedChanges ? "· 发布后编辑" : ""}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -362,7 +357,7 @@ function PlaygroundPage() {
                         type="button"
                         variant="outline"
                       >
-                        Open
+                        {"打开"}
                       </Button>
                       <Button
                         onClick={() => setDeleting(component.name)}
@@ -370,7 +365,7 @@ function PlaygroundPage() {
                         type="button"
                         variant="ghost"
                       >
-                        Delete
+                        {"删除"}
                       </Button>
                     </div>
                   </li>
@@ -378,9 +373,9 @@ function PlaygroundPage() {
               </ul>
             )}
             <p className="border-border border-t px-4 py-2 text-muted-foreground text-xs">
-              Publishing makes it available to every Bot. Switch it off for a
-              particular Bot on the Components page, the same as for a component
-              this build ships.
+              {
+                "发布后，它将对每个机器人可用。在组件页面为特定机器人关闭开关，与此构建提供的组件相同。"
+              }
             </p>
           </div>
         </div>
@@ -398,15 +393,19 @@ function PlaygroundPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {deleting}?</DialogTitle>
+            <DialogTitle>
+              {"删除"}
+              {deleting}?
+            </DialogTitle>
             <DialogDescription>
-              It is removed from this deployment. Any Bot that could draw it no
-              longer can, and this cannot be undone.
+              {
+                "它已从此部署中移除。任何可以提取它的机器人现在不能了，这不能被撤销。"
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setDeleting(null)} size="sm" variant="ghost">
-              Cancel
+              {"取消"}
             </Button>
             <Button
               onClick={() => {
@@ -420,7 +419,7 @@ function PlaygroundPage() {
               size="sm"
               variant="destructive"
             >
-              Delete it
+              {"删除它"}
             </Button>
           </DialogFooter>
         </DialogContent>

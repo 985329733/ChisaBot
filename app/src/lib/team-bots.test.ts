@@ -10,7 +10,7 @@ describe("readTeamBotConsent", () => {
     ).toEqual({
       botId: "agent_1",
       serverId: "gmail",
-      message: "This Team Bot wants to use your own gmail account.",
+      message: "此团队机器人想要使用你自己的Gmail账号。",
     });
     expect(readTeamBotConsent("That tool is not granted.")).toBeNull();
     expect(readTeamBotConsent(`${TEAM_BOT_CONSENT_MARKER}{broken`)).toBeNull();

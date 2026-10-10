@@ -46,13 +46,13 @@ function ResponsibilitiesPage() {
   const goals = useQuery(responsibilitiesQueryOptions());
   return (
     <PageShell
-      title="Responsibilities"
-      description="Give a Bot a lasting goal, follow its progress, and decide when it should work."
+      title={"长期任务"}
+      description={"为机器人设定持久目标，跟踪其进展，并决定何时应执行。"}
     >
       <div className="grid gap-6">
         <NewResponsibility />
         {goals.isPending ? (
-          <p>Loading responsibilities…</p>
+          <p>{"正在加载长期任务…"}</p>
         ) : goals.error ? (
           <p role="alert" className="text-destructive">
             {goals.error.message}
@@ -60,9 +60,7 @@ function ResponsibilitiesPage() {
         ) : goals.data?.length ? (
           goals.data.map((goal) => <GoalCard key={goal.id} goal={goal} />)
         ) : (
-          <p className="text-muted-foreground">
-            You have no responsibilities yet.
-          </p>
+          <p className="text-muted-foreground">{"您还没有长期任务。"}</p>
         )}
         <GithubSources />
       </div>
@@ -113,10 +111,10 @@ function NewResponsibility() {
         });
       }}
     >
-      <h2 className="font-semibold">New responsibility</h2>
+      <h2 className="font-semibold">{"新长期任务"}</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={fieldClass}>
-          Conversation
+          {"对话"}
           <select
             className={selectClass}
             required
@@ -126,7 +124,7 @@ function NewResponsibility() {
               setAgentId("");
             }}
           >
-            <option value="">Choose a conversation</option>
+            <option value="">{"选择一个对话"}</option>
             {channels.data
               ?.filter((channel) => channel.active)
               .map((channel) => (
@@ -137,14 +135,14 @@ function NewResponsibility() {
           </select>
         </label>
         <label className={fieldClass}>
-          Bot
+          {"机器人"}
           <select
             className={selectClass}
             required
             value={agentId}
             onChange={(event) => setAgentId(event.target.value)}
           >
-            <option value="">Choose a Bot</option>
+            <option value="">{"选择一个机器人"}</option>
             {availableBots.map((bot) => (
               <option key={bot.id} value={bot.id}>
                 {bot.name}
@@ -159,7 +157,7 @@ function NewResponsibility() {
           variant="outline"
           onClick={() => channels.fetchNextPage()}
         >
-          Load more conversations
+          {"加载更多会话"}
         </Button>
       )}
       {(channels.error || bots.error) && (
@@ -168,18 +166,18 @@ function NewResponsibility() {
         </p>
       )}
       <label className={fieldClass} htmlFor={`${formId}-title`}>
-        Title
+        {"标题"}
         <Input
           id={`${formId}-title`}
           required
           maxLength={160}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Keep the customer report up to date"
+          placeholder={"保持客户报告最新"}
         />
       </label>
       <label className={fieldClass} htmlFor={`${formId}-instruction`}>
-        Instruction
+        {"指令"}
         <Textarea
           id={`${formId}-instruction`}
           required
@@ -189,19 +187,19 @@ function NewResponsibility() {
         />
       </label>
       <label className={fieldClass} htmlFor={`${formId}-criteria`}>
-        Success criteria
+        {"成功标准"}
         <Textarea
           id={`${formId}-criteria`}
           required
           maxLength={3000}
           value={successCriteria}
           onChange={(event) => setSuccessCriteria(event.target.value)}
-          placeholder="The report contains the current quarter's graph and a source link."
+          placeholder={"报告包含本季度的图表和来源链接。"}
         />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={fieldClass}>
-          Event source
+          {"事件源"}
           <select
             className={selectClass}
             value={source}
@@ -218,23 +216,23 @@ function NewResponsibility() {
                 setSource(value);
             }}
           >
-            <option value="none">Run when asked</option>
-            <option value="github">GitHub</option>
-            <option value="slack">Slack</option>
-            <option value="connector">Connected app</option>
-            <option value="schedule">Schedule</option>
+            <option value="none">{"被要求时运行"}</option>
+            <option value="github">{"GitHub"}</option>
+            <option value="slack">{"Slack"}</option>
+            <option value="connector">{"已连接应用"}</option>
+            <option value="schedule">{"计划"}</option>
           </select>
         </label>
         {source !== "none" && (
           <label className={fieldClass} htmlFor={`${formId}-event`}>
-            Event type
+            {"事件类型"}
             <Input
               id={`${formId}-event`}
               required
               maxLength={128}
               value={eventType}
               onChange={(event) => setEventType(event.target.value)}
-              placeholder={source === "github" ? "issues.opened" : "Event type"}
+              placeholder={source === "github" ? "issues.opened" : "事件类型"}
             />
           </label>
         )}
@@ -245,7 +243,7 @@ function NewResponsibility() {
         </p>
       )}
       <Button disabled={create.isPending} type="submit">
-        {create.isPending ? "Creating…" : "Create responsibility"}
+        {create.isPending ? "正在创建…" : "创建长期任务"}
       </Button>
     </form>
   );
@@ -291,7 +289,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
           }}
         >
           <label className={fieldClass} htmlFor={`${goal.id}-title`}>
-            Title
+            {"标题"}
             <Input
               id={`${goal.id}-title`}
               value={title}
@@ -301,7 +299,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
             />
           </label>
           <label className={fieldClass} htmlFor={`${goal.id}-instruction`}>
-            Instruction
+            {"指令"}
             <Textarea
               id={`${goal.id}-instruction`}
               value={instruction}
@@ -311,7 +309,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
             />
           </label>
           <label className={fieldClass} htmlFor={`${goal.id}-criteria`}>
-            Success criteria
+            {"成功标准"}
             <Textarea
               id={`${goal.id}-criteria`}
               value={successCriteria}
@@ -322,14 +320,14 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
           </label>
           <div className="flex gap-2">
             <Button type="submit" disabled={edit.isPending}>
-              Save
+              {"保存"}
             </Button>
             <Button
               variant="outline"
               type="button"
               onClick={() => setEditing(false)}
             >
-              Cancel
+              {"取消"}
             </Button>
           </div>
         </form>
@@ -337,13 +335,14 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
         <>
           <p className="whitespace-pre-wrap text-sm">{goal.instruction}</p>
           <p className="text-sm text-muted-foreground">
-            Success: {goal.successCriteria}
+            {"成功："}
+            {goal.successCriteria}
           </p>
         </>
       )}
       {goal.progress && (
         <div className="text-sm">
-          <span className="font-medium">Progress:</span>
+          <span className="font-medium">{"进度："}</span>
           <RunMarkdown>{goal.progress}</RunMarkdown>
         </div>
       )}
@@ -354,7 +353,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
       )}
       {goal.subscriptions.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Events:{" "}
+          {"事件："}{" "}
           {goal.subscriptions
             .map(
               (subscription) =>
@@ -369,7 +368,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
           size="sm"
           onClick={() => setEditing(!editing)}
         >
-          Edit
+          {"编辑"}
         </Button>
         {goal.status === "active" && (
           <>
@@ -380,9 +379,9 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
                 setShowRuns(true);
                 action.mutate("run");
               }}
-              title="Runs it for real, now: the Bot does the work and can post and act."
+              title={"现在真实运行：机器人完成工作并可以发布和行动。"}
             >
-              Run now (real run)
+              {"立即运行（真实运行）"}
             </Button>
             <Button
               variant="outline"
@@ -390,7 +389,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
               disabled={action.isPending}
               onClick={() => action.mutate("pause")}
             >
-              Pause
+              {"暂停"}
             </Button>
           </>
         )}
@@ -400,7 +399,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
             disabled={action.isPending}
             onClick={() => action.mutate("resume")}
           >
-            Resume
+            {"恢复"}
           </Button>
         )}
         {goal.status !== "completed" && (
@@ -410,7 +409,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
             disabled={action.isPending}
             onClick={() => action.mutate("complete")}
           >
-            Complete
+            {"完成"}
           </Button>
         )}
         <Button
@@ -418,14 +417,14 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
           size="sm"
           onClick={() => setShowRuns(!showRuns)}
         >
-          {showRuns ? "Hide runs" : "View runs"}
+          {showRuns ? "隐藏运行" : "查看运行"}
         </Button>
         <Link
           to="/channel/$channelId"
           params={{ channelId: goal.channelId }}
           className="self-center text-sm underline"
         >
-          Open conversation
+          {"打开对话"}
         </Link>
       </div>
       {(action.error || edit.error) && (
@@ -437,7 +436,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
       {showRuns && (
         <div className="grid gap-2 border-t pt-3">
           {runs.isPending ? (
-            <p>Loading runs…</p>
+            <p>{"正在加载运行…"}</p>
           ) : runs.error ? (
             <p role="alert">{runs.error.message}</p>
           ) : runs.data?.length ? (
@@ -447,19 +446,20 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
                   <span className={runStatusClass(run.status)}>
                     {RUN_LABEL[run.status]}
                   </span>{" "}
-                  · {new Date(run.createdAt).toLocaleString()} ·{" "}
+                  · {new Date(run.createdAt).toLocaleString("zh-CN")} ·{" "}
                   <Link
                     to="/channel/$channelId"
                     params={{ channelId: goal.channelId }}
                     className="underline"
                   >
-                    Open thread
+                    {"打开线程"}
                   </Link>
                 </p>
                 {run.waiting && (
                   <p>
-                    Waiting for {run.waiting.kind}. Respond through your
-                    approval inbox or conversation.
+                    {"等待"}
+                    {run.waiting.kind}
+                    {". 通过你的审批收件箱或对话回复。"}
                   </p>
                 )}
                 {run.error && (
@@ -469,7 +469,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
               </div>
             ))
           ) : (
-            <p>No runs yet.</p>
+            <p>{"暂无运行。"}</p>
           )}
         </div>
       )}
@@ -515,11 +515,11 @@ function GithubSources() {
   });
   return (
     <section className="grid gap-3 rounded-lg border p-4">
-      <h2 className="font-semibold">GitHub event sources</h2>
+      <h2 className="font-semibold">{"GitHub 事件源"}</h2>
       <p className="text-sm text-muted-foreground">
-        Register a repository, then add its webhook in GitHub using the endpoint
-        below and the same secret. Subscribe a responsibility to an event such
-        as issues.opened.
+        {
+          "注册一个仓库，然后使用下面的端点和相同的密钥在 GitHub 中添加其 webhook。订阅一个长期任务到如 issues.opened 的事件。"
+        }
       </p>
       <form
         className="grid gap-3 sm:grid-cols-3"
@@ -529,17 +529,17 @@ function GithubSources() {
         }}
       >
         <label className={fieldClass} htmlFor={`${formId}-repository`}>
-          Repository
+          {"仓库"}
           <Input
             id={`${formId}-repository`}
             value={repository}
             onChange={(event) => setRepository(event.target.value)}
-            placeholder="owner/repository"
+            placeholder={"owner/repository"}
             required
           />
         </label>
         <label className={fieldClass} htmlFor={`${formId}-secret`}>
-          Webhook secret
+          {"Webhook 密钥"}
           <Input
             id={`${formId}-secret`}
             type="password"
@@ -550,7 +550,7 @@ function GithubSources() {
           />
         </label>
         <Button type="submit" className="self-end" disabled={create.isPending}>
-          Connect events
+          {"连接事件"}
         </Button>
       </form>
       {(bindings.error || create.error || remove.error) && (
@@ -577,7 +577,7 @@ function GithubSources() {
             disabled={remove.isPending}
             onClick={() => remove.mutate(binding.id)}
           >
-            Disconnect
+            {"断开连接"}
           </Button>
         </div>
       ))}
@@ -649,7 +649,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {copied ? "Copied" : label}
+      {copied ? "已复制" : label}
     </Button>
   );
 }
@@ -667,7 +667,7 @@ function describeFilter(config: TriggerConfig) {
           : config.mode === "phrase"
             ? `on messages containing ${config.phrases.map((phrase) => `"${phrase}"`).join(" or ")}`
             : `on reactions${config.reactions.length ? ` :${config.reactions.join(": :")}:` : ""}`;
-    return `${what} ${where} (workspace ${config.teamId})`;
+    return `${what} ${where}（工作区 ${config.teamId}）`;
   }
   const parts = [
     config.filter.eventTypes.length
@@ -699,20 +699,21 @@ function Triggers({ goal }: { goal: ResponsibilityRecord }) {
   return (
     <section className="grid gap-2 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-medium text-sm">Triggers</h3>
+        <h3 className="font-medium text-sm">{"触发器"}</h3>
         <Button
           size="sm"
           variant="outline"
           type="button"
           onClick={() => setAdding(!adding)}
         >
-          {adding ? "Cancel" : "Add trigger"}
+          {adding ? "取消" : "添加触发器"}
         </Button>
       </div>
       {goal.status !== "active" && (
         <p className="text-muted-foreground text-xs">
-          This responsibility is {goal.status}, so its triggers are acknowledged
-          but never run it.
+          {"这个长期任务是"}
+          {goal.status}
+          {", 因此其触发器被确认但从未运行它。"}
         </p>
       )}
       {adding && (
@@ -736,8 +737,7 @@ function Triggers({ goal }: { goal: ResponsibilityRecord }) {
       )}
       {triggers.data?.length === 0 && !adding && (
         <p className="text-muted-foreground text-xs">
-          No triggers. It runs when you press Run now, or on the event
-          subscriptions above.
+          {"无触发器。它在您按下立即运行时运行，或在上面的事件订阅上。"}
         </p>
       )}
       {triggers.data?.map((trigger) => (
@@ -806,7 +806,7 @@ function TriggerRow({
           </span>
           {!trigger.enabled && (
             <span className="ml-2 rounded bg-background px-1.5 py-0.5 text-xs">
-              Paused
+              {"已暂停"}
             </span>
           )}
         </p>
@@ -816,7 +816,7 @@ function TriggerRow({
           disabled={toggle.isPending}
           onClick={() => toggle.mutate()}
         >
-          {trigger.enabled ? "Pause" : "Resume"}
+          {trigger.enabled ? "暂停" : "恢复"}
         </Button>
         {confirmRemove ? (
           <span className="flex gap-2">
@@ -826,14 +826,14 @@ function TriggerRow({
               disabled={remove.isPending}
               onClick={() => remove.mutate()}
             >
-              Remove for good
+              {"彻底移除"}
             </Button>
             <Button
               size="sm"
               variant="ghost"
               onClick={() => setConfirmRemove(false)}
             >
-              Keep
+              {"保持"}
             </Button>
           </span>
         ) : (
@@ -842,18 +842,18 @@ function TriggerRow({
             variant="ghost"
             onClick={() => setConfirmRemove(true)}
           >
-            Remove
+            {"移除"}
           </Button>
         )}
       </div>
       <p className="text-muted-foreground text-xs">{KIND_HELP[trigger.kind]}</p>
       {url && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs">POST to</span>
+          <span className="text-xs">{"POST 到"}</span>
           <code className="break-all rounded bg-background px-2 py-1 text-xs">
             {url}
           </code>
-          <CopyButton value={url} label="Copy URL" />
+          <CopyButton value={url} label={"复制 URL"} />
         </div>
       )}
       {trigger.kind === "email" &&
@@ -862,29 +862,28 @@ function TriggerRow({
             <code className="break-all rounded bg-background px-2 py-1 text-xs">
               {trigger.address}
             </code>
-            <CopyButton value={trigger.address} label="Copy address" />
+            <CopyButton value={trigger.address} label={"复制地址"} />
           </div>
         ) : (
           <p className="text-amber-600 text-xs dark:text-amber-500">
-            Inbound email is not configured on this deployment
-            (OPENBOT_INBOUND_EMAIL_DOMAIN and
-            OPENBOT_INBOUND_EMAIL_SNS_TOPIC_ARNS), so this address cannot
-            receive mail yet.
+            {
+              "此部署未配置入站邮件 (OPENBOT_INBOUND_EMAIL_DOMAIN 和 OPENBOT_INBOUND_EMAIL_SNS_TOPIC_ARNS)，因此此地址尚无法接收邮件"
+            }
           </p>
         ))}
       {generated && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs">Key</span>
+          <span className="text-xs">{"密钥"}</span>
           {shown ? (
             <>
               <code className="break-all rounded bg-background px-2 py-1 text-xs">
                 {shown}
               </code>
-              <CopyButton value={shown} label="Copy key" />
+              <CopyButton value={shown} label={"复制密钥"} />
               {trigger.kind === "webhook" && (
                 <CopyButton
                   value={`Authorization: Bearer ${shown}`}
-                  label="Copy header"
+                  label={"复制头部"}
                 />
               )}
             </>
@@ -895,7 +894,7 @@ function TriggerRow({
               disabled={reveal.isPending}
               onClick={() => reveal.mutate()}
             >
-              Show key
+              {"显示关键"}
             </Button>
           )}
           <Button
@@ -904,7 +903,7 @@ function TriggerRow({
             disabled={rotate.isPending}
             onClick={() => rotate.mutate()}
           >
-            Rotate key
+            {"旋转密钥"}
           </Button>
         </div>
       )}
@@ -928,25 +927,21 @@ function TriggerRow({
                 : "text-amber-600 text-xs dark:text-amber-500"
             }
           >
-            {trigger.hasSecret
-              ? "Signing secret stored"
-              : "Waiting for the signing secret"}
+            {trigger.hasSecret ? "签名密钥已存储" : "正在等待签名密钥"}
           </span>
           <Input
             className="h-8 max-w-64"
             type="password"
             autoComplete="new-password"
             placeholder={
-              trigger.hasSecret
-                ? "Paste a new secret to rotate"
-                : "Paste the signing secret"
+              trigger.hasSecret ? "粘贴新的密钥以轮换" : "粘贴签名密钥"
             }
             value={pasted}
             onChange={(event) => setPasted(event.target.value)}
             required
           />
           <Button size="sm" type="submit" disabled={rotate.isPending}>
-            Save secret
+            {"保存密钥"}
           </Button>
         </form>
       )}
@@ -1041,7 +1036,7 @@ function NewTrigger({
       }}
     >
       <label className={fieldClass}>
-        Trigger
+        {"触发器"}
         <select
           className={selectClass}
           value={kind}
@@ -1058,31 +1053,31 @@ function NewTrigger({
       {kind === "slack" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={fieldClass} htmlFor={`${id}-team`}>
-            Slack team ID
+            {"Slack 团队 ID"}
             <Input
               id={`${id}-team`}
               required
-              placeholder="T0123ABCD"
+              placeholder={"T0123ABCD"}
               value={teamId}
               onChange={(event) => setTeamId(event.target.value)}
             />
           </label>
           <label className={fieldClass}>
-            Fire on
+            {"触发"}
             <select
               className={selectClass}
               value={mode}
               onChange={(event) => setMode(event.target.value as typeof mode)}
             >
-              <option value="mention">The Bot is mentioned</option>
-              <option value="phrase">A message contains a phrase</option>
-              <option value="reaction">A reaction is added</option>
-              <option value="message">Any message</option>
+              <option value="mention">{"已提及机器人"}</option>
+              <option value="phrase">{"消息包含短语"}</option>
+              <option value="reaction">{"添加了反应"}</option>
+              <option value="message">{"任何消息"}</option>
             </select>
           </label>
           {mode === "phrase" && (
             <label className={fieldClass} htmlFor={`${id}-phrases`}>
-              Phrases (comma separated)
+              {"短语（逗号分隔）"}
               <Input
                 id={`${id}-phrases`}
                 required
@@ -1093,20 +1088,20 @@ function NewTrigger({
           )}
           {mode === "reaction" && (
             <label className={fieldClass} htmlFor={`${id}-reactions`}>
-              Reactions (blank: any)
+              {"反应（空白：任何）"}
               <Input
                 id={`${id}-reactions`}
-                placeholder="eyes, rotating_light"
+                placeholder={"眼睛, 旋转灯"}
                 value={reactions}
                 onChange={(event) => setReactions(event.target.value)}
               />
             </label>
           )}
           <label className={fieldClass} htmlFor={`${id}-channels`}>
-            Channel IDs (blank: all the Bot is in)
+            {"会话 ID（留空：机器人所在的全部）"}
             <Input
               id={`${id}-channels`}
-              placeholder="C0123ABCD"
+              placeholder={"C0123ABCD"}
               value={channels}
               onChange={(event) => setChannels(event.target.value)}
             />
@@ -1115,7 +1110,7 @@ function NewTrigger({
       ) : (
         <div className="grid gap-3 sm:grid-cols-3">
           <label className={fieldClass} htmlFor={`${id}-types`}>
-            Event types
+            {"事件类型"}
             <Input
               id={`${id}-types`}
               placeholder={placeholder[kind]}
@@ -1124,29 +1119,29 @@ function NewTrigger({
             />
           </label>
           <label className={fieldClass} htmlFor={`${id}-path`}>
-            Only when field
+            {"仅当字段"}
             <Input
               id={`${id}-path`}
-              placeholder="data.team.key"
+              placeholder={"data.team.key"}
               value={fieldPath}
               onChange={(event) => setFieldPath(event.target.value)}
             />
           </label>
           <label className={fieldClass} htmlFor={`${id}-equals`}>
-            equals
+            {"等于"}
             <Input
               id={`${id}-equals`}
-              placeholder="ENG"
+              placeholder={"工程"}
               value={fieldEquals}
               onChange={(event) => setFieldEquals(event.target.value)}
             />
           </label>
           {kind === "github" && (
             <label className={fieldClass} htmlFor={`${id}-repo`}>
-              Repository (optional)
+              {"仓库（可选）"}
               <Input
                 id={`${id}-repo`}
-                placeholder="owner/name"
+                placeholder={"owner/name"}
                 value={repository}
                 onChange={(event) => setRepository(event.target.value)}
               />
@@ -1154,10 +1149,10 @@ function NewTrigger({
           )}
           {kind === "email" && (
             <label className={fieldClass} htmlFor={`${id}-senders`}>
-              Allowed senders (blank: anyone)
+              {"允许的发件人（留空：任何人）"}
               <Input
                 id={`${id}-senders`}
-                placeholder="ops@example.com, example.com"
+                placeholder={"ops@example.com, example.com"}
                 value={senders}
                 onChange={(event) => setSenders(event.target.value)}
               />
@@ -1165,7 +1160,7 @@ function NewTrigger({
           )}
           {VENDOR_SECRET.has(kind) && (
             <label className={fieldClass} htmlFor={`${id}-secret`}>
-              Signing secret (can be added later)
+              {"签名密钥（稍后可添加）"}
               <Input
                 id={`${id}-secret`}
                 type="password"
@@ -1183,7 +1178,7 @@ function NewTrigger({
         </p>
       )}
       <Button type="submit" disabled={create.isPending}>
-        {create.isPending ? "Adding…" : `Add ${KIND_LABEL[kind]} trigger`}
+        {create.isPending ? "正在添加…" : `添加 ${KIND_LABEL[kind]} 触发器`}
       </Button>
     </form>
   );

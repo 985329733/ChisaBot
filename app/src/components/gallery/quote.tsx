@@ -24,16 +24,14 @@ type QuoteArgs = z.infer<typeof QuoteCardProps>;
 export function QuoteCard({ quote, attribution, context }: Partial<QuoteArgs>) {
   if (!quote) {
     return (
-      <GalleryFrame title="Quotation">
-        <p className="text-sm text-muted-foreground">
-          There is nothing to quote.
-        </p>
+      <GalleryFrame title={"引用"}>
+        <p className="text-sm text-muted-foreground">{"没有可引用的内容。"}</p>
       </GalleryFrame>
     );
   }
 
   return (
-    <GalleryFrame caption={context} title="Quotation">
+    <GalleryFrame caption={context} title={"引用"}>
       <blockquote className="border-l-2 border-border pl-4">
         <p className="text-sm leading-relaxed">{quote}</p>
         {attribution ? (
@@ -49,10 +47,10 @@ export function QuoteCard({ quote, attribution, context }: Partial<QuoteArgs>) {
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showQuote",
-    title: "Quotation",
+    title: "引用",
     kind: "card",
     description:
-      "Show a quotation with its attribution. Use when the exact words matter, something a person said, or a line from a document you were given.",
+      "显示带归属的引用。当需要精确措辞时使用，如某人所说或文档中的句子。",
     parameters: QuoteCardProps,
     Component: QuoteCard as GalleryComponent["Component"],
     preview: {

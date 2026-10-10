@@ -113,7 +113,7 @@ export function grantPlugin(variables: {
       ref: variables.ref,
       agentId: variables.agentId,
     },
-    fallback: "That Agent could not be changed.",
+    fallback: "该代理无法更改。",
   });
 }
 
@@ -137,7 +137,7 @@ export function setPluginGrantMutationOptions(queryClient: QueryClient) {
       }
       await client(
         `/api/plugins/grants?kind=${variables.kind}&ref=${encodeURIComponent(variables.ref)}&agentId=${encodeURIComponent(variables.agentId)}`,
-        { method: "DELETE", fallback: "That Agent could not be changed." },
+        { method: "DELETE", fallback: "该代理无法更改。" },
       );
     },
     onSettled: () => invalidatePlugins(queryClient),
@@ -182,7 +182,7 @@ export function enableComposioAppMutationOptions(queryClient: QueryClient) {
       await client("/api/plugins/composio/apps", {
         method: "POST",
         body: input,
-        fallback: "That app could not be added.",
+        fallback: "该应用无法添加。",
       });
     },
     onSettled: () => invalidatePlugins(queryClient),
@@ -241,7 +241,7 @@ export function saveSkillMutationOptions(queryClient: QueryClient) {
          * The server refuses for reasons a form cannot check — a slug somebody else already owns is
          * the common one — and paraphrasing that would throw away the only part worth reading.
          */
-        fallback: "The skill could not be saved.",
+        fallback: "技能无法保存。",
       }),
     onSettled: () => invalidatePlugins(queryClient),
   });
@@ -273,7 +273,7 @@ export function registerOAuthClientMutationOptions(queryClient: QueryClient) {
         {
           method: "POST",
           body: { clientId: input.clientId, clientSecret: input.clientSecret },
-          fallback: "That OAuth client could not be registered.",
+          fallback: "该 OAuth 客户端无法注册。",
         },
       );
     },
@@ -330,7 +330,7 @@ export function connectAccountMutationOptions(
       const authorizationUrl = await client<string | undefined>(
         `/api/plugins/servers/${encodeURIComponent(serverId)}/connect?returnTo=${returnTo}`,
         "authorizationUrl",
-        { method: "POST", fallback: "That account could not be connected." },
+        { method: "POST", fallback: "该账户无法连接。" },
       );
       return authorizationUrl ?? null;
     },
@@ -373,7 +373,7 @@ export function confirmBrokeredConnectionMutationOptions(
     ): Promise<BrokeredConnectionConfirmation> => {
       const response = await client(
         `/api/plugins/servers/${encodeURIComponent(serverId)}/connection/confirm`,
-        { method: "POST", fallback: "That connection could not be confirmed." },
+        { method: "POST", fallback: "该连接无法确认。" },
       );
       return response.json();
     },
@@ -395,7 +395,7 @@ export function disconnectBrokeredMutationOptions(queryClient: QueryClient) {
         `/api/plugins/servers/${encodeURIComponent(serverId)}/connection`,
         {
           method: "DELETE",
-          fallback: "That account could not be disconnected.",
+          fallback: "该账户无法断开连接。",
         },
       );
     },
@@ -457,7 +457,7 @@ export function brokeredConnectionFieldsMutationOptions() {
         "fields",
         {
           method: "POST",
-          fallback: "That app could not be asked what it needs.",
+          fallback: "无法询问该应用需要什么。",
         },
       );
       return fields ?? null;
@@ -520,7 +520,7 @@ export function connectBrokeredWithFieldsMutationOptions(
           {
             method: "POST",
             body: { values: variables.values },
-            fallback: "That account could not be connected.",
+            fallback: "该账户无法连接。",
           },
         );
         return response.json();
@@ -572,7 +572,7 @@ export function recheckBrokeredConnectionMutationOptions(
     mutationFn: async (serverId: string): Promise<BrokeredKeyCheck> => {
       const response = await client(
         `/api/plugins/servers/${encodeURIComponent(serverId)}/connection/recheck`,
-        { method: "POST", fallback: "That connection could not be checked." },
+        { method: "POST", fallback: "该连接无法检查。" },
       );
       return response.json();
     },

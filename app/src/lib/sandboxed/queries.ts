@@ -44,7 +44,7 @@ export function sandboxedListQueryOptions() {
     queryFn: async (): Promise<SandboxedRecord[]> => {
       return (
         (await client("/api/sandboxed", "components", {
-          fallback: "The playground's components could not be loaded.",
+          fallback: "游乐场的组件无法加载。",
         })) ?? []
       );
     },
@@ -65,7 +65,7 @@ export function publishedSandboxedQueryOptions() {
     queryFn: async (): Promise<PublishedSandboxed[]> => {
       return (
         (await client("/api/sandboxed/published", "components", {
-          fallback: "The published components could not be loaded.",
+          fallback: "已发布的组件无法加载。",
         })) ?? []
       );
     },

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{deployment, engine::Address, harness::HarnessChoice, problem::Problem, stack};
 
-pub const REQUIRED: &str = "Finish installing OpenBot's local software before signing in or starting. Return to Install and try again.";
+pub const REQUIRED: &str = "Finish installing ChisaBot's local software before signing in or starting. Return to Install and try again.";
 pub const FILE: &str = ".openbot-prepared.json";
 const DEPENDENCIES: &str = ".openbot-dependencies.json";
 const LAUNCH: &str = ".openbot-launched.json";
@@ -77,13 +77,13 @@ pub fn installation(root: &Path) -> Option<Launch> {
 pub fn save_selected_root(config: &Path, root: &Path) -> Result<(), Problem> {
     let root = std::fs::canonicalize(root).map_err(|e| {
         Problem::with(
-            "OpenBot could not remember this installation for next time.",
+            "ChisaBot could not remember this installation for next time.",
             e.to_string(),
         )
     })?;
     std::fs::create_dir_all(config).map_err(|e| {
         Problem::with(
-            "OpenBot could not remember this installation for next time.",
+            "ChisaBot could not remember this installation for next time.",
             e.to_string(),
         )
     })?;

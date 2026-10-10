@@ -37,7 +37,7 @@ export function voiceSessionQueryOptions(channelId: string) {
         if (cursor) params.set("cursor", cursor);
         const response = await client(`/api/voice/sessions?${params}`, {
           signal,
-          fallback: "Could not load voice chats.",
+          fallback: "无法加载语音聊天。",
         });
         const page = (await response.json()) as VoiceSessionPage;
         sessions.push(...page.sessions);
@@ -102,8 +102,7 @@ export function saveVoiceSession(
       // Without a session there is nothing saved to show, whatever the status, as `client` holds.
       const body: { session?: VoiceSessionRecord; error?: string } =
         await response.json().catch(() => ({}));
-      if (!body.session)
-        throw new Error(body.error ?? "Could not save this voice chat.");
+      if (!body.session) throw new Error(body.error ?? "无法保存此语音聊天。");
       const session = body.session;
       forgetVoiceCall(session, ownerId);
       queryClient.setQueryData<VoiceSessionRecord[]>(

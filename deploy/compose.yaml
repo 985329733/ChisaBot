@@ -1,0 +1,48 @@
+services:
+  openbot:
+    image: ${CHISABOT_IMAGE:-local/chisabot:latest}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.zh
+    container_name: openbot-zh
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - database:/var/lib/postgresql
+      - workspace:/workspace
+      - profiles:/profiles
+    networks:
+      - default
+      - magpie
+    environment:
+      EMBEDDED_POSTGRES: "on"
+      OPENBOT_RUNTIME_MODE: ${OPENBOT_RUNTIME_MODE:-local}
+      SL_ENABLED: "false"
+      COPILOTKIT_TELEMETRY_DISABLED: "true"
+      DO_NOT_TRACK: "1"
+      OPENBOT_SINGLE_USER: "true"
+      TRUSTED_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      TENANT_PACKAGE_DIR: ../examples/zh-CN
+      BOT_PROVIDER: ${BOT_PROVIDER:-openai}
+      BOT_MODEL: ${BOT_MODEL:-your-model-id}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      OPENBOT_SELF_HOST_BANNER: "false"
+      SERVER_INTERNAL_URL: http://127.0.0.1:3001
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
+volumes:
+  database:
+  workspace:
+  profiles:
+
+networks:
+  magpie:
+    external: true
+    name: ${MAGPIE_NETWORK:-openbot_magpie}

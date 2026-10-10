@@ -93,7 +93,7 @@ export async function client<T>(
       .json()
       .then((body: { error?: string }) => body.error)
       .catch(() => undefined);
-    throw new Error(message ?? options.fallback ?? "That request failed.");
+    throw new Error(message ?? options.fallback ?? "该请求失败。");
   }
 
   if (key === undefined) return response;
@@ -102,7 +102,7 @@ export async function client<T>(
   // a TypeError on property access. Malformed success is a failed request with the fallback.
   const body = (await response.json().catch(() => null)) as unknown;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new Error(options.fallback ?? "That request failed.");
+    throw new Error(options.fallback ?? "该请求失败。");
   }
   return (body as Record<string, T>)[key];
 }

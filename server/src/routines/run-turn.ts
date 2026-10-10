@@ -58,6 +58,7 @@ import { EventType } from "@ag-ui/client";
 import { NOT_SHOWN } from "../../../shared/component-markers";
 import { frameFiring } from "../../../shared/routine-firing";
 import { headlessTurnRefusal } from "../admin/controls";
+import { withModelConnectionScope } from "../model-connection-context";
 import { sanitizeSeededHistory } from "../agents/history-sanitize";
 import { guardBotTurn } from "../agents/lifecycle";
 import { OPENBOT_WAITING_METADATA } from "../approvals/native-context";
@@ -323,7 +324,7 @@ export function createTurnRunner(options: {
     abortGraceMs = DEFAULT_ABORT_GRACE_MS,
   } = options;
 
-  return async ({
+  const run: TurnRunner = async ({
     ownerUserId,
     routineId,
     agentId,
@@ -763,4 +764,5 @@ export function createTurnRunner(options: {
     const drawn = drawnComponents(added);
     return drawn.length > 0 ? { replyText, components: drawn } : { replyText };
   };
+  return (input) => withModelConnectionScope(() => run(input));
 }

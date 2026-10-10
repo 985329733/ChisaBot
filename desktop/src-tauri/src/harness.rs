@@ -4,7 +4,7 @@
 //! a manifest rather than a branch in wizard code, so adding a harness is an entry here plus an
 //! image, and never a new screen.
 //!
-//! Two things this list deliberately does not contain. OpenBot's own `built-in` agent type, which
+//! Two things this list deliberately does not contain. ChisaBot's own `built-in` agent type, which
 //! is a system prompt and not a harness: everybody leaves setup with a real one, either an image we
 //! publish or an address they already run. And anything whose AG-UI integration we would have to
 //! write ourselves. A harness earns a row only when the integration exists and somebody other than
@@ -139,7 +139,7 @@ fn byo_remote_ag_ui_url(value: &str) -> Result<String, String> {
 ///
 /// Mastra is here on different terms from the rest, and the difference is in the server rather than
 /// in this list. Every other row is an image serving an AG-UI route; Mastra's image is a plain
-/// Mastra server, and OpenBot dials it through `getRemoteAgents` from `@ag-ui/mastra`, the bridge
+/// Mastra server, and ChisaBot dials it through `getRemoteAgents` from `@ag-ui/mastra`, the bridge
 /// Mastra and AG-UI maintain between them. See `remoteTransport` in server/src/copilot.ts.
 ///
 /// It reads as a harness like any other because the difference ends at the transport: a Mastra Bot
@@ -416,7 +416,7 @@ mod tests {
 
     use super::*;
 
-    /// OpenBot's own `built-in` agent type is a system prompt, not a harness, and the doc is
+    /// ChisaBot's own `built-in` agent type is a system prompt, not a harness, and the doc is
     /// explicit that it is not offered. Everybody leaves setup with a real one.
     #[test]
     fn the_built_in_agent_type_is_not_offered() {
@@ -902,7 +902,7 @@ mod tests {
         assert_eq!(unmarked, vec!["agno", "ag2", "langroid"]);
     }
 
-    /// Mastra is offered, and the row is the assertion that the bridge on OpenBot's side works.
+    /// Mastra is offered, and the row is the assertion that the bridge on ChisaBot's side works.
     /// It was out while the only thing a harness could mount served the wrong protocol; it is in
     /// because `remoteTransport` dials Mastra's own API instead. Removing the row means that path
     /// regressed, so this fails rather than the picker quietly shrinking.

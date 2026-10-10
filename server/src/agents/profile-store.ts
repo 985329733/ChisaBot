@@ -24,6 +24,7 @@ import {
 } from "../team-bots/access";
 import { teamBotPublications } from "../db/schema/team-bots";
 import { canManageAgent } from "./profile-policy";
+import { modelOverrideFromValue } from "./model-selection";
 import type {
   AgentActor,
   AgentProfile,
@@ -630,7 +631,11 @@ export function createAgentProfileStore(
          * access check, so this cannot read a row the caller may not see.
          */
         const [stored] = await transaction
-          .select({ type: agents.type, configuration: agents.configuration })
+          .select({
+            type: agents.type,
+            configuration: agents.configuration,
+            override: agents.override,
+          })
           .from(agents)
           .where(eq(agents.id, id))
           .limit(1);
@@ -644,11 +649,15 @@ export function createAgentProfileStore(
           throw new ManagedAgentUnavailableError();
         }
         const duplicateId = newAgentId();
+        const selectedModel = modelOverrideFromValue(stored.override);
         await transaction.insert(agents).values({
           id: duplicateId,
           name: source.name,
           type: run.type,
           configuration: run.configuration,
+          ...(run.type === "built_in" && selectedModel
+            ? { override: { model: selectedModel } }
+            : {}),
         });
         await transaction.insert(agentProfiles).values({
           agentId: duplicateId,

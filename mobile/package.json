@@ -1,5 +1,6 @@
 {
-  "name": "openbot-mobile",
+  "name": "chisabot-mobile",
+  "description": "ChisaBot 移动客户端",
   "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",

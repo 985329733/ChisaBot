@@ -8,7 +8,7 @@ export function auditEventsQueryOptions(search = "") {
     queryKey: [...auditKeys.all, search] as const,
     queryFn: async () => {
       const response = await client(`/api/admin/audit-events${search}`, {
-        fallback: "Could not load audit events",
+        fallback: "无法加载审计事件",
       });
       return response.json();
     },

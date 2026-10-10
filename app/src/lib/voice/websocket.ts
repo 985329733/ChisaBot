@@ -75,7 +75,7 @@ export const connectWebSocket: ConnectVoice = async ({
   };
   const send = (event: VoiceEvent) => {
     if (closed || socket?.readyState !== WebSocket.OPEN)
-      throw new Error("The voice call is no longer connected.");
+      throw new Error("语音通话不再连接。");
     socket.send(JSON.stringify(event));
   };
   signal.addEventListener("abort", close, { once: true });
@@ -100,9 +100,7 @@ export const connectWebSocket: ConnectVoice = async ({
       !context.audioWorklet ||
       context.state !== "running"
     ) {
-      throw new Error(
-        "This browser could not start call audio. Allow sound and try again.",
-      );
+      throw new Error("此浏览器无法启动通话音频。请允许声音并重试。");
     }
     await context.audioWorklet.addModule(
       new URL("./pcm-worklet.js", import.meta.url),
@@ -132,7 +130,7 @@ export const connectWebSocket: ConnectVoice = async ({
           "error" in body &&
           typeof body.error === "string"
           ? body.error
-          : "Could not start the voice call.",
+          : "无法开始语音通话。",
       );
     if (
       !body ||
@@ -147,13 +145,13 @@ export const connectWebSocket: ConnectVoice = async ({
       !body.session ||
       typeof body.session !== "object"
     )
-      throw new Error("Invalid voice connection configuration.");
+      throw new Error("无效的语音连接配置。");
     const address = new URL(body.url);
     if (
       address.origin !== "wss://api.x.ai" ||
       address.pathname !== "/v1/realtime"
     )
-      throw new Error("Unsupported voice service address.");
+      throw new Error("不支持的语音服务地址。");
     signal.throwIfAborted();
     socket = new WebSocket(body.url, [
       `xai-client-secret.${body.clientSecret}`,
@@ -178,7 +176,7 @@ export const connectWebSocket: ConnectVoice = async ({
           !("type" in raw) ||
           typeof raw.type !== "string"
         )
-          throw new Error("Invalid voice event.");
+          throw new Error("无效的语音事件。");
         const event = raw as VoiceEvent;
         if (event.type === "session.updated") {
           configured = true;
@@ -222,13 +220,11 @@ export const connectWebSocket: ConnectVoice = async ({
             typeof event.delta !== "string" ||
             typeof event.item_id !== "string"
           )
-            throw new Error("Invalid audio event.");
+            throw new Error("无效的音频事件。");
           const samples = decodePcm(event.delta);
           if (!samples.length) return;
           if (nextPlayback - audio.currentTime > 30)
-            throw new Error(
-              "Voice playback could not keep up. Please call again.",
-            );
+            throw new Error("语音播放跟不上。请重新通话。");
           const buffer = audio.createBuffer(1, samples.length, RATE);
           buffer.copyToChannel(samples, 0);
           const node = audio.createBufferSource();

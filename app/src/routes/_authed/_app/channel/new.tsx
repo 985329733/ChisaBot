@@ -1,8 +1,11 @@
 import type { Message } from "@ag-ui/core";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChannelAvatar } from "@/components/channels/avatar";
+import { BotModelSelector } from "@/components/agents/bot-model-selector";
+import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
+import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
 import { canSend, type Recipient } from "@/components/channels/compose-state";
 import { ConversationView } from "@/components/channels/conversation-view";
 import { seedMessage } from "@/components/channels/transcript-messages";
@@ -40,6 +43,7 @@ export const Route = createFileRoute("/_authed/_app/channel/new")({
 });
 
 function RouteComponent() {
+  const modelQueryClient = useQueryClient();
   const { agent } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { startChosen, pending } = useStartChannel();
@@ -78,7 +82,7 @@ function RouteComponent() {
   const urlAgentDetailFailed = needsUrlAgentDetail && detailError && !fetched;
   const loadError =
     rosterError && profiles === undefined
-      ? "Coworkers couldn't be loaded."
+      ? "AI 同事无法加载。"
       : urlAgentDetailFailed
         ? /*
            * The server's 404 sentence (agents/routes.ts `mapStoreError`) means this person cannot see
@@ -86,13 +90,14 @@ function RouteComponent() {
            * other failure is a load that can be retried, and says so.
            */
           detailFailure?.message === AGENT_NOT_FOUND
-          ? "This Bot isn't available to you. It may be unpublished, not shared with you, or not described yet."
-          : "Coworker couldn't be loaded."
+          ? "此机器人不可用。它可能未发布、未共享或尚未描述。"
+          : "AI 同事无法加载。"
         : null;
   const recipients: Recipient[] = chosen
     ? [{ id: chosen.id, name: chosen.name }]
     : [];
   const skillCommands = useSkillCommands(chosen?.id ?? "");
+  const modelSaving = useModelSelectionSaving(chosen?.id ?? "");
 
   if (profiles === undefined && !rosterError) return null;
 
@@ -100,7 +105,7 @@ function RouteComponent() {
     <div className="flex h-full flex-col">
       <div className="h-12 border-b border-border sticky top-0 flex flex-row px-2 items-center">
         <SidebarToggle className="mr-1" />
-        <span className="text-sm text-muted-foreground">To:</span>
+        <span className="text-sm text-muted-foreground">{"至："}</span>
         <Combobox
           // Do not auto-open when the recipient came from the URL; the field is already answered.
           defaultOpen={!chosen && !loadError && !waitingForUrlAgent}
@@ -125,13 +130,13 @@ function RouteComponent() {
             // the caret starts here whenever the recipient question is still open. Same condition
             // as `defaultOpen` — a recipient from the URL means the composer takes focus instead.
             autoFocus={!chosen}
-            placeholder="Choose a coworker…"
+            placeholder={"选择一个AI同事…"}
             // InputGroup owns focus rings via `has-[…:focus-visible]`; disable that wrapper ring here.
             className="border-none w-full bg-transparent! text-sm has-[[data-slot=input-group-control]:focus-visible]:ring-0"
           />
           {/* Allow max-w to constrain the popup even though its anchor is full-width. */}
           <ComboboxContent className="min-w-0 max-w-lg" sideOffset={12}>
-            <ComboboxEmpty>No agents found.</ComboboxEmpty>
+            <ComboboxEmpty>{"未找到机器人。"}</ComboboxEmpty>
             <ComboboxList>
               {(item: AgentProfile) => (
                 <ComboboxItem key={item.id} value={item} className="h-10">
@@ -147,6 +152,8 @@ function RouteComponent() {
         </Combobox>
       </div>
       <ConversationView
+        modelControl={chosen ? <BotModelSelector agentId={chosen.id} compact /> : null}
+        sendBlocked={modelSaving}
         // Choosing a coworker answers the "To:" field, so the message is what remains: the caret
         // lands in the composer the moment a recipient exists, whether picked here or in the URL.
         autoFocus
@@ -166,6 +173,7 @@ function RouteComponent() {
         onSubmit={async (draft) => {
           const recipient = recipients[0];
           if (!recipient || !canSend(recipients, draft.text)) return;
+          assertModelSelectionNotSaving(modelQueryClient, recipient.id);
 
           setError(null);
           setSent(seedMessage(draft.text, newId()));
@@ -178,9 +186,7 @@ function RouteComponent() {
             // Preserve the unsent draft when channel creation fails.
             setSent(null);
             setError(
-              caught instanceof Error
-                ? caught.message
-                : "Could not start the conversation.",
+              caught instanceof Error ? caught.message : "无法开始会话。",
             );
             throw caught;
           }

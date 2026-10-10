@@ -1,4 +1,4 @@
-//! Employee identity from the customer's OpenBot authority. Intelligence credentials are separate.
+//! Employee identity from the customer's ChisaBot authority. Intelligence credentials are separate.
 use crate::problem::{Connection, Problem};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -58,7 +58,7 @@ fn random() -> String {
 
 fn authority(value: &str) -> Result<String, Problem> {
     let url = Url::parse(value.trim())
-        .map_err(|_| problem("Enter your organization's OpenBot sign-in URL."))?;
+        .map_err(|_| problem("Enter your organization's ChisaBot sign-in URL."))?;
     let loopback = matches!(
         url.host_str(),
         Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
@@ -70,7 +70,7 @@ fn authority(value: &str) -> Result<String, Problem> {
         || url.fragment().is_some()
         || url.path() != "/"
     {
-        return Err(problem("Use the HTTPS origin of your organization's OpenBot. HTTP is allowed only for a local test."));
+        return Err(problem("Use the HTTPS origin of your organization's ChisaBot. HTTP is allowed only for a local test."));
     }
     Ok(url.origin().ascii_serialization())
 }
@@ -80,7 +80,7 @@ fn client() -> Result<Client, Problem> {
         .timeout(Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .map_err(|_| problem("OpenBot could not prepare organization sign-in."))
+        .map_err(|_| problem("ChisaBot could not prepare organization sign-in."))
 }
 
 fn verify(client: &Client, saved: &SavedSession) -> Result<OrganizationUser, Problem> {
@@ -93,7 +93,7 @@ fn verify(client: &Client, saved: &SavedSession) -> Result<OrganizationUser, Pro
         .header("cookie", &saved.cookie)
         .send()
         .map_err(|_| {
-            problem("OpenBot could not reach your organization. Try again when it is available.")
+            problem("ChisaBot could not reach your organization. Try again when it is available.")
         })?;
     if response.status() == 401 || response.status() == 403 {
         return Err(auth_problem("Sign in to your organization again."));
@@ -113,7 +113,7 @@ fn verify(client: &Client, saved: &SavedSession) -> Result<OrganizationUser, Pro
         || !matches!(user.role.as_str(), "admin" | "user")
     {
         return Err(auth_problem(
-            "Your organization has not granted this account access to OpenBot.",
+            "Your organization has not granted this account access to ChisaBot.",
         ));
     }
     Ok(user)
@@ -179,14 +179,14 @@ fn callback_code(request: &str, expected_state: &str) -> Result<String, Problem>
 
 fn receive_callback(stream: &mut TcpStream, expected_state: &str) -> Result<String, Problem> {
     let result = crate::provider_oauth::read_callback_request(stream, Duration::from_secs(3))
-        .map_err(|_| problem("OpenBot could not read the organization callback."))
+        .map_err(|_| problem("ChisaBot could not read the organization callback."))
         .and_then(|request| callback_code(&request, expected_state));
     let (status, message) = if result.is_ok() {
-        ("200 OK", "Sign-in received. You can return to OpenBot.")
+        ("200 OK", "Sign-in received. You can return to ChisaBot.")
     } else {
         (
             "400 Bad Request",
-            "Sign-in did not match. Return to OpenBot and try again.",
+            "Sign-in did not match. Return to ChisaBot and try again.",
         )
     };
     let reply = format!("HTTP/1.1 {status}\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{message}", message.len());
@@ -200,13 +200,13 @@ pub fn begin(root: &Path, authority_url: &str, provider: &str) -> Result<String,
         return Err(problem("Choose Google, Microsoft, or Okta."));
     }
     let listener = TcpListener::bind(("127.0.0.1", 0))
-        .map_err(|_| problem("OpenBot could not receive the organization sign-in callback."))?;
+        .map_err(|_| problem("ChisaBot could not receive the organization sign-in callback."))?;
     listener
         .set_nonblocking(true)
-        .map_err(|_| problem("OpenBot could not prepare the organization callback."))?;
+        .map_err(|_| problem("ChisaBot could not prepare the organization callback."))?;
     let port = listener
         .local_addr()
-        .map_err(|_| problem("OpenBot could not read its callback address."))?
+        .map_err(|_| problem("ChisaBot could not read its callback address."))?
         .port();
     let state = random();
     let verifier = random();
@@ -227,7 +227,7 @@ pub fn begin(root: &Path, authority_url: &str, provider: &str) -> Result<String,
         );
     let mut held = pending()
         .lock()
-        .map_err(|_| problem("Restart OpenBot to begin organization sign-in."))?;
+        .map_err(|_| problem("Restart ChisaBot to begin organization sign-in."))?;
     if let Some(old) = held.take() {
         old.cancelled.store(true, Ordering::SeqCst);
     }
@@ -253,7 +253,7 @@ pub fn begin(root: &Path, authority_url: &str, provider: &str) -> Result<String,
                 }
                 Err(_) => {
                     let _ = sender.send(Err(problem(
-                        "OpenBot could not receive the organization callback.",
+                        "ChisaBot could not receive the organization callback.",
                     )));
                     return;
                 }
@@ -270,7 +270,7 @@ pub fn finish(root: &Path) -> Result<OrganizationUser, Problem> {
     let (run_authority, run_state, run_verifier, receiver, cancelled) = {
         let mut held = pending()
             .lock()
-            .map_err(|_| problem("Restart OpenBot to finish organization sign-in."))?;
+            .map_err(|_| problem("Restart ChisaBot to finish organization sign-in."))?;
         let run = held
             .as_mut()
             .filter(|run| run.root == root)
@@ -294,7 +294,7 @@ pub fn finish(root: &Path) -> Result<OrganizationUser, Problem> {
     let client = client()?;
     let response = client.post(format!("{}/api/auth/electron/token", run_authority)).header("origin", &run_authority)
         .json(&serde_json::json!({ "token": code, "state": run_state, "code_verifier": run_verifier })).send()
-        .map_err(|_| problem("OpenBot could not finish organization sign-in. Try again."))?;
+        .map_err(|_| problem("ChisaBot could not finish organization sign-in. Try again."))?;
     if response.status().is_client_error() {
         return Err(auth_problem(
             "Your organization refused this sign-in. Try again.",
@@ -315,7 +315,7 @@ pub fn finish(root: &Path) -> Result<OrganizationUser, Problem> {
             value.starts_with("better-auth.session_token=")
                 || value.starts_with("__Secure-better-auth.session_token=")
         })
-        .ok_or_else(|| problem("Your organization did not return an OpenBot session."))?
+        .ok_or_else(|| problem("Your organization did not return an ChisaBot session."))?
         .to_string();
     let session = SavedSession {
         authority: run_authority,
@@ -323,10 +323,10 @@ pub fn finish(root: &Path) -> Result<OrganizationUser, Problem> {
     };
     let user = verify(&client, &session)?;
     let encoded = serde_json::to_string(&session)
-        .map_err(|_| problem("OpenBot could not save organization sign-in."))?;
+        .map_err(|_| problem("ChisaBot could not save organization sign-in."))?;
     let mut held = pending()
         .lock()
-        .map_err(|_| problem("Restart OpenBot to finish organization sign-in."))?;
+        .map_err(|_| problem("Restart ChisaBot to finish organization sign-in."))?;
     if cancelled.load(Ordering::SeqCst)
         || !held
             .as_ref()
@@ -347,11 +347,11 @@ pub fn session_destination(
 ) -> Result<String, Problem> {
     let authority = authority(authority_url)?;
     let session = saved(root, &authority)?
-        .ok_or_else(|| auth_problem("Sign in to your organization to open OpenBot."))?;
+        .ok_or_else(|| auth_problem("Sign in to your organization to open ChisaBot."))?;
     let client = client()?;
     verify(&client, &session)?;
     let mut destination = Url::parse(app_url)
-        .map_err(|_| problem("OpenBot could not find this installation's application."))?;
+        .map_err(|_| problem("ChisaBot could not find this installation's application."))?;
     if destination.scheme() != "http"
         || !matches!(
             destination.host_str(),
@@ -359,7 +359,7 @@ pub fn session_destination(
         )
     {
         return Err(problem(
-            "The installed OpenBot application must be on this computer.",
+            "The installed ChisaBot application must be on this computer.",
         ));
     }
     destination.set_path("/api/auth/organization/session");
@@ -375,7 +375,7 @@ pub fn session_destination(
         .json(&serde_json::json!({ "cookie": session.cookie }))
         .send()
         .map_err(|_| {
-            problem("OpenBot could not deliver your organization sign-in to this installation.")
+            problem("ChisaBot could not deliver your organization sign-in to this installation.")
         })?;
     if response.status() == 401 || response.status() == 403 {
         return Err(auth_problem("Sign in to your organization again."));
@@ -387,9 +387,9 @@ pub fn session_destination(
     }
     let ticket = response
         .json::<Ticket>()
-        .map_err(|_| problem("OpenBot did not accept your organization session."))?;
+        .map_err(|_| problem("ChisaBot did not accept your organization session."))?;
     if ticket.ticket.is_empty() || ticket.ticket.len() > 128 {
-        return Err(problem("OpenBot returned an invalid sign-in handoff."));
+        return Err(problem("ChisaBot returned an invalid sign-in handoff."));
     }
     destination
         .query_pairs_mut()

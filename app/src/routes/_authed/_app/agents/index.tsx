@@ -74,7 +74,7 @@ function AgentsScreen() {
       <div className="max-w-2xl px-4 w-full mx-auto">
         {pinned?.length ? (
           <div className="mt-12 w-full max-w-2xl">
-            <h2 className="font-bold text-lg">Pinned</h2>
+            <h2 className="font-bold text-lg">{"已固定"}</h2>
             <div className="mt-4 grid grid-cols-2 gap-4">
               {pinned.map((agent, index) => (
                 <StaggerItem className="min-w-0" index={index} key={agent.id}>
@@ -88,7 +88,7 @@ function AgentsScreen() {
           className={`${pinned?.length ? "mt-8" : "mt-12"} w-full max-w-2xl`}
         >
           <div className="flex flex-row w-full items-center justify-between">
-            <h2 className="font-bold text-lg">Your agents</h2>
+            <h2 className="font-bold text-lg">{"您的代理"}</h2>
             <Button
               variant="ghost"
               size="sm"
@@ -97,7 +97,7 @@ function AgentsScreen() {
               )}
             >
               <IconPlus />
-              New agent
+              {"新机器人"}
             </Button>
           </div>
           {loading ? (
@@ -122,7 +122,7 @@ function AgentsScreen() {
             <Empty className="mt-4 h-[180px] border border-dashed">
               <EmptyHeader>
                 <EmptyTitle className="text-muted-foreground">
-                  Your agents are all pinned above.
+                  {"您的代理都已置顶在上方。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -139,7 +139,7 @@ function AgentsScreen() {
             <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
               <EmptyHeader>
                 <EmptyTitle className="text-destructive">
-                  Your agents couldn't be loaded.
+                  {"您的代理无法加载。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -150,14 +150,14 @@ function AgentsScreen() {
             <Empty className="mt-4 h-[180px] border border-dashed">
               <EmptyHeader>
                 <EmptyTitle className="text-muted-foreground">
-                  You don't have any agents created.
+                  {"您还没有创建任何代理。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
           )}
         </div>
         <div className="mt-8 w-full max-w-2xl">
-          <h2 className="font-bold text-lg">Explore agents</h2>
+          <h2 className="font-bold text-lg">{"探索代理"}</h2>
           {loading ? (
             // Approximate one row of cards while the roster loads.
             <Skeleton className="mt-4 h-[180px]" />
@@ -177,7 +177,7 @@ function AgentsScreen() {
             <Empty className="mt-4 h-[180px] border border-dashed">
               <EmptyHeader>
                 <EmptyTitle className="text-muted-foreground">
-                  The agents shared with you are all pinned above.
+                  {"与您共享的代理均置顶在上方。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -194,7 +194,7 @@ function AgentsScreen() {
             <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
               <EmptyHeader>
                 <EmptyTitle className="text-destructive">
-                  Agents shared with you couldn't be loaded.
+                  {"与您共享的代理无法加载。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -205,7 +205,7 @@ function AgentsScreen() {
             <Empty className="mt-4 h-[180px] border border-dashed">
               <EmptyHeader>
                 <EmptyTitle className="text-muted-foreground">
-                  Nobody has shared an agent with you yet.
+                  {"尚未有人与您共享代理。"}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -214,7 +214,7 @@ function AgentsScreen() {
         {hiddenAgents?.length ? (
           <details className="group mt-8 mb-12 w-full max-w-2xl">
             <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-              <h2 className="font-bold text-lg">Hidden</h2>
+              <h2 className="font-bold text-lg">{"隐藏"}</h2>
               <span className="text-sm text-muted-foreground">
                 {hiddenAgents.length}
               </span>

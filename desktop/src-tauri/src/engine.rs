@@ -15,10 +15,10 @@
 //!   to run as LocalSystem, so none of this can be done from a service; see `windows.rs`.
 //!
 //! A second rule was learned the same way: **never assume the engine is on this process's PATH.**
-//! When OpenBot installs Podman itself, the installer extends the *user's* PATH, and this process
+//! When ChisaBot installs Podman itself, the installer extends the *user's* PATH, and this process
 //! was started with the old one. `podman` then cannot be run for the rest of the session, so the
 //! app reports no engine while `podman.exe` sits on disk where it was just put. Every engine
-//! command is therefore built from a resolved path, and the Compose provider OpenBot placed is put
+//! command is therefore built from a resolved path, and the Compose provider ChisaBot placed is put
 //! on the child's PATH. See `install.rs`.
 //!
 //! One rule cuts across all three: **never address Podman through its ambient default connection.**
@@ -303,19 +303,19 @@ struct MachineListing {
     running: bool,
 }
 
-/// Where OpenBot keeps the engine tools it installed itself.
+/// Where ChisaBot keeps the engine tools it installed itself.
 ///
 /// Set once, at start-up, because the app knows its own cache directory and this module is called
 /// from places that do not. Unset in tests and in any caller that never installed anything, which
 /// is why every read tolerates its absence.
 static TOOLS: OnceLock<PathBuf> = OnceLock::new();
 
-/// Tell this module where the tools OpenBot installed live.
+/// Tell this module where the tools ChisaBot installed live.
 pub fn tools_live_in(dir: PathBuf) {
     let _ = TOOLS.set(dir);
 }
 
-/// The directory holding OpenBot's own copy of the Compose provider, under a download directory.
+/// The directory holding ChisaBot's own copy of the Compose provider, under a download directory.
 pub fn tools_dir_under(downloads: &Path) -> PathBuf {
     downloads.join("bin")
 }
@@ -374,7 +374,7 @@ fn command_at(engine: Engine, binary: &Path) -> Command {
 
 /// This process's PATH with `first` in front of it.
 ///
-/// In front, so the provider OpenBot placed is the one found; appended, a broken `docker-compose`
+/// In front, so the provider ChisaBot placed is the one found; appended, a broken `docker-compose`
 /// earlier on PATH would still win.
 fn path_with(first: &Path) -> OsString {
     let mut joined = OsString::from(first);
@@ -390,7 +390,7 @@ fn path_with(first: &Path) -> OsString {
 /// Where this engine's binary is, looking on PATH first and then where installers put it.
 ///
 /// PATH first, because somebody who installed it themselves may have put it anywhere and that
-/// choice is theirs. The fixed places are the fallback for the session in which OpenBot installed
+/// choice is theirs. The fixed places are the fallback for the session in which ChisaBot installed
 /// it, when this process's PATH is the one it started with.
 pub fn program(engine: Engine) -> Option<PathBuf> {
     on_path(engine.binary()).or_else(|| where_installers_put(engine))
@@ -529,7 +529,7 @@ pub fn detect() -> EngineStatus {
         address: None,
         responding: false,
         engine_socket: None,
-        // Not an instruction any more: OpenBot installs one. See `install.rs`.
+        // Not an instruction any more: ChisaBot installs one. See `install.rs`.
         detail: "No container engine yet.".into(),
     }
 }
@@ -724,7 +724,7 @@ fn main() {
         assert_eq!(command.get_args().count(), 0);
     }
 
-    /// The program is a path, not a name. This is the fix for an engine OpenBot has just installed
+    /// The program is a path, not a name. This is the fix for an engine ChisaBot has just installed
     /// but this process's PATH does not know about, and asserting it here is the only place it is
     /// visible without a machine that has no engine on it.
     #[test]
@@ -845,7 +845,7 @@ pub mod local_api {
 
     fn problem(detail: impl Into<String>) -> Problem {
         Problem::with(
-            "OpenBot could not prepare its container API. Try again.",
+            "ChisaBot could not prepare its container API. Try again.",
             detail,
         )
     }

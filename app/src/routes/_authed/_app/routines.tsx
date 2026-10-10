@@ -21,8 +21,10 @@ export const Route = createFileRoute("/_authed/_app/routines")({
 function RoutinesPage() {
   return (
     <PageShell
-      description="What a Bot does on a schedule, without being asked each time. Made and changed by talking to a Bot — this page only shows what is standing, and lets you stop one."
-      title="Routines"
+      description={
+        "机器人按计划执行的操作，无需每次询问。由与机器人的对话创建和修改——此页面仅显示当前运行的，并允许您停止一个。"
+      }
+      title={"定时任务"}
     >
       <RoutinesList />
     </PageShell>

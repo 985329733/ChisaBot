@@ -71,7 +71,7 @@ function RouteComponent() {
   const tool = server?.tools.find((row) => row.name === toolName);
 
   const back = {
-    label: server?.title ?? "Plugin",
+    label: server?.title ?? "插件",
     linkProps: {
       params: { key },
       to: "/admin/plugins/$key" as const,
@@ -80,7 +80,7 @@ function RouteComponent() {
 
   /* Nothing rather than a placeholder, so no sentence asserts anything while the fetch is open. */
   if (plugins.isPending) {
-    return <PageShell title="Tool">{null}</PageShell>;
+    return <PageShell title={"工具"}>{null}</PageShell>;
   }
 
   /*
@@ -93,7 +93,7 @@ function RouteComponent() {
     return (
       <PageShell backButton={back} title={toolName}>
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Plugins could not be loaded.
+          {"插件无法加载。"}
         </p>
       </PageShell>
     );
@@ -103,7 +103,7 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="This connector does not advertise a tool by that name."
+        description={"此连接器未以该名称公布工具。"}
         title={toolName}
       >
         {/*
@@ -112,8 +112,8 @@ function RouteComponent() {
          */}
         <PageEmpty>
           {server
-            ? "It may have been withdrawn since the tool list was last refreshed."
-            : "This deployment has not enabled that connector."}
+            ? "它可能在此工具列表上次刷新后已被撤回。"
+            : "此部署未启用该连接器。"}
         </PageEmpty>
       </PageShell>
     );
@@ -137,7 +137,7 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={tool.description || "This tool came with no description."}
+      description={tool.description || "此工具没有描述。"}
       title={toolName}
     >
       {error ? (
@@ -149,10 +149,10 @@ function RouteComponent() {
       <PageSection
         description={
           tool.effect === "write"
-            ? "This tool changes something at the vendor. A boundary written about writes applies to it, and it is refused when one matches."
-            : "This tool only reads. A boundary written about writes does not apply to it."
+            ? "此工具在供应商处更改某些内容。关于写入的权限规则适用于它，当匹配时被拒绝。"
+            : "此工具仅读取。关于写入的权限规则不适用于它。"
         }
-        title="What it does"
+        title={"它做什么"}
       >
         <PageRows>
           {/*
@@ -162,10 +162,9 @@ function RouteComponent() {
            */}
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Effect</ItemTitle>
+              <ItemTitle>{"效果"}</ItemTitle>
               <ItemDescription>
-                Decided by the connector, not by the tool's name. Anything
-                unrecognised counts as a write.
+                {"由连接器决定，而非工具名称。任何未识别的内容都算作写入。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -176,7 +175,7 @@ function RouteComponent() {
                     : "text-muted-foreground text-xs"
                 }
               >
-                {tool.effect === "write" ? "changes things" : "reads"}
+                {tool.effect === "write" ? "更改事物" : "读取"}
               </span>
             </ItemActions>
           </Item>
@@ -184,13 +183,14 @@ function RouteComponent() {
       </PageSection>
 
       <PageSection
-        description="A Bot may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between."
-        title="Bots"
+        description={
+          "机器人仅在其开关打开时可以调用此工具。关闭一个在下一次调用时生效，没有中间缓存。"
+        }
+        title={"机器人"}
       >
         {bots.length === 0 ? (
           <PageEmpty>
-            This deployment has no Bots yet, so there is nobody to grant this
-            to.
+            {"此部署还没有机器人，因此没有人可以授予此操作。"}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -202,12 +202,12 @@ function RouteComponent() {
                     <ItemContent>
                       <ItemTitle>{bot.name}</ItemTitle>
                       <ItemDescription>
-                        {bot.hidden ? "Hidden from your roster. " : ""}
+                        {bot.hidden ? "从你的名册隐藏" : ""}
                         {held
                           ? canCallBack(bot)
-                            ? "May call this tool. Every call is still checked against the boundaries and written to the audit trail."
-                            : "Granted, but this Bot has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment."
-                          : "Cannot call this tool. It is not offered to the model at all, so it has nothing to refuse."}
+                            ? "可以调用此工具。每次调用仍需检查权限规则并记录到审计。"
+                            : "已授权，但此机器人没有调用工具的凭据，因此每次调用在到达权限规则前被拒绝。在其单独页面上申请一个，或为部署设置 AGENT_TOOL_TOKEN。"
+                          : "无法调用此工具。它根本不提供给模型，所以没有拒绝选项。"}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -217,7 +217,7 @@ function RouteComponent() {
                        * flight, so switching one Bot does not freeze the rest of the list.
                        */}
                       <Switch
-                        aria-label={`Let ${bot.name} call ${toolName}`}
+                        aria-label={`让 ${bot.name} 调用 ${toolName}`}
                         checked={held}
                         disabled={
                           setGrant.isPending &&

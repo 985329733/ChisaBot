@@ -136,7 +136,7 @@ function RouteComponent() {
     ...brokered.map((server) => ({
       key: server.id,
       title: server.title,
-      summary: server.summary || `Connect your ${server.title} account.`,
+      summary: server.summary || `连接您的 ${server.title} 账号。`,
       mark: <PluginLogo logo={server.logo} />,
     })),
   ];
@@ -149,11 +149,11 @@ function RouteComponent() {
   ).length;
   const sections = [
     {
-      title: "Connected",
+      title: "已连接",
       accounts: matching.filter((account) => connected.has(account.key)),
     },
     {
-      title: "Not connected",
+      title: "未连接",
       accounts: matching.filter((account) => !connected.has(account.key)),
     },
   ];
@@ -161,8 +161,8 @@ function RouteComponent() {
   return (
     <PageShell
       className="max-w-4xl @container"
-      description="Connect your apps so your Bots can work with them."
-      title="Connected accounts"
+      description={"连接您的应用，以便您的机器人可以与它们配合。"}
+      title={"已连接账号"}
     >
       {/*
        * Only the failure is worth saying. A success needs no sentence: the row it came back to now
@@ -170,7 +170,7 @@ function RouteComponent() {
        */}
       {outcome === "failed" ? (
         <p className="text-destructive text-sm" role="alert">
-          That account could not be connected. Nothing was saved — try again.
+          {"无法连接该帐户。未保存任何内容——请重试。"}
         </p>
       ) : null}
       {/*
@@ -189,36 +189,37 @@ function RouteComponent() {
       {plugins.isPending || connections.isPending ? null : plugins.error ||
         connections.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Your connected accounts could not be loaded, so nothing is listed here
-          rather than a list that may be wrong. Reload the page, and tell an
-          administrator if it persists.
+          {
+            "您的已连接账号无法加载，因此这里什么都没有列出，而是一个可能错误的列表。请刷新页面，如果仍然存在，请告诉管理员。"
+          }
         </p>
       ) : accounts.length === 0 ? (
         <PageSection>
           <PageEmpty>
-            Nothing to connect yet. These appear once an administrator enables a
-            connector that reads as the person asking.
+            {"尚未连接。管理员启用读取为询问者的连接器后，这些才会出现。"}
           </PageEmpty>
         </PageSection>
       ) : (
         <>
           <p className="mt-5 text-xs text-muted-foreground">
-            {connectedCount} connected · {accounts.length} available
+            {connectedCount} {"已连接 ·"}
+            {accounts.length} {"可用"}
           </p>
           <InputGroup className="mt-3 h-9 border-transparent bg-muted/60 shadow-none dark:bg-muted/60">
             <InputGroupAddon>
               <IconSearch aria-hidden="true" className="size-4" />
             </InputGroupAddon>
             <InputGroupInput
-              aria-label="Search apps"
-              placeholder="Search apps"
+              aria-label={"搜索应用"}
+              placeholder={"搜索应用"}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
           {matching.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground" role="status">
-              No apps match “{search.trim()}”.
+              {"没有应用匹配“"}
+              {search.trim()}”.
             </p>
           ) : (
             sections
@@ -265,11 +266,11 @@ function RouteComponent() {
                                 aria-hidden="true"
                                 className="size-3.5 text-emerald-600 dark:text-emerald-400"
                               />
-                              Connected
+                              {"已连接"}
                             </span>
                           ) : (
                             <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-                              Connect
+                              {"连接"}
                             </span>
                           )}
                         </ItemActions>

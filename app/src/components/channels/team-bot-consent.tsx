@@ -36,12 +36,12 @@ export function TeamBotConsentCard({
       {chosen ? (
         <p className="text-muted-foreground" role="status">
           {chosen === "skip"
-            ? "Skipped. Nothing of yours was used."
+            ? "已跳过。您未使用任何内容。"
             : chosen === "allow_once"
-              ? "Allowed once. Ask the Bot to try again."
+              ? "允许一次。让机器人重试。"
               : chosen === "allow_all_team_bots"
-                ? "Always allowed for every Team Bot. Ask it to try again."
-                : "Always allowed for this Bot. Ask it to try again."}
+                ? "始终允许每个团队机器人。让它重试。"
+                : "始终允许此机器人。让它重试。"}
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -50,7 +50,7 @@ export function TeamBotConsentCard({
             onClick={() => choose("allow_once")}
             size="sm"
           >
-            Allow once
+            {"允许一次"}
           </Button>
           <Button
             disabled={answer.isPending}
@@ -58,7 +58,7 @@ export function TeamBotConsentCard({
             size="sm"
             variant="outline"
           >
-            Always allow for this Bot
+            {"始终允许此机器人"}
           </Button>
           <Button
             disabled={answer.isPending}
@@ -66,7 +66,7 @@ export function TeamBotConsentCard({
             size="sm"
             variant="outline"
           >
-            Always allow for all Team Bots
+            {"始终允许所有团队机器人"}
           </Button>
           <Button
             disabled={answer.isPending}
@@ -74,7 +74,7 @@ export function TeamBotConsentCard({
             size="sm"
             variant="ghost"
           >
-            Skip
+            {"跳过"}
           </Button>
         </div>
       )}

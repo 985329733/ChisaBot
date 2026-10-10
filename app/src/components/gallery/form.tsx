@@ -78,10 +78,8 @@ export function FormCard(props: Record<string, unknown>) {
   const parsed = FormCardArgs.safeParse(props.args);
   if (props.status === "inProgress") {
     return (
-      <GalleryFrame title="Preparing your form…">
-        <p className="text-sm text-muted-foreground">
-          The assistant is putting the questions together.
-        </p>
+      <GalleryFrame title={"正在准备您的表单…"}>
+        <p className="text-sm text-muted-foreground">{"助手正在整理问题。"}</p>
       </GalleryFrame>
     );
   }
@@ -122,7 +120,7 @@ function InvalidForm({
       await respond({
         status: "invalid",
         message:
-          "The form could not be displayed because its questions were invalid. Send a corrected form with unique field IDs, valid types, and options for each select field.",
+          "表单无法显示，因为其问题无效。发送带有唯一字段ID、有效类型和每个选择字段选项的更正表单。",
       });
       setReturned(true);
     } catch {
@@ -134,15 +132,15 @@ function InvalidForm({
     void returnToBot();
   }, [returnToBot]);
   return (
-    <GalleryFrame title="Form unavailable">
+    <GalleryFrame title={"表单不可用"}>
       <p role="alert" className="text-sm text-muted-foreground">
         {returned
-          ? "The form had invalid questions. The Bot can send a corrected form."
-          : "The form has invalid questions and could not be displayed."}
+          ? "表单有无效问题。机器人可以发送更正表单。"
+          : "表单有无效问题，无法显示。"}
       </p>
       {failed && (
         <Button className="mt-3" size="sm" onClick={() => void returnToBot()}>
-          Return to the Bot
+          {"返回机器人"}
         </Button>
       )}
     </GalleryFrame>
@@ -234,7 +232,7 @@ function FormEntry({
       caption={args.description}
       action={
         <Badge tone={finished ? "positive" : "caution"}>
-          {finished ? "Submitted" : "Waiting on you"}
+          {finished ? "已提交" : "等待您"}
         </Badge>
       }
     >
@@ -251,14 +249,14 @@ function FormEntry({
                   <dd className="whitespace-pre-wrap break-words font-medium">
                     {Object.hasOwn(answer.values, field.id)
                       ? answer.values[field.id]
-                      : "Not provided"}
+                      : "未提供"}
                   </dd>
                 </div>
               ))}
             </dl>
           ) : (
             <p className="text-sm text-muted-foreground">
-              This form has been completed. Its saved answers are unavailable.
+              {"此表单已完成。其保存的答案不可用。"}
             </p>
           )}
         </div>
@@ -273,8 +271,7 @@ function FormEntry({
           className="space-y-4"
         >
           <p className="text-xs text-muted-foreground">
-            Fields marked * are required. Your answers will be shared with the
-            Bot.
+            {"标记为 * 的字段是必填的。您的回答将与机器人共享。"}
           </p>
           {args.fields.map((field) => {
             const id = `${prefix}-${field.id}`;
@@ -325,7 +322,7 @@ function FormEntry({
                     className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
                     onChange={(event) => change(event.target.value)}
                   >
-                    <option value="">Choose an option</option>
+                    <option value="">{"选择一个选项"}</option>
                     {field.options?.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -365,12 +362,12 @@ function FormEntry({
           })}
           {failure && (
             <p role="alert" className="text-sm text-destructive">
-              Your answers could not be sent. Try again.
+              {"您的回答无法发送。请重试。"}
             </p>
           )}
           <div className="flex justify-end border-t border-border pt-3">
             <Button type="submit" size="sm" disabled={sending || !respond}>
-              {sending ? "Sending…" : (args.submitLabel ?? "Submit answers")}
+              {sending ? "发送中…" : (args.submitLabel ?? "提交答案")}
             </Button>
           </div>
         </form>
@@ -382,30 +379,30 @@ function FormEntry({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "askForm",
-    title: "Form",
+    title: "表单",
     kind: "decision",
     description:
-      "Ask the person to fill in a short form and WAIT for their answers. Use when several related details are needed together. Provide up to eight labeled text, email, number, select, or textarea fields with unique IDs. Mark required fields and give options for selects. Never request passwords or secrets. The result has status submitted and values keyed by field ID; numbers are returned as numbers and blank optional fields are omitted.",
+      "询问某人填写一个简短的表单并等待他们的回答。在需要一起提供几个相关细节时使用。提供最多八个带唯一 ID 的带标签的文本、电子邮件、数字、选择或文本区域字段。标记必填字段并为选择提供选项。永远不要请求密码或机密。结果具有状态提交和按字段 ID 键的值；数字作为数字返回，空白可选字段被省略。",
     parameters: FormCardArgs,
     Component: FormCard,
     preview: {
       status: "executing",
       args: {
-        title: "Plan your next project",
-        description: "A few details to prepare a useful first draft.",
+        title: "规划您的下一个项目",
+        description: "准备有用初稿的几点细节。",
         fields: [
-          { id: "team", label: "Team name", type: "text", required: true },
-          { id: "email", label: "Work email", type: "email", required: true },
+          { id: "team", label: "团队名称", type: "text", required: true },
+          { id: "email", label: "工作邮箱", type: "email", required: true },
           {
             id: "priority",
-            label: "Priority",
+            label: "优先级",
             type: "select",
             options: ["This week", "This month", "Exploring"],
           },
-          { id: "seats", label: "People involved", type: "number", min: 1 },
+          { id: "seats", label: "涉及的人员", type: "number", min: 1 },
           {
             id: "notes",
-            label: "What would a good outcome look like?",
+            label: "好的结果会是什么样子？",
             type: "textarea",
           },
         ],

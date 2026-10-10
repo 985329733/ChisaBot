@@ -201,7 +201,7 @@ pub struct CommandPrompt {
     pub working_directory: Option<String>,
     pub command: String,
     pub writable: bool,
-    /// The member's OpenBot setting after the team cap, as the server sent it.
+    /// The member's ChisaBot setting after the team cap, as the server sent it.
     pub command_policy: CommandPolicy,
 }
 

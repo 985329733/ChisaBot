@@ -46,8 +46,7 @@ export async function signInWith(
     // Naming the provider matters more with three buttons than it did with one: "Could not start
     // sign-in" leaves somebody looking at three of them with no idea which one refused.
     throw new Error(
-      result.error.message ||
-        `Could not start ${providerName(provider)} sign-in.`,
+      result.error.message || `无法启动 ${providerName(provider)} 登录。`,
     );
   }
 }
@@ -76,9 +75,6 @@ export async function signInWithEmailDomain(
   const result = await start({ email, callbackURL: window.location.origin });
 
   if (result.error) {
-    throw new Error(
-      result.error.message ||
-        "No identity provider is registered for that address.",
-    );
+    throw new Error(result.error.message || "该地址未注册身份提供者。");
   }
 }

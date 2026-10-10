@@ -159,7 +159,7 @@ impl<'a> StartAttempt<'a> {
     fn begin(shell: &'a Shell) -> Result<Self, Problem> {
         use std::sync::atomic::Ordering::SeqCst;
         shell.starting.compare_exchange(false, true, SeqCst, SeqCst).map_err(|_| {
-            Problem::plain("OpenBot is already starting or finishing a cancelled startup. Wait for it to finish, then try again.")
+            Problem::plain("ChisaBot is already starting or finishing a cancelled startup. Wait for it to finish, then try again.")
         })?;
         Ok(Self {
             shell,
@@ -187,7 +187,7 @@ impl<'a> StartAttempt<'a> {
     }
 
     fn cancelled() -> Problem {
-        Problem::plain("OpenBot startup was cancelled by Stop. Start again when you are ready.")
+        Problem::plain("ChisaBot startup was cancelled by Stop. Start again when you are ready.")
     }
 }
 
@@ -280,9 +280,9 @@ fn ready_responding_engine_after_compose_repair(
     let Some(address) = ready.address.clone().filter(|_| ready.responding) else {
         return Err(Problem::with(
             if install_missing_native {
-                "OpenBot installed the container software, but the engine is not answering. Try again."
+                "ChisaBot installed the container software, but the engine is not answering. Try again."
             } else {
-                "OpenBot installed Compose, but the container engine is not answering. Try again."
+                "ChisaBot installed Compose, but the container engine is not answering. Try again."
             },
             ready.detail,
         ));
@@ -456,7 +456,7 @@ async fn prepare_installation(
             let _startup = attempt.lock_current()?;
             if shell.containers.lock().unwrap().is_some() || shell.root.lock().unwrap().is_some() {
                 return Err(Problem::plain(
-                    "Stop OpenBot before changing its local installation.",
+                    "Stop ChisaBot before changing its local installation.",
                 ));
             }
             remember_selected_root(&shell, &root);
@@ -593,7 +593,7 @@ async fn prepare_installation(
 /// Reported step by step rather than as one result, because these take minutes and a window with
 /// nothing moving in it reads as a hang.
 async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem> {
-    report_running(app, "engine", "Checking the software OpenBot needs.", None);
+    report_running(app, "engine", "Checking the software ChisaBot needs.", None);
     let found = engine::detect();
     desktop_telemetry::observe_engine(app, &found);
     let root = stack::default_root();
@@ -609,7 +609,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
     .await
     .map_err(|error| {
         Problem::with(
-            "OpenBot could not check the software it runs on. Try again.",
+            "ChisaBot could not check the software it runs on. Try again.",
             format!("the engine check did not run: {error}"),
         )
     })?;
@@ -630,7 +630,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
                 .await
                 .map_err(|error| {
                     Problem::with(
-                        "OpenBot could not start its container service.",
+                        "ChisaBot could not start its container service.",
                         error.to_string(),
                     )
                 })??;
@@ -654,7 +654,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
     report_running(
         app,
         "install-engine",
-        "Looking for the software OpenBot runs on.",
+        "Looking for the software ChisaBot runs on.",
         None,
     );
     let telemetry_app = app.clone();
@@ -676,7 +676,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
     .await
     .map_err(|error| {
         Problem::with(
-            "OpenBot could not install the software it needs. Try again.",
+            "ChisaBot could not install the software it needs. Try again.",
             format!("the install task did not run: {error}"),
         )
     })?;
@@ -727,7 +727,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
         .filter(|_| ready.responding)
         .ok_or_else(|| {
             Problem::with(
-                "OpenBot set up the software it runs on, but it is still not answering. Try again.",
+                "ChisaBot set up the software it runs on, but it is still not answering. Try again.",
                 ready.detail,
             )
         })?;
@@ -740,7 +740,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
 fn ensure_linux_podman_api(shell: &Shell, address: &engine::Address) -> Result<(), Problem> {
     if !matches!(*shell.quit.phase.lock().unwrap(), QuitPhase::Idle) {
         return Err(Problem::plain(
-            "OpenBot is quitting. Start it again to continue.",
+            "ChisaBot is quitting. Start it again to continue.",
         ));
     }
     shell
@@ -758,7 +758,7 @@ async fn deployment_ready<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     root: &Path,
 ) -> Result<(), Problem> {
-    report_running(app, "deployment", "Checking the OpenBot release.", None);
+    report_running(app, "deployment", "Checking the ChisaBot release.", None);
     // Both release discovery and downloading use blocking HTTP. Keeping them in a blocking task
     // avoids dropping reqwest's runtime inside this async context.
     let target = root.to_path_buf();
@@ -769,7 +769,7 @@ async fn deployment_ready<R: tauri::Runtime>(
             report_running(
                 &handle,
                 "deployment",
-                format!("Downloading OpenBot {version}."),
+                format!("Downloading ChisaBot {version}."),
                 None,
             );
             deployment::fetch(&target, &version)?;
@@ -782,7 +782,7 @@ async fn deployment_ready<R: tauri::Runtime>(
     .map_err(|error| {
         report(app, "deployment", false, error.clone());
         Problem::with(
-            "OpenBot could not download what it needs to run. Check the internet \
+            "ChisaBot could not download what it needs to run. Check the internet \
              connection and try again.",
             error,
         )
@@ -819,8 +819,8 @@ fn sign_in_reference(
 ) -> Result<String, Problem> {
     reference(root, published).map_err(|error| {
         Problem::with(
-            "This version of OpenBot cannot sign in to that plan. Use an API key instead, or \
-             update OpenBot.",
+            "This version of ChisaBot cannot sign in to that plan. Use an API key instead, or \
+             update ChisaBot.",
             error,
         )
     })
@@ -916,7 +916,7 @@ impl ChosenModel {
                     openbot_env::read_plan_store(root)
                         .map_err(|error| {
                             Problem::with(
-                                "OpenBot could not read the saved ChatGPT sign-in.",
+                                "ChisaBot could not read the saved ChatGPT sign-in.",
                                 format!("{}: {error}", root.join(openbot_env::CHATGPT_STORE_FILE).display()),
                             )
                         })?
@@ -1046,7 +1046,7 @@ fn seed_learning_default(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => {
             return Err(Problem::with(
-                "OpenBot could not read its Learning settings.",
+                "ChisaBot could not read its Learning settings.",
                 error.to_string(),
             ));
         }
@@ -1088,7 +1088,7 @@ fn require_existing_encryption_key(
     // Only a verified fresh database may receive a newly minted encryption key.
     if configured || existing_postgres_volume()? {
         return Err(Problem::plain(
-            "This installation's saved encryption key is missing, invalid, or public. Restore its original private key from backup, or get help preserving its saved data. OpenBot will not replace the key automatically.",
+            "This installation's saved encryption key is missing, invalid, or public. Restore its original private key from backup, or get help preserving its saved data. ChisaBot will not replace the key automatically.",
         ));
     }
     Ok(())
@@ -1118,7 +1118,7 @@ fn require_existing_encryption_key_with_recovery(
             match recovery {
                 Ok(volume) => {
                     if volume.is_some() {
-                        problem.said = "OpenBot found a database from a previous installation, but its encryption key is unavailable. Restore the original key to keep its saved data, or reset the leftover database to start fresh.".into();
+                        problem.said = "ChisaBot found a database from a previous installation, but its encryption key is unavailable. Restore the original key to keep its saved data, or reset the leftover database to start fresh.".into();
                     }
                     problem.database_reset = volume;
                 }
@@ -1147,7 +1147,7 @@ fn fresh_root_without_encryption_key(
         return Ok(false);
     }
     let unknown = || {
-        Problem::plain("OpenBot could not verify that this is an unconfigured installation. Its leftover database cannot be reset here.")
+        Problem::plain("ChisaBot could not verify that this is an unconfigured installation. Its leftover database cannot be reset here.")
     };
     let settings = openbot_env::read_already_set(&root.join(".env"), &["DATABASE_URL"])
         .map_err(|_| unknown())?;
@@ -1187,7 +1187,7 @@ fn reset_leftover_database_with(
         || shell.root.lock().unwrap().is_some()
         || !shell.children.lock().unwrap().is_empty()
     {
-        return Err(Problem::plain("OpenBot still owns running services. Choose Stop OpenBot before resetting a leftover database."));
+        return Err(Problem::plain("ChisaBot still owns running services. Choose Stop ChisaBot before resetting a leftover database."));
     }
     if shell
         .selected_root
@@ -1292,7 +1292,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
                 && url.password().is_none()
         }) {
             return Err(Problem::plain(
-                "Enter a valid http:// or https:// organization OpenBot URL.",
+                "Enter a valid http:// or https:// organization ChisaBot URL.",
             )
             .connection(openbot_desktop_lib::problem::Connection::Organization));
         }
@@ -1309,7 +1309,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
             .is_some_and(|owned| owned.root != root)
         {
             return Err(Problem::plain(
-                "OpenBot still has services from another installation to stop. Choose Stop OpenBot before starting in a different folder.",
+                "ChisaBot still has services from another installation to stop. Choose Stop ChisaBot before starting in a different folder.",
             ));
         }
         // A rejected concurrent Start must not replace the accepted attempt's selection.
@@ -1361,12 +1361,12 @@ async fn start_stack_inner<R: tauri::Runtime>(
         };
     let picked = harness::picked(harness.as_ref(), &root).map_err(|error| {
         // Two registers, because one of these refusals is about a release and the other is
-        // about a pick. "OpenBot v0.0.8 does not include agent-langgraph-agui" is the
+        // about a pick. "ChisaBot v0.0.8 does not include agent-langgraph-agui" is the
         // evidence, not the sentence: it names a published image, which is not a thing the
         // person chose or can change.
         Problem::with(
-            "This version of OpenBot does not include the Bot you picked. Go back and choose \
-                 another, or update OpenBot.",
+            "This version of ChisaBot does not include the Bot you picked. Go back and choose \
+                 another, or update ChisaBot.",
             error,
         )
     })?;
@@ -1437,7 +1437,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
 
         // Only this deployment's recorded hosts are reclaimed; its existing containers are reusable.
         let previous_ports = openbot_env::Ports::read(&root).map_err(|error| {
-            Problem::with("OpenBot could not read its local ports.", error.to_string())
+            Problem::with("ChisaBot could not read its local ports.", error.to_string())
         })?;
         let reclaimed = cleanup_before_start(&app, &attempt, &root, stack::stop_processes_under)?;
         if reclaimed > 0 {
@@ -1454,7 +1454,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
             )
             .map_err(|error| {
                 Problem::with(
-                    "OpenBot could not find available local ports. Try Start again.",
+                    "ChisaBot could not find available local ports. Try Start again.",
                     error.to_string(),
                 )
             })?;
@@ -1631,7 +1631,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
     preparation::record_launch(&root, requested_harness.as_ref())?;
     let config = app.path().app_config_dir().map_err(|error| {
         Problem::with(
-            "OpenBot could not remember this installation for next time.",
+            "ChisaBot could not remember this installation for next time.",
             error.to_string(),
         )
     })?;
@@ -1760,7 +1760,7 @@ fn down_owned_containers(shell: &Shell, root: &Path) -> Result<(), String> {
         Some(owned) => stack::down(&owned.address, root),
         None if shell.stopped_container_root.lock().unwrap().as_deref() == Some(root) => Ok(()),
         None if root.join("docker-compose.yml").exists() => Err(
-            "OpenBot has no runtime ownership for this installation. Stop its containers using the original engine and context before starting OpenBot again.".into(),
+            "ChisaBot has no runtime ownership for this installation. Stop its containers using the original engine and context before starting ChisaBot again.".into(),
         ),
         None => Ok(()),
     }
@@ -1799,7 +1799,7 @@ fn stop_held_process_handles(
     for (name, child) in children.iter_mut() {
         let failure = |error| {
             Problem::with(
-                "OpenBot could not stop one of its host processes.",
+                "ChisaBot could not stop one of its host processes.",
                 format!("could not finish stopping held {name}: {error}"),
             )
         };
@@ -1894,11 +1894,11 @@ where
     let result = match (host_access_result, result) {
         (Ok(()), result) => result,
         (Err(error), Ok(_)) => Err(Problem::with(
-            "OpenBot could not stop a folder operation.",
+            "ChisaBot could not stop a folder operation.",
             error,
         )),
         (Err(error), Err(problem)) => Err(Problem::with(
-            "OpenBot could not finish stopping its work.",
+            "ChisaBot could not finish stopping its work.",
             format!("{error}\n{}", problem_detail(problem)),
         )),
     };
@@ -2097,7 +2097,7 @@ fn require_no_exited_compose_services(
         report_failure(line.to_string());
     }
     Err(Problem::with(
-        "Part of OpenBot stopped during startup.",
+        "Part of ChisaBot stopped during startup.",
         detail,
     ))
 }
@@ -2159,8 +2159,8 @@ fn known_safe_quit_cleanup_failure(line: &str) -> QuitCleanupFailure {
 
 fn quit_cleanup_failure_summary(failure: QuitCleanupFailure) -> &'static str {
     match failure {
-        QuitCleanupFailure::HostProcesses => "OpenBot could not confirm all app processes stopped.",
-        QuitCleanupFailure::Containers => "OpenBot could not confirm all containers stopped.",
+        QuitCleanupFailure::HostProcesses => "ChisaBot could not confirm all app processes stopped.",
+        QuitCleanupFailure::Containers => "ChisaBot could not confirm all containers stopped.",
     }
 }
 
@@ -2204,7 +2204,7 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             return Err(Problem::with(
-                "OpenBot could not read its previous shutdown notice.",
+                "ChisaBot could not read its previous shutdown notice.",
                 format!("{}: {error}", path.display()),
             ))
         }
@@ -2213,14 +2213,14 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
         .metadata()
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not read its previous shutdown notice.",
+                "ChisaBot could not read its previous shutdown notice.",
                 format!("{}: {error}", path.display()),
             )
         })?
         .len();
     if size > QUIT_CLEANUP_NOTICE_LIMIT as u64 {
         return Err(Problem::with(
-            "OpenBot could not read its previous shutdown notice.",
+            "ChisaBot could not read its previous shutdown notice.",
             format!(
                 "{}: shutdown notice exceeded its size limit",
                 path.display()
@@ -2229,13 +2229,13 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
     }
     let notice: QuitCleanupNotice = serde_json::from_reader(file).map_err(|error| {
         Problem::with(
-            "OpenBot could not read its previous shutdown notice.",
+            "ChisaBot could not read its previous shutdown notice.",
             format!("{}: {error}", path.display()),
         )
     })?;
     std::fs::remove_file(&path).map_err(|error| {
         Problem::with(
-            "OpenBot could not clear its previous shutdown notice.",
+            "ChisaBot could not clear its previous shutdown notice.",
             format!("{}: {error}", path.display()),
         )
     })?;
@@ -2249,7 +2249,7 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
         return Ok(None);
     }
     Ok(Some(Problem::with(
-        "OpenBot had trouble shutting down last time.",
+        "ChisaBot had trouble shutting down last time.",
         detail,
     )))
 }
@@ -2388,11 +2388,11 @@ where
     Ok(())
 }
 
-/// Show OpenBot itself in this window.
+/// Show ChisaBot itself in this window.
 ///
 /// The point of a desktop application is that it is the application. A window that sets things up
 /// and then sends somebody to a browser tab is a launcher, and nobody wanted a launcher: they
-/// double-clicked OpenBot to get OpenBot.
+/// double-clicked ChisaBot to get ChisaBot.
 ///
 /// So the window navigates to the running app, and the tray keeps the controls that would otherwise
 /// have nowhere to live. The connection screen comes back if the stack is stopped.
@@ -2408,7 +2408,7 @@ async fn show_openbot<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(),
         show_openbot_on(app, &ports)
     })
     .await
-    .map_err(|error| Problem::with("OpenBot could not open its window.", error.to_string()))?
+    .map_err(|error| Problem::with("ChisaBot could not open its window.", error.to_string()))?
 }
 
 fn ports_for_shell<R: tauri::Runtime>(
@@ -2416,7 +2416,7 @@ fn ports_for_shell<R: tauri::Runtime>(
 ) -> Result<openbot_env::Ports, Problem> {
     let root = cleanup_root(&app.state::<Shell>(), &stack::default_root());
     openbot_env::Ports::read(&root).map_err(|error| {
-        Problem::with("OpenBot could not read its local ports.", error.to_string())
+        Problem::with("ChisaBot could not read its local ports.", error.to_string())
     })
 }
 
@@ -2443,10 +2443,10 @@ fn show_openbot_on<R: tauri::Runtime>(
                         == Some(openbot_desktop_lib::problem::Connection::Organization)
             });
     if recovery_required_or_pending_quit_notice(&shell, &root) && !organization_recovery {
-        return Err("Part of OpenBot needs recovery. Try starting OpenBot once more.".into());
+        return Err("Part of ChisaBot needs recovery. Try starting ChisaBot once more.".into());
     }
     let url = owned_app_url(&root, ports).ok_or_else(|| {
-        format!("OpenBot could not verify its app on port {port} belongs to this installation. Try starting OpenBot again.")
+        format!("ChisaBot could not verify its app on port {port} belongs to this installation. Try starting ChisaBot again.")
     })?;
     let authority =
         openbot_env::already_set(&root.join(".env"), &["OPENBOT_ORGANIZATION_AUTH_URL"])
@@ -2455,7 +2455,7 @@ fn show_openbot_on<R: tauri::Runtime>(
     let destination = if authority.is_empty() {
         if organization_recovery {
             return Err(Problem::plain(
-                "Restore this installation's organization OpenBot URL before signing in.",
+                "Restore this installation's organization ChisaBot URL before signing in.",
             )
             .connection(openbot_desktop_lib::problem::Connection::Organization));
         }
@@ -2467,17 +2467,17 @@ fn show_openbot_on<R: tauri::Runtime>(
         clear_recovery_required(&shell, &root);
     }
     // Organization destinations can contain a one-use session ticket; never log them.
-    eprintln!("[show] navigating to the owned OpenBot app");
+    eprintln!("[show] navigating to the owned ChisaBot app");
     let window = app
         .get_webview_window("main")
-        .ok_or("the OpenBot window is not there to show it in")?;
+        .ok_or("the ChisaBot window is not there to show it in")?;
     let outcome = window
         .navigate(
             destination
                 .parse()
-                .map_err(|_| "OpenBot returned an invalid app destination.".to_string())?,
+                .map_err(|_| "ChisaBot returned an invalid app destination.".to_string())?,
         )
-        .map_err(|_| Problem::plain("OpenBot could not navigate to its app."));
+        .map_err(|_| Problem::plain("ChisaBot could not navigate to its app."));
     eprintln!("[show] navigate returned {outcome:?}");
     outcome
 }
@@ -2496,7 +2496,7 @@ fn configured_setup_url(
         .windows
         .iter()
         .find(|window| window.label == "main")
-        .ok_or("the OpenBot setup window is not configured")?;
+        .ok_or("the ChisaBot setup window is not configured")?;
     match &window.url {
         tauri::WebviewUrl::External(url) | tauri::WebviewUrl::CustomProtocol(url) => {
             Ok(url.clone())
@@ -2535,7 +2535,7 @@ fn configured_setup_url(
                     .map_err(|error| format!("invalid setup page path: {error}"))
             }
         }
-        _ => Err("the OpenBot setup window URL is not supported".into()),
+        _ => Err("the ChisaBot setup window URL is not supported".into()),
     }
 }
 
@@ -2561,7 +2561,7 @@ fn setup_destination<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<tau
 fn show_setup<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
-        .ok_or("the OpenBot window is not there")?;
+        .ok_or("the ChisaBot window is not there")?;
     window
         .navigate(setup_destination(&app)?)
         .map_err(|error| format!("could not go back to setup: {error}"))
@@ -2580,7 +2580,7 @@ fn show_setup_and_focus<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(
     show_setup(app.clone())?;
     let window = app
         .get_webview_window("main")
-        .ok_or("the OpenBot window is not there")?;
+        .ok_or("the ChisaBot window is not there")?;
     window
         .show()
         .map_err(|error| format!("could not show setup: {error}"))?;
@@ -2596,7 +2596,7 @@ fn show_setup_and_focus<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(
 ///
 /// The shell keeps what it started in memory, so closing the window and opening it again forgets a
 /// stack that is still up. Without asking, the second launch offers to set up something already
-/// running, and the port check then reports OpenBot as a foreign process holding its own port.
+/// running, and the port check then reports ChisaBot as a foreign process holding its own port.
 ///
 /// Asked of the deployment rather than of a file: a stamp says a deployment was installed, and only
 /// an answer on the port says one is running now.
@@ -2738,7 +2738,7 @@ async fn ask_the_bot_with_settings(
     question: String,
     settings: std::collections::BTreeMap<String, String>,
 ) -> Result<String, openbot_desktop_lib::problem::Problem> {
-    // The picked harness if there is one, and the Bot that ships with OpenBot if there is not.
+    // The picked harness if there is one, and the Bot that ships with ChisaBot if there is not.
     // Both speak AG-UI at the same address shape, so this screen does not care which it got.
     let picked_endpoint = settings
         .get("PICKED_HARNESS_URL")
@@ -2769,7 +2769,7 @@ async fn ask_the_bot_with_settings(
         .unwrap_or_default();
     if endpoint.trim().is_empty() || token.trim().is_empty() {
         return Err(openbot_desktop_lib::problem::Problem::plain(
-            "OpenBot cannot find the Bot it just set up. Stop OpenBot and start it again.",
+            "ChisaBot cannot find the Bot it just set up. Stop ChisaBot and start it again.",
         ));
     }
 
@@ -3245,7 +3245,7 @@ async fn begin_organization_sign_in(
         let _startup = shell.startup.lock().unwrap();
         if shell.root.lock().unwrap().as_deref() != Some(root.as_path()) {
             return Err(Problem::plain(
-                "Start this OpenBot installation before signing in to its organization.",
+                "Start this ChisaBot installation before signing in to its organization.",
             ));
         }
         let configured =
@@ -3254,7 +3254,7 @@ async fn begin_organization_sign_in(
                 .unwrap_or_default();
         if configured.trim() != authority_url.trim() {
             return Err(Problem::plain(
-                "Save this organization's OpenBot URL before signing in.",
+                "Save this organization's ChisaBot URL before signing in.",
             ));
         }
         openbot_desktop_lib::organization_auth::begin(&root, &authority_url, &provider)
@@ -3287,7 +3287,7 @@ async fn finish_organization_sign_in(
             || shell.root.lock().unwrap().as_deref() != Some(root.as_path())
         {
             return Err(Problem::plain(
-                "That sign-in belongs to a previous OpenBot run. Open this installation again.",
+                "That sign-in belongs to a previous ChisaBot run. Open this installation again.",
             ));
         }
         Ok(user)
@@ -3381,9 +3381,9 @@ fn publish_connection_failure<R: tauri::Runtime>(
         return Ok(true);
     }
     let said = match connection {
-        openbot_desktop_lib::problem::Connection::Model => "Your AI connection was refused. Refresh it to continue using your existing OpenBot.",
-        openbot_desktop_lib::problem::Connection::Intelligence => "Your CopilotKit connection was refused. Refresh it to continue using your existing OpenBot.",
-        openbot_desktop_lib::problem::Connection::Organization => "Your organization sign-in needs to be refreshed to continue using your existing OpenBot.",
+        openbot_desktop_lib::problem::Connection::Model => "Your AI connection was refused. Refresh it to continue using your existing ChisaBot.",
+        openbot_desktop_lib::problem::Connection::Intelligence => "Your CopilotKit connection was refused. Refresh it to continue using your existing ChisaBot.",
+        openbot_desktop_lib::problem::Connection::Organization => "Your organization sign-in needs to be refreshed to continue using your existing ChisaBot.",
     };
     mark_recovery_required(&shell, root, generation);
     if let Some(recovery) = shell.recovery_required.lock().unwrap().as_mut() {
@@ -3509,17 +3509,17 @@ fn supervise_host_processes<R: tauri::Runtime>(
                     /*
                      * Both registers here too. `gave_up` names the process and quotes the tail of
                      * its log, which is the developer half; the person needs to know a piece of
-                     * OpenBot stopped and that starting again is the thing to try.
+                     * ChisaBot stopped and that starting again is the thing to try.
                      */
                     *shell.last_failure.lock().unwrap() =
                         Some(openbot_desktop_lib::problem::Problem::with(
                             format!(
-                                "Part of OpenBot ({name}) stopped and could not be started again. \
-                                 Try starting OpenBot once more."
+                                "Part of ChisaBot ({name}) stopped and could not be started again. \
+                                 Try starting ChisaBot once more."
                             ),
                             reason,
                         ));
-                    // Back to the setup screen. By now the window is showing OpenBot, and OpenBot
+                    // Back to the setup screen. By now the window is showing ChisaBot, and ChisaBot
                     // is not running: leaving it there is a window that lies.
                     let _ = show_setup(app.clone());
                     continue;
@@ -3580,7 +3580,7 @@ where
     }
     let child = spawn().map_err(|error| {
         Problem::with(
-            format!("OpenBot could not restart {name}."),
+            format!("ChisaBot could not restart {name}."),
             error.to_string(),
         )
     })?;
@@ -3597,7 +3597,7 @@ where
     Ok(shell.generation.load(std::sync::atomic::Ordering::SeqCst) == generation)
 }
 
-/// Point the window at OpenBot if it is up, and at the setup screen if it is not.
+/// Point the window at ChisaBot if it is up, and at the setup screen if it is not.
 ///
 /// Used by the tray and by a second launch, both of which happen at moments when the caller has no
 /// idea which of the two the person should be looking at.
@@ -3667,13 +3667,13 @@ fn restore_after_second_instance(app: &tauri::AppHandle) {
             &reporting_app,
             "open",
             false,
-            format!("OpenBot could not show the existing window: {error}"),
+            format!("ChisaBot could not show the existing window: {error}"),
         );
     }
 }
 
 fn publish_quit_notice_failure<R: tauri::Runtime>(app: tauri::AppHandle<R>, error: String) {
-    let problem = Problem::with("OpenBot could not record a shutdown problem.", error);
+    let problem = Problem::with("ChisaBot could not record a shutdown problem.", error);
     let shell = app.state::<Shell>();
     {
         let _startup = shell.startup.lock().unwrap();
@@ -3693,14 +3693,14 @@ fn stop_from_menu<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
         match stop_everything(&app, &root_path) {
             Ok(()) => {
                 eprintln!("[menu] stopped");
-                report(&app, "stopped", true, "OpenBot has been stopped");
+                report(&app, "stopped", true, "ChisaBot has been stopped");
             }
             // Said rather than swallowed. A menu item that fails silently is worse than one
             // that is not there: the person believes the stack is down and it is not.
             Err(detail) => {
                 eprintln!("[menu] stop failed: {detail}");
                 let problem = Problem::with(
-                    "OpenBot could not finish stopping. Try Stop OpenBot again.",
+                    "ChisaBot could not finish stopping. Try Stop ChisaBot again.",
                     detail,
                 );
                 let shell = app.state::<Shell>();
@@ -3792,11 +3792,11 @@ fn main() {
             ask_the_bot,
         ])
         // A packaged application is not a browser tab. Left alone, WebView2 answers a right-click
-        // with Back, Refresh, Save as and Print: Back walks the window out of OpenBot with nothing
+        // with Back, Refresh, Save as and Print: Back walks the window out of ChisaBot with nothing
         // to walk it home, and Save as offers to write the page to disk as `Webpage, complete`.
         // macOS never showed this because Tauri suppresses it there in release builds; Windows has
         // no such setting, and Tauri has no configuration option for it either, so the page is
-        // asked to refuse. Every navigation, because the window navigates to OpenBot and back.
+        // asked to refuse. Every navigation, because the window navigates to ChisaBot and back.
         .on_page_load(|window, _| {
             let _ = window
                 .eval("document.addEventListener('contextmenu', e => e.preventDefault(), true)");
@@ -3821,7 +3821,7 @@ fn main() {
             {
                 remember_selected_root(&app.state::<Shell>(), &root);
             }
-            // Where the Compose provider OpenBot installs itself lives, told once so every engine
+            // Where the Compose provider ChisaBot installs itself lives, told once so every engine
             // command can put it on the child's PATH. Before anything asks for an engine.
             engine::tools_live_in(engine::tools_dir_under(&acquire::download_dir(
                 &stack::default_root(),
@@ -3833,15 +3833,15 @@ fn main() {
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::TrayIconBuilder;
 
-            let open = MenuItem::with_id(app, "open", "Open OpenBot", true, None::<&str>)?;
-            let stop = MenuItem::with_id(app, "stop", "Stop OpenBot", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open ChisaBot", true, None::<&str>)?;
+            let stop = MenuItem::with_id(app, "stop", "Stop ChisaBot", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
             let menu = Menu::with_items(app, &[&open, &stop, &quit])?;
 
             TrayIconBuilder::with_id("openbot")
                 .icon(tray::icon())
                 .icon_as_template(false)
-                .tooltip("OpenBot")
+                .tooltip("ChisaBot")
                 .menu(&menu)
                 .build(app)?;
 
@@ -3854,14 +3854,14 @@ fn main() {
             // Its own items, not the tray's: a menu item belongs to one menu, and the two menus
             // outlive each other. The ids match so both arrive at the same function.
             use tauri::menu::Submenu;
-            let window_open = MenuItem::with_id(app, "open", "Open OpenBot", true, None::<&str>)?;
-            let window_stop = MenuItem::with_id(app, "stop", "Stop OpenBot", true, None::<&str>)?;
+            let window_open = MenuItem::with_id(app, "open", "Open ChisaBot", true, None::<&str>)?;
+            let window_stop = MenuItem::with_id(app, "stop", "Stop ChisaBot", true, None::<&str>)?;
             let window_quit =
                 MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
             // A submenu, because a top-level entry in a menu bar has to be one to open at all.
             let openbot = Submenu::with_items(
                 app,
-                "OpenBot",
+                "ChisaBot",
                 true,
                 &[&window_open, &window_stop, &window_quit],
             )?;
@@ -3898,7 +3898,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("the OpenBot window could not be created")
+        .expect("the ChisaBot window could not be created")
         .run(|app, event| {
             match event {
                 #[cfg(target_os = "macos")]
@@ -3953,7 +3953,7 @@ fn main() {
                             app,
                             "quit",
                             false,
-                            "OpenBot could not start shutting down. Try Quit again.",
+                            "ChisaBot could not start shutting down. Try Quit again.",
                         );
                     }
                 }
@@ -4269,7 +4269,7 @@ mod tests {
             .unwrap()
             .expect("notice should be present");
         let detail = first.detail.unwrap();
-        assert_eq!(first.said, "OpenBot had trouble shutting down last time.");
+        assert_eq!(first.said, "ChisaBot had trouble shutting down last time.");
         assert!(detail.contains("containers stopped"), "{detail}");
         assert!(detail.contains("app processes stopped"), "{detail}");
         assert!(!detail.contains("Compose down failed"), "{detail}");
@@ -4934,7 +4934,7 @@ mod tests {
         )
         .expect_err("unreadable .env must stop saved-key resolution");
 
-        assert_eq!(problem.said, "OpenBot could not read its settings.");
+        assert_eq!(problem.said, "ChisaBot could not read its settings.");
         assert!(
             problem
                 .detail
@@ -4955,7 +4955,7 @@ mod tests {
             tauri::async_runtime::block_on(ask_the_bot_inner(root.clone(), "hello".into()))
                 .expect_err("unreadable .env must stop Ask before transport");
 
-        assert_eq!(problem.said, "OpenBot could not read its settings.");
+        assert_eq!(problem.said, "ChisaBot could not read its settings.");
         assert!(
             problem
                 .detail
@@ -6058,7 +6058,7 @@ mod tests {
                     .borrow_mut()
                     .push(format!("cleanup:{}", root.display()));
                 Err(Problem::with(
-                    "OpenBot could not inspect or stop its host processes.",
+                    "ChisaBot could not inspect or stop its host processes.",
                     "lsof exited with status 2",
                 ))
             },
@@ -6077,7 +6077,7 @@ mod tests {
             ]
         );
         assert!(
-            problem.contains("OpenBot could not inspect or stop its host processes."),
+            problem.contains("ChisaBot could not inspect or stop its host processes."),
             "{problem}"
         );
         assert!(problem.contains("lsof exited with status 2"), "{problem}");
@@ -6109,7 +6109,7 @@ mod tests {
                     .borrow_mut()
                     .push(format!("cleanup:{}", root.display()));
                 Err(Problem::with(
-                    "OpenBot could not inspect or stop its host processes.",
+                    "ChisaBot could not inspect or stop its host processes.",
                     "taskkill exited with status 5",
                 ))
             },
@@ -7599,7 +7599,7 @@ fn main() {
 
         let commands = std::fs::read_to_string(&record).expect("command record");
         assert_eq!(
-            problem.said, "Part of OpenBot stopped during startup.",
+            problem.said, "Part of ChisaBot stopped during startup.",
             "problem={problem:?} commands={commands}"
         );
         assert_eq!(
@@ -7688,7 +7688,7 @@ fn main() {
                 .contains("compose up -d --no-build --pull never postgres supervisor agent-computer agent-bot"),
             "Anthropic Start must not target the OpenAI-only agent-bot: {commands}"
         );
-        assert_eq!(problem.said, "Part of OpenBot stopped during startup.");
+        assert_eq!(problem.said, "Part of ChisaBot stopped during startup.");
         let detail = problem.detail.as_deref().unwrap_or_default();
         assert!(
             detail.contains("agent-langgraph stopped: langgraph died after boot"),
@@ -8968,7 +8968,7 @@ fn main() {
         )
         .unwrap();
         let notice = last_failure(app.handle().clone()).expect("persisted Quit notice");
-        assert_eq!(notice.said, "OpenBot had trouble shutting down last time.");
+        assert_eq!(notice.said, "ChisaBot had trouble shutting down last time.");
         assert!(notice
             .detail
             .as_ref()
@@ -9044,7 +9044,7 @@ fn main() {
             "restore must not consume the persisted notice before React asks for it"
         );
         let notice = last_failure(app.handle().clone()).expect("persisted Quit notice");
-        assert_eq!(notice.said, "OpenBot had trouble shutting down last time.");
+        assert_eq!(notice.said, "ChisaBot had trouble shutting down last time.");
         assert!(notice
             .detail
             .as_ref()
@@ -9075,7 +9075,7 @@ fn main() {
 
         assert!(recovery_required(&shell, &f.owned));
         let failure = last_failure(app.handle().clone()).expect("volatile sink failure");
-        assert_eq!(failure.said, "OpenBot could not record a shutdown problem.");
+        assert_eq!(failure.said, "ChisaBot could not record a shutdown problem.");
         assert!(failure
             .detail
             .as_ref()
@@ -9453,7 +9453,7 @@ fn main() {
         let result = finish_host_start(&attempt, &root, children, Ok(())).unwrap_err();
         assert_eq!(
             result.said,
-            "OpenBot could not verify its host process ownership."
+            "ChisaBot could not verify its host process ownership."
         );
         assert!(
             result
@@ -10125,7 +10125,7 @@ fn main() {
         config.app.windows[0].label = "another-window".into();
         assert_eq!(
             configured_setup_url(&config, true, true).unwrap_err(),
-            "the OpenBot setup window is not configured",
+            "the ChisaBot setup window is not configured",
         );
     }
 

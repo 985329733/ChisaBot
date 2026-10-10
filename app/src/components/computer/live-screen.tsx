@@ -496,8 +496,8 @@ export function LiveScreen({
         : {})}
       aria-label={
         driving
-          ? "The assistant's screen. You have control: click and type here."
-          : "The assistant's screen, live"
+          ? "助理的屏幕。您有控制权：点击并在此输入。"
+          : "助理的屏幕，实时"
       }
       data-connected={connected}
     />

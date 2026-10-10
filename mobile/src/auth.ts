@@ -6,14 +6,14 @@ import * as SecureStore from "expo-secure-store";
 const configured = process.env.EXPO_PUBLIC_SERVER_URL;
 if (!configured)
   throw new Error(
-    "Set EXPO_PUBLIC_SERVER_URL to your OpenBot deployment before building the native app.",
+    "Set EXPO_PUBLIC_SERVER_URL to your ChisaBot deployment before building the native app.",
   );
 const endpoint = new URL(configured);
 if (
   endpoint.protocol !== "https:" &&
   !(__DEV__ && endpoint.protocol === "http:")
 )
-  throw new Error("OpenBot native sign-in requires HTTPS.");
+  throw new Error("ChisaBot native sign-in requires HTTPS.");
 if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash)
   throw new Error(
     "Use the public deployment URL without credentials or query parameters.",

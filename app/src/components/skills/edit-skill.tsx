@@ -38,7 +38,7 @@ export function EditSkill({ slug }: { slug: string }) {
     return (
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
         <p className="text-destructive text-sm" role="alert">
-          This skill could not be loaded.
+          {"此技能无法加载。"}
         </p>
       </div>
     );
@@ -54,7 +54,7 @@ export function EditSkill({ slug }: { slug: string }) {
          * not own.
          */}
         <p className="text-muted-foreground text-sm">
-          That skill no longer exists, or it is not yours to edit.
+          {"该技能已不存在，或您无权编辑。"}
         </p>
       </div>
     );
@@ -63,10 +63,10 @@ export function EditSkill({ slug }: { slug: string }) {
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
       <header>
-        <h1 className="text-2xl font-semibold">Edit skill</h1>
+        <h1 className="text-2xl font-semibold">{"编辑技能"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Changes apply the next time <code>/{skill.slug}</code> is used. Agents
-          already carrying it keep it.
+          {"更改将在下次应用"}
+          <code>/{skill.slug}</code> {"已被使用。已有代理携带它。"}
         </p>
       </header>
 

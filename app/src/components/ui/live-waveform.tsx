@@ -146,16 +146,16 @@ export function LiveWaveform({
       role="img"
       aria-label={
         unavailable
-          ? "Waveform unavailable; recording continues"
+          ? "波形不可用；录音继续"
           : processing
-            ? "Processing audio"
-            : "Live audio waveform"
+            ? "正在处理音频"
+            : "实时音频波形"
       }
     >
       <canvas ref={canvasRef} className="block size-full" />
       {unavailable && (
         <span className="absolute inset-0 flex items-center bg-card text-xs text-muted-foreground">
-          Recording · waveform unavailable
+          {"录音 · 波形不可用"}
         </span>
       )}
     </div>

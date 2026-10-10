@@ -16,10 +16,10 @@ export type ApprovalRuleInput = {
 };
 export type ApprovalRuleRow = ApprovalRuleInput & { id: string };
 export const BEHAVIOUR_LABELS: Record<RuleBehaviour, string> = {
-  allow: "Take action without asking",
-  pre_approved: "Take action if pre-approved",
-  ask: "Ask before taking action",
-  hand_off: "Hand off to you",
+  allow: "直接执行，无需询问",
+  pre_approved: "预先授权后执行",
+  ask: "执行前询问",
+  hand_off: "交给你处理",
 };
 export type ApprovalInboxData = {
   enabled: boolean;
@@ -71,7 +71,7 @@ export const approvalInboxOptions = () =>
     queryKey: ["approvals"],
     queryFn: async (): Promise<ApprovalInboxData> => {
       const response = await client("/api/approvals", {
-        fallback: "Your approvals could not be loaded.",
+        fallback: "您的审批无法加载。",
       });
       return response.json();
     },
@@ -81,12 +81,12 @@ export const decideApproval = (id: string, decision: ApprovalDecision) =>
   client(`/api/approvals/${encodeURIComponent(id)}/decision`, {
     method: "POST",
     body: { decision },
-    fallback: "Your decision could not be saved.",
+    fallback: "您的决定无法保存。",
   });
 export const revokeApprovalRule = (id: string) =>
   client(`/api/approvals/rules/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    fallback: "The permission could not be revoked.",
+    fallback: "权限无法撤销。",
   });
 export const setApprovalEnabled = (enabled: boolean) =>
   setApprovalPreferences({ enabled });
@@ -98,13 +98,13 @@ export const setApprovalPreferences = (input: {
   client("/api/approvals/preferences", {
     method: "PATCH",
     body: input,
-    fallback: "Your approval preference could not be saved.",
+    fallback: "您的审批偏好无法保存。",
   });
 export const createApprovalRule = (input: ApprovalRuleInput) =>
   client("/api/approvals/rules", {
     method: "POST",
     body: input,
-    fallback: "The rule could not be saved.",
+    fallback: "规则无法保存。",
   });
 export const setTeamApprovalSettings = (input: {
   enforceAutoReview?: boolean;
@@ -114,24 +114,24 @@ export const setTeamApprovalSettings = (input: {
   client("/api/approvals/team", {
     method: "PATCH",
     body: input,
-    fallback: "The team setting could not be saved.",
+    fallback: "团队设置无法保存。",
   });
 export const createTeamApprovalRule = (input: ApprovalRuleInput) =>
   client("/api/approvals/team/rules", {
     method: "POST",
     body: input,
-    fallback: "The team rule could not be saved.",
+    fallback: "团队规则无法保存。",
   });
 export const revokeTeamApprovalRule = (id: string) =>
   client(`/api/approvals/team/rules/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    fallback: "The team rule could not be removed.",
+    fallback: "团队规则无法移除。",
   });
 export const answerPersonQuestion = (id: string, response: string) =>
   client(`/api/approvals/questions/${encodeURIComponent(id)}/respond`, {
     method: "POST",
     body: { response },
-    fallback: "Your answer could not be saved.",
+    fallback: "您的回答无法保存。",
   });
 export const updateApprovalRule = (
   id: string,
@@ -140,7 +140,7 @@ export const updateApprovalRule = (
   client(`/api/approvals/rules/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: input,
-    fallback: "The rule could not be changed.",
+    fallback: "规则无法更改。",
   });
 export const updateTeamApprovalRule = (
   id: string,
@@ -149,5 +149,5 @@ export const updateTeamApprovalRule = (
   client(`/api/approvals/team/rules/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: input,
-    fallback: "The team rule could not be changed.",
+    fallback: "团队规则无法更改。",
   });

@@ -19,10 +19,11 @@ export function NewSkill() {
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
       <header>
-        <h1 className="text-2xl font-semibold">New skill</h1>
+        <h1 className="text-2xl font-semibold">{"新技能"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          A named instruction you invoke with <code>/</code>. It goes on the
-          Bots you own, and nobody else sees it.
+          {"您用...调用的命名指令"}
+          <code>/</code>
+          {". 它出现在你拥有的机器人上，没有其他人看到它。"}
         </p>
       </header>
 

@@ -48,15 +48,15 @@ type AuditEvent = {
  * answered.
  */
 const FILTERS = [
-  { label: "Everything", search: "" },
-  { label: "Computer actions", search: "?eventType=computer.action_allowed" },
-  { label: "Blocked", search: eventTypeFilter(REFUSED_EVENT_TYPES) },
+  { label: "全部", search: "" },
+  { label: "计算机操作", search: "?eventType=computer.action_allowed" },
+  { label: "已阻止", search: eventTypeFilter(REFUSED_EVENT_TYPES) },
   {
-    label: "Did not happen",
+    label: "未发生",
     search: eventTypeFilter(DID_NOT_HAPPEN_EVENT_TYPES),
   },
   {
-    label: "Nobody watching",
+    label: "无人观看",
     search: "?initiatorKind=routine,handoff,responsibility,memory",
   },
 ] as const;
@@ -78,11 +78,11 @@ function AuditPage() {
       action={
         <Button onClick={() => events.refetch()} size="sm" variant="ghost">
           <IconRefresh />
-          Refresh
+          {"刷新"}
         </Button>
       }
-      description="Every action a Bot took, and every one this deployment's policy refused."
-      title="Audit"
+      description={"机器人采取的每个操作，以及此部署策略拒绝的每个操作。"}
+      title={"审计"}
       width="wide"
     >
       <PageSection>
@@ -103,21 +103,21 @@ function AuditPage() {
 
         {events.isPending ? null : events.isError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            The audit trail could not be loaded.
+            {"审计轨迹无法加载。"}
           </p>
         ) : rows.length === 0 ? (
-          <PageEmpty>No events match this filter yet.</PageEmpty>
+          <PageEmpty>{"暂无符合此过滤器的事件。"}</PageEmpty>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full text-left text-sm">
               <thead className="text-muted-foreground text-xs uppercase">
                 <tr className="border-border border-b">
-                  <th className="px-4 py-2 font-medium">When</th>
-                  <th className="px-4 py-2 font-medium">What</th>
-                  <th className="px-4 py-2 font-medium">On</th>
-                  <th className="px-4 py-2 font-medium">Bot</th>
-                  <th className="px-4 py-2 font-medium">Started by</th>
-                  <th className="px-4 py-2 font-medium">Decision</th>
+                  <th className="px-4 py-2 font-medium">{"何时"}</th>
+                  <th className="px-4 py-2 font-medium">{"什么"}</th>
+                  <th className="px-4 py-2 font-medium">{"开"}</th>
+                  <th className="px-4 py-2 font-medium">{"机器人"}</th>
+                  <th className="px-4 py-2 font-medium">{"由...启动"}</th>
+                  <th className="px-4 py-2 font-medium">{"决策"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +146,7 @@ function StartedBy({
         className="font-medium text-amber-600 dark:text-amber-500"
         title={event.initiatorId ?? undefined}
       >
-        A routine
+        {"定时任务"}
       </span>
     );
   }
@@ -156,9 +156,7 @@ function StartedBy({
         className="font-medium text-amber-600 dark:text-amber-500"
         title={event.initiatorId ?? undefined}
       >
-        {event.initiatorId
-          ? `Handed on by ${nameFor(event.initiatorId)}`
-          : "Handed on"}
+        {event.initiatorId ? `由 ${nameFor(event.initiatorId)} 传递` : "已移交"}
       </span>
     );
   }
@@ -171,16 +169,14 @@ function StartedBy({
         className="font-medium text-amber-600 dark:text-amber-500"
         title={event.initiatorId ?? undefined}
       >
-        {event.initiatorKind === "memory"
-          ? "A memory source"
-          : "A responsibility"}
+        {event.initiatorKind === "memory" ? "记忆源" : "长期任务"}
       </span>
     );
   }
   if (event.initiatorKind === "deployment") {
-    return <span className="text-muted-foreground">This deployment</span>;
+    return <span className="text-muted-foreground">{"此部署"}</span>;
   }
-  return <span className="text-muted-foreground">A person</span>;
+  return <span className="text-muted-foreground">{"个人"}</span>;
 }
 
 function Row({
@@ -229,7 +225,7 @@ function Row({
   return (
     <tr className="border-border border-t align-top">
       <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-        {new Date(event.createdAt).toLocaleTimeString()}
+        {new Date(event.createdAt).toLocaleTimeString("zh-CN")}
       </td>
       <td className="px-4 py-2 font-medium">
         {/* Strip the internal computer tool namespace for display. */}
@@ -256,7 +252,7 @@ function Row({
           <span className="font-mono text-xs">
             {typeof payload.offered === "number" &&
             typeof payload.granted === "number"
-              ? `${payload.offered} of ${payload.granted} tools`
+              ? `${payload.offered} 个 ${payload.granted} 工具`
               : "-"}
           </span>
         ) : /* Named targets and file paths are the audit subject before page elements. */
@@ -320,7 +316,7 @@ function Row({
         >
           {routed ??
             DECISIONS[event.eventType] ??
-            (refused ? "Blocked" : failed ? "Did not happen" : "Allowed")}
+            (refused ? "已阻止" : failed ? "未发生" : "允许")}
         </span>
         {/* Refusal reasons mirror the conversation-facing reason. */}
         {(event.eventType === "component.refused" ||
@@ -341,7 +337,7 @@ function Row({
           <div className="mt-0.5 text-xs text-muted-foreground">
             {DISCOVERY_REASONS[payload.reason] ?? payload.reason}
             {Array.isArray(payload.skills) && payload.skills.length > 0
-              ? `: ${payload.skills.join(", ")}`
+              ? `：${payload.skills.join(", ")}`
               : ""}
           </div>
         ) : null}
@@ -373,7 +369,7 @@ function Row({
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
             {payload.reason}
-            <span className="italic">, reported by the Bot itself</span>
+            <span className="italic">{", 由机器人本身报告"}</span>
           </div>
         ) : null}
         {failed && typeof payload.failure === "string" ? (

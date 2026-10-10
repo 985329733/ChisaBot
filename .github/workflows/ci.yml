@@ -1,9 +1,9 @@
-name: CI
+name: Upstream comprehensive checks
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  # The inherited full suite is retained as an explicit check while its English UI
+  # assertions are migrated. ChisaBot's automatic checks are in chisabot.yml.
+  workflow_dispatch:
   # Callable, so publishing a release runs these same checks against the release commit rather than
   # trusting that they ran somewhere earlier.
   workflow_call:

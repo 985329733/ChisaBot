@@ -2,7 +2,7 @@ import type { ExpoConfig } from "expo/config";
 
 const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
 const config: ExpoConfig = {
-  name: "OpenBot",
+  name: "ChisaBot",
   slug: "openbot",
   version: "0.0.1",
   scheme: "openbotmobile",

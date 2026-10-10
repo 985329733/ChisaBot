@@ -38,13 +38,13 @@ function RouteComponent() {
     <div className="flex h-full flex-col">
       <div className="sticky top-0 flex h-12 flex-row items-center gap-1.5 border-b border-border px-3">
         <SidebarToggle />
-        <span className="text-sm tracking-tight">New group conversation</span>
+        <span className="text-sm tracking-tight">{"新群组会话"}</span>
       </div>
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-6">
         <p className="text-sm text-muted-foreground">
-          Choose at least two Bots, in the order they should answer. Each sees
-          what the others said and can hand the conversation to another with
-          @Name.
+          {
+            "选择至少两个机器人，按他们回答的顺序。每个人都会看到其他人说了什么，并可以使用@名称将对话转交给另一个。"
+          }
         </p>
         {profiles.isError ? (
           <p className="text-sm text-destructive" role="alert">
@@ -76,7 +76,8 @@ function RouteComponent() {
                 <span className="text-sm">{profile.name}</span>
                 {checked ? (
                   <span className="text-xs text-muted-foreground">
-                    answers {ordinal(chosen.indexOf(profile.id) + 1)}
+                    {"回答"}
+                    {ordinal(chosen.indexOf(profile.id) + 1)}
                   </span>
                 ) : null}
                 <span className="truncate text-sm text-muted-foreground">
@@ -96,7 +97,7 @@ function RouteComponent() {
             disabled={chosen.length < 2 || create.isPending}
             onClick={() => void start().catch(() => {})}
           >
-            Start group
+            {"开始群组"}
           </Button>
         </div>
       </div>

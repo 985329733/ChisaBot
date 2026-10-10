@@ -26,7 +26,11 @@ import {
   DEFAULT_CAPABILITIES,
   isCapability,
 } from "./capabilities";
-import { ACTION_RECORD_RETENTION_DAYS, enterpriseControls } from "./controls";
+import {
+  ACTION_RECORD_RETENTION_DAYS,
+  enterpriseControls,
+  resolveBuiltInModel,
+} from "./controls";
 import type { EnterpriseSettings } from "./settings-store";
 
 const capabilityInput = z.strictObject({
@@ -143,7 +147,7 @@ export function createEnterpriseAdminRoutes(
       network,
       defaultDestinations: DEFAULT_EGRESS_DESTINATIONS,
       mcpServers: servers,
-      builtInModel: controls.deps.builtInModel ?? null,
+      builtInModel: (await resolveBuiltInModel(controls.deps)) ?? null,
       scim: scimStatus(controls.deps.env ?? process.env),
       otel: { configured: otelConfigured(controls.deps.env ?? process.env) },
       actionRecordRetentionDays: ACTION_RECORD_RETENTION_DAYS,

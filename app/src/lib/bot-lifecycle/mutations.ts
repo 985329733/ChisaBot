@@ -54,7 +54,7 @@ export function resetBotMutationOptions(queryClient: QueryClient) {
       client(`${botPath(agentId)}/reset`, "deleted", {
         method: "POST",
         body: { confirm: true },
-        fallback: "Could not reset this Bot",
+        fallback: "无法重置此机器人",
       }),
     onSuccess: async () => {
       await invalidateLifecycle(queryClient);
@@ -70,7 +70,7 @@ export function stopHandoffMutationOptions(queryClient: QueryClient) {
       await client(`${botPath(variables.agentId)}/activity/handoffs/stop`, {
         method: "POST",
         body: { id: variables.id },
-        fallback: "Could not stop the delegated task",
+        fallback: "无法停止委派任务",
       });
     },
     onSuccess: () => invalidateLifecycle(queryClient),
@@ -83,7 +83,7 @@ export function cancelFollowUpMutationOptions(queryClient: QueryClient) {
       await client(`${botPath(variables.agentId)}/follow-ups/cancel`, {
         method: "POST",
         body: { id: variables.id },
-        fallback: "Could not cancel the follow-up",
+        fallback: "无法取消后续",
       });
     },
     onSuccess: () => invalidateLifecycle(queryClient),
@@ -99,7 +99,7 @@ export function setUpdateRoutingMutationOptions(queryClient: QueryClient) {
       await client(`/api/bots/routing/${variables.kind}`, {
         method: "PUT",
         body: { transports: variables.transports },
-        fallback: "Could not save where updates go",
+        fallback: "无法保存更新去向",
       });
     },
     onSuccess: () => invalidateLifecycle(queryClient),

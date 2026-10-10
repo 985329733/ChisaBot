@@ -68,7 +68,7 @@ export const Channel = memo(function Channel({
   });
   /* Types in only on arrival; an already-named row draws it outright. */
   const revealed = useTypedReveal(summary);
-  const threadTitle = revealed.text || lastMessage || "New conversation";
+  const threadTitle = revealed.text || lastMessage || "新会话";
   const setPinned = useMutation(setChannelPinnedMutationOptions(queryClient));
   const deleteChannel = useMutation(deleteChannelMutationOptions(queryClient));
   const [confirming, setConfirming] = useState(false);
@@ -125,7 +125,7 @@ export const Channel = memo(function Channel({
             <ChannelItemContent
               participantIds={participantIds}
               name={name}
-              title={summary || lastMessage || "New conversation"}
+              title={summary || lastMessage || "新会话"}
               displayedTitle={threadTitle}
               lastMessageAt={lastMessageAt}
               emphasis={emphasis}
@@ -147,7 +147,7 @@ export const Channel = memo(function Channel({
             }}
           >
             {pinned ? <IconPinnedOff /> : <IconPin />}
-            {pinned ? "Unpin channel" : "Pin channel"}
+            {pinned ? "取消固定会话" : "固定会话"}
           </ContextMenuItem>
           <ContextMenuItem
             variant="destructive"
@@ -158,7 +158,7 @@ export const Channel = memo(function Channel({
             }}
           >
             <IconTrash />
-            Delete channel…
+            {"删除会话…"}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -175,9 +175,12 @@ export const Channel = memo(function Channel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {name}?</DialogTitle>
+            <DialogTitle>
+              {"删除"}
+              {name}?
+            </DialogTitle>
             <DialogDescription>
-              The conversation will no longer appear for anyone in it.
+              {"对话将不再对其中任何人显示。"}
             </DialogDescription>
           </DialogHeader>
           {deleteChannel.error ? (
@@ -191,7 +194,7 @@ export const Channel = memo(function Channel({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {"取消"}
             </Button>
             <Button
               disabled={deleteChannel.isPending}
@@ -201,7 +204,7 @@ export const Channel = memo(function Channel({
               size="sm"
               variant="destructive"
             >
-              {deleteChannel.isPending ? "Deleting…" : "Delete"}
+              {deleteChannel.isPending ? "正在删除…" : "删除"}
             </Button>
           </DialogFooter>
         </DialogContent>

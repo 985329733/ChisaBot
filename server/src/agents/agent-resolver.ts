@@ -9,6 +9,8 @@ import {
   type LoadToolsForBot,
   type MarkAttachmentsSent,
   type RuntimeModel,
+  type RuntimeModelResolver,
+  type RuntimeModelConnection,
   resolveRuntimeAgents,
   type SignRun,
   type ToolSelection,
@@ -39,6 +41,12 @@ export type ActorAgentResolverDependencies = {
   loadAgents: LoadAgentsForActor;
   model: RuntimeModel;
   resolveModelApiKey: () => Promise<string | null>;
+  /** Read model, endpoint and secret together, once for each turn. */
+  resolveConnection?: RuntimeModelResolver;
+  /** Shares this BOT's exact choice with the policy check for the same turn. */
+  resolveConnectionForAgent?: (
+    agentId: string,
+  ) => Promise<RuntimeModelConnection>;
   stallGuard?: StallGuard;
   loadToolsForActor?: (
     actorId: string,
@@ -80,7 +88,7 @@ export type ActorAgentResolverDependencies = {
 export function createActorAgentResolver(
   deps: ActorAgentResolverDependencies,
 ): ActorAgentResolver {
-  const resolveRegisteredAgents = (
+  const resolveRegisteredAgents = async (
     actor: AgentActor,
     registered: Awaited<ReturnType<LoadAgentsForActor>>,
     /**
@@ -92,11 +100,19 @@ export function createActorAgentResolver(
      */
     onlyAgentId?: string,
     context?: AgentResolutionContext,
-  ) =>
-    resolveRuntimeAgents(
+  ) => {
+    const usesBuiltInModel = registered.some(
+      (agent) =>
+        agent.type === "built_in" &&
+        (onlyAgentId === undefined || agent.id === onlyAgentId),
+    );
+    const connection = usesBuiltInModel
+      ? await deps.resolveConnection?.()
+      : undefined;
+    return resolveRuntimeAgents(
       () => Promise.resolve(registered),
-      deps.model,
-      deps.resolveModelApiKey,
+      connection?.model ?? deps.model,
+      connection ? async () => connection.apiKey : deps.resolveModelApiKey,
       deps.stallGuard,
       deps.loadToolsForActor?.(actor.id, context?.initiator),
       deps.signRunForActor?.(actor.id, context?.initiator, context?.depth),
@@ -112,7 +128,9 @@ export function createActorAgentResolver(
       deps.markAttachmentsSentForActor?.(actor.id),
       deps.acquireLearnedSkills,
       deps.loadPersonalMemoryForActor?.(actor.id),
+      deps.resolveConnectionForAgent,
     );
+  };
 
   const resolveAgentsForActor = async (actor: AgentActor) =>
     resolveRegisteredAgents(actor, await deps.loadAgents(actor));

@@ -42,10 +42,10 @@ const clock = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 const SCHEDULES = [
-  { label: "Every weekday at 09:00", cron: "0 9 * * 1-5" },
-  { label: "Every day at 09:00", cron: "0 9 * * *" },
-  { label: "Every Monday at 09:00", cron: "0 9 * * 1" },
-  { label: "Every hour", cron: "0 * * * *" },
+  { label: "每个工作日上午9点", cron: "0 9 * * 1-5" },
+  { label: "每天 09:00", cron: "0 9 * * *" },
+  { label: "每周一上午9点", cron: "0 9 * * 1" },
+  { label: "每小时", cron: "0 * * * *" },
 ] as const;
 
 /** Save the demonstrated path as a routine that reruns the published skill. */
@@ -83,13 +83,14 @@ function ScheduleSkill({
   if (scheduled)
     return (
       <p className="w-full text-xs">
-        Scheduled. /{recording.skillSlug} next runs{" "}
-        {new Date(scheduled.nextRunAt).toLocaleString()}.{" "}
+        {"已计划。 /"}
+        {recording.skillSlug} {"下次运行"}{" "}
+        {new Date(scheduled.nextRunAt).toLocaleString("zh-CN")}.{" "}
         <Link to="/routines" className="underline">
-          See routines
+          {"查看定时任务"}
         </Link>{" "}
         <button type="button" className="underline" onClick={onDone}>
-          Close
+          {"关闭"}
         </button>
       </p>
     );
@@ -102,7 +103,8 @@ function ScheduleSkill({
       }}
     >
       <label htmlFor={`${id}-when`} className="grid gap-1">
-        When it runs ({timezone})
+        {"何时运行（"}
+        {timezone})
         <select
           id={`${id}-when`}
           className="h-8 rounded-md border bg-background px-2"
@@ -114,12 +116,12 @@ function ScheduleSkill({
               {option.label}
             </option>
           ))}
-          <option value="custom">Custom cron expression</option>
+          <option value="custom">{"自定义Cron表达式"}</option>
         </select>
       </label>
       {cron === "custom" && (
         <label htmlFor={`${id}-cron`} className="grid gap-1">
-          Cron (minute hour day month weekday)
+          {"Cron（分钟 小时 日 月 星期）"}
           <Input
             id={`${id}-cron`}
             required
@@ -131,14 +133,14 @@ function ScheduleSkill({
         </label>
       )}
       <label htmlFor={`${id}-channel`} className="grid gap-1">
-        Report in
+        {"报告"}
         <select
           id={`${id}-channel`}
           className="h-8 rounded-md border bg-background px-2"
           value={channelId}
           onChange={(event) => setChannelId(event.target.value)}
         >
-          <option value="">This Bot's only conversation</option>
+          <option value="">{"此机器人的唯一会话"}</option>
           {botChannels.map((channel) => (
             <option key={channel.id} value={channel.id}>
               {channel.name}
@@ -147,7 +149,7 @@ function ScheduleSkill({
         </select>
       </label>
       <label htmlFor={`${id}-inputs`} className="grid gap-1">
-        Inputs for each run (optional)
+        {"每个运行的输入（可选）"}
         <Input
           id={`${id}-inputs`}
           maxLength={1000}
@@ -168,10 +170,10 @@ function ScheduleSkill({
           type="submit"
           disabled={schedule.isPending || (cron === "custom" && !custom.trim())}
         >
-          Schedule
+          {"计划"}
         </Button>
         <Button size="sm" variant="ghost" type="button" onClick={onDone}>
-          Cancel
+          {"取消"}
         </Button>
       </div>
     </form>
@@ -251,17 +253,18 @@ export function DemonstrationRecorder({
   return (
     <section className="mt-4 grid gap-3 rounded-lg border p-4 text-left">
       <div>
-        <h3 className="font-semibold">Teach a browser workflow</h3>
+        <h3 className="font-semibold">{"教导浏览器工作流"}</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Take control, record the steps, then review a skill draft. Typed
-          values and images are omitted. Sensitive fields stay in your hands.
-          Recording stops automatically after ten minutes.
+          {
+            "接管控制，录制步骤，然后审查技能草稿。已输入值和图像被省略。敏感字段由您掌握。录制将在十分钟后自动停止。"
+          }
         </p>
       </div>
       {active ? (
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm">
-            Recording {active.title} · {active.actions.length} steps
+            {"录音"}
+            {active.title} · {active.actions.length} {"步骤"}
           </span>
           {secondsLeft !== null && (
             <span
@@ -273,8 +276,8 @@ export function DemonstrationRecorder({
               }
             >
               {secondsLeft > 0
-                ? `${clock(secondsLeft)} left`
-                : "Time limit reached. Stopping…"}
+                ? `${clock(secondsLeft)} 离开了`
+                : "时间限制已达到。正在停止…"}
             </span>
           )}
           <Button
@@ -282,7 +285,7 @@ export function DemonstrationRecorder({
             disabled={stop.isPending}
             onClick={() => stop.mutate(active.id)}
           >
-            Stop recording
+            {"停止录制"}
           </Button>
         </div>
       ) : (
@@ -294,14 +297,14 @@ export function DemonstrationRecorder({
           }}
         >
           <label htmlFor={id} className="grid grow gap-1 text-xs">
-            Workflow name
+            {"工作流名称"}
             <Input
               id={id}
               required
               maxLength={120}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Find an invoice"
+              placeholder={"查找发票"}
             />
           </label>
           {/* Base UI's Button defaults to type="button", which never submits the form. */}
@@ -310,11 +313,11 @@ export function DemonstrationRecorder({
             type="submit"
             disabled={!driving || start.isPending || !title.trim()}
           >
-            Record your steps
+            {"记录你的步骤"}
           </Button>
           {!driving && (
             <p className="w-full text-xs text-muted-foreground">
-              Take control of the browser to start recording.
+              {"接管浏览器以开始录制。"}
             </p>
           )}
         </form>
@@ -341,11 +344,11 @@ export function DemonstrationRecorder({
             className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm"
           >
             <span>
-              {recording.title} · {recording.actions.length} steps
+              {recording.title} · {recording.actions.length} {"步骤"}
               {recording.reachedTimeLimit && (
                 <span className="text-xs text-muted-foreground">
                   {" "}
-                  · stopped at the ten-minute limit
+                  {"· 在十分钟限制时停止"}
                 </span>
               )}
             </span>
@@ -357,7 +360,8 @@ export function DemonstrationRecorder({
                     search={{ edit: recording.skillSlug }}
                     className="text-xs underline"
                   >
-                    Edit /{recording.skillSlug}
+                    {"编辑 /"}
+                    {recording.skillSlug}
                   </Link>
                   <Button
                     size="sm"
@@ -368,7 +372,7 @@ export function DemonstrationRecorder({
                       )
                     }
                   >
-                    Run on a schedule
+                    {"按计划运行"}
                   </Button>
                 </>
               ) : (
@@ -378,7 +382,7 @@ export function DemonstrationRecorder({
                   disabled={!recording.actions.length || generate.isPending}
                   onClick={() => generate.mutate(recording.id)}
                 >
-                  Review skill draft
+                  {"查看技能草稿"}
                 </Button>
               )}
               <Button
@@ -387,7 +391,7 @@ export function DemonstrationRecorder({
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(recording.id)}
               >
-                Delete
+                {"删除"}
               </Button>
             </div>
             {scheduling === recording.id && (
@@ -400,10 +404,9 @@ export function DemonstrationRecorder({
         ))}
       {draft && (
         <div className="grid gap-3 border-t pt-4">
-          <h3 className="font-semibold">Review and edit the skill</h3>
+          <h3 className="font-semibold">{"查看并编辑技能"}</h3>
           <p className="text-xs text-muted-foreground">
-            Replace parameter names and clarify the expected outcome. Saving
-            uses the same skill permissions as Skills.
+            {"替换参数名称并澄清预期结果。保存使用与技能相同的技能权限。"}
           </p>
           <SkillFields
             key={draft.sourceRecordingId}
@@ -430,9 +433,7 @@ export function DemonstrationRecorder({
                 setDraft(null);
               } catch (error) {
                 setSaveError(
-                  error instanceof Error
-                    ? error
-                    : new Error("The skill could not be saved."),
+                  error instanceof Error ? error : new Error("技能无法保存。"),
                 );
                 await refresh();
               }
@@ -442,9 +443,10 @@ export function DemonstrationRecorder({
       )}
       {savedSlug && (
         <p className="text-sm">
-          /{savedSlug} is ready on this Bot. Invoke it in the conversation with
-          the inputs you want to use, or choose Run on a schedule to rerun it as
-          a routine.
+          /{savedSlug}{" "}
+          {
+            "已准备好在此机器人上。使用您想要的输入在对话中调用它，或选择在计划上运行以将其作为定时任务重新运行。"
+          }
         </p>
       )}
     </section>

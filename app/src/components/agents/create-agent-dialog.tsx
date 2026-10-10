@@ -82,13 +82,13 @@ const VISIBILITY_OPTIONS: Array<{
 }> = [
   {
     value: "private",
-    title: "Private",
-    description: "Only you can see it and start channels with it.",
+    title: "私有",
+    description: "只有你能看到它并与之启动会话。",
   },
   {
     value: "public",
-    title: "Public",
-    description: "Everyone in the deployment can find and use it.",
+    title: "公开",
+    description: "部署中的每个人都可以找到并使用它。",
   },
 ];
 
@@ -105,15 +105,15 @@ const KIND_OPTIONS: Array<{
 }> = [
   {
     value: "builtin",
-    title: "Built-in",
+    title: "内置",
     description:
-      "Runs on this deployment's own Bot. Nothing to host or connect — it is ready the moment it is created.",
+      "在此部署的自身机器人上运行。无需托管或连接——它在创建瞬间就准备就绪。",
   },
   {
     value: "managed",
-    title: "Managed",
+    title: "已管理",
     description:
-      "Runs on an agent you host, spoken to over AG-UI. This server dials your endpoint on every run.",
+      "在您托管的代理上运行，通过 AG-UI 对话。该服务器在每次运行时拨打您的端点。",
   },
 ];
 
@@ -198,7 +198,7 @@ function CreateAgentWizard({
   const endpointError = !tried
     ? undefined
     : kind === "managed" && values.endpoint.trim() === ""
-      ? "An endpoint is required for a managed coworker."
+      ? "托管 AI 同事需要端点。"
       : agentFormSchema.shape.endpoint.safeParse(values.endpoint).error
           ?.issues[0]?.message;
 
@@ -245,7 +245,7 @@ function CreateAgentWizard({
     <>
       {/* Read aloud, never shown: each step carries its own heading, and a dialog-level title
           above them made two heading sizes compete. The popup still needs an accessible name. */}
-      <DialogTitle className="sr-only">New coworker</DialogTitle>
+      <DialogTitle className="sr-only">{"新AI同事"}</DialogTitle>
       <DialogBody className="overflow-y-auto">
         <Questionnaire
           item={STEPS[step]}
@@ -275,7 +275,9 @@ function CreateAgentWizard({
           {/* A plain element rather than QuestionnaireProgress: only the active step is mounted,
               so the primitive would count one question and announce the wrong total. */}
           <p className="text-xs font-medium text-muted-foreground tabular-nums">
-            Step {step + 1} of {STEPS.length}
+            {"步骤"}
+            {step + 1} {"的"}
+            {STEPS.length}
           </p>
           <MotionConfig
             transition={{ duration: 0.5, type: "spring", bounce: 0 }}
@@ -353,7 +355,7 @@ function CreateAgentWizard({
               type="button"
               variant="outline"
             >
-              {step === 0 ? "Cancel" : "Back"}
+              {step === 0 ? "取消" : "返回"}
             </Button>
             <Button
               disabled={createAgent.isPending}
@@ -362,9 +364,9 @@ function CreateAgentWizard({
             >
               {last
                 ? createAgent.isPending
-                  ? "Creating…"
-                  : "Create coworker"
-                : "Continue"}
+                  ? "正在创建…"
+                  : "创建AI同事"
+                : "继续"}
             </Button>
           </div>
         </Questionnaire>
@@ -409,18 +411,18 @@ function IdentityStep({
 }) {
   return (
     <StepItem name="identity">
-      <QuestionnaireTitle>Who is this coworker?</QuestionnaireTitle>
+      <QuestionnaireTitle>{"这个AI同事是谁？"}</QuestionnaireTitle>
       <QuestionnaireDescription>
-        The role you write here applies in every channel this coworker works in.
+        {"您在这里写入的角色适用于此AI同事工作的每个会话。"}
       </QuestionnaireDescription>
       <FieldGroup>
         <Field data-invalid={errors.name ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-name">Name</FieldLabel>
+          <FieldLabel htmlFor="create-agent-name">{"名称"}</FieldLabel>
           <Input
             aria-invalid={errors.name ? true : undefined}
             id="create-agent-name"
             onChange={(event) => set("name", event.target.value)}
-            placeholder="Expense Manager"
+            placeholder={"费用管理器"}
             value={values.name}
           />
           {errors.name ? (
@@ -428,12 +430,12 @@ function IdentityStep({
           ) : null}
         </Field>
         <Field data-invalid={errors.title ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-title">Title</FieldLabel>
+          <FieldLabel htmlFor="create-agent-title">{"标题"}</FieldLabel>
           <Input
             aria-invalid={errors.title ? true : undefined}
             id="create-agent-title"
             onChange={(event) => set("title", event.target.value)}
-            placeholder="Finance Operations"
+            placeholder={"财务运营"}
             value={values.title}
           />
           {errors.title ? (
@@ -441,12 +443,12 @@ function IdentityStep({
           ) : null}
         </Field>
         <Field data-invalid={errors.roleDescription ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-role">Role</FieldLabel>
+          <FieldLabel htmlFor="create-agent-role">{"角色"}</FieldLabel>
           <Textarea
             aria-invalid={errors.roleDescription ? true : undefined}
             id="create-agent-role"
             onChange={(event) => set("roleDescription", event.target.value)}
-            placeholder="Review receipts, categorize expenses, and prepare reimbursement reports."
+            placeholder={"查看收据、分类费用并准备报销报告"}
             rows={4}
             value={values.roleDescription}
           />
@@ -471,7 +473,7 @@ function VisibilityStep({
 }) {
   return (
     <StepItem name="visibility">
-      <QuestionnaireTitle>Who can see it?</QuestionnaireTitle>
+      <QuestionnaireTitle>{"谁可以看到它？"}</QuestionnaireTitle>
       <QuestionnaireChoices>
         {VISIBILITY_OPTIONS.map((option) => (
           <QuestionnaireChoice
@@ -520,7 +522,7 @@ function KindStep({
 }) {
   return (
     <StepItem name="kind">
-      <QuestionnaireTitle>Where does it run?</QuestionnaireTitle>
+      <QuestionnaireTitle>{"它在哪里运行？"}</QuestionnaireTitle>
       <QuestionnaireChoices>
         {KIND_OPTIONS.map((option) => {
           /*
@@ -540,7 +542,7 @@ function KindStep({
               <span className="font-medium">{option.title}</span>
               <QuestionnaireChoiceDescription>
                 {unavailable
-                  ? "Not available here: this deployment has no Bot of its own for a coworker to run on."
+                  ? "此处不可用：此部署没有自己的机器人供AI同事运行。"
                   : option.description}
               </QuestionnaireChoiceDescription>
             </QuestionnaireChoice>
@@ -549,14 +551,14 @@ function KindStep({
       </QuestionnaireChoices>
       {showKindError ? (
         <p className="text-sm text-destructive" role="alert">
-          Choose where this coworker runs.
+          {"选择这个AI同事在哪里运行。"}
         </p>
       ) : null}
       {kind === "managed" ? (
         <FieldGroup>
           <Field data-invalid={endpointError ? true : undefined}>
             <FieldLabel htmlFor="create-agent-endpoint">
-              Agent endpoint
+              {"代理端点"}
             </FieldLabel>
             <div className="flex gap-2">
               <Input
@@ -572,7 +574,7 @@ function KindStep({
                 type="button"
                 variant="outline"
               >
-                {testing ? "Testing…" : "Test"}
+                {testing ? "测试中…" : "测试"}
               </Button>
             </div>
             {endpointError ? (
@@ -584,31 +586,33 @@ function KindStep({
                 role="status"
               >
                 {connection.ok
-                  ? `It answered: ${connection.events.join(", ")}`
+                  ? `它回答：${connection.events.join(", ")}`
                   : connection.reason}
               </p>
             ) : (
               <p className="text-muted-foreground text-sm">
-                Anything that speaks AG-UI works. This server dials your agent,
-                so an agent on your own machine has to be reachable from here.
+                {
+                  "任何支持 AG-UI 的都可以工作。此服务器拨打你的代理，因此你自己的机器上的代理必须从这里可访问。"
+                }
               </p>
             )}
           </Field>
           <Field>
             <FieldLabel htmlFor="create-agent-key">
-              Key for that agent (optional)
+              {"该代理的密钥（可选）"}
             </FieldLabel>
             <Input
               autoComplete="off"
               id="create-agent-key"
               onChange={(event) => set("authValue", event.target.value)}
-              placeholder="Bearer …"
+              placeholder={"持有者 …"}
               type="password"
               value={values.authValue}
             />
             <p className="text-muted-foreground text-sm">
-              Sent as an <code>Authorization</code> header on every run, and
-              kept in the credential vault.
+              {"作为"}
+              <code>Authorization</code>{" "}
+              {"每次运行的头部，并在凭据密钥库中保存。"}
             </p>
           </Field>
         </FieldGroup>

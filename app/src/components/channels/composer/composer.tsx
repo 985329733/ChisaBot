@@ -19,6 +19,7 @@ import {
   type ChangeEvent,
   type DragEvent,
   type FormEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -122,6 +123,11 @@ const COMPACT_MAX_HEIGHT_PX = 96;
 
 export type ComposerProps = {
   className?: string;
+  modelControl?: ReactNode;
+  /** A model write blocks sending and parking without disabling draft editing. */
+  sendBlocked?: boolean;
+  /** A homepage composer can expose a model only after its draft explicitly names one BOT. */
+  onAgentChange?: (agentId: string | undefined) => void;
   /**
    * Classes for the editor itself rather than the frame. `className` styles the box — border,
    * background, width; the type inside it is PromptArea's, so changing it (a hero composer's
@@ -315,6 +321,9 @@ const UNACCEPTED_DROP_REASON = {
 
 export function Composer({
   className,
+  modelControl,
+  sendBlocked = false,
+  onAgentChange,
   editorClassName,
   compact = false,
   voiceCall,
@@ -1050,6 +1059,7 @@ export function Composer({
     [agents, commands],
   );
   const draft = useMemo(() => toDraft(value, staged), [staged, value]);
+  useEffect(() => onAgentChange?.(draft.agentId ?? undefined), [draft.agentId, onAgentChange]);
 
   /**
    * MORE FILES ON THIS STRIP THAN ONE MESSAGE MAY CARRY — a state the screening is supposed to make
@@ -1109,6 +1119,7 @@ export function Composer({
       if (
         !canSendDraft(submitted) ||
         overCap(submitted) ||
+        sendBlocked ||
         disabled ||
         dictation.session.getSnapshot().phase !== "idle"
       ) {
@@ -1239,6 +1250,7 @@ export function Composer({
     },
     [
       disabled,
+      sendBlocked,
       dictation.session,
       dismissRejections,
       isBusy,
@@ -1310,9 +1322,10 @@ export function Composer({
   /** Something to send, mid-turn, with a queue to put it in. */
   const parking = canQueue && sendable;
   const canSend =
-    !disabled && !dictation.busy && sendable && (!isBusy || canQueue);
+    !disabled && !sendBlocked && !dictation.busy && sendable && (!isBusy || canQueue);
   const canSendRecording =
     !disabled &&
+    !sendBlocked &&
     !tooManyStaged &&
     !draft.attachments.some(
       (attachment) => attachment.status === "uploading",
@@ -1338,7 +1351,7 @@ export function Composer({
    * the two it is about to do. "Send" on a button that will not send for another minute is a small
    * lie told to exactly the people who cannot see the queue it lands in.
    */
-  const sendLabel = parking ? "Queue message" : "Send message";
+  const sendLabel = parking ? "队列消息" : "发送消息";
   const callAction =
     draft.isEmpty && draft.attachments.length === 0 ? voiceCall : undefined;
   const actionClassName = cn(
@@ -1347,7 +1360,7 @@ export function Composer({
   );
   const primaryAction = canStop ? (
     <Button
-      aria-label="Stop the Bot"
+      aria-label={"停止机器人"}
       className={actionClassName}
       data-testid="composer-stop"
       onClick={onStop}
@@ -1358,13 +1371,13 @@ export function Composer({
     </Button>
   ) : callAction ? (
     <Button
-      aria-label={callAction.active ? "Show voice call" : "Start voice call"}
+      aria-label={callAction.active ? "显示语音通话" : "开始语音通话"}
       title={
         callAction.supported
           ? callAction.active
-            ? "Show voice call"
-            : "Call this agent"
-          : "Voice calls need HTTPS or localhost and microphone support"
+            ? "显示语音通话"
+            : "调用此代理"
+          : "语音通话需要 HTTPS 或 localhost 且支持麦克风"
       }
       className={actionClassName}
       disabled={disabled || dictation.busy || !callAction.supported}
@@ -1522,7 +1535,7 @@ export function Composer({
             <div className="flex items-center gap-3">
               {attachmentsEnabled ? (
                 <Button
-                  aria-label="Attach a file"
+                  aria-label={"附加文件"}
                   className="self-end"
                   // The button stays, and stays labelled: a conversation that cannot take another
                   // message has not lost the ability to attach, it has lost the message. Swapping it
@@ -1537,7 +1550,7 @@ export function Composer({
                 </Button>
               ) : (
                 <Button
-                  aria-label="More message options unavailable"
+                  aria-label={"更多消息选项不可用"}
                   className="self-end disabled:opacity-100"
                   disabled
                   size="icon"
@@ -1548,7 +1561,7 @@ export function Composer({
                 </Button>
               )}
               <PromptArea
-                aria-label="Message"
+                aria-label={"消息"}
                 className={cn(
                   "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none",
                   editorClassName,
@@ -1559,7 +1572,7 @@ export function Composer({
                 onChange={handleChange}
                 onImagePaste={canAttach ? stagePastedImage : undefined}
                 onSubmit={submitDraft}
-                placeholder="Ask anything"
+                placeholder={"询问任何内容"}
                 ref={promptAreaRef}
                 triggers={triggers}
                 value={value}
@@ -1570,6 +1583,7 @@ export function Composer({
               />
               {primaryAction}
             </div>
+            {modelControl}
           </DictationSurface>
         </form>
       </div>
@@ -1605,7 +1619,7 @@ export function Composer({
               onRemove={discardAttachment}
             />
             <PromptArea
-              aria-label="Message"
+              aria-label={"消息"}
               autoGrow
               className={cn(
                 "w-full border-0 bg-transparent p-0 text-sm shadow-none",
@@ -1616,7 +1630,7 @@ export function Composer({
               onChange={handleChange}
               onImagePaste={canAttach ? stagePastedImage : undefined}
               onSubmit={submitDraft}
-              placeholder="Ask anything"
+              placeholder={"询问任何内容"}
               ref={promptAreaRef}
               triggers={triggers}
               value={value}
@@ -1626,7 +1640,7 @@ export function Composer({
           <div className="flex items-center justify-between">
             {attachmentsEnabled ? (
               <Button
-                aria-label="Attach a file"
+                aria-label={"附加文件"}
                 className="size-7 rounded-full p-0"
                 disabled={disabled}
                 onClick={() => fileInputRef.current?.click()}
@@ -1647,6 +1661,7 @@ export function Composer({
               {primaryAction}
             </div>
           </div>
+          {modelControl}
         </DictationSurface>
       </form>
     </div>

@@ -1,0 +1,32 @@
+# Magpie v0.1.1141, pinned to the image verified with this integration.
+services:
+  magpie:
+    image: ghcr.io/yetone/magpie@sha256:5fbc2c76a36bb56d62068c586547462bf40c236e8826055fba414776ec06f2ab
+    container_name: magpie
+    command: [web, --addr, "0.0.0.0:3430", --no-open]
+    restart: unless-stopped
+    env_file: ./private/magpie.env
+    environment:
+      MAGPIE_ADDR: "0.0.0.0:3425"
+      DO_NOT_TRACK: "1"
+    ports:
+      - "127.0.0.1:3425:3425"
+      - "127.0.0.1:3430:3430"
+    volumes:
+      - ./magpie-data:/config
+    networks:
+      - magpie
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  magpie:
+    external: true
+    name: ${MAGPIE_NETWORK:-openbot_magpie}

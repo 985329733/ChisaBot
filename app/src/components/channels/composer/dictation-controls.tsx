@@ -25,11 +25,11 @@ export function DictationButton({
   if (!dictation.available) return null;
   return (
     <Button
-      aria-label="Dictate a message"
+      aria-label={"口述消息"}
       title={
         dictation.supported
-          ? "Dictate a message"
-          : "Dictation requires a supported browser and HTTPS (or localhost)"
+          ? "口述消息"
+          : "语音输入需要支持的浏览器和 HTTPS（或 localhost）"
       }
       className="size-8 shrink-0 self-end rounded-full"
       disabled={disabled || !dictation.supported || dictation.busy}
@@ -108,8 +108,8 @@ function RecordingControls({
     >
       <Button
         ref={cancel}
-        aria-label="Cancel dictation"
-        title="Cancel dictation"
+        aria-label={"取消听写"}
+        title={"取消听写"}
         size="icon"
         type="button"
         variant="ghost"
@@ -135,12 +135,12 @@ function RecordingControls({
           </p>
         ) : state.phase === "requesting" ? (
           <p className="text-sm text-muted-foreground" role="status">
-            Waiting for microphone permission…
+            {"正在等待麦克风权限…"}
           </p>
         ) : (
           <div className="flex min-w-0 items-center gap-3">
             <span className="sr-only" role="status">
-              {transcribing ? "Transcribing…" : "Listening"}
+              {transcribing ? "正在转录…" : "正在监听"}
             </span>
             <LiveWaveform
               stream={state.stream}
@@ -150,7 +150,7 @@ function RecordingControls({
             />
             <span
               role="timer"
-              aria-label="Recording duration"
+              aria-label={"录音时长"}
               className="shrink-0 text-xs text-muted-foreground tabular-nums"
             >
               {time}
@@ -174,13 +174,13 @@ function RecordingControls({
               void (state.canRetry ? session.retry() : session.start())
             }
           >
-            {state.canRetry ? "Retry" : "Record again"}
+            {state.canRetry ? "重试" : "再次记录"}
           </Button>
         ) : (
           <div className="flex shrink-0 items-center gap-2">
             <Button
-              aria-label="Stop and transcribe"
-              title="Stop and add to draft"
+              aria-label={"停止并转录"}
+              title={"停止并添加到草稿"}
               disabled={!recording}
               size="icon"
               type="button"
@@ -191,8 +191,8 @@ function RecordingControls({
               <IconPlayerStopFilled className="size-3.5" />
             </Button>
             <Button
-              aria-label="Transcribe and send"
-              title="Transcribe and send"
+              aria-label={"转录并发送"}
+              title={"转录并发送"}
               disabled={!recording || !canSend}
               size="icon"
               type="button"

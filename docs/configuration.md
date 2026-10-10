@@ -1,5 +1,7 @@
 # Configuration
 
+> **ChisaBot 分支：** 本地模式、模型连接和 BOT 覆盖配置以 [模型配置指南](models.md) 及 [自托管部署](../deploy/README.zh-CN.md) 为准。以下保留上游完整配置参考；`OPENBOT_*` 名称继续兼容，Intelligence 配置只在相应运行模式必需。
+
 OpenBot is configured with environment variables and a tenant package. The API server validates both at startup.
 
 ## Environment setup
@@ -24,9 +26,10 @@ bash scripts/start.sh
 | `INTELLIGENCE_GATEWAY_WS_URL` | CopilotKit Intelligence realtime gateway URL.                                                         |
 | `INTELLIGENCE_API_KEY`        | Runtime key for the Intelligence project.                                                             |
 
-All five above stop server startup if missing. The three `INTELLIGENCE_` values are additionally
-checked as a set, so a partial set is refused as a misconfiguration rather than treated as
-unconfigured.
+`DATABASE_URL` and `KEY_ENCRYPTION_KEY` are required in both runtime modes.
+`OPENBOT_RUNTIME_MODE=local` uses PostgreSQL-backed conversations and does not require the
+three `INTELLIGENCE_` values. `OPENBOT_RUNTIME_MODE=intelligence` requires all three;
+they are checked as a set, so a partial set is refused as a misconfiguration.
 
 `COPILOTKIT_LICENSE_TOKEN` is optional: managed Intelligence issues no licence token, and a
 self-hosted Intelligence that has one sets this and has it forwarded to the runtime.
@@ -44,7 +47,7 @@ at `agent-langgraph` on a laptop.
 | -------------------- | ---------------------------------- | ------------------------------------------------------------------- |
 | `PORT`               | `3001`                             | API server port. `SERVER_PORT` names the same port; set either, or both to the same value, or the server refuses to start. |
 | `NODE_ENV`           | unset                              | `production` refuses the example `KEY_ENCRYPTION_KEY`. It does not decide whether sign-in is required; see `OPENBOT_SINGLE_USER`. |
-| `TENANT_PACKAGE_DIR` | `../examples/fintech`              | Tenant package directory, resolved from `server/`.                  |
+| `TENANT_PACKAGE_DIR` | `../examples/zh-CN`              | Tenant package directory, resolved from `server/`.                  |
 | `DEPLOYMENT_ID`      | the tenant package's id            | Names this deployment inside a shared Intelligence project.          |
 | `OPENAI_API_KEY`     | unset                              | Default model key for built-in agents and both shipped Bots.        |
 | `OPENAI_BASE_URL`    | unset                              | OpenAI-compatible endpoint that key is spent against. See below.    |

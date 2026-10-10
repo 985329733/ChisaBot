@@ -42,7 +42,7 @@ export function RecipientField({
   return (
     <div className="border-b border-border px-4 py-2">
       <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center gap-1.5">
-        <span className="text-sm text-muted-foreground">To:</span>
+        <span className="text-sm text-muted-foreground">{"至："}</span>
 
         {recipients.map((recipient) => (
           <Button
@@ -54,16 +54,19 @@ export function RecipientField({
             <ChannelAvatar participantIds={[recipient.id]} size={16} />
             {recipient.name}
             <span aria-hidden>×</span>
-            <span className="sr-only">Remove {recipient.name}</span>
+            <span className="sr-only">
+              {"移除"}
+              {recipient.name}
+            </span>
           </Button>
         ))}
 
         {isFull ? null : (
           <InputGroup className="h-8 w-56 border-none bg-transparent">
             <InputGroupInput
-              aria-label="Choose a coworker"
+              aria-label={"选择一个AI同事"}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Choose a coworker…"
+              placeholder={"选择一个AI同事…"}
               value={search}
             />
             <InputGroupAddon />
@@ -96,7 +99,7 @@ export function RecipientField({
           ))}
           {matches.length === 0 ? (
             <li className="px-2 py-1.5 text-sm text-muted-foreground">
-              No coworker by that name.
+              {"没有该名称的AI同事。"}
             </li>
           ) : null}
         </ul>
