@@ -7,6 +7,7 @@ import {
   useCopilotKit,
 } from "@copilotkit/react-core/v2";
 import { observeApprovalAgent } from "@/lib/copilot/approval-context";
+import { panelAuthoringForwardedProps } from "@/lib/panels/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HandoffResumeNotice } from "@/components/computer/handoff-resume-notice";
@@ -709,6 +710,9 @@ export function ChannelChat({
         ),
       );
 
+    // An open custom-panel authoring session for this Bot rides along, so the server hands the Bot
+    // its draft tools for that session (see server/src/index.ts handoffForActor).
+    const panelAuthoring = await panelAuthoringForwardedProps(target.agentId);
     target.addMessage({
       content: toMessageContent(trimmed, attachments),
       id: newId(),
@@ -725,7 +729,10 @@ export function ChannelChat({
     setRunsInFlight((count) => count + 1);
     try {
       await withVoiceContext(copilotkit, target.agentId, voiceHistory, () =>
-        copilotkit.runAgent({ agent: target }),
+        copilotkit.runAgent({
+          agent: target,
+          ...(panelAuthoring ? { forwardedProps: panelAuthoring } : {}),
+        }),
       );
     } finally {
       setRunsInFlight((count) => count - 1);

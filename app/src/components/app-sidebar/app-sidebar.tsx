@@ -1,40 +1,17 @@
 import {
   IconBolt,
-  IconBox,
   IconBrain,
-  IconChecks,
-  IconDeviceMobile,
-  IconLogout,
   IconPlus,
   IconRobot,
   IconSearch,
-  IconSettings,
-  IconShieldLock,
-  IconTargetArrow,
   IconUsers,
   IconUsersGroup,
 } from "@tabler/icons-react";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
-  Link,
-  type LinkOptions,
-  useNavigate,
-  useParams,
-} from "@tanstack/react-router";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { Link, useParams, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
-import { useRef, useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useRef } from "react";
 import {
   InputGroup,
   InputGroupAddon,
@@ -43,22 +20,19 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarRail,
+  useOptionalSidebar,
 } from "@/components/ui/sidebar";
-import { signOutMutationOptions } from "@/lib/auth/mutations";
-import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { setSidebarSearch, useSidebarSearch } from "@/lib/sidebar-search";
+import { cn } from "@/lib/utils";
 import {
   type ChannelSummary,
   channelListQueryOptions,
 } from "@/lib/channels/queries";
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
-import { appConfig } from "@/lib/generated/application-config";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { agentListQueryOptions } from "@/lib/agents/queries";
@@ -68,33 +42,17 @@ import {
   useMessageListEmphasis,
 } from "@/lib/settings/message-list";
 import { BotAttentionList } from "../bot-profile/attention";
-import { Button } from "../ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { Channel } from "./channel";
 import { ChannelPagination } from "./channel-pagination";
 
-const appLinkOptions = { to: "/" } satisfies LinkOptions;
-const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
-const settingsLinkOptions = { to: "/settings" } satisfies LinkOptions;
-
-const userMenuItemClassName = "gap-2 px-2 py-1.5";
-
-function UserAvatar() {
-  const { data: currentUser } = useQuery(currentUserQueryOptions());
-  const initials =
-    currentUser?.name
-      ?.trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") ?? currentUser?.email.slice(0, 2).toUpperCase();
-
-  return (
-    <div className="size-[28px] bg-muted-foreground/10 text-foreground/70 rounded-full flex items-center justify-center text-xs overflow-hidden">
-      {initials}
-    </div>
-  );
-}
+/** Destinations that used to be sidebar rows; settings, approvals and admin moved to the avatar menu. */
+const sideLinks = [
+  { to: "/bots", label: "机器人", icon: IconRobot },
+  { to: "/agents", label: "代理", icon: IconBolt },
+  { to: "/team-bots", label: "团队 Bot", icon: IconUsers },
+  { to: "/memory", label: "记忆", icon: IconBrain },
+] as const;
 
 /**
  * Cap layout animation because `layout` measures every animated row on each reorder.
@@ -226,19 +184,21 @@ function ChannelRow({
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const emphasis = useMessageListEmphasis();
-  const { data: currentUser } = useQuery(currentUserQueryOptions());
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const signOut = useMutation(signOutMutationOptions(queryClient));
   const channels = useInfiniteQuery(channelListQueryOptions());
-  // Read off the roster the app already holds, so the sidebar makes no request of its own for it.
-  const assignedTeamBots =
-    useQuery(agentListQueryOptions()).data?.filter((bot) => bot.assignedToMe) ??
-    [];
   // One socket for the app, opened where the roster is kept live.
   useChannelEvents();
-  const [search, setSearch] = useState("");
+  const search = useSidebarSearch();
+  const sidebar = useOptionalSidebar();
   const scrollRoot = useRef<HTMLDivElement>(null);
+  const roster = (useQuery(agentListQueryOptions()).data ?? []).filter(
+    (bot) => !bot.hidden,
+  );
+  const activeBotId = useRouterState({
+    select: (state) =>
+      state.location.pathname === "/channel/new"
+        ? ((state.location.search as { agent?: string }).agent ?? undefined)
+        : undefined,
+  });
   const searching = search.trim().length > 0;
   const visibleChannels = pinnedFirst(matchingChannels(channels.data, search));
   /*
@@ -250,86 +210,95 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const animateOrder =
     !searching && (channels.data?.length ?? 0) <= MAX_ANIMATED_ROWS;
 
-  const handleSignOut = async () => {
-    await signOut.mutateAsync();
-    await navigate({ to: "/sign" });
-  };
-
   return (
-    <Sidebar {...props}>
-      <SidebarHeader className="h-12 p-2">
-        <SidebarMenu>
-          <SidebarMenuItem className="flex flex-row gap-1.5">
-            <SidebarMenuButton
-              className="font-semibold text-[14px] tracking-tighter h-full leading-tight"
-              render={(props) => (
-                <Link {...appLinkOptions} {...props}>
-                  {appConfig.brand.productName}
-                </Link>
-              )}
+    <Sidebar variant="floating" {...props}>
+      <SidebarHeader className="glass-side-header gap-3 p-0 pb-3">
+        <Link className="glass-newchat" to="/channel/new">
+          <IconPlus className="size-[18px]" />
+          {"新聊天"}
+        </Link>
+        {sidebar?.isMobile ? (
+          <InputGroup className="bg-background text-sm rounded-full h-10">
+            <InputGroupInput
+              aria-label={"搜索会话"}
+              onChange={(event) => setSidebarSearch(event.target.value)}
+              placeholder={"搜索会话"}
+              value={search}
             />
-            <Button
-              size="icon"
-              variant="ghost"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/channel/new"
-                  activeProps={{
-                    className: "bg-foreground/5",
-                  }}
-                />
-              )}
-            >
-              <IconPlus />
-            </Button>
-            <Button
-              aria-label={"新群组会话"}
-              size="icon"
-              variant="ghost"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/group/new"
-                  activeProps={{
-                    className: "bg-foreground/5",
-                  }}
-                />
-              )}
-            >
-              <IconUsersGroup />
-            </Button>
-          </SidebarMenuItem>
-        </SidebarMenu>
+            <InputGroupAddon>
+              <IconSearch />
+            </InputGroupAddon>
+          </InputGroup>
+        ) : null}
       </SidebarHeader>
-      <SidebarContent ref={scrollRoot} className="scroll-fade-b">
+      <SidebarContent className="gap-3 overflow-hidden">
+        <section className="glass-card glass-side-card shrink-0" aria-label={"AI 同事"}>
+          <div className="glass-sec">
+            <span>{"AI 同事"}</span>
+            <Link aria-label={"管理 AI 同事"} className="glass-sec-btn" to="/bots">
+              <IconPlus className="size-[15px]" />
+            </Link>
+          </div>
+          <div className="glass-bot-list">
+            {roster.map((bot) => (
+              <Link
+                activeOptions={{ includeSearch: true }}
+                className={cn("glass-item", activeBotId === bot.id && "is-on")}
+                key={bot.id}
+                search={{ agent: bot.id }}
+                to="/channel/new"
+              >
+                <ChannelAvatar participantIds={[bot.id]} size={26} />
+                <span className="glass-item-t">{bot.name}</span>
+                {bot.title ? (
+                  <span className="glass-item-s">{bot.title}</span>
+                ) : null}
+              </Link>
+            ))}
+            {roster.length === 0 ? (
+              <p className="px-2.5 py-1.5 text-muted-foreground text-xs">
+                {"还没有 AI 同事。"}
+              </p>
+            ) : null}
+          </div>
+          <div className="glass-side-links">
+            {sideLinks.map((item) => (
+              <Link
+                activeProps={{ className: "is-on" }}
+                className="glass-side-link"
+                key={item.to}
+                title={item.label}
+                to={item.to}
+              >
+                <item.icon className="size-4" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+        <section
+          aria-label={"会话"}
+          className="glass-card glass-side-card min-h-0 flex-1"
+        >
+          <div className="glass-sec">
+            <span>{searching ? `搜索“${search.trim()}”` : "会话"}</span>
+            <Link aria-label={"新群组会话"} className="glass-sec-btn" to="/group/new">
+              <IconUsersGroup className="size-[15px]" />
+            </Link>
+          </div>
+          <div ref={scrollRoot} className="glass-side-scroll scroll-fade-b">
         <SidebarMenu>
-          <SidebarGroup className="gap-px">
-            <SidebarMenuItem>
-              <InputGroup className="bg-background text-sm rounded-lg h-9">
-                <InputGroupInput
-                  aria-label={"搜索会话"}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={"搜索..."}
-                  value={search}
-                />
-                <InputGroupAddon>
-                  <IconSearch />
-                </InputGroupAddon>
-              </InputGroup>
-            </SidebarMenuItem>
-            <div className="w-full h-2" />
+          <SidebarGroup className="gap-px p-0">
             {/* Bots that need you, or that you paused. See bot-profile/attention.tsx. */}
             <BotAttentionList />
             {/*
              * TWO DIFFERENT NOTHINGS, AND SAYING THE WRONG ONE IS ALARMING. A roster nobody has
              * used yet needs telling how to start. A roster that simply does not match what is in
-             * the box has to say so and quote it back — told "you don't have channels yet" while
-             * holding a typo, a person reads their conversations as gone.
+             * the box has to say so and quote it back.
              */}
             {searching && visibleChannels.length === 0 ? (
               <div className="py-4">
-                <Empty className="border border-dashed min-h-[40dvh]">
+                <Empty className="border border-dashed min-h-[30dvh]">
                   <EmptyHeader>
                     <EmptyTitle>
                       {channels.hasNextPage
@@ -347,11 +316,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ) : null}
             {!searching && channels.data?.length === 0 ? (
               <div className="py-4">
-                <Empty className="border border-dashed min-h-[40dvh]">
+                <Empty className="border border-dashed min-h-[30dvh]">
                   <EmptyHeader>
-                    <EmptyTitle>{"您还没有频道"}</EmptyTitle>
+                    <EmptyTitle>{"您还没有会话"}</EmptyTitle>
                     <EmptyDescription className="text-pretty">
-                      {"开始与代理对话，你的会话将在这里出现。"}
+                      {"开始与 AI 同事对话，你的会话将在这里出现。"}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -374,222 +343,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             />
           </SidebarGroup>
         </SidebarMenu>
+          </div>
+        </section>
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu className="gap-px">
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/bots"
-                  activeProps={{ className: "bg-foreground/5" }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconRobot />
-              </div>
-              <span className="text-sm">{"机器人"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            {/* Beside Agents rather than inside Admin: writing a skill is something anybody does. */}
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/skills"
-                  activeProps={{
-                    className: "bg-foreground/5",
-                  }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconBox />
-              </div>
-              <span className="text-sm trackint-tight">{"技能"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/agents"
-                  activeProps={{
-                    className: "bg-foreground/5",
-                  }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconBolt />
-              </div>
-              <span className="text-sm trackint-tight">{"代理"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/team-bots"
-                  activeProps={{ className: "bg-foreground/5" }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconUsers />
-              </div>
-              <span className="text-sm">{"团队 Bot"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          {/* Team Bots an administrator assigned to this person: always here, never hidden. */}
-          {assignedTeamBots.map((bot) => (
-            <SidebarMenuItem key={bot.id}>
-              <SidebarMenuButton
-                className="hover:bg-foreground/5 h-10"
-                render={(props) => (
-                  <Link
-                    {...props}
-                    search={{ agent: bot.id }}
-                    to="/channel/new"
-                  />
-                )}
-              >
-                <div className="size-[28px] flex items-center justify-center">
-                  <ChannelAvatar participantIds={[bot.id]} size={22} />
-                </div>
-                <span className="text-sm">{bot.name}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/reachability"
-                  activeProps={{ className: "bg-foreground/5" }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconDeviceMobile />
-              </div>
-              <span className="text-sm">{"可达性"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          {/* Routines live on each coworker's own dialog now, not as a nav destination: the
-              question "what does this Bot do on a schedule" is asked while looking at the Bot.
-              The /routines route still answers a direct link. */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/responsibilities"
-                  activeProps={{ className: "bg-foreground/5" }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconTargetArrow />
-              </div>
-              <span className="text-sm">{"长期任务"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/memory"
-                  activeProps={{ className: "bg-foreground/5" }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconBrain />
-              </div>
-              <span className="text-sm">{"记忆"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:bg-foreground/5 h-10"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to="/approvals"
-                  activeProps={{ className: "bg-foreground/5" }}
-                />
-              )}
-            >
-              <div className="size-[28px] flex items-center justify-center">
-                <IconChecks />
-              </div>
-              <span className="text-sm">{"审批"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <SidebarMenuButton className="hover:bg-foreground/5 h-10" />
-                }
-              >
-                <UserAvatar />
-                <span className="text-sm trackint-tight">
-                  {currentUser?.name || currentUser?.email}
-                </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="p-1.5"
-                side="top"
-                sideOffset={8}
-              >
-                {/* Admin routes are server-guarded; hide the entry for users who cannot open them. */}
-                {currentUser?.role === "admin" ? (
-                  <DropdownMenuItem
-                    className={userMenuItemClassName}
-                    render={<Link {...adminLinkOptions} />}
-                  >
-                    <IconShieldLock />
-                    {"管理员"}
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem
-                  className={userMenuItemClassName}
-                  render={<Link {...settingsLinkOptions} />}
-                >
-                  <IconSettings />
-                  {"设置"}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={userMenuItemClassName}
-                  disabled={signOut.isPending}
-                  onClick={handleSignOut}
-                  variant="destructive"
-                >
-                  <IconLogout />
-                  {"登出"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
