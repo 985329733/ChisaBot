@@ -165,10 +165,11 @@ function ScheduleSkill({
       )}
       <div className="flex gap-2">
         {/* Base UI's Button defaults to type="button", which never submits the form. */}
-        <Button loading={schedule.isPending}
+        <Button mutation={schedule}
+          feedback={{ pending: "计划中…", success: "已计划", error: "计划失败" }}
           size="sm"
           type="submit"
-          disabled={schedule.isPending || (cron === "custom" && !custom.trim())}
+          disabled={cron === "custom" && !custom.trim()}
         >
           {"计划"}
         </Button>
@@ -308,10 +309,11 @@ export function DemonstrationRecorder({
             />
           </label>
           {/* Base UI's Button defaults to type="button", which never submits the form. */}
-          <Button loading={start.isPending}
+          <Button mutation={start}
+            feedback={{ pending: "启动中…", success: "已开始", error: "启动失败" }}
             size="sm"
             type="submit"
-            disabled={!driving || start.isPending || !title.trim()}
+            disabled={!driving || !title.trim()}
           >
             {"记录你的步骤"}
           </Button>

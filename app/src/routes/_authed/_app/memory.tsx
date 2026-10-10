@@ -70,9 +70,10 @@ function MemoryPage() {
             onChange={(event) => setContent(event.target.value)}
             placeholder={"我喜欢早上开会"}
           />
-          <Button loading={remember.isPending}
+          <Button mutation={remember}
+            feedback={{ pending: "记住中…", success: "已记住", error: "保存失败" }}
             type="submit"
-            disabled={remember.isPending || !content.trim()}
+            disabled={!content.trim()}
             className="justify-self-start"
           >
             {"记住"}
@@ -400,12 +401,13 @@ function Sources() {
             )}
           </label>
         ))}
-        <Button loading={add.isPending}
+        <Button mutation={add}
+          feedback={{ pending: "正在读取源…", success: "已添加", error: "添加失败" }}
           type="submit"
           className="justify-self-start"
-          disabled={add.isPending || !toolRef}
+          disabled={!toolRef}
         >
-          {add.isPending ? "正在读取源……" : "添加并同步源"}
+          {"添加并同步源"}
         </Button>
         {(error || add.error || tools.error) && (
           <p role="alert" className="text-destructive">

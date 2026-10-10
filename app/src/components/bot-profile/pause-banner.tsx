@@ -18,12 +18,13 @@ export function BotPausedBanner({ agentId }: { agentId: string }) {
   return (
     <Button
       className="w-full justify-center gap-2"
-      disabled={resume.isPending}
+      feedback="resume"
+      mutation={resume}
       onClick={() => resume.mutate({ agentId, paused: false })}
       variant="secondary"
     >
       <IconPlayerPause />
-      {resume.isPending ? "正在恢复…" : "已暂停，轻点以恢复"}
+      {"已暂停，轻点以恢复"}
     </Button>
   );
 }

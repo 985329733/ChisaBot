@@ -286,16 +286,14 @@ function CredentialsPage() {
                 selector={(state) => [state.canSubmit, state.isSubmitting]}
               >
                 {([canSubmit, isSubmitting]) => (
-                  <Button loading={createCredential.isPending}
-                    disabled={
-                      !canSubmit || isSubmitting || createCredential.isPending
-                    }
+                  <Button mutation={createCredential}
+                    feedback="save"
+                    loading={Boolean(isSubmitting)}
+                    disabled={!canSubmit}
                     size="sm"
                     type="submit"
                   >
-                    {isSubmitting || createCredential.isPending
-                      ? "正在保存…"
-                      : "保存凭证"}
+                    {"保存凭证"}
                   </Button>
                 )}
               </form.Subscribe>

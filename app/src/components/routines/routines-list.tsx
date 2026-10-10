@@ -290,7 +290,7 @@ export function RoutinesList({
           {rows.map((routine) => {
             const lastRun = lastRunLabel(routine.lastRun);
             return (
-              <Item key={routine.id} variant="muted">
+              <Item className="list-enter" key={routine.id} variant="muted">
                 {/* Paused reads at a glance: the content dims, and a chip below says the word. */}
                 <ItemContent className={routine.enabled ? "" : "opacity-60"}>
                   <ItemTitle>
@@ -368,10 +368,10 @@ export function RoutinesList({
                    */}
                   <Button
                     aria-label={`立即运行定时任务 ${routine.schedule}`}
-                    disabled={
-                      !routine.enabled ||
-                      (runNow.isPending && runNow.variables === routine.id)
-                    }
+                    disabled={!routine.enabled}
+                    feedback={{ pending: "运行中…", success: "已开始", error: "运行失败" }}
+                    mutation={runNow}
+                    mutationWhen={runNow.variables === routine.id}
                     onClick={() =>
                       runNow.mutate(routine.id, {
                         onSuccess: () => setHistoryId(routine.id),
@@ -477,7 +477,8 @@ export function RoutinesList({
               {"取消"}
             </Button>
             <Button
-              disabled={deleteRoutine.isPending}
+              feedback="delete"
+              mutation={deleteRoutine}
               onClick={() => {
                 if (!confirmingId) return;
                 deleteRoutine.mutate(confirmingId, {
@@ -487,7 +488,7 @@ export function RoutinesList({
               size="sm"
               variant="destructive"
             >
-              {deleteRoutine.isPending ? "正在删除…" : "删除"}
+              {"删除"}
             </Button>
           </DialogFooter>
         </DialogContent>

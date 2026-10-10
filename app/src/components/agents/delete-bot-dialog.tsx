@@ -1,4 +1,5 @@
 import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
+import { MIN_PENDING_MS, useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -90,23 +91,37 @@ export function DeleteBotDialog({
         fallback: "无法删除此机器人",
       });
     },
-    onSuccess: async () => {
-      onOpenChange(false);
-      if (showsBot) {
-        const fallbackBot = !isMain && mainBotId ? mainBotId : null;
-        if (fallbackBot)
-          await navigate({ to: "/channel/new", search: { agent: fallbackBot } });
-        else await navigate({ to: "/" });
-      }
-      await forgetDeletedBot(queryClient, bot.id);
-      onDeleted?.();
-    },
   });
+  /*
+   * Driven by hand rather than by `mutation={remove}` so the dialog can stay up long enough for the
+   * button to land on ✓ 已删除 (DESIGN.md §2) before it closes and the caches move on.
+   */
+  const removeAction = useAsyncAction(
+    async () => {
+      await remove.mutateAsync();
+      return true;
+    },
+    { errorToast: false },
+  );
+  const settling = removeAction.state !== "idle";
+  const confirmDelete = async () => {
+    if (!(await removeAction.run())) return;
+    await new Promise((resolve) => window.setTimeout(resolve, MIN_PENDING_MS + 650));
+    onOpenChange(false);
+    if (showsBot) {
+      const fallbackBot = !isMain && mainBotId ? mainBotId : null;
+      if (fallbackBot)
+        await navigate({ to: "/channel/new", search: { agent: fallbackBot } });
+      else await navigate({ to: "/" });
+    }
+    await forgetDeletedBot(queryClient, bot.id);
+    onDeleted?.();
+  };
 
   return (
     <Dialog
       onOpenChange={(next) => {
-        if (!remove.isPending) {
+        if (!remove.isPending && !settling) {
           if (!next) remove.reset();
           onOpenChange(next);
         }
@@ -162,19 +177,19 @@ export function DeleteBotDialog({
         ) : null}
         <DialogFooter className="mt-4">
           <Button
-            disabled={remove.isPending}
+            disabled={remove.isPending || settling}
             onClick={() => onOpenChange(false)}
             variant="outline"
           >
             {"取消"}
           </Button>
           <Button
-            disabled={remove.isPending}
-            loading={remove.isPending}
-            onClick={() => remove.mutate()}
+            feedback="delete"
+            onClick={() => void confirmDelete()}
+            state={removeAction.state}
             variant="destructive"
           >
-            {remove.isPending ? "正在删除…" : "删除机器人"}
+            {"删除机器人"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -7,7 +7,6 @@ import {
 import {
   IconAlertTriangle,
   IconBox,
-  IconCheck,
   IconCopy,
   IconRefresh,
   IconChevronDown,
@@ -26,7 +25,9 @@ import {
 } from "react";
 import { Streamdown } from "streamdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { toast } from "@/components/ui/toast";
+import { useAsyncAction } from "@/components/ui/async-action";
+import { StatusGlyph } from "@/components/ui/button";
+import { writeClipboard } from "@/components/ui/copy-button";
 import {
   Dialog,
   DialogClose,
@@ -768,25 +769,39 @@ const TranscriptMessage = memo(function TranscriptMessage({
 
 /** A quiet copy action under a Bot's answer; shows on hover, always reachable by keyboard. */
 function CopyMessage({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
+  const copy = useAsyncAction(() => writeClipboard(text), {
+    errorToast: "复制失败，请手动选择文本复制。",
+  });
+  const label = { idle: "复制", pending: "复制", success: "已复制", error: "复制失败" }[copy.state];
   return (
     <div className="chat-msg-actions">
       <button
-        aria-label={copied ? "已复制" : "复制回答"}
+        aria-label={copy.state === "idle" ? "复制回答" : label}
         className="chat-msg-action"
-        onClick={() => {
-          void navigator.clipboard
-            ?.writeText(text)
-            .then(() => {
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1600);
-            })
-            .catch(() => toast.error("复制失败，请手动选择文本复制。"));
-        }}
+        data-btn-state={copy.state}
+        onClick={() => void copy.run()}
         type="button"
       >
-        {copied ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
-        {copied ? "已复制" : "复制"}
+        {/* Same morphing glyph as Button: the copy icon gives way to ring → ✓ / ✕. */}
+        <span className="btn-stack" data-state={copy.state}>
+          <span className="btn-face" data-face="idle">
+            <IconCopy className="size-3.5" />
+          </span>
+          <span className="btn-face" data-face="status">
+            <StatusGlyph />
+          </span>
+        </span>
+        <span className="btn-labels">
+          {(["idle", "success", "error"] as const).map((key) => (
+            <span
+              data-for={key}
+              key={key}
+              style={{ opacity: (copy.state === "pending" ? "idle" : copy.state) === key ? 1 : 0 }}
+            >
+              {{ idle: "复制", success: "已复制", error: "复制失败" }[key]}
+            </span>
+          ))}
+        </span>
       </button>
     </div>
   );

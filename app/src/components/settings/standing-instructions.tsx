@@ -55,7 +55,6 @@ export function StandingInstructions() {
       onSuccess: (asStored) => {
         setDraft(asStored);
         setSaved(true);
-        toast.success("常驻指令已保存");
       },
     });
   };
@@ -105,15 +104,12 @@ export function StandingInstructions() {
                 <span className="text-destructive text-xs" role="alert">
                   {problem}
                 </span>
-              ) : saved ? (
-                <span className="text-muted-foreground text-xs">
-                  {"已保存"}
-                </span>
-              ) : !unchanged && stored.data !== undefined ? (
+              ) : saved ? null : !unchanged && stored.data !== undefined ? (
                 <span className="settings-unsaved text-xs">{"有未保存的更改"}</span>
               ) : null}
-              <Button loading={save.isPending}
-                disabled={save.isPending || over || unchanged}
+              <Button mutation={save}
+                feedback="save"
+                disabled={over || unchanged}
                 onClick={submit}
                 size="sm"
               >

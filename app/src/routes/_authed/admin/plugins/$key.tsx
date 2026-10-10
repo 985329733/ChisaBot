@@ -855,6 +855,8 @@ function RouteComponent() {
           action={
             <div className="flex gap-1.5">
               <Button
+                feedback="refresh"
+                mutation={refresh}
                 onClick={() => refresh.mutate(key)}
                 size="sm"
                 type="button"

@@ -73,7 +73,7 @@ function BotModelSettingsRow({ agentId, disabled = false }: { agentId: string; d
             </ComboboxItem>}</ComboboxList>
           </ComboboxContent>
         </Combobox>
-        <Button aria-label="刷新模型列表" title="刷新 Magpie 模型列表" type="button" size="icon-xs" variant="ghost" disabled={disabled || saving || refreshing} onClick={() => refresh.mutate()}><IconRefresh className={refreshing ? "animate-spin" : ""} /></Button>
+        <Button aria-label="刷新模型列表" title="刷新 Magpie 模型列表" type="button" size="icon-xs" variant="ghost" disabled={disabled || saving || (refreshing && refresh.status !== "pending")} mutation={refresh} onClick={() => refresh.mutate()}><IconRefresh /></Button>
         {catalog.data ? <span className="shrink-0 text-xs text-muted-foreground">{catalog.data.models.length} 个模型</span> : null}
       </div>
       {saving ? <p className="pt-1 text-xs text-muted-foreground" role="status">正在保存模型…</p> : null}

@@ -1,7 +1,15 @@
-import { IconLoader2 } from "@tabler/icons-react";
+import type { ReactNode } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import {
+  type AsyncState,
+  type Feedback,
+  type FeedbackLabels,
+  type MutationLike,
+  resolveFeedback,
+  useMutationFeedback,
+} from "@/components/ui/async-action";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -63,29 +71,144 @@ function Button({
    * that does.
    */
   nativeButton = render === undefined,
-  /** Pending: draws a spinner in front of the label and disables the button until it settles. */
+  /** Shorthand for `state="pending"` — kept for call sites that only know "busy or not". */
   loading = false,
+  /**
+   * DESIGN.md §2 state machine: idle → pending → success / error. Drive it with
+   * `useMutationFeedback(mutation)` or `useAsyncAction(fn).state`.
+   */
+  state,
+  /**
+   * Status copy (a preset like "save" or `{ pending, success, error }`). With it the button
+   * cross-fades between its idle children and "保存中… / 已保存 / 保存失败", sized to the widest so
+   * nothing around it moves. Without it, non-idle states only swap the glyph in front of children.
+   */
+  feedback,
+  /**
+   * A TanStack mutation to follow instead of passing `state`: the button runs the state machine off
+   * its status. `mutationWhen` narrows a mutation shared by several rows to this one.
+   */
+  mutation,
+  mutationWhen = true,
   disabled,
   children,
   ...props
 }: ButtonPrimitive.Props &
-  VariantProps<typeof buttonVariants> & { loading?: boolean }) {
+  VariantProps<typeof buttonVariants> & {
+    loading?: boolean;
+    state?: AsyncState;
+    feedback?: Feedback;
+    mutation?: MutationLike;
+    mutationWhen?: boolean;
+  }) {
+  const followed = useMutationFeedback(mutation ?? IDLE_MUTATION, mutation !== undefined && mutationWhen);
+  const active: AsyncState =
+    state && state !== "idle"
+      ? state
+      : followed !== "idle"
+        ? followed
+        : loading
+          ? "pending"
+          : "idle";
+  const labels = resolveFeedback(feedback);
+  const iconOnly = typeof size === "string" && size.startsWith("icon");
   return (
     <ButtonPrimitive
       data-slot="button"
-      aria-busy={loading || undefined}
-      data-loading={loading ? "true" : undefined}
+      data-variant={variant ?? "default"}
+      data-btn-state={active}
+      aria-busy={active === "pending" || undefined}
+      data-loading={active === "pending" ? "true" : undefined}
       className={cn(buttonVariants({ variant, size, className }))}
-      disabled={disabled || loading}
+      disabled={disabled || active === "pending"}
       nativeButton={nativeButton}
       render={render}
       {...props}
     >
-      {loading ? (
-        <IconLoader2 aria-hidden="true" className="animate-spin" data-icon="inline-start" />
-      ) : null}
-      {children}
+      <AsyncContent
+        iconOnly={iconOnly}
+        labels={labels}
+        stacked={Boolean(labels) || (iconOnly && (state !== undefined || mutation !== undefined))}
+        state={active}
+      >
+        {children}
+      </AsyncContent>
     </ButtonPrimitive>
+  );
+}
+
+/**
+ * The inside of an async button, for the rare control that cannot be `Button` (a glass pill with
+ * its own look): put `data-btn-state={state}` on the element and this inside it.
+ */
+export function AsyncContent({
+  state,
+  labels,
+  stacked = true,
+  iconOnly = false,
+  children,
+}: {
+  state: AsyncState;
+  labels: FeedbackLabels | null;
+  stacked?: boolean;
+  iconOnly?: boolean;
+  children?: ReactNode;
+}) {
+  if (!stacked) {
+    return (
+      <>
+        {state !== "idle" ? <StatusGlyph /> : null}
+        {children}
+      </>
+    );
+  }
+  return (
+    <span className="btn-stack" data-state={state}>
+      <span aria-hidden={state !== "idle" || undefined} className="btn-face" data-face="idle">
+        {children}
+      </span>
+      <span aria-hidden={state === "idle" || undefined} className="btn-face" data-face="status">
+        <StatusGlyph />
+        {labels && !iconOnly ? (
+          <span className="btn-labels">
+            <span data-for="pending">{labels.pending}</span>
+            <span data-for="success">{labels.success}</span>
+            <span data-for="error">{labels.error}</span>
+          </span>
+        ) : null}
+      </span>
+      {labels && state !== "idle" ? (
+        <span className="sr-only" role="status">
+          {labels[state]}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+const IDLE_MUTATION: MutationLike = { status: "idle", submittedAt: 0 };
+
+/**
+ * One SVG for every non-idle state so pending → success is a morph, not a swap: the spinning arc
+ * closes into a full ring and fades while the check (or ✕) draws itself. Colour and motion live in
+ * styles.css under `.btn-glyph`, keyed off the button's `data-btn-state`.
+ */
+export function StatusGlyph() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="btn-glyph"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2.4}
+      viewBox="0 0 24 24"
+    >
+      <circle className="btn-glyph-ring" cx="12" cy="12" pathLength={100} r="9" />
+      <path className="btn-glyph-check" d="M7.5 12.4l3.1 3.1 6-6.6" pathLength={100} />
+      <path className="btn-glyph-x" d="M9 9l6 6M15 9l-6 6" pathLength={100} />
+    </svg>
   );
 }
 

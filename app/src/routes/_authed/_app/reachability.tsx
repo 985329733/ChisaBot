@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { conversationLabel } from "@/lib/channels/label";
@@ -55,7 +56,6 @@ function ReachabilityPage() {
   const [channelId, setChannelId] = useState("");
   const [agentId, setAgentId] = useState("");
   const [phone, setPhone] = useState("");
-  const [copied, setCopied] = useState(false);
   const [challengeId, setChallengeId] = useState(readPending);
   useEffect(() => writePending(challengeId), [challengeId]);
   const [code, setCode] = useState("");
@@ -64,7 +64,6 @@ function ReachabilityPage() {
   const link = useMutation({
     mutationFn: (platform: "slack" | "teams") =>
       startChatLink({ channelId, agentId, platform }),
-    onSuccess: () => setCopied(false),
   });
   const sms = useMutation({
     mutationFn: () => startSms({ channelId, agentId, phone }),
@@ -182,18 +181,11 @@ function ReachabilityPage() {
                 <code className="min-w-0 flex-1 break-all rounded bg-background px-2 py-1">
                   {link.data.command}
                 </code>
-                <Button
+                <CopyButton
                   size="sm"
+                  value={() => link.data?.command ?? ""}
                   variant="outline"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(
-                      link.data?.command ?? "",
-                    );
-                    setCopied(true);
-                  }}
-                >
-                  {copied ? "已复制" : "复制"}
-                </Button>
+                />
               </div>
             </div>
           )}
@@ -226,9 +218,10 @@ function ReachabilityPage() {
                 pattern="\+[1-9][0-9]{7,14}"
               />
             </label>
-            <Button loading={sms.isPending}
+            <Button mutation={sms}
+              feedback="send"
               type="submit"
-              disabled={!agentId || !reach.data?.available.sms || sms.isPending}
+              disabled={!agentId || !reach.data?.available.sms}
             >
               {"发送验证码"}
             </Button>
@@ -248,7 +241,7 @@ function ReachabilityPage() {
                 onChange={(event) => setCode(event.target.value)}
                 required
               />
-              <Button loading={confirm.isPending} type="submit" disabled={confirm.isPending}>
+              <Button mutation={confirm} feedback={{ pending: "确认中…", success: "已确认", error: "确认失败" }} type="submit">
                 {"确认电话"}
               </Button>
             </form>

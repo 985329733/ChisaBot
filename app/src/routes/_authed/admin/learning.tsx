@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { Input } from "@/components/ui/input";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
@@ -273,14 +274,9 @@ function IntelligenceLearningPage() {
               })}
             </fieldset>
             <div className="flex items-center gap-3">
-              <Button loading={save.isPending} type="submit" disabled={save.isPending}>
-                {save.isPending ? "正在保存…" : "保存学习设置"}
+              <Button mutation={save} feedback="save" type="submit">
+                {"保存学习设置"}
               </Button>
-              {saved && (
-                <p role="status" className="text-sm">
-                  {"设置已保存。"}
-                </p>
-              )}
             </div>
             {save.error && (
               <p role="alert" className="text-destructive">
@@ -432,17 +428,18 @@ function IntelligenceLearningPage() {
               )}
             </div>
           )}
-          <Button
-            type="button"
+          <RefreshButton
+            icon={false}
+            onRefresh={() =>
+              Promise.all([
+                overview.refetch({ throwOnError: true }),
+                selected ? delivery.refetch({ throwOnError: true }) : null,
+              ])
+            }
             variant="outline"
-            disabled={overview.isFetching || delivery.isFetching}
-            onClick={() => {
-              void overview.refetch();
-              if (selected) void delivery.refetch();
-            }}
           >
             {"刷新状态"}
-          </Button>
+          </RefreshButton>
           <p className="text-muted-foreground text-sm">
             {
               "管理需要您的Intelligence账号和项目权限。ChisaBot 将项目凭据保存在服务器上。暂停此处会保留设置和线程分配；计划和发布仍由Intelligence管理。"

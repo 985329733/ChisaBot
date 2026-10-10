@@ -307,8 +307,8 @@ function IdentityProvidersPage() {
               >
                 {"取消"}
               </Button>
-              <Button loading={register.isPending} disabled={register.isPending} size="sm" type="submit">
-                {register.isPending ? "正在添加…" : "添加"}
+              <Button mutation={register} feedback="add" size="sm" type="submit">
+                {"添加"}
               </Button>
             </DialogFooter>
           </form>

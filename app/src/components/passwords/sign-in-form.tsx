@@ -111,9 +111,11 @@ export function SignInForm({ requestId }: { requestId: string }) {
           <Button
             size="sm"
             disabled={busy}
+            feedback={{ pending: "确认中…", success: "已完成", error: "未完成" }}
+            mutation={finish}
             onClick={() => finish.mutate(requestId)}
           >
-            {finish.isPending ? "正在完成…" : "我已登录"}
+            {"我已登录"}
           </Button>
           <Button
             size="sm"
@@ -269,9 +271,9 @@ export function SignInForm({ requestId }: { requestId: string }) {
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" type="submit" disabled={busy || !password}>
+            <Button size="sm" type="submit" disabled={busy || !password} feedback="signin" mutation={submit}>
               <IconLock />
-              {submit.isPending ? "正在登录…" : "登录"}
+              {"登录"}
             </Button>
             <Button
               size="sm"

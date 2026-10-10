@@ -252,7 +252,7 @@ function AddPerson({ channelId }: { channelId: string }) {
         type="email"
         value={email}
       />
-      <Button loading={add.isPending} disabled={!email.trim() || add.isPending} size="sm" type="submit">
+      <Button mutation={add} feedback="add" disabled={!email.trim()} size="sm" type="submit">
         {"添加"}
       </Button>
       {add.error ? (

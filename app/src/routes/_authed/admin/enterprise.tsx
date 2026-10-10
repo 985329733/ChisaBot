@@ -21,6 +21,7 @@ import {
   PageSection,
   PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { runWithPageLoader } from "@/components/ui/page-loader";
 import {
   Dialog,
   DialogBody,
@@ -708,11 +709,22 @@ function SweepNow() {
     <div className="mt-4 flex items-center gap-3">
       <Button
         disabled={sweep.isPending}
-        onClick={() => sweep.mutate()}
+        onClick={() =>
+          // Stops every idle computer at once — a bulk action, so the full-page loader (DESIGN.md §1 ③).
+          void runWithPageLoader(
+            {
+              title: "正在停止非活跃计算机…",
+              description: "正在逐台关闭空闲的计算机，请稍候。",
+              successText: "已停止非活跃计算机",
+              errorTitle: "停止失败",
+            },
+            () => sweep.mutateAsync(),
+          ).catch(() => undefined)
+        }
         size="sm"
         variant="outline"
       >
-        {sweep.isPending ? "正在停止…" : "立即停止非活跃计算机"}
+        {"立即停止非活跃计算机"}
       </Button>
       {sweep.data ? (
         <span className="text-muted-foreground text-sm">
@@ -997,14 +1009,13 @@ function NetworkDialog({
             <Button onClick={onClose} size="sm" type="button" variant="outline">
               {"取消"}
             </Button>
-            <Button loading={save.isPending}
-              disabled={
-                save.isPending || (initial.scopeKind === "group" && !scopeId)
-              }
+            <Button mutation={save}
+              feedback="save"
+              disabled={initial.scopeKind === "group" && !scopeId}
               size="sm"
               type="submit"
             >
-              {save.isPending ? "正在保存…" : "保存"}
+              {"保存"}
             </Button>
           </DialogFooter>
         </form>

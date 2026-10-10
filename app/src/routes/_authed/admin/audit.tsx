@@ -1,4 +1,3 @@
-import { IconRefresh } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -7,6 +6,7 @@ import {
   PageSection,
   PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { useBotNames } from "@/lib/agents/bot-names";
 import {
   DID_NOT_HAPPEN_EVENT_TYPES,
@@ -75,10 +75,11 @@ function AuditPage() {
      */
     <PageShell
       action={
-        <Button onClick={() => events.refetch()} size="sm" variant="ghost">
-          <IconRefresh />
-          {"刷新"}
-        </Button>
+        <RefreshButton
+          onRefresh={() => events.refetch({ throwOnError: true })}
+          size="sm"
+          variant="ghost"
+        />
       }
       description={"机器人采取的每个操作，以及此部署策略拒绝的每个操作。"}
       title={"审计"}

@@ -8,6 +8,7 @@ import { StartupFailure } from "@/components/startup-status";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmHost } from "@/components/ui/confirm";
+import { PageLoaderHost } from "@/components/ui/page-loader";
 import { Toaster } from "@/components/ui/toast";
 import type { RouterContext } from "../router-context";
 import "@fontsource-variable/inter/wght.css";
@@ -128,6 +129,7 @@ function RootComponent() {
         <TooltipProvider>
           <Outlet />
           <ConfirmHost />
+          <PageLoaderHost />
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>

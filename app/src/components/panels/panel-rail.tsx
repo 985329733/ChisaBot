@@ -1,3 +1,5 @@
+import { FEEDBACK_PRESETS, useMutationFeedback } from "@/components/ui/async-action";
+import { AsyncContent } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   IconAdjustments,
@@ -187,6 +189,7 @@ function PanelRailBody() {
     onError: (e) => setError(panelErrorText(e)),
   });
 
+  const beginState = useMutationFeedback(begin);
   useEffect(() => setError(null), [botId]);
 
   const items = list.data?.items ?? [];
@@ -291,13 +294,20 @@ function PanelRailBody() {
       </div>
 
       <button
-        className="glass-pill flex h-12 shrink-0 items-center justify-center gap-2 rounded-full font-medium text-sm disabled:opacity-60"
+        aria-busy={beginState === "pending" || undefined}
+        className="glass-pill async-raw flex h-12 shrink-0 items-center justify-center gap-2 rounded-full font-medium text-sm disabled:opacity-60"
+        data-btn-state={beginState}
         disabled={!botId || !canManage || begin.isPending || Boolean(session.data)}
         onClick={() => begin.mutate(undefined)}
         type="button"
       >
-        <IconPlus className="size-5" stroke={2} />
-        {begin.isPending ? "打开创作…" : "创建一个新面板"}
+        <AsyncContent
+          labels={{ pending: "正在打开创作…", success: "已开始创作", error: "打开失败" }}
+          state={beginState}
+        >
+          <IconPlus className="size-5" stroke={2} />
+          {"创建一个新面板"}
+        </AsyncContent>
       </button>
       {botId && list.data && !canManage ? (
         <p className="-mt-1 text-center text-muted-foreground text-xs">
@@ -882,6 +892,8 @@ function DraftPreview({
     () => previewBridge((d?.definition.initialState ?? null) as Json),
     [d],
   );
+  const commitState = useMutationFeedback(commit, commit.variables?.mode !== "new-library");
+  const forkState = useMutationFeedback(commit, commit.variables?.mode === "new-library");
   const save = useCallback(
     (mode: "first" | "instance" | "new-library") =>
       d && commit.mutate({ draft: d, mode, resetState: false }),
@@ -928,25 +940,29 @@ function DraftPreview({
             {d.status === "ready" ? (
               <div className="flex flex-wrap gap-2">
                 <button
-                  className="glass-dark rounded-full px-4 py-2 text-sm"
+                  aria-busy={commitState === "pending" || undefined}
+                  className="glass-dark async-raw inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm"
+                  data-btn-state={commitState}
                   disabled={commit.isPending}
                   onClick={() => save(d.targetInstanceId ? "instance" : "first")}
                   type="button"
                 >
-                  {commit.isPending
-                    ? "保存中…"
-                    : d.targetInstanceId
-                      ? "保存此 BOT 面板"
-                      : "保存到库并安装"}
+                  <AsyncContent labels={FEEDBACK_PRESETS.save} state={commitState}>
+                    {d.targetInstanceId ? "保存此 BOT 面板" : "保存到库并安装"}
+                  </AsyncContent>
                 </button>
                 {d.targetInstanceId ? (
                   <button
-                    className="glass-pill rounded-full px-4 py-2 text-sm"
+                    aria-busy={forkState === "pending" || undefined}
+                    className="glass-pill async-raw inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm"
+                    data-btn-state={forkState}
                     disabled={commit.isPending}
                     onClick={() => save("new-library")}
                     type="button"
                   >
-                    {"另存为新库项"}
+                    <AsyncContent labels={FEEDBACK_PRESETS.save} state={forkState}>
+                      {"另存为新库项"}
+                    </AsyncContent>
                   </button>
                 ) : null}
                 <button

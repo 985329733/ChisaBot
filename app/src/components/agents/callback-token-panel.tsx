@@ -68,21 +68,23 @@ export function CallbackTokenPanel({
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={issue.isPending}
+            feedback="generate"
+            mutation={issue}
             onClick={async () => setToken(await issue.mutateAsync(agentId))}
             size="sm"
             variant="outline"
           >
-            {issue.isPending ? "生成中…" : hasToken ? "旋转令牌" : "生成令牌"}
+            {hasToken ? "旋转令牌" : "生成令牌"}
           </Button>
           {hasToken ? (
             <Button
-              disabled={revoke.isPending}
+              feedback="revoke"
+              mutation={revoke}
               onClick={() => revoke.mutate(agentId)}
               size="sm"
               variant="outline"
             >
-              {revoke.isPending ? "撤销中…" : "撤销"}
+              {"撤销"}
             </Button>
           ) : null}
         </div>

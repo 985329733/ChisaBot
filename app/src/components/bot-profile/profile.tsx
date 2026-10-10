@@ -14,6 +14,7 @@ import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
 import { PageRows, PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { runWithPageLoader } from "@/components/ui/page-loader";
 import {
   Dialog,
   DialogBody,
@@ -184,11 +185,23 @@ function ResetDialog({
           {reset.isSuccess ? null : (
             <Button
               disabled={!plan.data || lines.length === 0 || reset.isPending}
-              onClick={() => reset.mutate(agent.id)}
+              onClick={() => {
+                // A reset wipes the Bot's data in several steps — DESIGN.md §1 ③, the full-page loader.
+                onOpenChange(false);
+                void runWithPageLoader(
+                  {
+                    title: "正在重置机器人…",
+                    description: "正在删除它的数据并恢复到初始状态，请稍候。",
+                    successText: "已重置",
+                    errorTitle: "重置失败",
+                  },
+                  () => reset.mutateAsync(agent.id),
+                ).catch(() => undefined);
+              }}
               size="sm"
               variant="destructive"
             >
-              {reset.isPending ? "正在重置…" : "删除并重置"}
+              {"删除并重置"}
             </Button>
           )}
         </DialogFooter>

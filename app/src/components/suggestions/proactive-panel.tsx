@@ -221,10 +221,11 @@ export function ProactiveResearchSettings() {
             placeholder={"打开分配给我的问题和等待我回答的问题"}
           />
         </label>
-        <Button loading={add.isPending}
+        <Button mutation={add}
+          feedback={{ pending: "开启中…", success: "已开启", error: "开启失败" }}
           type="submit"
           className="justify-self-start"
-          disabled={add.isPending || !agentId || !channelId}
+          disabled={!agentId || !channelId}
         >
           {"开启后台研究"}
         </Button>

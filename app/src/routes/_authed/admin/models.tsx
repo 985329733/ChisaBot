@@ -1,4 +1,5 @@
-import { IconCheck, IconLoader2 } from "@tabler/icons-react";
+import { IconCheck } from "@tabler/icons-react";
+import { useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -100,12 +101,15 @@ function ModelSettingsForm({ config }: { config: ModelSettingsCurrent }) {
     setFeedback(null);
   }
 
+  const saveAction = useAsyncAction(() => submit("save"), { errorToast: false });
+  const testAction = useAsyncAction(() => submit("test"), { errorToast: false });
+
   async function submit(action: "save" | "test") {
     if (busy) return;
     const validation = modelSettingsValidation(draft, current);
     setErrors(validation);
     setFeedback(null);
-    if (Object.keys(validation).length) return;
+    if (Object.keys(validation).length) throw new Error("请先修正标出的字段");
     const input = modelSettingsInput(draft);
     try {
       if (action === "test") {
@@ -114,6 +118,8 @@ function ModelSettingsForm({ config }: { config: ModelSettingsCurrent }) {
           ok: result.ok,
           message: `${result.message}${result.ok ? `（${Math.round(result.latencyMs)} 毫秒）` : ""}`,
         });
+        // A reachable endpoint that answered "not ok" is still a failed test for the button.
+        if (!result.ok) throw new Error(result.message);
       } else {
         const saved = await save.mutateAsync(input);
         setCurrent(saved);
@@ -139,6 +145,8 @@ function ModelSettingsForm({ config }: { config: ModelSettingsCurrent }) {
               ? "无法保存模型设置。"
               : "无法测试模型连接。",
       });
+      // Rethrown so the button that started it lands on ✕; the message is shown inline above.
+      throw error;
     } finally {
       // Mutation variables contain a write-only key; release them after the request.
       save.reset();
@@ -171,7 +179,7 @@ function ModelSettingsForm({ config }: { config: ModelSettingsCurrent }) {
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            void submit("save");
+            void saveAction.run();
           }}
         >
           <FieldGroup>
@@ -291,20 +299,23 @@ function ModelSettingsForm({ config }: { config: ModelSettingsCurrent }) {
             ) : null}
           </FieldGroup>
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Button disabled={busy} type="submit">
-              {save.isPending ? <IconLoader2 className="animate-spin" /> : null}
-              {save.isPending ? "正在保存…" : "保存设置"}
+            <Button
+              disabled={busy || testAction.state === "pending"}
+              feedback="save"
+              state={saveAction.state}
+              type="submit"
+            >
+              {"保存设置"}
             </Button>
             <Button
-              disabled={busy}
-              onClick={() => void submit("test")}
+              disabled={busy || saveAction.state === "pending"}
+              feedback="test"
+              onClick={() => void testAction.run()}
+              state={testAction.state}
               type="button"
               variant="outline"
             >
-              {testConnection.isPending ? (
-                <IconLoader2 className="animate-spin" />
-              ) : null}
-              {testConnection.isPending ? "正在测试…" : "测试连接"}
+              {"测试连接"}
             </Button>
           </div>
           <p className="mt-3 text-muted-foreground text-sm">

@@ -357,16 +357,12 @@ function CreateAgentWizard({
             >
               {step === 0 ? "取消" : "返回"}
             </Button>
-            <Button loading={createAgent.isPending}
-              disabled={createAgent.isPending}
+            <Button mutation={createAgent}
+              feedback="create"
               onClick={() => void advance()}
               type="button"
             >
-              {last
-                ? createAgent.isPending
-                  ? "正在创建…"
-                  : "创建AI同事"
-                : "继续"}
+              {last ? "创建AI同事" : "继续"}
             </Button>
           </div>
         </Questionnaire>

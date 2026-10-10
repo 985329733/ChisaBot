@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Streamdown } from "streamdown";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { CopyButton as SharedCopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { agentListQueryOptions } from "@/lib/agents/queries";
@@ -243,8 +244,8 @@ function NewResponsibility() {
           {create.error.message}
         </p>
       )}
-      <Button loading={create.isPending} disabled={create.isPending} type="submit">
-        {create.isPending ? "正在创建…" : "创建长期任务"}
+      <Button mutation={create} feedback="create" type="submit">
+        {"创建长期任务"}
       </Button>
     </form>
   );
@@ -320,7 +321,7 @@ function GoalCard({ goal }: { goal: ResponsibilityRecord }) {
             />
           </label>
           <div className="flex gap-2">
-            <Button loading={edit.isPending} type="submit" disabled={edit.isPending}>
+            <Button mutation={edit} feedback="save" type="submit">
               {"保存"}
             </Button>
             <Button
@@ -550,7 +551,7 @@ function GithubSources() {
             required
           />
         </label>
-        <Button loading={create.isPending} type="submit" className="self-end" disabled={create.isPending}>
+        <Button mutation={create} feedback={{ pending: "连接中…", success: "已连接", error: "连接失败" }} type="submit" className="self-end">
           {"连接事件"}
         </Button>
       </form>
@@ -638,20 +639,10 @@ const list = (value: string) =>
     .filter(Boolean);
 
 function CopyButton({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false);
   return (
-    <Button
-      size="sm"
-      type="button"
-      variant="outline"
-      onClick={async () => {
-        await navigator.clipboard.writeText(value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-    >
-      {copied ? "已复制" : label}
-    </Button>
+    <SharedCopyButton size="sm" value={value} variant="outline">
+      {label}
+    </SharedCopyButton>
   );
 }
 
@@ -941,7 +932,7 @@ function TriggerRow({
             onChange={(event) => setPasted(event.target.value)}
             required
           />
-          <Button loading={rotate.isPending} size="sm" type="submit" disabled={rotate.isPending}>
+          <Button mutation={rotate} feedback="save" size="sm" type="submit">
             {"保存密钥"}
           </Button>
         </form>
@@ -1178,8 +1169,8 @@ function NewTrigger({
           {create.error.message}
         </p>
       )}
-      <Button loading={create.isPending} type="submit" disabled={create.isPending}>
-        {create.isPending ? "正在添加…" : `添加 ${KIND_LABEL[kind]} 触发器`}
+      <Button mutation={create} feedback="add" type="submit">
+        {`添加 ${KIND_LABEL[kind]} 触发器`}
       </Button>
     </form>
   );

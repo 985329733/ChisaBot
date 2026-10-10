@@ -62,3 +62,21 @@
 
 - 输入框、选择器、按钮在同一行时高度一致；圆角、填充、焦点光晕统一。
 - 新组件优先复用 `components/ui/` 里的已有组件（Button、confirm、toast、skeleton、dialog）。
+
+## 6. 组件用法（实现对照）
+
+以下是第 1–3 节在代码里的唯一实现，页面中不要另写一套：
+
+- **`Button`（`components/ui/button.tsx`）** — 异步按钮状态机。
+  - 跟随 TanStack mutation：`<Button mutation={save} feedback="save">保存</Button>`。多行共用一个 mutation 时加 `mutationWhen={save.variables?.id === row.id}`，只让被点的那一行变化。
+  - 包装任意异步函数：`const action = useAsyncAction(fn)`，然后 `<Button state={action.state} feedback="save" onClick={() => void action.run()}>`。
+  - `feedback` 取预设（`save` / `create` / `delete` / `send` / `copy` / `add` / `submit` / `refresh` / `test` / `stop` / `cancel` / `resume` / `reset` / `generate` / `revoke` / `signin` / `generic`），或传 `{ pending, success, error }` 自定义文案。按钮宽度按最长文案自动预留。
+  - 进行中自动禁用并带 `aria-busy`；无需再手写 `disabled={x.isPending}` 或 `x.isPending ? "正在…" : …` 文案。
+  - 纯图标按钮（`size="icon*"`）只切换图标（圈 → ✓ / ✕），不显示文字。
+- **`useAsyncAction` / `useMutationFeedback`（`components/ui/async-action.ts`）** — 状态机的计时规则（最少 300ms 进行中、成功停留 1.5 秒、失败停留 2 秒）只在这里定义。
+- **`AsyncContent`（`components/ui/button.tsx`）** — 少数不能换成 `Button` 的玻璃胶囊按钮使用：在元素上加 `data-btn-state={state}` 和 `async-raw` 类，内部放 `<AsyncContent state labels>`。
+- **`CopyButton`（`components/ui/copy-button.tsx`）** — 复制 → ✓ 已复制。
+- **`RefreshButton`（`components/ui/refresh-button.tsx`）** — 刷新 → 刷新中… → ✓ 已刷新；`refetch` 请传 `{ throwOnError: true }`，失败才会显示 ✕。
+- **`runWithPageLoader(options, fn)`（`components/ui/page-loader.tsx`）** — 第 1 节层级 ③ 的整页加载弹窗。`options` 可含 `title`、`description`、`steps`、`successText`、`errorTitle`；`fn` 收到 `{ step, progress, describe }` 用于更新步骤/进度。成功后显示 ✓ 再淡出并 resolve；失败显示 ✕、原因和"重试 / 关闭"，关闭时 reject。若当前在对话框里触发，先关闭对话框再调用。
+- 按钮已显示"已保存"时，不再额外弹"已保存" toast；toast 只用于错误，或结果不在当前视野内的情况（例如该行已从列表中移除）。
+- 列表新出现的项加 `list-enter` 类以淡入。

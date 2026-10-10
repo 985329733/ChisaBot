@@ -89,20 +89,26 @@ function ActivityRow({
   const control = item.stoppable ? (
     <Button
       disabled={stop.isPending}
+      feedback="stop"
+      mutation={stop}
+      mutationWhen={stop.variables?.id === item.id}
       onClick={() => stop.mutate({ agentId, id: item.id })}
       size="sm"
       variant="outline"
     >
-      {stop.isPending ? "正在停止…" : "停止"}
+      {"停止"}
     </Button>
   ) : item.cancellable ? (
     <Button
       disabled={cancel.isPending}
+      feedback="cancel"
+      mutation={cancel}
+      mutationWhen={cancel.variables?.id === item.id}
       onClick={() => cancel.mutate({ agentId, id: item.id })}
       size="sm"
       variant="outline"
     >
-      {cancel.isPending ? "正在取消……" : "取消"}
+      {"取消"}
     </Button>
   ) : null;
   const content = (

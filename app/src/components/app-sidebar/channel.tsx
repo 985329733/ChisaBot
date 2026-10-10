@@ -197,14 +197,15 @@ export const Channel = memo(function Channel({
               {"取消"}
             </Button>
             <Button
-              disabled={deleteChannel.isPending}
+              feedback="delete"
+              mutation={deleteChannel}
               onClick={() => {
                 void confirmDelete();
               }}
               size="sm"
               variant="destructive"
             >
-              {deleteChannel.isPending ? "正在删除…" : "删除"}
+              {"删除"}
             </Button>
           </DialogFooter>
         </DialogContent>

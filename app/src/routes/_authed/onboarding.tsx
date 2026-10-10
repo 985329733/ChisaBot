@@ -235,9 +235,9 @@ function RouteComponent() {
                 className="mt-20 flex flex-col items-center justify-center max-w-xs gap-4 w-full mx-auto"
                 layout
               >
-                <Button loading={complete.isPending}
+                <Button mutation={complete}
+                  feedback={last ? { pending: "保存中…", success: "准备就绪", error: "保存失败" } : undefined}
                   className="w-full"
-                  disabled={complete.isPending}
                   onClick={() => {
                     if (last) {
                       complete.mutate(undefined, {
@@ -249,11 +249,7 @@ function RouteComponent() {
                   }}
                   size="lg"
                 >
-                  {complete.isPending
-                    ? "正在保存…"
-                    : last
-                      ? "开始使用"
-                      : "继续"}
+                  {last ? "开始使用" : "继续"}
                 </Button>
                 {step !== 0 && (
                   <Button

@@ -1585,7 +1585,6 @@ body {
   border-radius: 999px;
   background: var(--glass-strong);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow-sm);
   color: var(--glass-ink-2);
   font-size: 13px;
@@ -1624,7 +1623,6 @@ body {
   background: rgba(255, 244, 242, 0.82);
   border: 1px solid rgba(220, 80, 60, 0.18);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow-sm);
   color: var(--glass-ink);
   animation: p3-rise 0.26s cubic-bezier(0.23, 1, 0.32, 1) both;
@@ -1738,7 +1736,6 @@ button.chat-bottom-pill {
   border: 0;
   background: var(--glass-strong);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow);
   color: var(--glass-ink);
   font-size: 12.5px;
@@ -1768,7 +1765,6 @@ button.chat-bottom-pill:hover {
   border: 1px solid rgba(255, 255, 255, 0.5) !important;
   background: var(--glass) !important;
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow-sm);
 }
 .dark .page-rows { border-color: rgba(255, 255, 255, 0.06) !important; }
@@ -1844,6 +1840,189 @@ button.chat-bottom-pill:hover {
 .dark [data-slot="switch"][data-checked] { background: #60a5fa; }
 [data-slot="button"][data-loading="true"] { cursor: progress; }
 
+/* Note: write only the unprefixed `backdrop-filter` in this file. The build adds the -webkit-
+   prefix itself; a hand-written -webkit- line after it made the minifier drop the unprefixed one,
+   which left Chromium with no blur at all. */
+
+/* ---------- Async button state machine (DESIGN.md §2) ---------- */
+/* Every face sits in the same grid cell, so the button is as wide as its widest state and never
+   resizes; the active face cross-fades in, the others keep their space invisibly. */
+.btn-stack { display: inline-grid; place-items: center; gap: inherit; }
+.btn-face {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+  opacity: 0;
+  transform: translateY(3px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease-in, transform 0.2s ease-in, visibility 0s linear 0.2s;
+}
+.btn-stack[data-state="idle"] > [data-face="idle"],
+.btn-stack:not([data-state="idle"]) > [data-face="status"] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.2s ease-out, transform 0.22s ease-out, visibility 0s;
+}
+.btn-labels { display: inline-grid; }
+.btn-labels > span {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+  text-align: center;
+}
+.btn-stack[data-state="pending"] .btn-labels > [data-for="pending"],
+.btn-stack[data-state="success"] .btn-labels > [data-for="success"],
+.btn-stack[data-state="error"] .btn-labels > [data-for="error"] { opacity: 1; }
+
+/* The glyph: spinning arc → closes into a ring and fades while ✓ / ✕ draws. */
+.btn-glyph { overflow: visible; }
+.btn-glyph circle, .btn-glyph path { stroke-dasharray: 100; }
+.btn-glyph-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  stroke-dashoffset: 72;
+  opacity: 1;
+  transition: stroke-dashoffset 0.22s ease-out, opacity 0.2s ease-in 0.12s, transform 0.25s ease-out;
+}
+.btn-glyph-check, .btn-glyph-x { stroke-dashoffset: 100; opacity: 0; transition: none; }
+[data-btn-state="pending"] .btn-glyph-ring { animation: btn-spin 0.75s linear infinite; }
+[data-btn-state="success"] .btn-glyph-ring,
+[data-btn-state="error"] .btn-glyph-ring { stroke-dashoffset: 0; opacity: 0; transform: scale(1.15); }
+[data-btn-state="success"] .btn-glyph-check,
+[data-btn-state="error"] .btn-glyph-x {
+  stroke-dashoffset: 0;
+  opacity: 1;
+  transition: stroke-dashoffset 0.32s cubic-bezier(0.65, 0, 0.35, 1) 0.1s, opacity 0.1s ease-out 0.1s;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* Pending is disabled but should read as "working", not "unavailable". */
+[data-slot="button"][data-btn-state="pending"] { opacity: 0.88; }
+[data-slot="button"][data-btn-state="success"],
+[data-slot="button"][data-btn-state="error"] {
+  transition: color 0.2s ease-out, background-color 0.2s ease-out, border-color 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+[data-slot="button"][data-btn-state="success"] { pointer-events: none; }
+/* A button that turns disabled right after saving (nothing left to save) still shows its result. */
+[data-slot="button"][data-btn-state="success"]:disabled,
+[data-slot="button"][data-btn-state="error"]:disabled { opacity: 1; }
+[data-slot="button"][data-btn-state="success"][data-variant="default"] {
+  background-color: #16a34a; color: #fff; border-color: transparent;
+}
+[data-slot="button"][data-btn-state="success"]:not([data-variant="default"]) {
+  background-color: rgba(22, 163, 74, 0.12); color: #15803d; border-color: rgba(22, 163, 74, 0.3);
+}
+.dark [data-slot="button"][data-btn-state="success"][data-variant="default"] { background-color: #22c55e; color: #052e16; }
+.dark [data-slot="button"][data-btn-state="success"]:not([data-variant="default"]) {
+  background-color: rgba(74, 222, 128, 0.14); color: #4ade80; border-color: rgba(74, 222, 128, 0.3);
+}
+[data-slot="button"][data-btn-state="error"][data-variant="default"],
+[data-slot="button"][data-btn-state="error"][data-variant="destructive"] {
+  background-color: var(--destructive); color: #fff; border-color: transparent;
+}
+[data-slot="button"][data-btn-state="error"]:not([data-variant="default"]):not([data-variant="destructive"]) {
+  background-color: color-mix(in oklch, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border-color: color-mix(in oklch, var(--destructive) 35%, transparent);
+}
+[data-slot="button"][data-variant="link"][data-btn-state="success"],
+[data-slot="button"][data-variant="link"][data-btn-state="error"] { background-color: transparent; border-color: transparent; }
+
+/* Glass pills that cannot be Button still run the same machine (AsyncContent inside). */
+.async-raw { transition: color 0.2s ease-out, background-color 0.2s ease-out, opacity 0.2s; }
+.async-raw[data-btn-state="pending"] { opacity: 0.88 !important; cursor: progress; }
+.async-raw[data-btn-state="success"] .btn-face[data-face="status"] { color: #16a34a; }
+.dark .async-raw[data-btn-state="success"] .btn-face[data-face="status"],
+.glass-dark.async-raw[data-btn-state="success"] .btn-face[data-face="status"] { color: #4ade80; }
+.async-raw[data-btn-state="error"] .btn-face[data-face="status"] { color: var(--destructive); }
+.async-raw .btn-glyph { width: 16px; height: 16px; flex: none; }
+.chat-msg-action[data-btn-state="success"] { color: #16a34a; }
+.dark .chat-msg-action[data-btn-state="success"] { color: #4ade80; }
+.chat-msg-action[data-btn-state="error"] { color: var(--destructive); }
+.chat-msg-action .btn-glyph { width: 14px; height: 14px; }
+
+/* ---------- Full-page loader (DESIGN.md §1 ③) ---------- */
+.page-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(40, 60, 90, 0.26);
+  backdrop-filter: blur(8px);
+  animation: page-loader-fade-in 0.22s ease-out both;
+}
+.dark .page-loader-overlay { background: rgba(4, 10, 20, 0.5); }
+.page-loader-overlay[data-leaving="true"] { animation: page-loader-fade-out 0.22s ease-in both; }
+.page-loader-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px 22px;
+  border-radius: 24px;
+  text-align: center;
+  background: var(--glass-strong, rgba(255, 255, 255, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: var(--glass-blur, blur(18px));
+  box-shadow: var(--glass-shadow-pop, 0 24px 60px rgba(30, 60, 110, 0.22));
+  color: var(--glass-ink, inherit);
+  animation: page-loader-pop 0.26s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.dark .page-loader-card { border-color: rgba(255, 255, 255, 0.08); }
+.page-loader-overlay[data-leaving="true"] .page-loader-card { animation: page-loader-pop-out 0.2s ease-in both; }
+.page-loader-glyph { width: 44px; height: 44px; color: #3b82f6; transition: color 0.2s ease-out; }
+.dark .page-loader-glyph { color: #60a5fa; }
+.page-loader-card[data-btn-state="success"] .page-loader-glyph { color: #16a34a; }
+.dark .page-loader-card[data-btn-state="success"] .page-loader-glyph { color: #4ade80; }
+.page-loader-card[data-btn-state="error"] .page-loader-glyph { color: var(--destructive); }
+.page-loader-glyph .btn-glyph { width: 100%; height: 100%; }
+.page-loader-title { font-size: 15.5px; font-weight: 600; }
+.page-loader-desc { font-size: 13px; color: var(--glass-ink-3, var(--muted-foreground)); line-height: 1.5; }
+.page-loader-progress {
+  width: 100%; height: 6px; border-radius: 999px; overflow: hidden;
+  background: rgba(59, 130, 246, 0.14);
+}
+.page-loader-progress > i {
+  display: block; height: 100%; border-radius: inherit; background: #3b82f6;
+  transition: width 0.3s ease-out;
+}
+.page-loader-steps { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; font-size: 13px; }
+.page-loader-steps li { display: flex; align-items: center; gap: 8px; color: var(--glass-ink-3, var(--muted-foreground)); transition: color 0.2s; }
+.page-loader-steps li[data-step="active"] { color: var(--glass-ink, inherit); font-weight: 500; }
+.page-loader-steps li[data-step="done"] { color: #16a34a; }
+.page-loader-steps li > b { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none; opacity: 0.7; }
+.page-loader-actions { display: flex; gap: 8px; margin-top: 6px; }
+.page-loader-actions [data-slot="button"] { min-width: 80px; border-radius: 999px; }
+@keyframes page-loader-fade-in { from { opacity: 0; } }
+@keyframes page-loader-fade-out { to { opacity: 0; } }
+@keyframes page-loader-pop { from { opacity: 0; transform: scale(0.95) translateY(6px); } }
+@keyframes page-loader-pop-out { to { opacity: 0; transform: scale(0.97); } }
+
+/* ---------- List add / remove ---------- */
+.list-enter { animation: list-enter 0.24s cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes list-enter { from { opacity: 0; transform: translateY(-4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-face, .btn-face[data-face] { transform: none !important; }
+  [data-btn-state="pending"] .btn-glyph-ring { animation-duration: 1.6s; }
+  .btn-glyph-ring { transition: opacity 0.15s; }
+  [data-btn-state="success"] .btn-glyph-ring,
+  [data-btn-state="error"] .btn-glyph-ring { transform: none; }
+  [data-btn-state="success"] .btn-glyph-check,
+  [data-btn-state="error"] .btn-glyph-x { transition: opacity 0.15s; }
+  .page-loader-card, .page-loader-overlay[data-leaving="true"] .page-loader-card { animation-name: page-loader-fade-in; }
+  .page-loader-overlay[data-leaving="true"] .page-loader-card { animation-name: page-loader-fade-out; }
+  .list-enter { animation-name: page-loader-fade-in; }
+}
+
 /* ---------- Dialogs ---------- */
 [data-slot="dialog-content"] {
   border: 1px solid rgba(255, 255, 255, 0.6);
@@ -1863,7 +2042,6 @@ button.chat-bottom-pill:hover {
 [data-slot="dialog-overlay"] {
   background: rgba(40, 60, 90, 0.2);
   backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   transition: opacity 0.18s ease;
 }
 .dark [data-slot="dialog-overlay"] { background: rgba(4, 10, 20, 0.45); }
@@ -1899,7 +2077,6 @@ button.chat-bottom-pill:hover {
   background: var(--glass-strong);
   border: 1px solid rgba(255, 255, 255, 0.55);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow-pop);
   color: var(--glass-ink);
   font-size: 13.5px;

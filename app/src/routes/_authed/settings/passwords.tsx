@@ -60,7 +60,7 @@ function PasswordsPage() {
             {logins.data.logins.map((login, index) => (
               <div key={login.id}>
                 {index > 0 ? <Separator /> : null}
-                <Item size="sm">
+                <Item className="list-enter" size="sm">
                   <ItemMedia variant="icon">
                     <IconKey />
                   </ItemMedia>
@@ -76,9 +76,11 @@ function PasswordsPage() {
                   <ItemActions>
                     <Button
                       aria-label={`删除 ${login.origin} 的登录`}
-                      size="sm"
+                      size="icon-sm"
                       variant="ghost"
-                      disabled={remove.isPending}
+                      disabled={remove.isPending && remove.variables !== login.id}
+                      mutation={remove}
+                      mutationWhen={remove.variables === login.id}
                       onClick={() => {
                         void confirmDialog({
                           title: "删除这条已保存的登录？",

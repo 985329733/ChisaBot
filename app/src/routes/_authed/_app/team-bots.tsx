@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import { PageShell, PageSection } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import {
@@ -117,7 +118,6 @@ function TeamBotsPage() {
 function TeamBotRow({ bot }: { bot: TeamBot }) {
   const queryClient = useQueryClient();
   const unpublish = useMutation(unpublishTeamBotMutationOptions(queryClient));
-  const [copied, setCopied] = useState(false);
   return (
     <div
       className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"
@@ -147,17 +147,9 @@ function TeamBotRow({ bot }: { bot: TeamBot }) {
       >
         {"开始私聊"}
       </Button>
-      <Button
-        onClick={() =>
-          void navigator.clipboard
-            .writeText(teamBotLink(bot.id))
-            .then(() => setCopied(true))
-        }
-        size="sm"
-        variant="outline"
-      >
-        {copied ? "已复制" : "复制链接"}
-      </Button>
+      <CopyButton size="sm" value={() => teamBotLink(bot.id)} variant="outline">
+        {"复制链接"}
+      </CopyButton>
       {bot.mine ? (
         <Button
           disabled={unpublish.isPending}
@@ -258,7 +250,7 @@ function PublishForm({ botId, current }: { botId: string; current?: TeamBot }) {
         </div>
       ) : null}
       <div className="flex items-center gap-2">
-        <Button loading={publish.isPending} disabled={publish.isPending} size="sm" type="submit">
+        <Button mutation={publish} feedback={current ? { pending: "更新中…", success: "已更新", error: "更新失败" } : { pending: "发布中…", success: "已发布", error: "发布失败" }} size="sm" type="submit">
           {current ? "更新" : "发布到团队"}
         </Button>
         {publish.error ? (
@@ -308,8 +300,9 @@ function Assignments({ bot }: { bot: TeamBot }) {
           placeholder={"组，或 *"}
           value={group}
         />
-        <Button loading={assign.isPending}
-          disabled={!group.trim() || assign.isPending}
+        <Button mutation={assign}
+          feedback={{ pending: "分配中…", success: "已分配", error: "分配失败" }}
+          disabled={!group.trim()}
           size="sm"
           type="submit"
         >

@@ -7,6 +7,8 @@ import { useModelSelectionSaving, useModelSelectionSync } from "@/lib/model-sele
 import { refreshModelsMutationOptions, saveAgentModelMutationOptions } from "@/lib/model-selection/mutations";
 import { agentModelQueryOptions, modelCatalogQueryOptions, modelSelectionKeys } from "@/lib/model-selection/queries";
 import { cn } from "@/lib/utils";
+import { FEEDBACK_PRESETS, useMutationFeedback } from "@/components/ui/async-action";
+import { AsyncContent } from "@/components/ui/button";
 
 type Option = ModelCatalogEntry & { missing?: boolean; inherited?: boolean };
 type Group = { value: string; label: string; items: Option[] };
@@ -61,6 +63,7 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
   const catalog = useQuery(modelCatalogQueryOptions());
   const save = useMutation(saveAgentModelMutationOptions(queryClient, agentId));
   const refresh = useMutation(refreshModelsMutationOptions(queryClient));
+  const refreshState = useMutationFeedback(refresh);
   const saving = useModelSelectionSaving(agentId);
   const refreshing = useIsMutating({ mutationKey: modelSelectionKeys.refresh }) > 0;
   const [open, setOpen] = useState(false);
@@ -175,14 +178,18 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
             <div className="model-popover-footer">
               <span className="truncate">{error ? <span className="text-destructive">{error}</span> : catalog.data ? `共 ${models.length} 个模型 · 下一轮生效` : "正在加载模型列表…"}</span>
               <button
-                className="model-popover-refresh"
+                aria-busy={refreshState === "pending" || undefined}
+                className="model-popover-refresh async-raw"
+                data-btn-state={refreshState}
                 disabled={saving || refreshing}
                 onClick={() => refresh.mutate()}
                 title="刷新 Magpie 模型列表"
                 type="button"
               >
-                <IconRefresh className={cn("size-3.5", refreshing && "animate-spin")} />
-                {refreshing ? "刷新中" : "刷新"}
+                <AsyncContent labels={FEEDBACK_PRESETS.refresh} state={refreshState}>
+                  <IconRefresh className="size-3.5" />
+                  {"刷新"}
+                </AsyncContent>
               </button>
             </div>
           </ComboboxPrimitive.Popup>

@@ -775,8 +775,8 @@ function ManageSection({
             </ItemDescription>
           </ItemContent>
           <ItemActions>
-            <Button loading={duplicateAgent.isPending}
-              disabled={duplicateAgent.isPending}
+            <Button mutation={duplicateAgent}
+              feedback="copy"
               onClick={async () => {
                 const copy = await duplicateAgent.mutateAsync(agentId);
                 await navigate({ search: { agent: copy.id }, to: "/agents" });
@@ -784,7 +784,7 @@ function ManageSection({
               size="sm"
               variant="outline"
             >
-              {duplicateAgent.isPending ? "正在复制…" : "复制"}
+              {"复制"}
             </Button>
           </ItemActions>
         </Item>
