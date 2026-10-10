@@ -1,0 +1,161 @@
+import { queryOptions } from "@tanstack/react-query";
+import type {
+  DeviceApprovalView,
+  DeviceAuditEntry,
+  DeviceCapabilities,
+  DeviceView,
+} from "../../../shared/devices";
+import { client } from "@/lib/client";
+
+/**
+ * PC 设备（docs/pc-node.md）。列表每 5 秒刷新一次，这样在线状态和待审批几乎是实时的，
+ * 不需要另开一条推送通道。
+ */
+
+export const deviceKeys = {
+  all: ["devices"] as const,
+  list: (all: boolean) => ["devices", "list", all] as const,
+  detail: (id: string) => ["devices", "detail", id] as const,
+  audit: (id: string) => ["devices", "audit", id] as const,
+  download: ["devices", "download"] as const,
+};
+
+export type DeviceList = { devices: DeviceView[]; approvals: DeviceApprovalView[] };
+
+export function deviceListQueryOptions(all = false) {
+  return queryOptions({
+    queryKey: deviceKeys.list(all),
+    queryFn: ({ signal }): Promise<DeviceList> =>
+      client(`/api/devices${all ? "?all=1" : ""}`, { fallback: "无法加载设备列表", signal }).then((r) => r.json()),
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: "always",
+  });
+}
+
+export function deviceQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: deviceKeys.detail(id),
+    queryFn: ({ signal }): Promise<DeviceView> =>
+      client(`/api/devices/${encodeURIComponent(id)}`, "device", { fallback: "无法加载这台设备", signal }),
+    refetchInterval: 5_000,
+  });
+}
+
+export function deviceAuditQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: deviceKeys.audit(id),
+    queryFn: ({ signal }): Promise<DeviceAuditEntry[]> =>
+      client(`/api/devices/${encodeURIComponent(id)}/audit?limit=100`, "entries", { fallback: "无法加载操作记录", signal }),
+    refetchInterval: 8_000,
+  });
+}
+
+export type DevicePatch = {
+  name?: string;
+  capabilities?: Partial<DeviceCapabilities>;
+  allowedRoots?: string[];
+  paused?: boolean;
+  botIds?: string[];
+};
+
+export function patchDevice(id: string, patch: DevicePatch): Promise<DeviceView> {
+  return client(`/api/devices/${encodeURIComponent(id)}`, "device", {
+    method: "PATCH",
+    body: patch,
+    fallback: "保存失败，请重试",
+  });
+}
+
+export async function revokeDevice(id: string) {
+  await client(`/api/devices/${encodeURIComponent(id)}/revoke`, { method: "POST", fallback: "撤销失败，请重试" });
+}
+
+export async function deleteDevice(id: string) {
+  await client(`/api/devices/${encodeURIComponent(id)}`, { method: "DELETE", fallback: "删除失败，请重试" });
+}
+
+export async function testDevice(id: string): Promise<Record<string, unknown>> {
+  const response = await client(`/api/devices/${encodeURIComponent(id)}/test`, {
+    method: "POST",
+    fallback: "测试连接失败",
+  });
+  return (await response.json()).result ?? {};
+}
+
+export async function decideApproval(id: string, decision: "approve" | "deny") {
+  await client(`/api/devices/approvals/${encodeURIComponent(id)}`, {
+    method: "POST",
+    body: { decision },
+    fallback: "这个审批已经处理过或已过期",
+  });
+}
+
+/** 网关上托管的 PC 客户端安装包清单（/downloads/pc/latest.json）。不存在时为 null。 */
+export type PcDownload = {
+  version: string;
+  publishedAt?: string;
+  files: Array<{ kind: "installer" | "portable"; name: string; url: string; bytes: number; sha256?: string }>;
+};
+
+export function pcDownloadQueryOptions() {
+  return queryOptions({
+    queryKey: deviceKeys.download,
+    queryFn: async (): Promise<PcDownload | null> => {
+      const response = await fetch("/downloads/pc/latest.json", { credentials: "include" });
+      if (!response.ok) return null;
+      const type = response.headers.get("content-type") ?? "";
+      if (!type.includes("json")) return null;
+      return response.json();
+    },
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+}
+
+export function platformLabel(platform: string) {
+  if (platform === "win32") return "Windows";
+  if (platform === "darwin") return "macOS";
+  if (platform === "linux") return "Linux";
+  return platform || "未知系统";
+}
+
+export function bytesText(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+/** 「刚刚 / 3 分钟前 / 昨天 14:20」。 */
+export function seenText(at: string | null, online: boolean) {
+  if (online) return "在线";
+  if (!at) return "从未连接";
+  const ms = Date.now() - Date.parse(at);
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return "刚刚在线";
+  if (minutes < 60) return `${minutes} 分钟前在线`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} 小时前在线`;
+  return `${new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} 在线`;
+}
+
+export const OUTCOME_LABEL: Record<string, { text: string; tone: "ok" | "warn" | "danger" | "muted" }> = {
+  succeeded: { text: "成功", tone: "ok" },
+  requested: { text: "进行中", tone: "muted" },
+  failed: { text: "失败", tone: "danger" },
+  refused: { text: "已拒绝", tone: "warn" },
+  denied: { text: "用户拒绝", tone: "warn" },
+  expired: { text: "审批超时", tone: "warn" },
+  offline: { text: "设备离线", tone: "muted" },
+  timeout: { text: "超时", tone: "danger" },
+  approved_local: { text: "PC 上批准", tone: "ok" },
+  denied_local: { text: "PC 上拒绝", tone: "warn" },
+};
+
+export const ACTION_LABEL: Record<string, string> = {
+  enrolled: "登记设备",
+  revoked: "撤销设备",
+  unenrolled: "PC 上退出登录",
+  config_changed: "修改设置",
+  kill_switch_on: "紧急停止",
+  kill_switch_off: "解除紧急停止",
+};

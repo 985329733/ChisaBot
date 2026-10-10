@@ -1,5 +1,6 @@
 import {
   IconAdjustmentsHorizontal,
+  IconDeviceDesktop,
   IconBuildingSkyscraper,
   IconKey,
   IconLayoutGrid,
@@ -33,6 +34,12 @@ const GROUPS: RailGroup[] = [
         sub: "机器人代表你使用的应用",
         icon: IconPlug,
         linkOptions: { to: "/settings/connected-accounts" },
+      },
+      {
+        title: "设备",
+        sub: "PC 客户端与远程控制",
+        icon: IconDeviceDesktop,
+        linkOptions: { to: "/settings/devices" },
       },
       {
         title: "密码",
