@@ -117,7 +117,10 @@ function SidebarProvider({
       // another script the B key writes "и" or "β", and only its `code` still says B.
       if (
         keyOf(event) === SIDEBAR_KEYBOARD_SHORTCUT &&
-        (event.metaKey || event.ctrlKey)
+        (event.metaKey || event.ctrlKey) &&
+        // Ctrl+Alt+B belongs to the right-hand panel column (`lib/panels/rail-open.ts`).
+        !event.altKey &&
+        !event.shiftKey
       ) {
         event.preventDefault();
         toggleSidebar();

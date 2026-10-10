@@ -26,10 +26,13 @@ export function SidebarShell({
   children,
   className,
   width,
+  iconWidth,
 }: {
   children: ReactNode;
   className?: string;
   width: string;
+  /** Width of the collapsed state, for a sidebar drawn with `collapsible="icon"` (the app's avatar rail). */
+  iconWidth?: string;
 }) {
   // Read before the first paint, so a shell somebody left collapsed never flashes open.
   const [open, setOpen] = useState(() =>
@@ -57,6 +60,7 @@ export function SidebarShell({
         {
           "--sidebar-width": width,
           "--sidebar-width-mobile": "20rem",
+          ...(iconWidth ? { "--sidebar-width-icon": iconWidth } : {}),
         } as CSSProperties
       }
     >

@@ -1,4 +1,5 @@
 import { IconLayoutSidebar } from "@tabler/icons-react";
+import { createContext, useContext } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
@@ -17,6 +18,9 @@ const SHORTCUT_LABEL = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
   ? "⌘B"
   : "Ctrl+B";
 
+/** True inside a shell whose top bar already carries the roster toggle (the glass `_app` shell). */
+export const TopBarOwnsSidebarToggle = createContext(false);
+
 /**
  * Whether {@link SidebarToggle} will actually draw anything.
  *
@@ -27,7 +31,11 @@ const SHORTCUT_LABEL = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
  */
 export function useSidebarToggleVisible(): boolean {
   const sidebar = useOptionalSidebar();
+  const inTopBar = useContext(TopBarOwnsSidebarToggle);
   if (!sidebar) return false;
+  // The glass app shell draws its own permanent toggle in the top bar on desktop; a second one in
+  // the page header would be a duplicate. Mobile keeps the old behaviour untouched.
+  if (inTopBar && !sidebar.isMobile) return false;
   /*
    * Below 768px the sidebar is an overlay Sheet with its own open state, and `open` describes the
    * desktop pane — reading it there would answer for the wrong one.

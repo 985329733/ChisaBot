@@ -3,6 +3,10 @@ import {
   IconBox,
   IconCube,
   IconHome,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+  IconLayoutSidebarRightCollapse,
+  IconLayoutSidebarRightExpand,
   IconKey,
   IconLink,
   IconLogout,
@@ -17,7 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { createContext, type MouseEvent, type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type MouseEvent, type ReactElement, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/theme-provider";
 import {
   DropdownMenu,
@@ -29,6 +33,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  PANEL_RAIL_HOTKEY,
+  PANEL_RAIL_HOTKEY_LABEL,
+  togglePanelRail,
+  usePanelRailOpen,
+} from "@/lib/panels/rail-open";
+import { matchesHotkey } from "@/lib/hotkeys/hotkeys";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { approvalInboxOptions } from "@/lib/approvals";
 import { signOutMutationOptions } from "@/lib/auth/mutations";
@@ -82,6 +94,7 @@ export function GlassTopBar() {
         <Link aria-label={"首页"} className="glass-home" to="/">
           <IconHome className="size-5" />
         </Link>
+        {sidebar && !sidebar.isMobile ? <RosterToggle /> : null}
         {sidebar?.isMobile ? (
           <button
             aria-label={"会话列表"}
@@ -105,10 +118,82 @@ export function GlassTopBar() {
         ))}
       </nav>
       <div className="flex items-center gap-3">
+        <PanelRailToggle />
         <TopSearch />
         <AccountMenu />
       </div>
     </header>
+  );
+}
+
+const MOD_LABEL = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? "⌘B" : "Ctrl+B";
+/** The roster element both toggles point their `aria-controls` at. */
+export const ROSTER_ID = "chisabot-bot-list";
+export const PANEL_RAIL_ID = "chisabot-panel-rail";
+
+function ToggleTip({ label, keys, children }: { label: string; keys: string; children: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="bottom" sideOffset={8}>
+        {label}
+        <span className="text-background/60">{keys}</span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Left roster: collapses to the slim avatar rail (Ctrl+B is the primitive's own shortcut). */
+function RosterToggle() {
+  const sidebar = useOptionalSidebar();
+  if (!sidebar) return null;
+  const open = sidebar.open;
+  const label = open ? "收起机器人列表" : "展开机器人列表";
+  const Icon = open ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand;
+  return (
+    <ToggleTip keys={MOD_LABEL} label={label}>
+      <button
+        aria-controls={ROSTER_ID}
+        aria-expanded={open}
+        aria-label={label}
+        className="glass-icon-btn"
+        onClick={sidebar.toggleSidebar}
+        type="button"
+      >
+        <Icon className="glass-icon-btn-ico" key={open ? "open" : "closed"} />
+      </button>
+    </ToggleTip>
+  );
+}
+
+/** Right 自定义面板 column. Only drawn where that column exists (≥1280px, the `xl` breakpoint). */
+function PanelRailToggle() {
+  const open = usePanelRailOpen();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!matchesHotkey(event, PANEL_RAIL_HOTKEY)) return;
+      if (!window.matchMedia("(min-width: 1280px)").matches) return;
+      event.preventDefault();
+      togglePanelRail();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const label = open ? "收起面板" : "展开面板";
+  const Icon = open ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRightExpand;
+  return (
+    <ToggleTip keys={PANEL_RAIL_HOTKEY_LABEL} label={label}>
+      <button
+        aria-controls={PANEL_RAIL_ID}
+        aria-expanded={open}
+        aria-label={label}
+        className="glass-icon-btn hidden xl:grid"
+        onClick={togglePanelRail}
+        type="button"
+      >
+        <Icon className="glass-icon-btn-ico" key={open ? "open" : "closed"} />
+      </button>
+    </ToggleTip>
   );
 }
 

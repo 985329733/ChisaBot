@@ -74,6 +74,11 @@ import {
 } from "../bot-profile/attention";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { Channel } from "./channel";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ChannelPagination } from "./channel-pagination";
 
 /** Destinations that used to be sidebar rows; settings, approvals and admin moved to the avatar menu. */
@@ -453,9 +458,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     />
   );
 
+  const collapsed = Boolean(sidebar && !sidebar.isMobile && sidebar.state === "collapsed");
+  if (collapsed) {
+    const railBots = mainBot ? [mainBot, ...others] : roster;
+    return (
+      <Sidebar collapsible="icon" variant="floating" {...props}>
+        <BotMiniRail
+          attentionById={attentionById}
+          bots={railBots}
+          channels={channels.data}
+          mainBotId={mainBot?.id}
+          selectedBotId={selectedBotId}
+        />
+      </Sidebar>
+    );
+  }
+
   return (
-    <Sidebar variant="floating" {...props}>
-      <SidebarHeader className="glass-side-header gap-3 p-0 pb-3">
+    <Sidebar collapsible="icon" variant="floating" {...props}>
+      <SidebarHeader className="glass-side-header glass-side-full gap-3 p-0 pb-3">
         <Link
           className="glass-newchat"
           search={selectedBotId ? { agent: selectedBotId } : {}}
@@ -478,7 +499,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </InputGroup>
         ) : null}
       </SidebarHeader>
-      <SidebarContent className="gap-3 overflow-hidden">
+      <SidebarContent className="glass-side-full gap-3 overflow-hidden" id="chisabot-bot-list">
         <section
           aria-label={searching ? "搜索结果" : "机器人"}
           className="glass-card glass-side-card min-h-0 flex-1"
@@ -580,5 +601,117 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function RailTip({ label, children }: { label: string; children: React.ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="right" sideOffset={10}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * The roster collapsed (Ctrl+B / the top-bar toggle): a 64px glass rail of Bot avatars, so Bots stay
+ * one click away. The selected Bot carries the same blue ring/edge as its full row, the main Bot its
+ * star, and unread / waiting states a dot.
+ */
+function BotMiniRail({
+  bots,
+  mainBotId,
+  selectedBotId,
+  channels,
+  attentionById,
+}: {
+  bots: RosterBot[];
+  mainBotId: string | undefined;
+  selectedBotId: string | null | undefined;
+  channels: ChannelSummary[] | undefined;
+  attentionById: Map<string, BotAttention>;
+}) {
+  return (
+    <nav aria-label={"机器人"} className="glass-mini" id="chisabot-bot-list">
+      <RailTip label={"新聊天"}>
+        <Link
+          aria-label={"新聊天"}
+          className="glass-mini-new"
+          search={selectedBotId ? { agent: selectedBotId } : {}}
+          to="/channel/new"
+        >
+          <IconPlus className="size-5" />
+        </Link>
+      </RailTip>
+      <div className="glass-card glass-mini-card">
+        <div className="glass-mini-scroll scroll-fade-b">
+          {bots.map((bot) => {
+            const selected = selectedBotId === bot.id;
+            const main = bot.id === mainBotId;
+            const attention = attentionById.get(bot.id);
+            const waiting = attention ? needsInput(attention) : 0;
+            const unread = !selected && attention ? attention.unread > 0 : false;
+            const latest = latestChannelFor(bot.id, channels);
+            const label = main ? `${bot.name}（主机器人）` : bot.name;
+            const inner = (
+              <>
+                <ChannelAvatar participantIds={[bot.id]} size={36} />
+                {main ? (
+                  <span aria-hidden className="glass-bot-star">
+                    <IconStarFilled className="size-2.5" />
+                  </span>
+                ) : null}
+                {waiting > 0 ? (
+                  <span className="glass-mini-badge">{waiting}</span>
+                ) : unread ? (
+                  <span aria-hidden className="glass-mini-dot" />
+                ) : null}
+              </>
+            );
+            return (
+              <RailTip key={bot.id} label={label}>
+                {latest ? (
+                  <Link
+                    aria-current={selected ? "page" : undefined}
+                    aria-label={label}
+                    className={cn("glass-mini-bot", selected && "is-on")}
+                    params={{ channelId: latest.id }}
+                    to="/channel/$channelId"
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <Link
+                    aria-current={selected ? "page" : undefined}
+                    aria-label={label}
+                    className={cn("glass-mini-bot", selected && "is-on")}
+                    search={{ agent: bot.id }}
+                    to="/channel/new"
+                  >
+                    {inner}
+                  </Link>
+                )}
+              </RailTip>
+            );
+          })}
+        </div>
+        <div className="glass-mini-links">
+          {sideLinks.map((item) => (
+            <RailTip key={item.to} label={item.label}>
+              <Link
+                activeProps={{ className: "is-on" }}
+                aria-label={item.label}
+                className="glass-mini-link"
+                to={item.to}
+              >
+                <item.icon className="size-[18px]" />
+              </Link>
+            </RailTip>
+          ))}
+        </div>
+      </div>
+    </nav>
   );
 }

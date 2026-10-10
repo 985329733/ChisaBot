@@ -1087,6 +1087,272 @@ body::before {
   display: none;
 }
 
+/* ---------- Side-column collapse (DESIGN.md §8) ---------- */
+.glass-shell {
+  --glass-collapse-ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --glass-collapse-ms: 260ms;
+}
+.glass-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--glass-dim);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow-sm);
+  color: var(--glass-ink-2);
+  outline: none;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+.glass-icon-btn.hidden {
+  display: none;
+}
+@media (min-width: 1280px) {
+  .glass-icon-btn.xl\:grid {
+    display: grid;
+  }
+}
+.glass-icon-btn:hover {
+  background: var(--glass-strong);
+  color: var(--glass-ink);
+}
+.glass-icon-btn:active {
+  transform: scale(0.94);
+}
+.glass-icon-btn:focus-visible {
+  box-shadow: var(--glass-shadow-sm), 0 0 0 2px rgba(47, 124, 246, 0.5);
+}
+.glass-icon-btn-ico {
+  width: 20px;
+  height: 20px;
+  animation: glass-ico-in 0.22s var(--glass-collapse-ease, ease-out);
+}
+@keyframes glass-ico-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7) rotate(-12deg);
+  }
+}
+@keyframes glass-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Left roster: the primitive's width/left transition, retimed; collapsed it is an 80px avatar rail. */
+.glass-shell [data-slot="sidebar-gap"],
+.glass-shell [data-slot="sidebar-container"].glass-sidebar-container {
+  transition-duration: var(--glass-collapse-ms);
+  transition-timing-function: var(--glass-collapse-ease);
+}
+.glass-shell [data-slot="sidebar"][data-collapsible="icon"] > [data-slot="sidebar-gap"],
+.glass-shell [data-slot="sidebar"][data-collapsible="icon"] > [data-slot="sidebar-container"].glass-sidebar-container {
+  width: var(--sidebar-width-icon, 80px);
+}
+.glass-shell [data-slot="sidebar-container"].glass-sidebar-container > [data-slot="sidebar-inner"] {
+  /* Clip the full roster while the column grows back, without cutting off card shadows. */
+  overflow: clip;
+  overflow-clip-margin: 24px;
+}
+.glass-side-full {
+  min-width: calc(var(--sidebar-width) - 16px);
+  animation: glass-fade-in 0.24s ease-out;
+}
+.glass-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  height: 100%;
+  width: calc(var(--sidebar-width-icon, 80px) - 16px);
+  animation: glass-fade-in 0.24s ease-out;
+}
+.glass-mini-new {
+  height: 46px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow-sm);
+  color: var(--glass-ink);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.glass-mini-new:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+.dark .glass-mini-new:hover {
+  background: rgba(40, 54, 76, 0.9);
+}
+.glass-mini-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+}
+.glass-mini-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 12px;
+  scrollbar-width: none;
+}
+.glass-mini-scroll::-webkit-scrollbar {
+  display: none;
+}
+.glass-mini-bot {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  outline: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.glass-mini-bot > :first-child {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.glass-mini-bot .glass-bot-star {
+  right: 2px;
+  bottom: 2px;
+}
+.glass-mini-bot:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+.dark .glass-mini-bot:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.glass-mini-bot.is-on {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: var(--glass-shadow-sm), inset 0 0 0 1.5px rgba(47, 124, 246, 0.55);
+}
+.dark .glass-mini-bot.is-on {
+  background: rgba(76, 141, 255, 0.18);
+  box-shadow: inset 0 0 0 1.5px rgba(110, 165, 255, 0.6);
+}
+.glass-mini-bot.is-on::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #2f7cf6;
+}
+.dark .glass-mini-bot.is-on::before {
+  background: #4c8dff;
+}
+.glass-mini-bot:focus-visible {
+  box-shadow: 0 0 0 2px rgba(47, 124, 246, 0.5);
+}
+.glass-mini-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #2f7cf6;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+.glass-mini-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #2f7cf6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+.dark .glass-mini-dot,
+.dark .glass-mini-badge {
+  box-shadow: 0 0 0 2px rgba(22, 30, 44, 0.95);
+}
+.glass-mini-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-top: 8px;
+  margin: 0 10px;
+  border-top: 1px solid rgba(22, 24, 29, 0.06);
+}
+.dark .glass-mini-links {
+  border-top-color: rgba(255, 255, 255, 0.07);
+}
+.glass-mini-link {
+  width: 40px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--glass-ink-3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.glass-mini-link:hover,
+.glass-mini-link.is-on {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--glass-ink);
+}
+.dark .glass-mini-link:hover,
+.dark .glass-mini-link.is-on {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Right panel column: width + padding + opacity; the inner column keeps its width and slides out. */
+.glass-rail {
+  transition:
+    width var(--glass-collapse-ms) var(--glass-collapse-ease),
+    padding var(--glass-collapse-ms) var(--glass-collapse-ease),
+    opacity 0.2s ease;
+}
+.glass-rail.is-dragging {
+  transition: none;
+}
+.glass-rail.is-collapsed {
+  opacity: 0;
+  pointer-events: none;
+}
+.glass-rail.is-collapsed .glass-rail-handle {
+  display: none;
+}
+.glass-rail-inner {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No sliding: the columns snap to size and only fade. */
+  .glass-shell [data-slot="sidebar-gap"],
+  .glass-shell [data-slot="sidebar-container"].glass-sidebar-container {
+    transition-duration: 0s;
+  }
+  .glass-rail {
+    transition: opacity 0.2s ease;
+  }
+  .glass-icon-btn-ico {
+    animation: glass-fade-in 0.15s ease-out;
+  }
+}
+
 /* Pages rendered through PageShell sit on glass instead of a flat sheet. */
 .glass-main [data-slot="page-shell"] {
   background: transparent;

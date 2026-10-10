@@ -59,6 +59,7 @@ import {
   readStoredPreference,
   writeStoredPreference,
 } from "@/lib/preference-storage";
+import { usePanelRailOpen } from "@/lib/panels/rail-open";
 import { cn } from "@/lib/utils";
 import { PanelFrame, type PanelFrameBridge, previewBridge } from "./panel-frame";
 
@@ -82,6 +83,7 @@ function storedWidth() {
 export function PanelRail({ className }: { className?: string }) {
   const [width, setWidth] = useState(storedWidth);
   const [dragging, setDragging] = useState(false);
+  const open = usePanelRailOpen();
   const start = useRef<{ x: number; width: number } | null>(null);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -112,13 +114,20 @@ export function PanelRail({ className }: { className?: string }) {
 
   return (
     <aside
+      aria-hidden={open ? undefined : true}
       aria-label={"自定义面板栏"}
       className={cn(
-        "glass-rail relative hidden h-full min-h-0 shrink-0 flex-col gap-3 pr-4 pb-4 pl-2 xl:flex",
-        dragging && "select-none",
+        "glass-rail relative hidden h-full min-h-0 shrink-0 flex-col pr-4 pb-4 pl-2 xl:flex",
+        dragging && "select-none is-dragging",
+        !open && "is-collapsed",
         className,
       )}
-      style={{ width }}
+      data-state={open ? "expanded" : "collapsed"}
+      id="chisabot-panel-rail"
+      inert={!open}
+      // Collapsed = zero width and no side padding; the inner column keeps its width, so it slides
+      // off the right edge (clipped by .glass-body) instead of reflowing while it narrows.
+      style={open ? { width } : { width: 0, paddingLeft: 0, paddingRight: 0 }}
     >
       {/* biome-ignore lint/a11y/useSemanticElements: a draggable splitter has no native element. */}
       <div
@@ -149,7 +158,9 @@ export function PanelRail({ className }: { className?: string }) {
         tabIndex={0}
       />
       {dragging ? <div className="fixed inset-0 z-40 cursor-col-resize" /> : null}
-      <PanelRailBody />
+      <div className="glass-rail-inner flex h-full min-h-0 flex-col gap-3" style={{ width: width - 24 }}>
+        <PanelRailBody />
+      </div>
     </aside>
   );
 }
