@@ -2,7 +2,9 @@ import {
   mutationOptions,
   type QueryClient,
   queryOptions,
+  useMutation,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { client } from "@/lib/client";
@@ -95,4 +97,39 @@ export function saveUserPreferencesMutationOptions(
         preferences,
       ),
   });
+}
+
+/**
+ * The Bot this person pinned as their main Bot, stored with their other preferences so it follows
+ * them to every device. Saved optimistically: the roster re-sorts the moment the menu is clicked and
+ * goes back if the save fails.
+ */
+export function useMainBot() {
+  const queryClient = useQueryClient();
+  const preferences = useUserPreferences();
+  const queryKey = userPreferencesQueryOptions(preferences.userId).queryKey;
+  const save = useMutation({
+    mutationFn: (mainBotId: string | null): Promise<UserPreferences> => {
+      if (!preferences.userId) throw new Error("登录以保存您的偏好设置。");
+      return client("/api/settings/preferences", "preferences", {
+        method: "PATCH",
+        body: { mainBotId },
+        fallback: "无法保存主机器人",
+      });
+    },
+    onMutate: (mainBotId) => {
+      const previous = queryClient.getQueryData(queryKey);
+      if (previous) queryClient.setQueryData(queryKey, { ...previous, mainBotId });
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSuccess: (saved) => queryClient.setQueryData(queryKey, saved),
+  });
+  return {
+    mainBotId: preferences.data?.mainBotId ?? null,
+    settled: preferences.isSuccess || preferences.isError,
+    setMainBot: (botId: string | null) => save.mutate(botId),
+  };
 }

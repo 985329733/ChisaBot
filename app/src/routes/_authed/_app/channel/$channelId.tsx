@@ -6,12 +6,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { z } from "zod";
 import { AgentProfile } from "@/components/agents/agent-profile";
 import { hasUnseenActivity } from "@/components/app-sidebar/app-sidebar";
-import { ChannelAvatar } from "@/components/channels/avatar";
 import { BotPausedBanner } from "@/components/bot-profile/pause-banner";
 import { ChannelChat } from "@/components/channels/channel-chat";
 import { ComputerChatControls } from "@/components/computer/computer-controls";
@@ -33,11 +31,6 @@ const chatSearchSchema = z.object({
   watch: z.boolean().optional(),
 });
 
-const EASE_OUT = [0.23, 1, 0.32, 1] as const;
-
-const HEADING_ENTRANCE_SECONDS = 0.18;
-const HEADING_ENTRANCE_OFFSET = "translateY(4px)";
-
 /** Shared detail pane width for the live screen view. */
 const SCREEN_PANEL_WIDTH = 400;
 
@@ -52,7 +45,6 @@ function RouteComponent() {
   const channel = useQuery(channelQueryOptions(channelId));
   const navigate = Route.useNavigate();
   const isSettingsOpen = settings === true;
-  const prefersReducedMotion = useReducedMotion();
   const isWatching = watch === true;
   /** Channel routing currently supports one coworker. */
   const agentId = channel.data?.agentIds[0];
@@ -135,46 +127,11 @@ function RouteComponent() {
     >
       <div className="flex flex-col">
         <div className="min-h-12 border-b border-border sticky top-0 flex flex-row flex-wrap items-center justify-between px-3 py-2 gap-2">
-          {/* Keyed on the displayed name so cold channel loads animate the resolved name, not the id. */}
-          <div className="flex min-w-0 items-center gap-1.5">
+          {/* The Bot is shown selected in the left roster, so the header carries only its controls. */}
+          <div className="flex min-w-0 items-center">
             <SidebarToggle />
-            <motion.div
-              animate={{ opacity: 1 }}
-              className="shrink-0"
-              initial={{ opacity: 0 }}
-              key={`avatar:${channel.data?.name ?? channelId}`}
-              transition={{
-                duration: HEADING_ENTRANCE_SECONDS,
-                ease: EASE_OUT,
-              }}
-            >
-              <ChannelAvatar
-                participantIds={channel.data?.agentIds ?? []}
-                size={22}
-              />
-            </motion.div>
-            <motion.span
-              animate={
-                prefersReducedMotion
-                  ? { opacity: 1 }
-                  : { opacity: 1, transform: "translateY(0px)" }
-              }
-              className="min-w-0 text-sm tracking-tight truncate"
-              initial={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, transform: HEADING_ENTRANCE_OFFSET }
-              }
-              key={`name:${channel.data?.name ?? channelId}`}
-              transition={{
-                duration: HEADING_ENTRANCE_SECONDS,
-                ease: EASE_OUT,
-              }}
-            >
-              {channel.data?.name ?? "会话"}
-            </motion.span>
           </div>
-          <div className="flex flex-row gap-1.5">
+          <div className="ml-auto flex flex-row items-center gap-1.5">
             <ComputerChatControls
               computerId={agentId}
               open={isWatching}

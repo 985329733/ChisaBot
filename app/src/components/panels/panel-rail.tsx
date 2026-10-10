@@ -25,7 +25,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { ChannelAvatar } from "@/components/channels/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,7 +152,7 @@ export function PanelRail({ className }: { className?: string }) {
 }
 
 function PanelRailBody() {
-  const { botId, choose, routeBotId } = usePanelBot();
+  const { botId, routeBotId } = usePanelBot();
   const agents = useQuery(agentListQueryOptions());
   const bot = agents.data?.find((a) => a.id === botId);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -195,32 +194,6 @@ function PanelRailBody() {
     <>
       <header className="flex h-10 shrink-0 items-center gap-2 px-1">
         <h2 className="font-semibold text-[15px] tracking-tight">{"自定义面板"}</h2>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                className="glass-chip flex min-w-0 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-xs"
-                type="button"
-              />
-            }
-          >
-            {botId ? <ChannelAvatar participantIds={[botId]} size={20} /> : null}
-            <span className="max-w-28 truncate">{bot?.name ?? "选择 BOT"}</span>
-            <IconChevronDown className="size-3.5 opacity-60" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-80 min-w-48 p-1.5">
-            {(agents.data ?? []).map((agent) => (
-              <DropdownMenuItem
-                className="gap-2"
-                key={agent.id}
-                onClick={() => choose(agent.id)}
-              >
-                <ChannelAvatar participantIds={[agent.id]} size={20} />
-                <span className="truncate">{agent.name}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
         <span className="flex-1" />
         <button
           className="glass-pill flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px]"

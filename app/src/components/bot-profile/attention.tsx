@@ -29,7 +29,7 @@ export function attentionSummary(bot: BotAttention): string {
  * A browser notification when a Bot starts needing this person, if they allowed notifications and
  * did not mute this Bot. Badges show either way; this is the interruption, and it is opt-in.
  */
-function useAttentionNotifications(bots: BotAttention[] | undefined) {
+export function useAttentionNotifications(bots: BotAttention[] | undefined) {
   const seen = useRef<Map<string, number> | null>(null);
   useEffect(() => {
     if (!bots) return;

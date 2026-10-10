@@ -3,6 +3,7 @@ import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { channelQueryOptions } from "@/lib/channels/queries";
+import { useMainBot } from "@/lib/settings/message-list";
 import {
   readStoredPreference,
   writeStoredPreference,
@@ -13,8 +14,9 @@ const PANEL_BOT_KEY = "chisabot-panel-bot";
 /**
  * Which Bot's panels the right column shows.
  *
+ * This is also the Bot the left roster shows as selected, so the two columns never disagree.
  * The open conversation decides when there is one (its single coworker, or `?agent=` on a new
- * chat). Elsewhere it is the Bot last picked in the column's chip, then the first Bot on the roster.
+ * chat). Elsewhere it is the Bot last opened, then the main Bot, then the first Bot on the roster.
  */
 export function usePanelBot(): {
   botId: string | undefined;
@@ -48,10 +50,14 @@ export function usePanelBot(): {
       : undefined) ??
     (typeof searchAgent === "string" && searchAgent ? searchAgent : undefined);
 
+  const { mainBotId } = useMainBot();
   const known = agents.data?.map((a) => a.id) ?? [];
-  const fallback =
-    stored && (known.length === 0 || known.includes(stored))
-      ? stored
+  const isKnown = (id: string | null | undefined): id is string =>
+    Boolean(id) && (known.length === 0 || known.includes(id as string));
+  const fallback = isKnown(stored)
+    ? stored
+    : isKnown(mainBotId)
+      ? mainBotId
       : agents.data?.[0]?.id;
 
   useEffect(() => {

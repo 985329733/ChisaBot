@@ -1,17 +1,26 @@
 import {
   IconBolt,
   IconBrain,
+  IconDots,
+  IconPlayerPause,
   IconPlus,
   IconRobot,
   IconSearch,
+  IconStar,
+  IconStarFilled,
+  IconStarOff,
   IconUsers,
-  IconUsersGroup,
 } from "@tabler/icons-react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Link, useParams, useRouterState } from "@tanstack/react-router";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useRouterState,
+} from "@tanstack/react-router";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   InputGroup,
   InputGroupAddon,
@@ -39,9 +48,28 @@ import { agentListQueryOptions } from "@/lib/agents/queries";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import {
   type MessageListEmphasis,
+  useMainBot,
   useMessageListEmphasis,
 } from "@/lib/settings/message-list";
-import { BotAttentionList } from "../bot-profile/attention";
+import { usePanelBot } from "@/lib/panels/active-bot";
+import { setBotPausedMutationOptions } from "@/lib/bot-lifecycle/mutations";
+import {
+  type BotAttention,
+  botAttentionQueryOptions,
+} from "@/lib/bot-lifecycle/queries";
+import { queryClient } from "@/query-client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  attentionSummary,
+  needsInput,
+  useAttentionNotifications,
+} from "../bot-profile/attention";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { Channel } from "./channel";
 import { ChannelPagination } from "./channel-pagination";
@@ -53,11 +81,6 @@ const sideLinks = [
   { to: "/team-bots", label: "团队 Bot", icon: IconUsers },
   { to: "/memory", label: "记忆", icon: IconBrain },
 ] as const;
-
-/**
- * Cap layout animation because `layout` measures every animated row on each reorder.
- */
-const MAX_ANIMATED_ROWS = 60;
 
 /**
  * The roster, narrowed to what the person typed.
@@ -182,6 +205,183 @@ function ChannelRow({
   );
 }
 
+/**
+ * The conversation a Bot's row opens: its most recent one-to-one channel, or a fresh chat with it
+ * when none is loaded. Group channels are not any one Bot's chat, so they never count.
+ */
+export function latestChannelFor(
+  botId: string,
+  channels: ChannelSummary[] | undefined,
+): ChannelSummary | undefined {
+  let best: ChannelSummary | undefined;
+  for (const channel of channels ?? []) {
+    if (channel.agentIds.length !== 1 || channel.agentIds[0] !== botId) continue;
+    if (!best || (channel.lastMessageAt ?? "") > (best.lastMessageAt ?? "")) best = channel;
+  }
+  return best;
+}
+
+type RosterBot = { id: string; name: string; title?: string | null };
+
+/** Opening the app at its home page lands in the main Bot's chat, once per page load. */
+let landedOnce = false;
+
+function useLandOnMainBot(
+  mainBotId: string | null,
+  preferencesSettled: boolean,
+  roster: RosterBot[],
+  rosterLoaded: boolean,
+  channels: ChannelSummary[] | undefined,
+  channelsSettled: boolean,
+) {
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    if (landedOnce) return;
+    if (pathname !== "/") {
+      landedOnce = true;
+      return;
+    }
+    if (!preferencesSettled) return;
+    if (!mainBotId) {
+      landedOnce = true;
+      return;
+    }
+    if (!rosterLoaded || !channelsSettled) return;
+    landedOnce = true;
+    if (!roster.some((bot) => bot.id === mainBotId)) return;
+    const latest = latestChannelFor(mainBotId, channels);
+    if (latest) {
+      void navigate({ to: "/channel/$channelId", params: { channelId: latest.id }, replace: true });
+    } else {
+      void navigate({ to: "/channel/new", search: { agent: mainBotId }, replace: true });
+    }
+  }, [pathname, mainBotId, preferencesSettled, roster, rosterLoaded, channels, channelsSettled, navigate]);
+}
+
+function BotRow({
+  bot,
+  selected,
+  main,
+  latest,
+  attention,
+  onToggleMain,
+}: {
+  bot: RosterBot;
+  selected: boolean;
+  main: boolean;
+  latest: ChannelSummary | undefined;
+  attention: BotAttention | undefined;
+  onToggleMain: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const resume = useMutation(setBotPausedMutationOptions(queryClient));
+  const waiting = attention ? needsInput(attention) : 0;
+  const unread = !selected && attention ? attention.unread > 0 : false;
+  const paused = attention?.paused ?? false;
+  const content = (
+    <>
+      <span className="glass-bot-ava">
+        <ChannelAvatar participantIds={[bot.id]} size={28} />
+        {main ? (
+          <span aria-hidden className="glass-bot-star">
+            <IconStarFilled className="size-2.5" />
+          </span>
+        ) : null}
+      </span>
+      <span className="glass-bot-text">
+        <span className="glass-item-t">{bot.name}</span>
+        {paused ? (
+          <span className="glass-item-s">{"已暂停"}</span>
+        ) : bot.title ? (
+          <span className="glass-item-s">{bot.title}</span>
+        ) : null}
+      </span>
+      {waiting > 0 ? (
+        <span className="glass-bot-badge" title={attention ? attentionSummary(attention) : undefined}>
+          {waiting}
+        </span>
+      ) : unread ? (
+        <span className="glass-bot-dot" title={attention ? attentionSummary(attention) : undefined} />
+      ) : null}
+    </>
+  );
+  return (
+    <div
+      className={cn("glass-bot-row", selected && "is-on", menuOpen && "menu-open")}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setMenuOpen(true);
+      }}
+    >
+      {latest ? (
+        <Link
+          aria-current={selected ? "page" : undefined}
+          className="glass-bot-link"
+          params={{ channelId: latest.id }}
+          title={bot.name}
+          to="/channel/$channelId"
+        >
+          {content}
+        </Link>
+      ) : (
+        <Link
+          aria-current={selected ? "page" : undefined}
+          className="glass-bot-link"
+          search={{ agent: bot.id }}
+          title={bot.name}
+          to="/channel/new"
+        >
+          {content}
+        </Link>
+      )}
+      <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+        <DropdownMenuTrigger
+          render={
+            <button
+              aria-label={`${bot.name} 更多操作`}
+              className="glass-bot-more"
+              type="button"
+            />
+          }
+        >
+          <IconDots className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="glass-pop min-w-44 p-1.5">
+          <DropdownMenuItem className="gap-2" onClick={onToggleMain}>
+            {main ? <IconStarOff className="size-4" /> : <IconStar className="size-4" />}
+            {main ? "取消主机器人" : "设为主机器人"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2"
+            render={<Link search={{ agent: bot.id }} to="/channel/new" />}
+          >
+            <IconPlus className="size-4" />
+            {"新聊天"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="gap-2"
+            render={<Link params={{ agentId: bot.id }} to="/bots/$agentId" />}
+          >
+            <IconRobot className="size-4" />
+            {"机器人设置"}
+          </DropdownMenuItem>
+          {paused ? (
+            <DropdownMenuItem
+              className="gap-2"
+              onClick={() => resume.mutate({ agentId: bot.id, paused: false })}
+            >
+              <IconPlayerPause className="size-4" />
+              {"恢复运行"}
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const emphasis = useMessageListEmphasis();
   const channels = useInfiniteQuery(channelListQueryOptions());
@@ -190,30 +390,49 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const search = useSidebarSearch();
   const sidebar = useOptionalSidebar();
   const scrollRoot = useRef<HTMLDivElement>(null);
-  const roster = (useQuery(agentListQueryOptions()).data ?? []).filter(
-    (bot) => !bot.hidden,
+  const agents = useQuery(agentListQueryOptions());
+  const roster = (agents.data ?? []).filter((bot) => !bot.hidden);
+  const attention = useQuery(botAttentionQueryOptions());
+  useAttentionNotifications(attention.data);
+  const attentionById = new Map((attention.data ?? []).map((a) => [a.agentId, a]));
+  const { botId: selectedBotId } = usePanelBot();
+  const { mainBotId, settled: preferencesSettled, setMainBot } = useMainBot();
+  const mainBot = mainBotId ? roster.find((bot) => bot.id === mainBotId) : undefined;
+  const others = mainBot ? roster.filter((bot) => bot.id !== mainBot.id) : roster;
+  useLandOnMainBot(
+    mainBotId,
+    preferencesSettled,
+    roster,
+    agents.isSuccess,
+    channels.data,
+    !channels.isPending,
   );
-  const activeBotId = useRouterState({
-    select: (state) =>
-      state.location.pathname === "/channel/new"
-        ? ((state.location.search as { agent?: string }).agent ?? undefined)
-        : undefined,
-  });
+
   const searching = search.trim().length > 0;
-  const visibleChannels = pinnedFirst(matchingChannels(channels.data, search));
-  /*
-   * FILTERING DOES NOT ANIMATE. Rows exit and relayout on every keystroke otherwise, which is a
-   * list thrashing under somebody who is still typing — and the moving target is the very thing
-   * they are trying to read. Order animation is for a channel that was just spoken in, which is
-   * occasional; this is not.
-   */
-  const animateOrder =
-    !searching && (channels.data?.length ?? 0) <= MAX_ANIMATED_ROWS;
+  const visibleChannels = searching
+    ? pinnedFirst(matchingChannels(channels.data, search))
+    : [];
+
+  const row = (bot: RosterBot, isMain: boolean) => (
+    <BotRow
+      attention={attentionById.get(bot.id)}
+      bot={bot}
+      key={bot.id}
+      latest={latestChannelFor(bot.id, channels.data)}
+      main={isMain}
+      onToggleMain={() => setMainBot(isMain ? null : bot.id)}
+      selected={selectedBotId === bot.id}
+    />
+  );
 
   return (
     <Sidebar variant="floating" {...props}>
       <SidebarHeader className="glass-side-header gap-3 p-0 pb-3">
-        <Link className="glass-newchat" to="/channel/new">
+        <Link
+          className="glass-newchat"
+          search={selectedBotId ? { agent: selectedBotId } : {}}
+          to="/channel/new"
+        >
           <IconPlus className="size-[18px]" />
           {"新聊天"}
         </Link>
@@ -232,118 +451,103 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ) : null}
       </SidebarHeader>
       <SidebarContent className="gap-3 overflow-hidden">
-        <section className="glass-card glass-side-card shrink-0" aria-label={"AI 同事"}>
-          <div className="glass-sec">
-            <span>{"AI 同事"}</span>
-            <Link aria-label={"管理 AI 同事"} className="glass-sec-btn" to="/bots">
-              <IconPlus className="size-[15px]" />
-            </Link>
-          </div>
-          <div className="glass-bot-list">
-            {roster.map((bot) => (
-              <Link
-                activeOptions={{ includeSearch: true }}
-                className={cn("glass-item", activeBotId === bot.id && "is-on")}
-                key={bot.id}
-                search={{ agent: bot.id }}
-                to="/channel/new"
-              >
-                <ChannelAvatar participantIds={[bot.id]} size={26} />
-                <span className="glass-item-t">{bot.name}</span>
-                {bot.title ? (
-                  <span className="glass-item-s">{bot.title}</span>
-                ) : null}
-              </Link>
-            ))}
-            {roster.length === 0 ? (
-              <p className="px-2.5 py-1.5 text-muted-foreground text-xs">
-                {"还没有 AI 同事。"}
-              </p>
-            ) : null}
-          </div>
-          <div className="glass-side-links">
-            {sideLinks.map((item) => (
-              <Link
-                activeProps={{ className: "is-on" }}
-                className="glass-side-link"
-                key={item.to}
-                title={item.label}
-                to={item.to}
-              >
-                <item.icon className="size-4" />
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
         <section
-          aria-label={"会话"}
+          aria-label={searching ? "搜索结果" : "机器人"}
           className="glass-card glass-side-card min-h-0 flex-1"
         >
-          <div className="glass-sec">
-            <span>{searching ? `搜索“${search.trim()}”` : "会话"}</span>
-            <Link aria-label={"新群组会话"} className="glass-sec-btn" to="/group/new">
-              <IconUsersGroup className="size-[15px]" />
-            </Link>
-          </div>
-          <div ref={scrollRoot} className="glass-side-scroll scroll-fade-b">
-        <SidebarMenu>
-          <SidebarGroup className="gap-px p-0">
-            {/* Bots that need you, or that you paused. See bot-profile/attention.tsx. */}
-            <BotAttentionList />
-            {/*
-             * TWO DIFFERENT NOTHINGS, AND SAYING THE WRONG ONE IS ALARMING. A roster nobody has
-             * used yet needs telling how to start. A roster that simply does not match what is in
-             * the box has to say so and quote it back.
-             */}
-            {searching && visibleChannels.length === 0 ? (
-              <div className="py-4">
-                <Empty className="border border-dashed min-h-[30dvh]">
-                  <EmptyHeader>
-                    <EmptyTitle>
-                      {channels.hasNextPage
-                        ? "没有加载的会话匹配您的搜索"
-                        : "没有会话匹配您的搜索"}
-                    </EmptyTitle>
-                    <EmptyDescription className="text-pretty">
-                      {channels.hasNextPage
-                        ? "加载更早的会话以搜索更多历史。"
-                        : `“${search.trim()}”在这里没有被命名，也没有任何人最近说过它。`}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
+          {searching ? (
+            <>
+              <div className="glass-sec">
+                <span>{`搜索“${search.trim()}”`}</span>
               </div>
-            ) : null}
-            {!searching && channels.data?.length === 0 ? (
-              <div className="py-4">
-                <Empty className="border border-dashed min-h-[30dvh]">
-                  <EmptyHeader>
-                    <EmptyTitle>{"您还没有会话"}</EmptyTitle>
-                    <EmptyDescription className="text-pretty">
-                      {"开始与 AI 同事对话，你的会话将在这里出现。"}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
+              <div ref={scrollRoot} className="glass-side-scroll scroll-fade-b">
+                <SidebarMenu>
+                  <SidebarGroup className="gap-px p-0">
+                    {visibleChannels.length === 0 ? (
+                      <div className="py-4">
+                        <Empty className="border border-dashed min-h-[30dvh]">
+                          <EmptyHeader>
+                            <EmptyTitle>
+                              {channels.hasNextPage
+                                ? "没有加载的会话匹配您的搜索"
+                                : "没有会话匹配您的搜索"}
+                            </EmptyTitle>
+                            <EmptyDescription className="text-pretty">
+                              {channels.hasNextPage
+                                ? "加载更早的会话以搜索更多历史。"
+                                : `“${search.trim()}”在这里没有被命名，也没有任何人最近说过它。`}
+                            </EmptyDescription>
+                          </EmptyHeader>
+                        </Empty>
+                      </div>
+                    ) : null}
+                    <AnimatePresence initial={false}>
+                      {visibleChannels.map((channel) => (
+                        <ChannelRow
+                          animateOrder={false}
+                          channel={channel}
+                          emphasis={emphasis}
+                          key={channel.id}
+                        />
+                      ))}
+                    </AnimatePresence>
+                    <ChannelPagination
+                      query={channels}
+                      scrollRoot={scrollRoot}
+                      searching={searching}
+                    />
+                  </SidebarGroup>
+                </SidebarMenu>
               </div>
-            ) : null}
-            <AnimatePresence initial={false}>
-              {visibleChannels.map((channel) => (
-                <ChannelRow
-                  emphasis={emphasis}
-                  key={channel.id}
-                  animateOrder={animateOrder}
-                  channel={channel}
-                />
-              ))}
-            </AnimatePresence>
-            <ChannelPagination
-              query={channels}
-              scrollRoot={scrollRoot}
-              searching={searching}
-            />
-          </SidebarGroup>
-        </SidebarMenu>
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="glass-side-scroll glass-bot-scroll scroll-fade-b">
+                {mainBot ? (
+                  <>
+                    <div className="glass-sec">
+                      <span className="glass-sec-main">
+                        <IconStarFilled className="size-3" />
+                        {"主机器人"}
+                      </span>
+                    </div>
+                    <div className="glass-bot-list">{row(mainBot, true)}</div>
+                  </>
+                ) : null}
+                <div className={cn("glass-sec", mainBot && "mt-2")}>
+                  <span>{"AI 同事"}</span>
+                  <Link aria-label={"管理 AI 同事"} className="glass-sec-btn" to="/bots">
+                    <IconPlus className="size-[15px]" />
+                  </Link>
+                </div>
+                <div className="glass-bot-list">
+                  {others.map((bot) => row(bot, false))}
+                  {roster.length === 0 && agents.isSuccess ? (
+                    <p className="px-2.5 py-1.5 text-muted-foreground text-xs">
+                      {"还没有 AI 同事。"}
+                    </p>
+                  ) : null}
+                </div>
+                {!mainBot && roster.length > 0 ? (
+                  <p className="glass-bot-hint">{"右键机器人可设为主机器人，置顶显示"}</p>
+                ) : null}
+              </div>
+              <div className="glass-side-links">
+                {sideLinks.map((item) => (
+                  <Link
+                    activeProps={{ className: "is-on" }}
+                    className="glass-side-link"
+                    key={item.to}
+                    title={item.label}
+                    to={item.to}
+                  >
+                    <item.icon className="size-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       </SidebarContent>
       <SidebarRail />
