@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "@/components/theme-provider";
 import type { Json, PanelDefinition } from "@/lib/panels/api";
 
 /**
@@ -119,8 +120,10 @@ const RUNTIME = String.raw`
 `;
 
 const BASE_CSS = `
-:root{color-scheme:light dark;font-family:"Inter Variable","Inter","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;font-size:13px;line-height:1.5;color:#16181d}
-@media (prefers-color-scheme:dark){:root{color:#e8ecf3}}
+:root{font-family:"Inter Variable","Inter","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;font-size:13px;line-height:1.5;color:#16181d}
+html[data-theme=dark]{color:#e8ecf3}
+html[data-theme=dark] input,html[data-theme=dark] select,html[data-theme=dark] textarea{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:inherit}
+html[data-theme=dark] button{background:#e8ecf3;color:#10161f}
 html,body{margin:0;padding:0;background:transparent}
 body{padding:2px 0;overflow:hidden}
 button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:6px 12px;background:rgba(22,24,29,.88);color:#fff}
@@ -137,8 +140,15 @@ function escapeStyle(text: string) {
   return text.replace(/<\/(style)/gi, "<\\/$1");
 }
 
-export function buildPanelDocument(definition: PanelDefinition, token: string) {
-  return `<!doctype html><html data-token="${token}"><head><meta charset="utf-8">
+export function buildPanelDocument(
+  definition: PanelDefinition,
+  token: string,
+  dark = false,
+) {
+  // The frame's colour scheme must match the app's, or the browser paints an opaque canvas behind
+  // a transparent frame (a light frame inside a dark page shows as a white box).
+  const scheme = dark ? "dark" : "light";
+  return `<!doctype html><html data-token="${token}" data-theme="${scheme}" style="color-scheme:${scheme}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'unsafe-eval'; img-src data:; font-src data:">
 <style>${BASE_CSS}</style><style>${escapeStyle(definition.css)}</style></head>
 <body><div id="panel-root">${definition.html}</div>
@@ -160,10 +170,12 @@ export function PanelFrame({
   minHeight?: number;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
-  const token = useMemo(() => crypto.randomUUID(), [definition]);
+  const { dark } = useTheme();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new document (and token) per definition or theme.
+  const token = useMemo(() => crypto.randomUUID(), [definition, dark]);
   const doc = useMemo(
-    () => buildPanelDocument(definition, token),
-    [definition, token],
+    () => buildPanelDocument(definition, token, dark),
+    [definition, token, dark],
   );
   const fixed =
     definition.size.height === "auto" ? null : definition.size.height;
@@ -262,7 +274,7 @@ export function PanelFrame({
       sandbox="allow-scripts"
       srcDoc={doc}
       className="block w-full border-0 bg-transparent"
-      style={{ height }}
+      style={{ height, colorScheme: dark ? "dark" : "light" }}
     />
   );
 }
