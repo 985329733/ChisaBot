@@ -36,8 +36,9 @@ import { queryClient } from "@/query-client";
 export const Route = createFileRoute("/_authed/_app/responsibilities")({
   component: ResponsibilitiesPage,
 });
-const fieldClass = "grid gap-1 text-sm";
-const selectClass = "h-9 rounded-md border bg-background px-3 text-sm";
+const fieldClass = "grid min-w-0 gap-1 text-sm";
+const selectClass =
+  "h-9 w-full min-w-0 max-w-full rounded-md border bg-background px-3 text-sm";
 async function refresh() {
   await queryClient.invalidateQueries({ queryKey: responsibilityKeys.all });
 }
