@@ -1581,6 +1581,8 @@ export function createApp(
         // The managed Bot's address, so a coworker created without an endpoint — which creation
         // stores as running at this address — can be told apart from one a person hosts.
         config.managedAgent?.endpoint?.toString(),
+        // Deleting a Bot removes its private data and, when nothing shared still needs it, the Bot.
+        coworker?.lifecycle?.purge,
       ),
     );
     // Choosing a coworker for an untagged message needs the same permission-filtered roster the

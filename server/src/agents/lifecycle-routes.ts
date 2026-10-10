@@ -22,6 +22,7 @@ import {
   type UpdateTransport,
 } from "./lifecycle";
 import type { BotReset } from "./lifecycle-reset";
+import type { AgentPurge } from "./purge";
 import type { AgentActor, AgentProfile } from "./profile-types";
 import type { WakeUpStore } from "./wake-up";
 
@@ -39,6 +40,8 @@ export type BotLifecycleServices = {
     get(actor: AgentActor, id: string): Promise<AgentProfile | null>;
   };
   auditStore?: AuditStore;
+  /** Completes a Bot deletion; see purge.ts. */
+  purge?: AgentPurge;
 };
 
 export function createBotLifecycleRoutes(

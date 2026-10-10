@@ -6,6 +6,7 @@ import type { AppVariables } from "../auth/guards";
 import { testAgentConnection } from "./connection-test";
 import { checkAgentEndpoint } from "./endpoint";
 import { canManageAgent } from "./profile-policy";
+import type { AgentPurge } from "./purge";
 import {
   AgentNotFoundError,
   AgentAssignedError,
@@ -287,6 +288,11 @@ export function createAgentRoutes(
    * dialog nagged built-in coworkers about a credential they never needed.
    */
   managedEndpoint?: string,
+  /**
+   * What finishes a deletion: the Bot's private data, its panels, the main-Bot preference, and the
+   * row itself. Absent in tests, where a delete is the profile's soft delete alone.
+   */
+  purge?: AgentPurge,
 ) {
   /** The dto with the one fact only this closure knows: whether the coworker runs on our own Bot. */
   const dto = (actor: AgentActor, agent: AgentProfile) => ({
@@ -677,13 +683,33 @@ export function createAgentRoutes(
     }
   });
 
+  /** Finish off Bots that were deleted before deletion was complete (or whose purge failed). */
+  routes.post("/deleted/purge", requireUser, async (context) => {
+    if (!purge) return context.json({ purged: [] });
+    const purged = await purge.purgeDeleted(context.var.actor);
+    for (const report of purged)
+      await record(context, "bot.deleted", report.agentId, { purged: report });
+    return context.json({ purged });
+  });
+
   routes.delete("/:agentId", requireUser, async (context) => {
     if (!context.req.param("agentId").trim()) {
       return context.json({ error: "A Bot id is required." }, 400);
     }
     try {
-      await store.softDelete(context.var.actor, context.req.param("agentId"));
-      await record(context, "bot.deleted", context.req.param("agentId"));
+      const agentId = context.req.param("agentId");
+      await store.softDelete(context.var.actor, agentId);
+      // The soft delete above is what checks the caller may do this; the purge only ever touches a
+      // Bot that is already deleted. A failure here leaves a tombstone that `deleted/purge` retries.
+      let purged: Awaited<ReturnType<AgentPurge["purge"]>> | null = null;
+      if (purge) {
+        try {
+          purged = await purge.purge(context.var.actor, agentId);
+        } catch (error) {
+          console.error(`[agents] purge after deleting ${agentId} failed:`, error);
+        }
+      }
+      await record(context, "bot.deleted", agentId, purged ? { purged } : {});
       return context.body(null, 204);
     } catch (error) {
       return mapStoreError(context, error);

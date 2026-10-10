@@ -1,0 +1,183 @@
+import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { forgetDeletedBot } from "@/lib/agents/mutations";
+import { agentApiPath } from "@/lib/agents/queries";
+import {
+  botResetPlanQueryOptions,
+  type ResetPlan,
+} from "@/lib/bot-lifecycle/queries";
+import { client } from "@/lib/client";
+import { useMainBot } from "@/lib/settings/message-list";
+
+type DeletableBot = { id: string; name: string };
+
+/** What goes with the Bot, counted from the reset plan, in the words a person reads. */
+function deletionLines(plan: ResetPlan): string[] {
+  const lines: [number, string][] = [
+    [plan.conversations, "个私人会话"],
+    [plan.memorySources, "个记忆来源"],
+    [plan.memories + plan.formedMemories, "条记忆"],
+    [plan.routines, "个定时任务"],
+    [plan.responsibilities, "个长期职责"],
+    [plan.followUps, "个待办跟进"],
+    [plan.backgroundResearch, "项后台研究"],
+    [plan.standingApprovals, "条常驻授权"],
+  ];
+  return lines
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${count} ${label}`);
+}
+
+/**
+ * Whether the page on screen belongs to this Bot, so deleting it should move somewhere else first:
+ * its settings page, its new-chat page, the coworker dialog open on it, or one of its conversations.
+ */
+function useShowsBot(botId: string, selectedBotId: string | undefined) {
+  const location = useRouterState({ select: (state) => state.location });
+  const search = location.search as { agent?: unknown };
+  return (
+    selectedBotId === botId ||
+    search.agent === botId ||
+    location.pathname === `/bots/${encodeURIComponent(botId)}` ||
+    location.pathname === `/bots/${botId}`
+  );
+}
+
+/**
+ * Deleting a Bot, from anywhere: its settings, the coworker dialog, or the sidebar row's menu.
+ *
+ * The server removes the Bot together with the person's private conversations, memories,
+ * schedules, panels and grants, and clears it as main Bot. This dialog says so, with the real counts,
+ * then leaves the Bot's page before forgetting every cached trace of it, so nothing on screen goes on
+ * showing a Bot that no longer exists and no page refetches it into a 404.
+ */
+export function DeleteBotDialog({
+  bot,
+  open,
+  onOpenChange,
+  selectedBotId,
+  onDeleted,
+}: {
+  bot: DeletableBot;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The Bot the sidebar shows as selected, if the caller knows it. */
+  selectedBotId?: string;
+  onDeleted?: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { mainBotId } = useMainBot();
+  const showsBot = useShowsBot(bot.id, selectedBotId);
+  const isMain = mainBotId === bot.id;
+  const plan = useQuery({ ...botResetPlanQueryOptions(bot.id), enabled: open });
+  const lines = plan.data ? deletionLines(plan.data) : [];
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      await client(agentApiPath(bot.id), {
+        method: "DELETE",
+        fallback: "无法删除此机器人",
+      });
+    },
+    onSuccess: async () => {
+      onOpenChange(false);
+      if (showsBot) {
+        const fallbackBot = !isMain && mainBotId ? mainBotId : null;
+        if (fallbackBot)
+          await navigate({ to: "/channel/new", search: { agent: fallbackBot } });
+        else await navigate({ to: "/" });
+      }
+      await forgetDeletedBot(queryClient, bot.id);
+      onDeleted?.();
+    },
+  });
+
+  return (
+    <Dialog
+      onOpenChange={(next) => {
+        if (!remove.isPending) {
+          if (!next) remove.reset();
+          onOpenChange(next);
+        }
+      }}
+      open={open}
+    >
+      <DialogContent className="max-w-md" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-destructive/12 text-destructive">
+              <IconTrash className="size-4" />
+            </span>
+            <span className="min-w-0 break-words">{`删除机器人「${bot.name}」？`}</span>
+          </DialogTitle>
+          <DialogDescription>
+            {
+              "机器人会被彻底删除，并从侧边栏、AI 同事列表和收件人选择中移除。你与它的私人会话、它为你记住的内容、定时任务、长期职责、面板和授权也会一并删除。"
+            }
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-3 space-y-2 text-sm">
+          {plan.isPending ? (
+            <p className="text-muted-foreground">{"正在统计将删除的内容…"}</p>
+          ) : lines.length > 0 ? (
+            <p>
+              <span className="text-muted-foreground">{"将删除："}</span>
+              {lines.join("、")}
+            </p>
+          ) : plan.data ? (
+            <p className="text-muted-foreground">{"没有你与它的私人数据需要删除。"}</p>
+          ) : null}
+          {plan.data && plan.data.sharedConversationsKept > 0 ? (
+            <p className="text-muted-foreground">
+              {`${plan.data.sharedConversationsKept} 个与他人共享的会话会保留，便于其他成员查看记录。`}
+            </p>
+          ) : null}
+          {isMain ? (
+            <p className="text-muted-foreground">
+              {"它是你的主机器人，删除后将取消主机器人设置。"}
+            </p>
+          ) : null}
+          <p className="flex items-center gap-1.5 font-medium text-destructive">
+            <IconAlertTriangle className="size-4 shrink-0" />
+            {"此操作无法撤消。"}
+          </p>
+        </div>
+
+        {remove.error ? (
+          <p className="mt-3 text-sm text-destructive" role="alert">
+            {remove.error.message}
+          </p>
+        ) : null}
+        <DialogFooter className="mt-4">
+          <Button
+            disabled={remove.isPending}
+            onClick={() => onOpenChange(false)}
+            variant="outline"
+          >
+            {"取消"}
+          </Button>
+          <Button
+            disabled={remove.isPending}
+            loading={remove.isPending}
+            onClick={() => remove.mutate()}
+            variant="destructive"
+          >
+            {remove.isPending ? "正在删除…" : "删除机器人"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -96,8 +96,35 @@ export function deleteAgentMutationOptions(queryClient: QueryClient) {
         fallback: FALLBACK,
       });
     },
-    onSuccess: () => invalidateAgents(queryClient),
+    onSuccess: (_result, agentId) => forgetDeletedBot(queryClient, agentId),
   });
+}
+
+/**
+ * After a Bot is deleted, every cached trace of it goes, without a reload.
+ *
+ * Drops it from every roster list at once so the sidebar, the AI 同事 list and the 至： picker stop
+ * showing it this frame, throws away every query keyed by its id (its profile, panels, lifecycle,
+ * reset plan), then refetches the rest: conversations it was in, the main-Bot preference the server
+ * cleared, attention badges.
+ */
+export async function forgetDeletedBot(
+  queryClient: QueryClient,
+  agentId: string,
+) {
+  queryClient.setQueriesData<AgentProfile[]>(
+    { queryKey: [...agentKeys.all, "list"] },
+    (list) => (Array.isArray(list) ? list.filter((agent) => agent.id !== agentId) : list),
+  );
+  queryClient.removeQueries({
+    predicate: (query) =>
+      query.queryKey.some(
+        (part) =>
+          part === agentId ||
+          (typeof part === "string" && part.includes(agentId)),
+      ),
+  });
+  await queryClient.invalidateQueries();
 }
 
 /**

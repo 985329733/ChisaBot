@@ -10,6 +10,7 @@ import {
   IconStarFilled,
   IconStarOff,
   IconUsers,
+  IconTrash,
 } from "@tabler/icons-react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -46,6 +47,7 @@ import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { ChannelAvatar } from "@/components/channels/avatar";
+import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
 import {
   type MessageListEmphasis,
   useMainBot,
@@ -221,7 +223,12 @@ export function latestChannelFor(
   return best;
 }
 
-type RosterBot = { id: string; name: string; title?: string | null };
+type RosterBot = {
+  id: string;
+  name: string;
+  title?: string | null;
+  canManage?: boolean;
+};
 
 /** Opening the app at its home page lands in the main Bot's chat, once per page load. */
 let landedOnce = false;
@@ -275,6 +282,7 @@ function BotRow({
   onToggleMain: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const resume = useMutation(setBotPausedMutationOptions(queryClient));
   const waiting = attention ? needsInput(attention) : 0;
   const unread = !selected && attention ? attention.unread > 0 : false;
@@ -376,8 +384,28 @@ function BotRow({
               {"恢复运行"}
             </DropdownMenuItem>
           ) : null}
+          {bot.canManage ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <IconTrash className="size-4" />
+                {"删除机器人…"}
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      {bot.canManage ? (
+        <DeleteBotDialog
+          bot={{ id: bot.id, name: bot.name }}
+          onOpenChange={setDeleteOpen}
+          open={deleteOpen}
+          selectedBotId={selected ? bot.id : undefined}
+        />
+      ) : null}
     </div>
   );
 }

@@ -53,6 +53,7 @@ import {
   createBotLifecycleStore,
 } from "./agents/lifecycle";
 import { createBotReset } from "./agents/lifecycle-reset";
+import { createAgentPurge } from "./agents/purge";
 import { createAgentProfileStore } from "./agents/profile-store";
 import { createAgentModelService } from "./agents/model-selection";
 import type { AgentActor } from "./agents/profile-types";
@@ -378,6 +379,12 @@ const channelStore = createChannelStore(
   threadIdentity,
 );
 const channelEvents = createChannelEventHub();
+// One reset for the profile screen's "重置" and for deleting a Bot, which starts with the same reset.
+const botReset = createBotReset({
+  database,
+  softDeleteChannel: (actor, channelId) =>
+    channelStore.softDelete(actor, channelId),
+});
 /**
  * Which components each Bot may answer with.
  *
@@ -3311,11 +3318,8 @@ const app = createApp(
     teamBots,
     lifecycle: {
       lifecycle: createBotLifecycleStore(database),
-      reset: createBotReset({
-        database,
-        softDeleteChannel: (actor, channelId) =>
-          channelStore.softDelete(actor, channelId),
-      }),
+      reset: botReset,
+      purge: createAgentPurge({ database, reset: botReset }),
       activity: createActivityStore(database),
       wakeUps: wakeUpStore,
       profiles: agentProfileStore,

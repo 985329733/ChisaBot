@@ -12,6 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
+import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
@@ -20,9 +21,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -65,7 +63,6 @@ import {
   agentInputFrom,
 } from "@/lib/agents/form";
 import {
-  deleteAgentMutationOptions,
   duplicateAgentMutationOptions,
   setAgentHiddenMutationOptions,
   setAgentPinnedMutationOptions,
@@ -700,7 +697,6 @@ function ManageSection({
   const duplicateAgent = useMutation(
     duplicateAgentMutationOptions(queryClient),
   );
-  const deleteAgent = useMutation(deleteAgentMutationOptions(queryClient));
   const actionError =
     setPinned.error ?? setHidden.error ?? duplicateAgent.error;
 
@@ -796,8 +792,10 @@ function ManageSection({
         {profile.canManage ? (
           <Item variant="muted">
             <ItemContent>
-              <ItemTitle>{"删除"}</ItemTitle>
-              <ItemDescription>{"此操作无法撤消。"}</ItemDescription>
+              <ItemTitle>{"删除机器人"}</ItemTitle>
+              <ItemDescription>
+                {"彻底删除它，以及你与它的私人会话、记忆、定时任务和面板。此操作无法撤消。"}
+              </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Button
@@ -820,48 +818,11 @@ function ManageSection({
 
       {/* Stacked over the agent dialog: destroying something deserves its own moment, and the
           question keeps the name in it so the wrong tab cannot delete the wrong coworker. */}
-      <Dialog
-        onOpenChange={(next) => !next && setConfirmingDelete(false)}
+      <DeleteBotDialog
+        bot={{ id: agentId, name: profile.name }}
+        onOpenChange={setConfirmingDelete}
         open={confirmingDelete}
-      >
-        <DialogContent
-          className="max-w-sm"
-          overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm"
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {"删除"}
-              {profile.name}?
-            </DialogTitle>
-            <DialogDescription>{"此操作无法撤消。"}</DialogDescription>
-          </DialogHeader>
-          {deleteAgent.error ? (
-            <p className="mt-4 text-sm text-destructive" role="alert">
-              {deleteAgent.error.message}
-            </p>
-          ) : null}
-          <DialogFooter className="mt-4">
-            <Button
-              onClick={() => setConfirmingDelete(false)}
-              size="sm"
-              variant="outline"
-            >
-              {"取消"}
-            </Button>
-            <Button loading={deleteAgent.isPending}
-              disabled={deleteAgent.isPending}
-              onClick={async () => {
-                await deleteAgent.mutateAsync(agentId);
-                await navigate({ search: {}, to: "/agents" });
-              }}
-              size="sm"
-              variant="destructive"
-            >
-              {deleteAgent.isPending ? "正在删除…" : "删除"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </>
   );
 }

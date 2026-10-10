@@ -4,12 +4,14 @@ import {
   IconPlayerPause,
   IconRefresh,
   IconRoute,
+  IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
+import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
 import { PageRows, PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -273,6 +275,7 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
   const pause = useMutation(setBotPausedMutationOptions(queryClient));
   const notify = useMutation(setBotNotifyMutationOptions(queryClient));
   const [resetOpen, setResetOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [permission, setPermission] = useState<string>(() => {
     try {
       return typeof Notification === "undefined"
@@ -431,6 +434,29 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                 </ItemDescription>
               </ItemContent>
             </Item>
+            {agent.canManage ? (
+              <>
+                <Separator />
+                <Item
+                  render={
+                    <button onClick={() => setDeleteOpen(true)} type="button" />
+                  }
+                  size="sm"
+                >
+                  <ItemMedia className="text-destructive" variant="icon">
+                    <IconTrash />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle className="text-destructive">{"删除机器人"}</ItemTitle>
+                    <ItemDescription>
+                      {
+                        "彻底删除这个机器人，以及你与它的私人会话、记忆、定时任务和面板。此操作无法撤消。"
+                      }
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
+              </>
+            ) : null}
           </PageRows>
         )}
       </PageSection>
@@ -438,6 +464,11 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
       <BotActivitySections agentId={agent.id} />
       <UpdateRoutingSection />
       <ResetDialog agent={agent} onOpenChange={setResetOpen} open={resetOpen} />
+      <DeleteBotDialog
+        bot={{ id: agent.id, name: agent.name }}
+        onOpenChange={setDeleteOpen}
+        open={deleteOpen}
+      />
     </>
   );
 }
