@@ -35,7 +35,8 @@ export function useSidebarToggleVisible(): boolean {
   if (!sidebar) return false;
   // The glass app shell draws its own permanent toggle in the top bar on desktop; a second one in
   // the page header would be a duplicate. Mobile keeps the old behaviour untouched.
-  if (inTopBar && !sidebar.isMobile) return false;
+  // Since the unified shell (DESIGN.md §13) the top bar also owns the phone's drawer button (☰).
+  if (inTopBar) return false;
   /*
    * Below 768px the sidebar is an overlay Sheet with its own open state, and `open` describes the
    * desktop pane — reading it there would answer for the wrong one.

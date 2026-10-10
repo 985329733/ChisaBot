@@ -1,115 +1,67 @@
 import {
-  IconArrowLeft,
+  IconAdjustmentsHorizontal,
+  IconBuildingSkyscraper,
   IconKey,
   IconLayoutGrid,
   IconPlug,
-  IconSettings,
 } from "@tabler/icons-react";
-import { Link, type LinkOptions } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import type * as React from "react";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-} from "@/components/ui/sidebar";
+import { type RailGroup, SectionRail } from "@/components/layout/section-rail";
+import type { Sidebar } from "@/components/ui/sidebar";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 
-const appLinkOptions = { to: "/" } satisfies LinkOptions;
-
-const ITEMS: {
-  /**
-   * Whether this entry lights only on its own route.
-   *
-   * On for an entry whose path is a prefix of another's, which is the only reason to want it. Off
-   * everywhere else, so an entry stays lit on the pages beneath it.
-   */
-  exact?: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  linkOptions: LinkOptions;
-  title: string;
-}[] = [
+/**
+ * 偏好设置分区 — the settings left card (DESIGN.md §13). Same component family as the chat roster
+ * and the admin nav: `SectionRail` draws the card, the rows and the 80px collapsed rail.
+ */
+const GROUPS: RailGroup[] = [
   {
-    title: "通用",
-    icon: IconSettings,
-    /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
-    exact: true,
-    linkOptions: { to: "/settings" },
-  },
-  {
-    /*
-     * The same subject as Admin's Plugins, from the other side: there an administrator decides what
-     * this deployment may reach at all, here you decide what it may reach as you.
-     */
-    title: "已连接账号",
-    icon: IconPlug,
-    linkOptions: { to: "/settings/connected-accounts" },
-  },
-  {
-    /* Logins saved from a Bot's private sign-in form. */
-    title: "密码",
-    icon: IconKey,
-    linkOptions: { to: "/settings/passwords" },
-  },
-  {
-    /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */
-    title: "组件库",
-    icon: IconLayoutGrid,
-    linkOptions: { to: "/settings/components-gallery" },
+    label: "偏好设置",
+    items: [
+      {
+        title: "通用",
+        sub: "外观、消息列表、常驻指令",
+        icon: IconAdjustmentsHorizontal,
+        /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
+        exact: true,
+        linkOptions: { to: "/settings" },
+      },
+      {
+        /* What this deployment may reach as you (Admin's Plugins is the deployment-wide side). */
+        title: "已连接账号",
+        sub: "机器人代表你使用的应用",
+        icon: IconPlug,
+        linkOptions: { to: "/settings/connected-accounts" },
+      },
+      {
+        title: "密码",
+        sub: "已保存的登录",
+        icon: IconKey,
+        linkOptions: { to: "/settings/passwords" },
+      },
+      {
+        title: "组件库",
+        sub: "机器人可绘制的片段",
+        icon: IconLayoutGrid,
+        linkOptions: { to: "/settings/components-gallery" },
+      },
+    ],
   },
 ];
 
-export function SettingsSidebar({
-  ...props
-}: React.ComponentProps<typeof Sidebar>) {
+export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
+  const { data: user } = useQuery(currentUserQueryOptions());
   return (
-    <Sidebar {...props}>
-      {/* Matched to the app sidebar's header, as Admin's is. See admin-sidebar.tsx. */}
-      <SidebarHeader className="h-12 p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              render={(props) => (
-                <Link {...appLinkOptions} {...props}>
-                  <IconArrowLeft className="mr-2 h-4 w-4" />
-                  {"返回应用"}
-                </Link>
-              )}
-            />
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        {/*
-         * Group outside menu, as Admin has it. The other way round nests a list item inside a div
-         * inside the `ul`, which is not markup a list is allowed to be made of.
-         */}
-        <SidebarGroup>
-          <SidebarMenu className="gap-px">
-            {ITEMS.map((option) => (
-              <SidebarMenuItem key={option.title}>
-                <SidebarMenuButton
-                  render={(props) => (
-                    <Link
-                      {...option.linkOptions}
-                      activeOptions={{ exact: option.exact ?? false }}
-                      activeProps={{ className: "bg-foreground/5" }}
-                      {...props}
-                    >
-                      <option.icon className="mr-2 h-4 w-4" />
-                      {option.title}
-                    </Link>
-                  )}
-                />
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarRail />
-    </Sidebar>
+    <SectionRail
+      ariaLabel={"偏好设置分区"}
+      footerLink={
+        user?.role === "admin"
+          ? { label: "管理后台", to: "/admin", icon: IconBuildingSkyscraper }
+          : undefined
+      }
+      groups={GROUPS}
+      {...props}
+    />
   );
 }

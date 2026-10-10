@@ -10,6 +10,7 @@ import {
   IconKey,
   IconLink,
   IconLogout,
+  IconMenu2,
   IconMoon,
   IconNetwork,
   IconSearch,
@@ -85,31 +86,38 @@ export function GlassAvatar({ size = 44, ring = true }: { size?: number; ring?: 
  * The one top bar for the app shell: home, the three destinations, the conversation search, and
  * the account menu that now holds every setting and admin entry the old sidebar used to list.
  */
-export function GlassTopBar() {
+export type ShellScope = "app" | "settings" | "admin";
+
+export function GlassTopBar({ scope = "app" }: { scope?: ShellScope }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sidebar = useOptionalSidebar();
+  const mobile = Boolean(sidebar?.isMobile);
+  const drawerLabel = scope === "app" ? "机器人列表" : scope === "settings" ? "设置分区" : "管理导航";
   return (
-    <header className="glass-topbar">
+    <header className="glass-topbar" data-scope={scope}>
       <div className="flex items-center gap-2">
-        <Link aria-label={"首页"} className="glass-home" to="/">
-          <IconHome className="size-5" />
-        </Link>
-        {sidebar && !sidebar.isMobile ? <RosterToggle /> : null}
-        {sidebar?.isMobile ? (
+        {/* On a phone the drawer button takes the home button's place (聊天 is home there), so the
+            centred tabs never cover it (DESIGN.md §13 移动端). */}
+        {mobile ? (
           <button
-            aria-label={"会话列表"}
-            className="glass-pill grid size-11 place-items-center rounded-full"
-            onClick={() => sidebar.setOpenMobile(true)}
+            aria-label={`打开${drawerLabel}`}
+            className="glass-icon-btn glass-menu-btn"
+            onClick={() => sidebar?.setOpenMobile(true)}
             type="button"
           >
-            <span className="text-lg leading-none">{"☰"}</span>
+            <IconMenu2 className="glass-icon-btn-ico" />
           </button>
-        ) : null}
+        ) : (
+          <Link aria-label={"首页"} className="glass-home" to="/">
+            <IconHome className="size-5" />
+          </Link>
+        )}
+        {sidebar && !mobile ? <RosterToggle scope={scope} /> : null}
       </div>
       <nav aria-label={"主导航"} className="glass-seg">
         {TABS.map((tab) => (
           <Link
-            className={cn("glass-seg-item", tab.match(pathname) && "is-on")}
+            className={cn("glass-seg-item", scope === "app" && tab.match(pathname) && "is-on")}
             key={tab.to}
             to={tab.to}
           >
@@ -118,8 +126,8 @@ export function GlassTopBar() {
         ))}
       </nav>
       <div className="flex items-center gap-3">
-        <PanelRailToggle />
-        <TopSearch />
+        {scope === "app" ? <PanelRailToggle /> : null}
+        <TopSearch scope={scope} />
         <AccountMenu />
       </div>
     </header>
@@ -144,11 +152,12 @@ function ToggleTip({ label, keys, children }: { label: string; keys: string; chi
 }
 
 /** Left roster: collapses to the slim avatar rail (Ctrl+B is the primitive's own shortcut). */
-function RosterToggle() {
+function RosterToggle({ scope }: { scope: ShellScope }) {
   const sidebar = useOptionalSidebar();
   if (!sidebar) return null;
   const open = sidebar.open;
-  const label = open ? "收起机器人列表" : "展开机器人列表";
+  const what = scope === "app" ? "机器人列表" : scope === "settings" ? "设置分区" : "管理导航";
+  const label = open ? `收起${what}` : `展开${what}`;
   const Icon = open ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand;
   return (
     <ToggleTip keys={MOD_LABEL} label={label}>
@@ -197,10 +206,11 @@ function PanelRailToggle() {
   );
 }
 
-function TopSearch() {
+function TopSearch({ scope }: { scope: ShellScope }) {
   const search = useSidebarSearch();
   const input = useRef<HTMLInputElement>(null);
   const sidebar = useOptionalSidebar();
+  const navigate = useNavigate();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -212,6 +222,11 @@ function TopSearch() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sidebar]);
+  // Arriving from a settings/admin search: keep typing where you left off.
+  useEffect(() => {
+    if (scope === "app" && search && document.activeElement === document.body) input.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const mac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
   return (
     <label className="glass-search hidden md:flex">
@@ -219,7 +234,11 @@ function TopSearch() {
       <input
         aria-label={"搜索会话"}
         className="h-full min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-[var(--glass-ink-3)]"
-        onChange={(event) => setSidebarSearch(event.target.value)}
+        onChange={(event) => {
+          setSidebarSearch(event.target.value);
+          // Results live in the chat roster; from settings/admin a search takes you there.
+          if (scope !== "app" && event.target.value.trim()) void navigate({ to: "/" });
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setSidebarSearch("");
