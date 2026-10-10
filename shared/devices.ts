@@ -200,6 +200,8 @@ export type ServerToDevice =
       summary: string;
       botName: string | null;
       expiresAt: string;
+      /** 按服务器时钟算的剩余毫秒数（PC 时钟可能不准，倒数用它）。 */
+      remainingMs?: number;
     }
   | { type: "approval_closed"; id: string; decision: "approve" | "deny" | "expired" }
   | {

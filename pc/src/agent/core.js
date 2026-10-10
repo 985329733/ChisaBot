@@ -127,7 +127,15 @@ function createNodeAgent(options) {
     // 本机强制审批：危险能力即使服务器设为「直接执行」也在本机再问一次。
     if (local().forceLocalApproval && capability && DANGEROUS.has(capability) && policy === "allow" && options.approve) {
       const decision = await options
-        .approve({ id: `local-${id}`, operation, summary: summarize(operation, args), botName: message.botName, local: true })
+        .approve({
+          id: `local-${id}`,
+          operation,
+          summary: summarize(operation, args),
+          botName: message.botName,
+          local: true,
+          // 本机确认最多等到这次调用的超时（服务器那边到点就按失败处理），上限 2 分钟。
+          remainingMs: Math.min(120_000, Math.max(10_000, (message.timeoutMs || 120_000) - 5_000)),
+        })
         .catch(() => "deny");
       if (decision !== "approve") return reply(false, "用户在本机拒绝了这次操作。");
     }

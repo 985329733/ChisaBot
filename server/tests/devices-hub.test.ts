@@ -106,7 +106,11 @@ describe("device hub", () => {
     await tick();
     const [approval] = hub.listApprovals("u1");
     expect(approval?.operation).toBe("clipboard_read");
-    expect(s.sent.some((m) => m.type === "approval_request")).toBe(true);
+    const request = s.sent.find((m) => m.type === "approval_request") as { remainingMs?: number } | undefined;
+    expect(request).toBeDefined();
+    // 服务器时钟算好的剩余时间，PC 时钟不准也能正确倒数。
+    expect(typeof request?.remainingMs).toBe("number");
+    expect(request!.remainingMs!).toBeGreaterThan(0);
     expect(hub.decide(approval!.id, true, "web")).toBe(true);
     await tick();
     const call = s.sent.find((m) => m.type === "call") as { id: string };

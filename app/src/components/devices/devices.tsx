@@ -37,6 +37,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/toast";
 import { Card, CardHeader, EmptyState, ListRow, SaveBar, SettingRow } from "@/components/ui/skyglass";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import {
@@ -51,6 +53,7 @@ import {
   platformLabel,
   seenText,
 } from "@/lib/devices";
+import { type PcLocalPatch, type PcLocalState, pcBridge } from "@/lib/pc-bridge";
 import { cn } from "@/lib/utils";
 
 const CAP_ICON: Record<DeviceCapability, typeof IconTerminal2> = {
@@ -96,17 +99,27 @@ export function StatusBadge({ device }: { device: Pick<DeviceView, "online" | "p
   );
 }
 
+export function ThisPcBadge() {
+  return (
+    <span className="device-badge is-accent">
+      <IconDeviceDesktop className="size-3" />
+      {"这台电脑"}
+    </span>
+  );
+}
+
 function enabledCount(capabilities: DeviceCapabilities) {
   return DEVICE_CAPABILITIES.filter((cap) => capabilities[cap] !== "off").length;
 }
 
-export function DeviceRow({ device, showOwner }: { device: DeviceView; showOwner?: boolean }) {
+export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView; showOwner?: boolean; isThisPc?: boolean }) {
   const caps = enabledCount(device.capabilities);
   return (
     <Link className="device-row-link" params={{ deviceId: device.id }} to="/settings/devices/$deviceId">
       <ListRow
         actions={
           <span className="device-row-actions">
+            {isThisPc ? <ThisPcBadge /> : null}
             <StatusBadge device={device} />
             <IconChevronRight aria-hidden className="size-4 text-[var(--ink-3)]" />
           </span>
@@ -127,17 +140,32 @@ export function DeviceRow({ device, showOwner }: { device: DeviceView; showOwner
   );
 }
 
+/**
+ * 审批剩余时间。expiresAt / createdAt 都是服务器时钟，而这台电脑 / 手机的时钟可能和服务器差几十秒甚至几分钟，
+ * 直接拿 expiresAt − Date.now() 会出现一打开就「0 秒」。所以：本机算出的剩余时间落在 (0, 总时长] 内才信它，
+ * 否则按「刚收到」处理（剩余 = 总时长），之后用本机的单调时钟倒数。
+ */
+function useApprovalCountdown(approval: Pick<DeviceApprovalView, "createdAt" | "expiresAt">) {
+  const [deadline] = useState(() => {
+    const ttl = Math.max(0, Date.parse(approval.expiresAt) - Date.parse(approval.createdAt)) || 120_000;
+    const naive = Date.parse(approval.expiresAt) - Date.now();
+    return performance.now() + (naive > 0 && naive <= ttl ? naive : ttl);
+  });
+  const [left, setLeft] = useState(() => Math.max(0, deadline - performance.now()));
+  useEffect(() => {
+    const timer = setInterval(() => setLeft(Math.max(0, deadline - performance.now())), 1000);
+    return () => clearInterval(timer);
+  }, [deadline]);
+  return left;
+}
+
 function ApprovalRow({ approval }: { approval: DeviceApprovalView }) {
   const queryClient = useQueryClient();
   const decide = useAsyncAction(async (decision: "approve" | "deny") => {
     await decideApproval(approval.id, decision);
     await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
   });
-  const [left, setLeft] = useState(() => Math.max(0, Date.parse(approval.expiresAt) - Date.now()));
-  useEffect(() => {
-    const timer = setInterval(() => setLeft(Math.max(0, Date.parse(approval.expiresAt) - Date.now())), 1000);
-    return () => clearInterval(timer);
-  }, [approval.expiresAt]);
+  const left = useApprovalCountdown(approval);
   return (
     <div className="device-approval list-enter">
       <span className="device-approval-ic">
@@ -148,7 +176,9 @@ function ApprovalRow({ approval }: { approval: DeviceApprovalView }) {
           {`${approval.botName ?? "机器人"} 想在「${approval.deviceName}」上${OPERATION_LABEL[approval.operation]}`}
         </div>
         <code className="device-approval-s">{approval.summary}</code>
-        <div className="device-approval-m">{`${Math.ceil(left / 1000)} 秒后自动拒绝 · 也可以在这台电脑的弹窗里处理`}</div>
+        <div className="device-approval-m">
+          {`${left > 0 ? `${Math.ceil(left / 1000)} 秒后自动拒绝` : "即将自动拒绝"} · 也可以在这台电脑的弹窗里处理`}
+        </div>
       </div>
       <div className="device-approval-a">
         <Button
@@ -319,7 +349,7 @@ function sameDraft(a: Draft, b: Draft) {
 }
 
 /** 权限页：能力、允许的文件夹、可用机器人、名称；改动后出现未保存栏。 */
-export function DevicePermissions({ device }: { device: DeviceView }) {
+export function DevicePermissions({ device, isThisPc = false }: { device: DeviceView; isThisPc?: boolean }) {
   const queryClient = useQueryClient();
   const base = useMemo(() => draftOf(device), [device]);
   const [draft, setDraft] = useState<Draft>(base);
@@ -349,6 +379,16 @@ export function DevicePermissions({ device }: { device: DeviceView }) {
     setTouched(true);
     setDraft(fn);
   };
+  const addRoots = (paths: string[]) =>
+    update((current) => {
+      const next = [...current.allowedRoots];
+      for (const value of paths) if (!next.some((r) => r.toLowerCase() === value.toLowerCase())) next.push(value);
+      return { ...current, allowedRoots: next };
+    });
+  const pick = useAsyncAction(async () => {
+    const paths = (await pcBridge()?.pickFolders()) ?? [];
+    if (paths.length) addRoots(paths);
+  });
   const rootProblem =
     newRoot.trim() && !/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(newRoot.trim()) ? "请填写绝对路径，例如 C:\\Users\\你\\Documents" : null;
 
@@ -389,7 +429,9 @@ export function DevicePermissions({ device }: { device: DeviceView }) {
 
       <section className="device-section">
         <h2 className="device-section-t">{"允许的文件夹"}</h2>
-        <p className="device-section-s">{"「读取文件」「写入文件」只能访问这些文件夹（含子文件夹）。也可以在 PC 客户端里用文件夹选择器添加。"}</p>
+        <p className="device-section-s">{isThisPc
+            ? "「读取文件」「写入文件」只能访问这些文件夹（含子文件夹）。在这台电脑上可以直接用「选择文件夹…」挑选。"
+            : "「读取文件」「写入文件」只能访问这些文件夹（含子文件夹）。也可以在那台电脑的 PC 客户端里用文件夹选择器添加。"}</p>
         <Card>
           {draft.allowedRoots.length ? (
             draft.allowedRoots.map((root) => (
@@ -419,11 +461,7 @@ export function DevicePermissions({ device }: { device: DeviceView }) {
               event.preventDefault();
               const value = newRoot.trim();
               if (!value || rootProblem) return;
-              update((current) =>
-                current.allowedRoots.some((r) => r.toLowerCase() === value.toLowerCase())
-                  ? current
-                  : { ...current, allowedRoots: [...current.allowedRoots, value] },
-              );
+              addRoots([value]);
               setNewRoot("");
             }}
           >
@@ -438,6 +476,19 @@ export function DevicePermissions({ device }: { device: DeviceView }) {
               <IconFolderPlus />
               {"添加"}
             </Button>
+            {isThisPc && pcBridge() ? (
+              <Button
+                disabled={locked}
+                feedback={{ pending: "选择中…", success: "已添加", error: "失败" }}
+                onClick={() => void pick.run()}
+                size="sm"
+                state={pick.state}
+                type="button"
+              >
+                <IconFolder />
+                {"选择文件夹…"}
+              </Button>
+            ) : null}
           </form>
           {rootProblem ? <div className="device-field-error">{rootProblem}</div> : null}
         </Card>
@@ -551,5 +602,113 @@ export function AuditList({ entries }: { entries: DeviceAuditEntry[] }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * 「本机」标签：只在 PC 客户端里、而且看的正是这台电脑时出现（DESIGN.md §16.4）。这些设置只存在这台电脑上，
+ * 通过 PC 客户端的本机桥读写；放松安全的改动由 PC 弹出本机确认窗，用户在那里取消时这里的开关回到原位。
+ */
+export function ThisPcPanel({ local, onLocal }: { local: PcLocalState; onLocal: (next: PcLocalState) => void }) {
+  const bridge = pcBridge();
+  const [busy, setBusy] = useState<string | null>(null);
+  const logout = useAsyncAction(async () => {
+    await bridge?.logout();
+  });
+  const set = async (key: keyof PcLocalPatch, value: boolean) => {
+    if (!bridge) return;
+    setBusy(key);
+    try {
+      onLocal(await bridge.setLocal({ [key]: value }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "修改失败");
+    } finally {
+      setBusy(null);
+    }
+  };
+  const online = local.agentState === "online";
+  return (
+    <>
+      <section className="device-section">
+        <h2 className="device-section-t">{"这台电脑"}</h2>
+        <p className="device-section-s">{"这些设置只保存在这台电脑上，网页和手机看不到也改不了。放松安全的改动需要在这台电脑上再确认一次。"}</p>
+        <Card>
+          <SettingRow
+            description={`${local.serverUrl} · 客户端 ${local.version} · ${local.hostname}`}
+            title="节点连接"
+          >
+            <span className={cn("device-badge", online ? "is-ok" : local.localPaused ? "is-danger" : local.agentState === "revoked" ? "is-muted" : "is-warn")}>
+              {online ? <span aria-hidden className="device-dot is-ok" /> : null}
+              {local.statusText}
+            </span>
+          </SettingRow>
+          <SettingRow
+            description="立即拒绝一切远程操作、取消进行中的操作和审批；断网时也有效。也可以在托盘菜单里按。"
+            title={
+              <span className="device-cap-t">
+                <IconPlayerStopFilled className="size-4 text-[var(--danger)]" />
+                {"本机紧急停止"}
+              </span>
+            }
+          >
+            <Switch
+              aria-label="本机紧急停止"
+              checked={local.localPaused}
+              disabled={busy === "localPaused"}
+              onCheckedChange={(value) => void set("localPaused", value)}
+            />
+          </SettingRow>
+          <SettingRow
+            description="命令行、写入文件、鼠标键盘即使在权限里设为「允许」，也先在这台电脑上弹窗确认。服务器被攻破也无法静默操作这台电脑。"
+            title={
+              <span className="device-cap-t">
+                <IconShieldCheck className="size-4" />
+                {"高风险操作始终在本机确认"}
+                <span className="device-badge is-ok is-sm">{"推荐"}</span>
+              </span>
+            }
+          >
+            <Switch
+              aria-label="高风险操作始终在本机确认"
+              checked={local.forceLocalApproval}
+              disabled={busy === "forceLocalApproval"}
+              onCheckedChange={(value) => void set("forceLocalApproval", value)}
+            />
+          </SettingRow>
+          <SettingRow description="登录 Windows 后自动启动 ChisaBot PC，保持节点在线。" title="开机自动启动">
+            <Switch
+              aria-label="开机自动启动"
+              checked={local.autoStart}
+              disabled={busy === "autoStart"}
+              onCheckedChange={(value) => void set("autoStart", value)}
+            />
+          </SettingRow>
+          <SettingRow description="启动时不打开窗口，只在托盘里运行。" title="启动时隐藏到托盘">
+            <Switch
+              aria-label="启动时隐藏到托盘"
+              checked={local.startHidden}
+              disabled={busy === "startHidden"}
+              onCheckedChange={(value) => void set("startHidden", value)}
+            />
+          </SettingRow>
+          <SettingRow
+            description={local.tokenProtected ? "已用 Windows 数据保护（DPAPI）加密，只有当前 Windows 用户能解开。" : "这台电脑不支持系统加密，令牌以普通文件保存。"}
+            title="设备令牌"
+          >
+            <span className={cn("device-badge", local.tokenProtected ? "is-ok" : "is-warn")}>{local.tokenProtected ? "已加密" : "未加密"}</span>
+          </SettingRow>
+        </Card>
+      </section>
+      <section className="device-section">
+        <h2 className="device-section-t is-danger">{"账号"}</h2>
+        <Card className="device-danger">
+          <SettingRow description="作废这台电脑的设备令牌、清除登录状态，回到设置向导。可以换一台服务器或换个账号重新登录。" title="退出登录 / 换服务器">
+            <Button feedback={{ pending: "等待确认…", success: "已退出", error: "失败" }} onClick={() => void logout.run()} size="sm" state={logout.state} variant="destructive">
+              {"退出登录"}
+            </Button>
+          </SettingRow>
+        </Card>
+      </section>
+    </>
   );
 }

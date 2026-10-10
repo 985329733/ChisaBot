@@ -3,7 +3,10 @@
  * ChisaBot PC 客户端（Electron 主进程）。docs/pc-node.md §8。
  *
  *  - 首次运行：设置向导（服务器地址 + 账号密码）→ 登录网关 → 登记设备拿到令牌（DPAPI 加密保存）
- *  - 聊天窗口：直接载入该服务器的 ChisaBot 网页（登录 Cookie 已注入），关闭时缩到托盘
+ *  - 主窗口：直接载入该服务器的 ChisaBot 网页（登录 Cookie 已注入）——聊天、偏好设置、管理后台和网页完全同一套
+ *    界面；本机设置就是网页的 偏好设置 → 设备 → 这台电脑（「本机」标签），通过 web-preload.js 的本机桥读写
+ *    只能在本机做的事（紧急停止、本机确认、开机自启、文件夹选择器、退出登录）。关闭时缩到托盘。
+ *  - 本机窗口（设置向导、审批弹窗、本机确认、离线页）用网页同一套 Skyglass 令牌（ui/skyglass-tokens.css）
  *  - 托盘：在线 / 离线 / 紧急停止三种图标；菜单含紧急停止
  *  - 节点：agent/core.js 出站 WebSocket；审批弹窗；本机审计日志
  */
@@ -24,7 +27,10 @@ const {
   safeStorage,
   session,
   Notification,
+  nativeTheme,
+  net,
 } = require("electron");
+const { pathToFileURL, fileURLToPath } = require("node:url");
 const { createConfig } = require("./config");
 const { createNodeAgent } = require("./agent/core");
 const { createOps } = require("./agent/ops");
@@ -42,7 +48,8 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let config;
 let agent = null;
 let tray = null;
-const windows = { setup: null, chat: null, settings: null };
+const windows = { setup: null, chat: null };
+const UI_URL = pathToFileURL(UI).href; // 只用于 will-navigate 放行本机离线页
 let quitting = false;
 const approvalQueue = [];
 let approvalWindow = null;
@@ -75,7 +82,7 @@ function localWindow(name, file, options = {}) {
     title: "ChisaBot PC",
     icon: path.join(ASSETS, "icon.png"),
     autoHideMenuBar: true,
-    backgroundColor: "#cfe4fb",
+    backgroundColor: windowBackground(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -98,18 +105,48 @@ function localWindow(name, file, options = {}) {
   return win;
 }
 
+function windowBackground() {
+  return nativeTheme.shouldUseDarkColors ? "#12203a" : "#9dbddc";
+}
+
 function openSetup() {
-  return localWindow("setup", "setup.html", { width: 460, height: 680, resizable: false, maximizable: false });
+  return localWindow("setup", "setup.html", { width: 480, height: 760, minWidth: 400, minHeight: 600, maximizable: false });
 }
 
-function openSettings() {
-  return localWindow("settings", "settings.html", { width: 940, height: 760 });
+/** 本机设置 = 网页 偏好设置 → 设备 → 这台电脑。tab：permissions | local | audit | settings。 */
+function openDeviceSettings(tab) {
+  const { deviceId } = config.get();
+  const query = tab ? `?tab=${encodeURIComponent(tab)}` : "";
+  return openChat(deviceId ? `/settings/devices/${encodeURIComponent(deviceId)}${query}` : "/settings/devices");
 }
 
-function openChat() {
+let chatOffline = false;
+let chatRetryTimer = null;
+let lastWebPath = "/";
+
+function serverOrigin() {
+  try {
+    return new URL(config.get().serverUrl).origin;
+  } catch {
+    return "";
+  }
+}
+
+function isServerUrl(url) {
+  try {
+    return new URL(url).origin === serverOrigin();
+  } catch {
+    return false;
+  }
+}
+
+function openChat(pathname) {
   const { serverUrl } = config.get();
   if (!serverUrl) return openSetup();
+  const target = pathname ? `${serverOrigin()}${pathname}` : null;
   if (windows.chat && !windows.chat.isDestroyed()) {
+    if (target && !chatOffline) windows.chat.loadURL(target);
+    else if (pathname) lastWebPath = pathname;
     windows.chat.show();
     windows.chat.focus();
     return windows.chat;
@@ -123,23 +160,49 @@ function openChat() {
     title: "ChisaBot",
     icon: path.join(ASSETS, "icon.png"),
     autoHideMenuBar: true,
-    backgroundColor: "#cfe4fb",
-    webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: true, nodeIntegration: false },
+    backgroundColor: windowBackground(),
+    webPreferences: {
+      partition: PARTITION,
+      preload: path.join(__dirname, "web-preload.js"),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      spellcheck: false,
+    },
   });
   win.setMenu(null);
-  win.loadURL(serverUrl);
+  chatOffline = false;
+  win.loadURL(target || serverUrl);
   win.once("ready-to-show", () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(serverUrl)) return { action: "allow" };
+    // 同一服务器的弹窗（例如连接账号的授权窗口）照常打开；本机桥只认主窗口，弹窗里拿不到。
+    if (isServerUrl(url)) return { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(ASSETS, "icon.png") } };
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(serverUrl)) {
-      event.preventDefault();
-      if (/^https?:/i.test(url)) shell.openExternal(url);
+    if (isServerUrl(url) || url.startsWith(UI_URL)) return;
+    event.preventDefault();
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+  });
+  win.webContents.on("did-navigate", (_event, url) => {
+    if (isServerUrl(url)) {
+      chatOffline = false;
+      clearInterval(chatRetryTimer);
     }
   });
+  win.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+    if (isMainFrame && isServerUrl(url)) lastWebPath = new URL(url).pathname + new URL(url).search;
+  });
+  // 载不出网页（断网、服务器维护）时换成本机的离线页：同样的天空和玻璃，紧急停止照样能按，恢复后自动回到原页面。
+  win.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
+    if (!isMainFrame || code === -3 || !isServerUrl(url)) return;
+    try {
+      lastWebPath = new URL(url).pathname + new URL(url).search;
+    } catch {}
+    showOffline(win, description || String(code));
+  });
+  win.webContents.on("render-process-gone", () => showOffline(win, "页面进程意外退出"));
   win.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
@@ -148,9 +211,35 @@ function openChat() {
   });
   win.on("closed", () => {
     windows.chat = null;
+    clearInterval(chatRetryTimer);
   });
   windows.chat = win;
   return win;
+}
+
+function showOffline(win, reason) {
+  if (win.isDestroyed()) return;
+  chatOffline = true;
+  win.loadFile(path.join(UI, "offline.html"), { query: { error: String(reason).slice(0, 80) } });
+  clearInterval(chatRetryTimer);
+  chatRetryTimer = setInterval(() => {
+    void retryChat().catch(() => {});
+  }, 15000);
+}
+
+async function probeServer() {
+  const response = await net.fetch(`${serverOrigin()}/`, { method: "HEAD", cache: "no-store" });
+  return response.status < 500;
+}
+
+async function retryChat() {
+  const win = windows.chat;
+  if (!win || win.isDestroyed() || !chatOffline) return true;
+  if (!(await probeServer().catch(() => false))) throw new Error("仍然连不上服务器。");
+  chatOffline = false;
+  clearInterval(chatRetryTimer);
+  win.loadURL(`${serverOrigin()}${lastWebPath || "/"}`);
+  return true;
 }
 
 // ---------- 托盘 ----------
@@ -191,12 +280,13 @@ function refreshTray() {
     Menu.buildFromTemplate([
       { label: `状态：${statusText()}`, enabled: false },
       { type: "separator" },
-      { label: "打开聊天", click: () => openChat() },
-      { label: "设置与权限…", click: () => openSettings() },
+      { label: "打开 ChisaBot", click: () => openChat() },
+      { label: "这台电脑的权限…", click: () => openDeviceSettings() },
+      { label: "本机设置…", click: () => openDeviceSettings("local") },
       { type: "separator" },
       {
-        label: paused ? "解除紧急停止" : "紧急停止（拒绝一切远程操作）",
-        click: () => setPaused(!paused),
+        label: paused ? "解除紧急停止…" : "紧急停止（拒绝一切远程操作）",
+        click: () => void requestPaused(!paused),
       },
       { type: "separator" },
       {
@@ -307,6 +397,70 @@ function setPaused(paused) {
   refreshTray();
 }
 
+/** 开启紧急停止立即生效；解除要本机确认（网页 / 托盘发起都一样）。返回最终是否处于紧急停止。 */
+async function requestPaused(paused) {
+  if (paused) {
+    setPaused(true);
+    return true;
+  }
+  if (!config.get().localPaused) return false;
+  const ok = await confirmLocal({
+    title: "解除紧急停止？",
+    description: "解除后，机器人可以再次按这台电脑的权限设置操作它（「询问」的操作仍会先问你）。",
+    confirmLabel: "解除紧急停止",
+  });
+  if (ok) setPaused(false);
+  return config.get().localPaused;
+}
+
+// ---------- 本机确认窗 ----------
+// 放松安全的改动在这里由本人确认。它是本机文件页面、独立窗口，网页里的脚本既看不到也点不到。
+
+const confirmQueue = [];
+let confirmCurrent = null;
+let confirmWindow = null;
+
+function confirmLocal({ title, description, confirmLabel }) {
+  return new Promise((resolve) => {
+    confirmQueue.push({ request: { id: `c${Date.now()}${Math.random().toString(36).slice(2, 6)}`, title, description, confirmLabel }, resolve });
+    pumpConfirm();
+  });
+}
+
+function pumpConfirm() {
+  if (confirmCurrent || !confirmQueue.length) return;
+  confirmCurrent = confirmQueue.shift();
+  const parent = windows.chat && !windows.chat.isDestroyed() && windows.chat.isVisible() ? windows.chat : undefined;
+  confirmWindow = new BrowserWindow({
+    width: 440,
+    height: 260,
+    parent,
+    modal: !!parent,
+    frame: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: !parent,
+    show: false,
+    title: "ChisaBot PC · 本机确认",
+    backgroundColor: windowBackground(),
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
+  });
+  confirmWindow.loadFile(path.join(UI, "confirm.html"));
+  confirmWindow.once("ready-to-show", () => {
+    confirmWindow.show();
+    confirmWindow.focus();
+  });
+  confirmWindow.on("closed", () => {
+    confirmWindow = null;
+    if (confirmCurrent) {
+      confirmCurrent.resolve(false);
+      confirmCurrent = null;
+    }
+    setTimeout(pumpConfirm, 100);
+  });
+}
+
 // ---------- 审批弹窗 ----------
 
 function askApproval(request) {
@@ -323,8 +477,8 @@ function pumpApprovals() {
   if (currentApproval || !approvalQueue.length) return;
   currentApproval = approvalQueue.shift();
   const { workArea } = screen.getPrimaryDisplay();
-  const width = 440;
-  const height = 300;
+  const width = 460;
+  const height = 320;
   approvalWindow = new BrowserWindow({
     width,
     height,
@@ -336,7 +490,8 @@ function pumpApprovals() {
     skipTaskbar: false,
     transparent: false,
     show: false,
-    backgroundColor: "#eaf3fd",
+    title: "ChisaBot 请求操作这台电脑",
+    backgroundColor: windowBackground(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
   approvalWindow.setAlwaysOnTop(true, "screen-saver");
@@ -381,12 +536,32 @@ function publicState() {
     statusText: statusText(),
     agentState: agent?.state ?? "offline",
     device: agent?.device ?? null,
-    local: { autoStart: local.autoStart, forceLocalApproval: local.forceLocalApproval, localPaused: local.localPaused },
+    appearance: local.appearance,
+    local: { autoStart: local.autoStart, forceLocalApproval: local.forceLocalApproval, localPaused: local.localPaused, startHidden: local.startHidden },
+  };
+}
+
+/** 给网页本机桥的状态（只有网页「本机」标签需要的字段，没有令牌、没有账号）。 */
+function webLocalState() {
+  const local = config.get();
+  return {
+    version: pkg.version,
+    platform: process.platform,
+    hostname: os.hostname(),
+    serverUrl: local.serverUrl,
+    deviceId: local.deviceId,
+    agentState: agent?.state ?? "offline",
+    statusText: statusText(),
+    tokenProtected: config.tokenProtected(),
+    localPaused: local.localPaused,
+    forceLocalApproval: local.forceLocalApproval,
+    autoStart: local.autoStart,
+    startHidden: local.startHidden,
   };
 }
 
 function broadcast(kind = "state") {
-  for (const win of [windows.settings, windows.setup]) {
+  for (const win of [windows.setup, windows.chat, approvalWindow, confirmWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send("state:changed", kind);
   }
 }
@@ -408,9 +583,89 @@ async function injectCookies(origin, cookies) {
   }
 }
 
+/** 本机页面（file://…/src/ui/）发来的调用。 */
+function isTopFrame(event) {
+  return !!event.senderFrame && !event.senderFrame.parent;
+}
+
+function fromLocalUi(event) {
+  if (!isTopFrame(event)) return false;
+  try {
+    // 比较解码后的路径，安装目录里有空格或中文（如 C:\Users\程天宇\…）时 URL 编码方式不影响判断。
+    const file = path.resolve(fileURLToPath(event.senderFrame.url));
+    const root = path.resolve(UI) + path.sep;
+    return process.platform === "win32" ? file.toLowerCase().startsWith(root.toLowerCase()) : file.startsWith(root);
+  } catch {
+    return false;
+  }
+}
+
+/** 网页本机桥：只认主窗口、顶层框架、而且是已登录的那台服务器。 */
+function fromServerPage(event) {
+  const chat = windows.chat;
+  if (!chat || chat.isDestroyed() || event.sender !== chat.webContents) return false;
+  if (!isTopFrame(event)) return false;
+  return isServerUrl(event.senderFrame.url) && !!serverOrigin();
+}
+
+function handleLocal(channel, fn) {
+  ipcMain.handle(channel, (event, payload) => {
+    if (!fromLocalUi(event)) throw new Error("拒绝：调用来源不是 ChisaBot PC 本机页面。");
+    return fn(payload, event);
+  });
+}
+
+function handleWeb(channel, fn) {
+  ipcMain.handle(channel, (event, payload) => {
+    if (!fromServerPage(event)) throw new Error("拒绝：只有已登录服务器的页面可以使用本机桥。");
+    return fn(payload, event);
+  });
+}
+
+async function logout() {
+  const local = config.get();
+  const token = config.getToken();
+  agent?.stop();
+  agent = null;
+  if (token && local.serverUrl) await auth.unenroll({ serverUrl: local.serverUrl, token }).catch(() => false);
+  config.setToken(null);
+  config.set({ deviceId: "", deviceName: "", localPaused: false });
+  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "logout", outcome: "succeeded", summary: "退出登录（令牌已作废）" });
+  await session.fromPartition(PARTITION).clearStorageData({ storages: ["cookies"] });
+  windows.chat?.destroy();
+  refreshTray();
+  openSetup();
+}
+
+async function setLocal(patch) {
+  const current = config.get();
+  if (typeof patch.localPaused === "boolean" && patch.localPaused !== current.localPaused) await requestPaused(patch.localPaused);
+  if (typeof patch.forceLocalApproval === "boolean" && patch.forceLocalApproval !== current.forceLocalApproval) {
+    const ok =
+      patch.forceLocalApproval ||
+      (await confirmLocal({
+        title: "关闭高风险操作的本机确认？",
+        description: "关闭后，权限里设为「允许」的命令行、写入文件、鼠标键盘会直接执行，不再在这台电脑上弹窗。建议保持开启。",
+        confirmLabel: "仍然关闭",
+      }));
+    if (ok) {
+      config.set({ forceLocalApproval: patch.forceLocalApproval });
+      config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "config_changed", outcome: "succeeded", summary: `本机确认 → ${patch.forceLocalApproval ? "开启" : "关闭"}` });
+    }
+  }
+  if (typeof patch.autoStart === "boolean") {
+    config.set({ autoStart: patch.autoStart });
+    if (app.isPackaged || process.platform === "win32") app.setLoginItemSettings({ openAtLogin: patch.autoStart, args: ["--hidden"] });
+  }
+  if (typeof patch.startHidden === "boolean") config.set({ startHidden: patch.startHidden });
+  refreshTray();
+  return webLocalState();
+}
+
 function registerIpc() {
-  ipcMain.handle("state:get", () => publicState());
-  ipcMain.handle("setup:login", async (_event, input) => {
+  // 本机页面（设置向导 / 审批 / 本机确认 / 离线页）
+  handleLocal("state:get", () => publicState());
+  handleLocal("setup:login", async (input) => {
     const serverUrl = auth.normalizeServerUrl(input.serverUrl);
     const sessionInfo = await auth.login({ serverUrl, username: input.username, password: input.password });
     await injectCookies(serverUrl, sessionInfo.cookies);
@@ -424,79 +679,63 @@ function registerIpc() {
     startAgent();
     return { device: result.device };
   });
-  ipcMain.handle("setup:done", () => {
+  handleLocal("setup:done", () => {
     windows.setup?.close();
-    openChat();
-    openSettings();
+    openDeviceSettings();
   });
-  ipcMain.handle("cap:set", (_event, { capability, policy }) => {
-    if (!agent?.setConfig({ capabilities: { [capability]: policy } })) throw new Error("当前离线，连接后再修改。");
-    config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "config_changed", outcome: "succeeded", summary: `${capability} → ${policy}` });
+  handleLocal("paused:set", async (paused) => {
+    await requestPaused(!!paused);
     return publicState();
   });
-  ipcMain.handle("roots:add", async () => {
-    const result = await dialog.showOpenDialog(windows.settings ?? undefined, {
-      title: "选择允许机器人访问的文件夹",
-      properties: ["openDirectory", "multiSelections", "createDirectory"],
-    });
-    if (result.canceled || !result.filePaths.length) return publicState();
-    const current = agent?.device?.allowedRoots ?? [];
-    const next = [...current];
-    for (const p of result.filePaths) if (!next.some((r) => r.toLowerCase() === p.toLowerCase())) next.push(p);
-    if (!agent?.setConfig({ allowedRoots: next })) throw new Error("当前离线，连接后再修改。");
-    return publicState();
-  });
-  ipcMain.handle("roots:remove", (_event, root) => {
-    const next = (agent?.device?.allowedRoots ?? []).filter((r) => r !== root);
-    if (!agent?.setConfig({ allowedRoots: next })) throw new Error("当前离线，连接后再修改。");
-    return publicState();
-  });
-  ipcMain.handle("device:rename", (_event, name) => {
-    if (!agent?.setConfig({ name: String(name || "").slice(0, 64) })) throw new Error("当前离线，连接后再修改。");
-    return publicState();
-  });
-  ipcMain.handle("paused:set", (_event, paused) => {
-    setPaused(!!paused);
-    return publicState();
-  });
-  ipcMain.handle("local:set", (_event, patch) => {
-    const next = {};
-    if (typeof patch.autoStart === "boolean") {
-      next.autoStart = patch.autoStart;
-      app.setLoginItemSettings({ openAtLogin: patch.autoStart, args: ["--hidden"] });
-    }
-    if (typeof patch.forceLocalApproval === "boolean") next.forceLocalApproval = patch.forceLocalApproval;
-    config.set(next);
-    return publicState();
-  });
-  ipcMain.handle("audit:get", () => config.readAudit(300));
-  ipcMain.handle("chat:open", () => openChat());
-  ipcMain.handle("web:devices", () => {
-    const win = openChat();
-    win.loadURL(`${config.get().serverUrl}/settings/devices`);
-  });
-  ipcMain.handle("account:logout", async (_event, { keepServer } = {}) => {
-    const local = config.get();
-    const token = config.getToken();
-    agent?.stop();
-    agent = null;
-    if (token && local.serverUrl) await auth.unenroll({ serverUrl: local.serverUrl, token }).catch(() => false);
-    config.setToken(null);
-    config.set({ deviceId: "", deviceName: "", localPaused: false, ...(keepServer ? {} : {}) });
-    await session.fromPartition(PARTITION).clearStorageData({ storages: ["cookies"] });
-    windows.chat?.destroy();
-    refreshTray();
-    windows.settings?.close();
-    openSetup();
-    return publicState();
-  });
-  ipcMain.handle("approval:current", () => currentApproval?.request ?? null);
-  ipcMain.handle("approval:decide", (_event, { id, decision }) => {
+  handleLocal("chat:retry", () => retryChat());
+  handleLocal("approval:current", () => currentApproval?.request ?? null);
+  handleLocal("approval:decide", ({ id, decision }) => {
     if (currentApproval && currentApproval.request.id === id) {
       currentApproval.resolve(decision === "approve" ? "approve" : "deny");
       currentApproval = null;
       approvalWindow?.close();
     }
+  });
+  handleLocal("confirm:current", () => confirmCurrent?.request ?? null);
+  handleLocal("confirm:answer", ({ id, ok }) => {
+    if (confirmCurrent && confirmCurrent.request.id === id) {
+      confirmCurrent.resolve(ok === true);
+      confirmCurrent = null;
+      confirmWindow?.close();
+    }
+  });
+
+  // 网页本机桥（web-preload.js → window.chisabotPC）
+  ipcMain.on("pc:origin", (event) => {
+    event.returnValue = event.sender === windows.chat?.webContents ? serverOrigin() : "";
+  });
+  handleWeb("pc:state", () => webLocalState());
+  handleWeb("pc:set", (patch) => setLocal(patch && typeof patch === "object" ? patch : {}));
+  handleWeb("pc:pick-folders", async () => {
+    const result = await dialog.showOpenDialog(windows.chat, {
+      title: "选择允许机器人访问的文件夹",
+      properties: ["openDirectory", "multiSelections", "createDirectory", "dontAddToRecent"],
+    });
+    return result.canceled ? [] : result.filePaths;
+  });
+  handleWeb("pc:logout", async () => {
+    const ok = await confirmLocal({
+      title: "退出登录？",
+      description: "会作废这台电脑的设备令牌并清除登录状态，机器人不能再操作它。之后可以重新登录或换一台服务器。",
+      confirmLabel: "退出登录",
+    });
+    if (ok) setTimeout(() => void logout(), 50);
+    return ok;
+  });
+  handleWeb("pc:appearance", (value) => {
+    const next = { dark: typeof value?.dark === "boolean" ? value.dark : null, sky: value?.sky !== false };
+    const prev = config.get().appearance || {};
+    if (prev.dark !== next.dark || prev.sky !== next.sky) {
+      config.set({ appearance: next });
+      nativeTheme.themeSource = next.dark === null ? "system" : next.dark ? "dark" : "light";
+      broadcast("appearance");
+    }
+    return true;
   });
 }
 
@@ -513,6 +752,8 @@ app.on("before-quit", () => {
 
 app.whenReady().then(() => {
   config = createConfig({ dir: app.getPath("userData"), safeStorage });
+  const appearance = config.get().appearance || {};
+  nativeTheme.themeSource = typeof appearance.dark === "boolean" ? (appearance.dark ? "dark" : "light") : "system";
   registerIpc();
   tray = new Tray(trayIcon("offline"));
   tray.on("click", () => openChat());

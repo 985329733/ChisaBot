@@ -1,0 +1,260 @@
+/* 由 pc/scripts/sync-skyglass.mjs 从 app/src/styles.css 生成，请勿手改。 */
+
+:root {
+  color-scheme: light;
+  /* Blue-sky frosted glass. Surfaces are translucent so the sky shows through; see "Glass" below. */
+  --glass-ink: #16181d;
+  --glass-ink-2: #3b3f48;
+  --glass-ink-3: var(--sky-muted, #6b7280);
+  --glass-ink-4: #9aa1ad;
+  /* `--sky-lift` (time-of-day sky, DESIGN.md §7) thickens the light glass when the sky behind it is dark. */
+  --glass: rgba(255, 255, 255, calc(0.55 + var(--sky-lift, 0)));
+  --glass-strong: rgba(255, 255, 255, calc(0.8 + var(--sky-lift, 0) * 0.6));
+  --glass-tile: rgba(255, 255, 255, calc(0.62 + var(--sky-lift, 0)));
+  --glass-dim: rgba(255, 255, 255, calc(0.34 + var(--sky-lift, 0)));
+  --glass-line: rgba(255, 255, 255, 0.6);
+  --glass-user: rgba(120, 132, 150, 0.3);
+  --glass-dark: #16181d;
+  --glass-dark-ink: #ffffff;
+  --glass-blur: saturate(160%) blur(22px);
+  --glass-shadow: 0 10px 30px rgba(40, 70, 110, 0.12), 0 1px 2px rgba(40, 70, 110, 0.06);
+  --glass-shadow-sm: 0 4px 14px rgba(40, 70, 110, 0.1);
+  --glass-shadow-pop: 0 20px 50px rgba(30, 50, 80, 0.22);
+  --background: rgba(255, 255, 255, 0.5);
+  --foreground: #16181d;
+  --card: rgba(255, 255, 255, calc(0.72 + var(--sky-lift, 0)));
+  --card-foreground: #16181d;
+  --popover: rgba(255, 255, 255, 0.86);
+  --popover-foreground: #16181d;
+  --primary: #16181d;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(255, 255, 255, calc(0.62 + var(--sky-lift, 0)));
+  --secondary-foreground: #16181d;
+  --muted: rgba(22, 24, 29, 0.05);
+  --muted-foreground: var(--sky-muted, #5f6673);
+  --accent: rgba(22, 24, 29, 0.05);
+  --accent-foreground: #16181d;
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.6 0.118 184.704);
+  --border: rgba(22, 24, 29, 0.09);
+  --input: rgba(22, 24, 29, 0.11);
+  --ring: rgba(59, 130, 246, 0.55);
+  --chart-1: #93b4d8;
+  --chart-2: #5b8ec4;
+  --chart-3: #3b6fa8;
+  --chart-4: #2a5285;
+  --chart-5: #1c3a63;
+  --radius: 0.75rem;
+  --sidebar: rgba(255, 255, 255, calc(0.4 + var(--sky-lift, 0)));
+  --sidebar-foreground: #16181d;
+  --sidebar-primary: #16181d;
+  --sidebar-primary-foreground: #5f6673;
+  --sidebar-accent: rgba(255, 255, 255, 0.55);
+  --sidebar-accent-foreground: #16181d;
+  --sidebar-border: rgba(255, 255, 255, 0.5);
+  --sidebar-ring: rgba(59, 130, 246, 0.55);
+}
+
+.dark {
+  color-scheme: dark;
+  --glass-ink: #e8ecf3;
+  --glass-ink-2: #c7cedb;
+  --glass-ink-3: #97a1b2;
+  --glass-ink-4: #6f7a8c;
+  --glass: rgba(22, 32, 48, 0.55);
+  --glass-strong: rgba(30, 42, 60, 0.82);
+  --glass-tile: rgba(255, 255, 255, 0.06);
+  --glass-dim: rgba(255, 255, 255, 0.07);
+  --glass-line: rgba(255, 255, 255, 0.08);
+  --glass-user: rgba(120, 150, 200, 0.24);
+  --glass-dark: #e8ecf3;
+  --glass-dark-ink: #10161f;
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --glass-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.3);
+  --glass-shadow-pop: 0 20px 50px rgba(0, 0, 0, 0.5);
+  --background: rgba(14, 22, 36, 0.5);
+  --foreground: #e8ecf3;
+  --card: rgba(28, 38, 56, 0.75);
+  --card-foreground: #e8ecf3;
+  --popover: rgba(24, 33, 50, 0.92);
+  --popover-foreground: #e8ecf3;
+  --primary: #e8ecf3;
+  --primary-foreground: #10161f;
+  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary-foreground: #e8ecf3;
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #97a1b2;
+  --accent: rgba(255, 255, 255, 0.08);
+  --accent-foreground: #e8ecf3;
+  --destructive: oklch(0.704 0.191 22.216);
+  --success: oklch(0.704 0.14 182.503);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: rgba(96, 165, 250, 0.55);
+  --chart-1: #93b4d8;
+  --chart-2: #5b8ec4;
+  --chart-3: #3b6fa8;
+  --chart-4: #2a5285;
+  --chart-5: #1c3a63;
+  --sidebar: rgba(18, 28, 44, 0.5);
+  --sidebar-foreground: #e8ecf3;
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: #e8ecf3;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #e8ecf3;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(96, 165, 250, 0.55);
+}
+
+:root {
+  --font: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "WenQuanYi Zen Hei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+  --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-24: 24px; --fs-32: 32px;
+  --lh-tight: 1.3; --lh: 1.6;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px; --sp-16: 64px;
+  --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 24px; --r-pill: 999px;
+  --blur-1: 12px; --blur-2: 22px; --blur-3: 36px;
+  --dur-1: 150ms; --dur-2: 220ms; --dur-3: 300ms; --dur-collapse: 260ms;
+  --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1); --ease-in: cubic-bezier(0.4, 0, 1, 1); --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --left-w: 276px; --left-w-slim: 80px; --right-w: 340px;
+  --ctl-sm: 32px; --ctl-md: 40px; --ctl-lg: 48px;
+
+  --glass-1: rgba(255, 255, 255, calc(0.46 + var(--sky-lift, 0)));
+  --glass-2: rgba(255, 255, 255, calc(0.66 + var(--sky-lift, 0)));
+  --glass-3: rgba(255, 255, 255, calc(0.86 + var(--sky-lift, 0)));
+  --glass-hover: rgba(255, 255, 255, 0.38);
+  --stroke: rgba(255, 255, 255, 0.72);
+  --line: rgba(22, 36, 62, 0.08);
+  --line-strong: rgba(22, 36, 62, 0.14);
+  --ink-1: #111a2b; --ink-2: #3b4659; --ink-3: var(--sky-muted, #5f6673); --ink-4: rgba(17, 26, 43, 0.36);
+  --ink-primary: #15203a; --ink-primary-hover: #24314f; --on-primary: #ffffff;
+  --accent-blue: #2f74f0; --accent-blue-ink: #1f5fd6; --accent-blue-soft: rgba(47, 116, 240, 0.12); --focus: rgba(47, 116, 240, 0.35);
+  --success: #17955c; --success-soft: rgba(23, 149, 92, 0.13);
+  --warn: #c97a0c; --warn-soft: rgba(217, 138, 28, 0.15);
+  --danger: #d93d40; --danger-soft: rgba(217, 61, 64, 0.12);
+  --shadow-1: 0 1px 2px rgba(20, 35, 70, 0.05), 0 6px 20px rgba(30, 52, 96, 0.07);
+  --shadow-2: 0 2px 6px rgba(20, 35, 70, 0.06), 0 14px 36px rgba(30, 52, 96, 0.13);
+  --shadow-3: 0 30px 80px rgba(14, 24, 50, 0.28), 0 6px 18px rgba(14, 24, 50, 0.12);
+  --inset-hl: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+
+  /* aliases: older names → unified tokens */
+  --glass-ink: var(--ink-1);
+  --glass-ink-2: var(--ink-2);
+  --glass-ink-3: var(--ink-3);
+  --glass-ink-4: var(--ink-4);
+  --glass: var(--glass-1);
+  --glass-strong: var(--glass-3);
+  --glass-tile: var(--glass-2);
+  --glass-line: var(--stroke);
+  --glass-dark: var(--ink-primary);
+  --glass-dark-ink: var(--on-primary);
+  --glass-shadow: var(--shadow-1);
+  --glass-shadow-sm: var(--shadow-1);
+  --glass-shadow-pop: var(--shadow-3);
+  --foreground: var(--ink-1);
+  --card-foreground: var(--ink-1);
+  --popover: var(--glass-3);
+  --popover-foreground: var(--ink-1);
+  --primary: var(--ink-primary);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--glass-2);
+  --secondary-foreground: var(--ink-1);
+  --accent-foreground: var(--ink-1);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--focus);
+  --radius: 14px;
+  --sidebar-foreground: var(--ink-1);
+  --sidebar-primary: var(--ink-primary);
+  --sidebar-ring: var(--focus);
+}
+
+.dark {
+  --glass-1: rgba(16, 25, 44, 0.52);
+  --glass-2: rgba(30, 42, 66, 0.62);
+  --glass-3: rgba(22, 32, 54, 0.9);
+  --glass-hover: rgba(255, 255, 255, 0.05);
+  --stroke: rgba(255, 255, 255, 0.09);
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --ink-1: #e9eef8; --ink-2: #b7c1d3; --ink-3: #8b97ab; --ink-4: rgba(233, 238, 248, 0.32);
+  --ink-primary: #e9eff9; --ink-primary-hover: #ffffff; --on-primary: #0e1628;
+  --accent-blue: #5b95ff; --accent-blue-ink: #8ab4ff; --accent-blue-soft: rgba(91, 149, 255, 0.16); --focus: rgba(91, 149, 255, 0.4);
+  --success: #3ccf8a; --success-soft: rgba(60, 207, 138, 0.15);
+  --warn: #f0b04a; --warn-soft: rgba(240, 176, 74, 0.15);
+  --danger: #ff6b6e; --danger-soft: rgba(255, 107, 110, 0.15);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 30px 90px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(0, 0, 0, 0.3);
+  --inset-hl: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --sidebar-primary: var(--ink-primary);
+}
+
+@property --sky-1 { syntax: "<color>"; inherits: false; initial-value: #6f9bc7; }
+
+@property --sky-2 { syntax: "<color>"; inherits: false; initial-value: #9dbddc; }
+
+@property --sky-3 { syntax: "<color>"; inherits: false; initial-value: #c9dbeb; }
+
+@property --sky-4 { syntax: "<color>"; inherits: false; initial-value: #e4ecf3; }
+
+@property --sky-cloud { syntax: "<color>"; inherits: false; initial-value: rgba(255, 255, 255, 0.75); }
+
+@property --sky-glow { syntax: "<color>"; inherits: false; initial-value: rgba(255, 255, 255, 0); }
+
+@property --sky-glow-x { syntax: "<percentage>"; inherits: false; initial-value: 50%; }
+
+@property --sky-glow-y { syntax: "<percentage>"; inherits: false; initial-value: 20%; }
+
+body {
+  margin: 0;
+  position: relative;
+  min-width: 20rem;
+  min-height: 100vh;
+  background:
+    radial-gradient(560px 560px at var(--sky-glow-x) var(--sky-glow-y), var(--sky-glow), transparent 62%),
+    radial-gradient(900px 380px at 18% 22%, var(--sky-cloud), transparent 70%),
+    radial-gradient(700px 300px at 72% 12%, color-mix(in srgb, var(--sky-cloud) 73%, transparent), transparent 70%),
+    radial-gradient(1100px 420px at 60% 78%, color-mix(in srgb, var(--sky-cloud) 93%, transparent), transparent 70%),
+    radial-gradient(600px 260px at 90% 60%, color-mix(in srgb, var(--sky-cloud) 60%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 38%, var(--sky-3) 68%, var(--sky-4) 100%);
+  background-attachment: fixed;
+  background-color: var(--sky-2);
+  transition:
+    --sky-1 1.6s ease, --sky-2 1.6s ease, --sky-3 1.6s ease, --sky-4 1.6s ease,
+    --sky-cloud 1.6s ease, --sky-glow 1.6s ease, --sky-glow-x 1.6s ease, --sky-glow-y 1.6s ease;
+  color: var(--foreground);
+  font-family: var(--font);
+  font-size: var(--fs-14);
+  line-height: var(--lh);
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark body {
+  --sky-1: #0c1626;
+  --sky-2: #12203a;
+  --sky-3: #172a46;
+  --sky-4: #1b304d;
+  --sky-cloud: rgba(110, 150, 215, 0.18);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--sky-stars, 0);
+  transition: opacity 1.6s ease;
+  background-image:
+    radial-gradient(1.4px 1.4px at 37px 53px, #fff 40%, transparent 100%),
+    radial-gradient(1px 1px at 151px 97px, #fff 40%, transparent 100%),
+    radial-gradient(1.6px 1.6px at 263px 181px, #fff 40%, transparent 100%),
+    radial-gradient(1px 1px at 89px 301px, rgba(255, 255, 255, 0.85) 40%, transparent 100%),
+    radial-gradient(1.2px 1.2px at 401px 59px, #fff 40%, transparent 100%),
+    radial-gradient(1.8px 1.8px at 317px 419px, rgba(255, 250, 235, 0.95) 40%, transparent 100%);
+  background-size: 211px 173px, 293px 241px, 379px 307px, 457px 389px, 547px 463px, 613px 521px;
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 82%);
+}
+

@@ -1,8 +1,16 @@
-import { IconHistory, IconPlayerPlayFilled, IconPlayerStopFilled, IconPlugConnected, IconSettings, IconShieldLock } from "@tabler/icons-react";
+import {
+  IconDeviceDesktop,
+  IconHistory,
+  IconPlayerPlayFilled,
+  IconPlayerStopFilled,
+  IconPlugConnected,
+  IconSettings,
+  IconShieldLock,
+} from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ApprovalsCard, AuditList, DeviceIcon, DevicePermissions, StatusBadge } from "@/components/devices/devices";
+import { ApprovalsCard, AuditList, DeviceIcon, DevicePermissions, StatusBadge, ThisPcBadge, ThisPcPanel } from "@/components/devices/devices";
 import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
@@ -21,18 +29,24 @@ import {
   seenText,
   testDevice,
 } from "@/lib/devices";
+import { pcBridge, usePcLocal } from "@/lib/pc-bridge";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/settings/devices/$deviceId")({
   component: DevicePage,
+  validateSearch: (search: Record<string, unknown>): { tab?: Tab } =>
+    TAB_IDS.includes(search.tab as Tab) ? { tab: search.tab as Tab } : {},
 });
 
-type Tab = "permissions" | "audit" | "settings";
-const TABS: Array<{ id: Tab; label: string; Icon: typeof IconShieldLock }> = [
+type Tab = "permissions" | "local" | "audit" | "settings";
+const TABS: Array<{ id: Tab; label: string; Icon: typeof IconShieldLock; thisPcOnly?: boolean }> = [
   { id: "permissions", label: "权限", Icon: IconShieldLock },
+  { id: "local", label: "本机", Icon: IconDeviceDesktop, thisPcOnly: true },
   { id: "audit", label: "操作记录", Icon: IconHistory },
   { id: "settings", label: "设备", Icon: IconSettings },
 ];
+
+const TAB_IDS: Tab[] = ["permissions", "local", "audit", "settings"];
 
 /** 设备详情（模板 C）：大图标页头 + 测试连接 / 紧急停止 → 标签（权限 / 操作记录 / 设备）。 */
 function DevicePage() {
@@ -42,7 +56,9 @@ function DevicePage() {
   const device = useQuery(deviceQueryOptions(deviceId));
   const list = useQuery(deviceListQueryOptions());
   const audit = useQuery(deviceAuditQueryOptions(deviceId));
-  const [tab, setTab] = useState<Tab>("permissions");
+  const search = Route.useSearch();
+  const [tab, setTab] = useState<Tab>(search.tab ?? "permissions");
+  const [local, setLocal] = usePcLocal();
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
@@ -56,10 +72,18 @@ function DevicePage() {
     { errorToast: (error) => `测试失败：${error.message}` },
   );
   const toggleStop = useAsyncAction(async (paused: boolean) => {
+    // 在这台电脑自己的 PC 客户端里：先走本机（立即在本机生效、断网也有效；解除要在本机确认，取消就什么也不改），
+    // 再同步到服务器。
+    const bridge = pcBridge();
+    if (bridge && local && local.deviceId === deviceId) {
+      const after = await bridge.setLocal({ localPaused: paused });
+      setLocal(after);
+      if (after.localPaused !== paused) throw new Error("已在这台电脑上取消");
+    }
     const next = await patchDevice(deviceId, { paused });
     queryClient.setQueryData(deviceKeys.detail(deviceId), next);
     await refresh();
-  });
+  }, { errorToast: (error) => (error.message === "已在这台电脑上取消" ? "已取消，紧急停止保持开启。" : `操作失败：${error.message}`) });
   const revoke = useAsyncAction(async () => {
     await revokeDevice(deviceId);
     await refresh();
@@ -86,6 +110,9 @@ function DevicePage() {
     );
   }
   const d = device.data;
+  const isThisPc = !!local && local.deviceId === d.id && !d.revoked;
+  const tabs = TABS.filter((item) => !item.thisPcOnly || isThisPc);
+  const activeTab: Tab = tab === "local" && !isThisPc ? "permissions" : tab;
   const approvals = (list.data?.approvals ?? []).filter((approval) => approval.deviceId === d.id);
   return (
     <PageShell backButton={back} title={d.name}>
@@ -93,6 +120,7 @@ function DevicePage() {
         <DeviceIcon device={d} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="device-hero-badges">
+            {isThisPc ? <ThisPcBadge /> : null}
             <StatusBadge device={d} />
             <span className="device-badge">{platformLabel(d.platform)}</span>
             {d.clientVersion ? <span className="device-badge">{`客户端 ${d.clientVersion}`}</span> : null}
@@ -137,28 +165,31 @@ function DevicePage() {
       {d.paused && !d.revoked ? (
         <div className="device-stopbar" role="status">
           <IconPlayerStopFilled className="size-4" />
-          {"紧急停止中：这台电脑拒绝一切远程操作，进行中的操作已取消。可以在这里或 PC 托盘菜单解除。"}
+          {isThisPc
+            ? "紧急停止中：这台电脑拒绝一切远程操作，进行中的操作已取消。解除时会在这台电脑上再确认一次。"
+            : "紧急停止中：这台电脑拒绝一切远程操作，进行中的操作已取消。可以在这里或 PC 托盘菜单解除。"}
         </div>
       ) : null}
 
       <ApprovalsCard approvals={approvals} />
 
       <div aria-label="设备分区" className="device-tabs" role="tablist">
-        {TABS.map(({ id, label, Icon }) => (
-          <button aria-selected={tab === id} className={cn("device-tab", tab === id && "is-active")} key={id} onClick={() => setTab(id)} role="tab" type="button">
+        {tabs.map(({ id, label, Icon }) => (
+          <button aria-selected={activeTab === id} className={cn("device-tab", activeTab === id && "is-active")} key={id} onClick={() => setTab(id)} role="tab" type="button">
             <Icon className="size-4" />
             {label}
           </button>
         ))}
       </div>
 
-      {tab === "permissions" ? <DevicePermissions device={d} /> : null}
-      {tab === "audit" ? (
+      {activeTab === "permissions" ? <DevicePermissions device={d} isThisPc={isThisPc} /> : null}
+      {activeTab === "local" && local ? <ThisPcPanel local={local} onLocal={setLocal} /> : null}
+      {activeTab === "audit" ? (
         <Card className="device-audit-card">
           {audit.isPending ? <PageSkeleton rows={4} /> : <AuditList entries={audit.data ?? []} />}
         </Card>
       ) : null}
-      {tab === "settings" ? (
+      {activeTab === "settings" ? (
         <>
           <Card>
             <SettingRow description="登记时生成，用来区分同名电脑。" title="设备 ID">

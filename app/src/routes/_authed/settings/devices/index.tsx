@@ -6,6 +6,7 @@ import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-s
 import { Button } from "@/components/ui/button";
 import { Card, ErrorCard } from "@/components/ui/skyglass";
 import { deviceListQueryOptions, pcDownloadQueryOptions } from "@/lib/devices";
+import { usePcLocal } from "@/lib/pc-bridge";
 
 export const Route = createFileRoute("/_authed/settings/devices/")({
   component: DevicesPage,
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/_authed/settings/devices/")({
 /** 偏好设置 → 设备（模板 B）：待审批 → 设备列表 → 添加一台电脑 / 下载 PC 客户端。docs/pc-node.md */
 function DevicesPage() {
   const list = useQuery(deviceListQueryOptions());
+  const [local] = usePcLocal();
   const download = useQuery(pcDownloadQueryOptions());
   const installer = download.data?.files.find((file) => file.kind === "installer");
   const devices = list.data?.devices ?? [];
@@ -22,7 +24,7 @@ function DevicesPage() {
   return (
     <PageShell
       action={
-        installer ? (
+        installer && !local ? (
           <Button nativeButton={false} render={<a download href={installer.url} />} size="sm">
             <IconDownload />
             {"下载 PC 客户端"}
@@ -51,7 +53,7 @@ function DevicesPage() {
             {active.length ? (
               <Card>
                 {active.map((device) => (
-                  <DeviceRow device={device} key={device.id} />
+                  <DeviceRow device={device} isThisPc={local?.deviceId === device.id} key={device.id} />
                 ))}
               </Card>
             ) : (

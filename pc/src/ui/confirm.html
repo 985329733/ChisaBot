@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+<title>ChisaBot PC · 本机确认</title>
+<link rel="stylesheet" href="skyglass-tokens.css" />
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="dialog.css" />
+</head>
+<body class="dialog-page">
+  <!-- 放松安全的改动（解除紧急停止、关闭本机确认、退出登录）在这里由本人确认；网页只能发起，不能替用户点。 -->
+  <main class="auth-card dialog enter">
+    <header class="dialog-h drag">
+      <span class="sg-ico is-danger" id="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M10.4 3.9L2.6 17.4A1.8 1.8 0 004.2 20h15.6a1.8 1.8 0 001.6-2.6L13.6 3.9a1.8 1.8 0 00-3.2 0z"/><path d="M12 16.5h.01"/></svg></span>
+      <div class="dialog-ht">
+        <div class="t-eyebrow">ChisaBot PC · 本机确认</div>
+        <div class="dialog-title" id="title"></div>
+      </div>
+    </header>
+    <p class="dialog-desc" id="desc"></p>
+    <footer class="dialog-f">
+      <button id="cancel" class="btn outline" type="button">取消</button>
+      <button id="ok" class="btn destructive" type="button"></button>
+    </footer>
+  </main>
+<script src="sky.js"></script>
+<script src="ui.js"></script>
+<script src="confirm.js"></script>
+</body>
+</html>

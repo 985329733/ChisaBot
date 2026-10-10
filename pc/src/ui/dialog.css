@@ -1,0 +1,12 @@
+/* 审批弹窗 / 本机确认：天空上一张玻璃对话框（与网页确认对话框同值：r-xl、玻璃 1、shadow-2）。 */
+body.dialog-page { padding: 10px; display: flex; }
+.dialog { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 18px 20px 16px; }
+.dialog-h { display: flex; align-items: center; gap: 12px; }
+.drag { -webkit-app-region: drag; }
+.dialog-ht { min-width: 0; }
+.dialog-title { font-size: var(--fs-16); font-weight: 600; line-height: 1.4; color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialog-code { flex: 1; min-height: 0; margin: 14px 0 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-2); white-space: pre-wrap; overflow: auto; }
+.dialog-desc { flex: 1; margin: 12px 0 8px; font-size: var(--fs-14); line-height: var(--lh); color: var(--ink-2); }
+.dialog-meta { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-12); color: var(--ink-3); margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+.dialog-f { display: flex; gap: 8px; justify-content: flex-end; }
+.dialog-f .btn { min-width: 104px; }

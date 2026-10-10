@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:" />
+<title>ChisaBot · 连不上服务器</title>
+<link rel="stylesheet" href="skyglass-tokens.css" />
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="setup.css" />
+</head>
+<body class="setup-page">
+<!-- 主窗口载入网页失败时的本机页（网页的 ErrorCard 风格）。紧急停止在断网时也能按。 -->
+<main class="setup">
+  <section class="auth-card setup-card">
+    <img class="orb enter" src="../../assets/icon.png" alt="" width="52" height="52" />
+    <h1 class="t-h1 center enter enter-2">暂时连不上 ChisaBot</h1>
+    <p class="t-sub center enter enter-2" id="detail">网络断开或服务器暂时不可用。恢复后会自动重新载入。</p>
+    <div class="sg-card offline-rows enter enter-3">
+      <div class="sg-srow">
+        <div class="grow"><div class="sg-srow-t">服务器</div><div class="sg-srow-s mono" id="server"></div></div>
+        <span class="badge is-warn" id="status">离线</span>
+      </div>
+      <div class="sg-srow">
+        <div class="grow"><div class="sg-srow-t">本机紧急停止</div><div class="sg-srow-s" id="pauseText">拒绝一切远程操作；断网时也有效。</div></div>
+        <button id="pause" class="btn sm destructive" type="button">紧急停止</button>
+      </div>
+    </div>
+    <button id="retry" class="btn lg block enter enter-3" type="button">重新连接</button>
+  </section>
+</main>
+<script src="sky.js"></script>
+<script src="ui.js"></script>
+<script src="offline.js"></script>
+</body>
+</html>

@@ -1,8 +1,15 @@
-.setup { max-width: 420px; margin: 0 auto; padding: 28px 20px; }
-.brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-.brand img { border-radius: 16px; box-shadow: var(--shadow-1); }
-.brand h1 { font-size: 21px; }
-.pad { padding: 22px; }
-.center { text-align: center; }
-.ok-ic { width: 56px; height: 56px; margin: 4px auto 0; border-radius: 99px; display: grid; place-items: center; font-size: 28px; color: #fff; background: var(--success); }
-p.hint { margin: 14px 0 0; }
+body.setup-page { overflow: auto; }
+.setup { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.setup-card { width: 100%; max-width: 420px; padding: 28px 28px 24px; display: flex; flex-direction: column; align-items: center; }
+.orb { border-radius: 18px; box-shadow: var(--shadow-2); }
+.setup-card .t-h1 { margin-top: 16px; }
+.setup-card .t-sub { margin-top: 6px; max-width: 320px; }
+.fields { width: 100%; margin-top: 20px; display: flex; flex-direction: column; }
+.fields .alert { margin-bottom: 14px; }
+.fields .btn { margin-top: 20px; }
+.foot { margin: 12px 0 0; line-height: 1.55; }
+.ok-ic { width: 56px; height: 56px; border-radius: 99px; display: grid; place-items: center; color: #fff; background: var(--success); box-shadow: 0 0 0 8px var(--success-soft); }
+.ok-ic svg { width: 28px; height: 28px; }
+#done .btn { margin-top: 24px; }
+.offline-rows { width: 100%; margin-top: 24px; text-align: left; }
+.setup-card > .btn.block { margin-top: 20px; }

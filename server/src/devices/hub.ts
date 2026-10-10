@@ -223,6 +223,8 @@ export function createDeviceHub(options: {
         summary: input.summary,
         botName: input.bot.name,
         expiresAt: view.expiresAt,
+        // PC 的时钟可能和服务器不一致，所以同时给出按服务器时钟算的剩余毫秒数，PC 用它倒数。
+        remainingMs: approvalTtlMs,
       });
     });
   }
@@ -267,6 +269,7 @@ export function createDeviceHub(options: {
           summary: approval.view.summary,
           botName: approval.view.botName,
           expiresAt: approval.view.expiresAt,
+          remainingMs: Math.max(0, Date.parse(approval.view.expiresAt) - now()),
         });
       }
       const ping = setInterval(() => send(connection, { type: "ping" }), 25_000);

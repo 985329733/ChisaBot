@@ -3093,6 +3093,7 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .device-badge.is-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
 .device-badge.is-danger { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
 .device-badge.is-muted { color: var(--ink-3); }
+.device-badge.is-accent { color: var(--accent-blue-ink); background: var(--accent-blue-soft); border-color: transparent; }
 .device-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ink-4); }
 .device-dot.is-ok { background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklch, var(--success) 22%, transparent); animation: device-pulse 2.4s ease-out infinite; }
 @keyframes device-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--success) 45%, transparent); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }

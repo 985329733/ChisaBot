@@ -1,22 +1,17 @@
 "use strict";
+/* 本机页面（设置向导、审批弹窗、本机确认、离线页）的桥。主进程还会核对每次调用来自 src/ui/ 下的本机页面。 */
 const { contextBridge, ipcRenderer } = require("electron");
 
 const CHANNELS = new Set([
   "state:get",
   "setup:login",
   "setup:done",
-  "cap:set",
-  "roots:add",
-  "roots:remove",
-  "device:rename",
   "paused:set",
-  "local:set",
-  "audit:get",
-  "chat:open",
-  "web:devices",
-  "account:logout",
+  "chat:retry",
   "approval:current",
   "approval:decide",
+  "confirm:current",
+  "confirm:answer",
 ]);
 
 contextBridge.exposeInMainWorld("chisa", {
