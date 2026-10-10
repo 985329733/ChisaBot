@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { PageRows } from "@/components/layout/page-shell";
 import {
   setSkyEnabled,
@@ -22,7 +22,8 @@ import {
 } from "@/lib/sky";
 
 /** 「背景随时间变化」 toggle plus a 预览时间 slider that previews any hour without saving it. */
-export function SkyPreference() {
+export function SkyPreference({ bare = false }: { bare?: boolean } = {}) {
+  const Wrap = bare ? Fragment : PageRows;
   const { enabled, preview } = useSkyState();
 
   // Leaving the settings screen drops the preview; the sky goes back to the clock.
@@ -31,7 +32,7 @@ export function SkyPreference() {
   const shown = preview ?? Math.floor(currentMinuteOfDay());
 
   return (
-    <PageRows>
+    <Wrap>
       <Item size="sm">
         <ItemContent>
           <ItemTitle>{"背景随时间变化"}</ItemTitle>
@@ -93,6 +94,6 @@ export function SkyPreference() {
           </Item>
         </div>
       </div>
-    </PageRows>
+    </Wrap>
   );
 }

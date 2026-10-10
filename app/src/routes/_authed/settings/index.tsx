@@ -17,7 +17,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { IconMoon, IconSun } from "@tabler/icons-react";
 import { formatHotkey, HOTKEYS } from "@/lib/hotkeys/hotkeys";
 
 export const Route = createFileRoute("/_authed/settings/")({
@@ -46,19 +46,34 @@ function RouteComponent() {
         <PageRows>
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>{"深色主题"}</ItemTitle>
-              <ItemDescription>{"在 ChisaBot 中使用暗色外观。"}</ItemDescription>
+              <ItemTitle>{"主题"}</ItemTitle>
+              <ItemDescription>{"浅色或深色外观，保存在此浏览器。"}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <Switch
-                aria-label={"深色主题"}
-                checked={dark}
-                onCheckedChange={setDark}
-              />
+              {/* 分段控件 (DESIGN.md §11). 跟随系统 is not offered: the theme is stored as a boolean. */}
+              <div aria-label={"主题"} className="sg-segmented" role="radiogroup">
+                {[
+                  { on: false, label: "浅色", Icon: IconSun },
+                  { on: true, label: "深色", Icon: IconMoon },
+                ].map(({ on, label, Icon }) => (
+                  <button
+                    aria-checked={dark === on}
+                    className="sg-segmented-item"
+                    key={label}
+                    onClick={() => setDark(on)}
+                    role="radio"
+                    type="button"
+                  >
+                    <Icon className="size-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </ItemActions>
           </Item>
+          <Separator />
+          <SkyPreference bare />
         </PageRows>
-        <SkyPreference />
       </PageSection>
       <PageSection title={"消息列表"}>
         <MessageListPreference />
