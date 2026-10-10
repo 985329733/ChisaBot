@@ -120,13 +120,13 @@ const RUNTIME = String.raw`
 `;
 
 const BASE_CSS = `
-:root{font-family:"Inter Variable","Inter","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;font-size:13px;line-height:1.5;color:#16181d}
-html[data-theme=dark]{color:#e8ecf3}
+:root{font-family:"PingFang SC","HarmonyOS Sans SC","MiSans","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei UI",system-ui,sans-serif;font-size:13px;line-height:1.5;color:#111a2b}
+html[data-theme=dark]{color:#e9eef8}
 html[data-theme=dark] input,html[data-theme=dark] select,html[data-theme=dark] textarea{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:inherit}
-html[data-theme=dark] button{background:#e8ecf3;color:#10161f}
+html[data-theme=dark] button{background:#e9eff9;color:#0e1628}
 html,body{margin:0;padding:0;background:transparent}
 body{padding:2px 0;overflow:hidden}
-button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:6px 12px;background:rgba(22,24,29,.88);color:#fff}
+button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:6px 12px;background:#15203a;color:#fff}
 input,select,textarea{font:inherit;border:1px solid rgba(22,24,29,.12);border-radius:10px;padding:6px 10px;background:rgba(255,255,255,.7)}
 table{border-collapse:collapse;width:100%}
 td,th{padding:4px 6px;text-align:left}
