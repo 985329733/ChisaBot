@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { forgetStoredPanelBot } from "@/lib/panels/active-bot";
 import {
   type AgentProfile,
   type AgentVisibility,
@@ -112,6 +113,7 @@ export async function forgetDeletedBot(
   queryClient: QueryClient,
   agentId: string,
 ) {
+  forgetStoredPanelBot(agentId);
   queryClient.setQueriesData<AgentProfile[]>(
     { queryKey: [...agentKeys.all, "list"] },
     (list) => (Array.isArray(list) ? list.filter((agent) => agent.id !== agentId) : list),

@@ -60,6 +60,18 @@ export function usePanelBot(): {
       ? mainBotId
       : agents.data?.[0]?.id;
 
+  // A remembered Bot that has since been deleted is forgotten once the roster says so, so the
+  // panel rail never asks for panels of a Bot that no longer exists.
+  const rosterIds = agents.isSuccess ? known.join("\n") : null;
+  useEffect(() => {
+    // The open conversation's Bot is never "unknown" here, even when it is hidden from the roster.
+    if (rosterIds === null || !stored || stored === routeBotId) return;
+    if (!rosterIds.split("\n").includes(stored)) {
+      forgetStoredPanelBot(stored);
+      setStored(undefined);
+    }
+  }, [rosterIds, stored, routeBotId]);
+
   useEffect(() => {
     if (routeBotId && routeBotId !== stored) {
       writeStoredPreference(PANEL_BOT_KEY, routeBotId);
@@ -75,4 +87,14 @@ export function usePanelBot(): {
       setStored(botId);
     },
   };
+}
+
+/** Forget the remembered panel Bot if it is this one (after it was deleted). */
+export function forgetStoredPanelBot(botId: string): void {
+  try {
+    if (window.localStorage.getItem(PANEL_BOT_KEY) === botId)
+      window.localStorage.removeItem(PANEL_BOT_KEY);
+  } catch {
+    // Storage unavailable: nothing was remembered there either.
+  }
 }
