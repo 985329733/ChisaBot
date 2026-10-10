@@ -13,6 +13,7 @@ export * from "./learning";
 export * from "./lifecycle";
 export * from "./memory";
 export * from "./passwords";
+export * from "./panels";
 export * from "./plugins";
 export * from "./proactive";
 export * from "./responsibilities";

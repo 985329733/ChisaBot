@@ -47,6 +47,7 @@ const sensitiveKeys = new Set([
 ]);
 
 export const auditEventTypes = [
+  "panel.action",
   "configuration.changed",
   "credential.created",
   "credential.rotated",

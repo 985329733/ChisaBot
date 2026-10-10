@@ -4,6 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { MAX_IMAGE_BYTES } from "../../shared/attachments";
 import { enterpriseControls } from "./admin/controls";
+import type { PanelServices } from "./panels/service";
 import { createEnterpriseGate, runtimeRun } from "./admin/gate";
 import { createEnterpriseAdminRoutes } from "./admin/routes";
 import {
@@ -436,6 +437,7 @@ export function createApp(
   modelSettings?: ModelSettingsService,
   agentModels?: AgentModelService,
   modelCatalog?: ModelCatalogService,
+  panels?: PanelServices,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("*", async (_context, next) => withModelConnectionScope(next));
@@ -1618,6 +1620,7 @@ export function createApp(
     }
   }
 
+  if (panels) app.route("/api/panels", panels.routes(requireUser));
   if (channelStore) {
     app.route(
       "/api/channels",

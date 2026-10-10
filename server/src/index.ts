@@ -1,4 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
+import { PanelError, type PanelCapability } from "../../shared/panels/types";
+import { createPanelServices } from "./panels/service";
+import { createNormalPanelTaskService } from "./panels/normal-task-service";
+import { recoverPanelTaskStatus } from "./panels/task-status";
+import { createGovernedPanelTaskAdapter } from "./panels/task-adapter";
+import { panelTaskRequests } from "./db/schema/panels";
 import { isDeepStrictEqual } from "node:util";
 import type { AbstractAgent } from "@ag-ui/client";
 import {
@@ -1400,8 +1406,24 @@ const actorFor = async (ownerUserId: string): Promise<AgentActor> => {
  * A run's source conversation: a channel's own thread, or a Bot's thread in a group conversation.
  * The group lookup applies the same live-membership and own-Bot checks. See channels/group.ts.
  */
-const sourceForCoordinationRun = async (run: RunAssertion) =>
-  (await channelSourceForRun(run)) ?? groupSourceForRun(database, run);
+const sourceForCoordinationRun = async (run: RunAssertion) => {
+  if (run.threadId) {
+    const [task] = await database
+      .select({
+        actorId: panelTaskRequests.actorId,
+        status: panelTaskRequests.status,
+      })
+      .from(panelTaskRequests)
+      .where(eq(panelTaskRequests.threadId, run.threadId));
+    if (
+      task &&
+      (task.actorId !== run.actorId ||
+        ["cancelled", "failed", "succeeded"].includes(task.status))
+    )
+      return null;
+  }
+  return (await channelSourceForRun(run)) ?? groupSourceForRun(database, run);
+};
 const channelSourceForRun = async (run: RunAssertion) => {
   if (!run.threadId) return null;
   const sources = await database
@@ -1708,33 +1730,225 @@ const routineAgentRunner =
     authToken: routineIntelligence.ɵgetRunnerAuthToken(),
   });
 
+const governedTurnRunner = createTurnRunner({
+  intelligence: routineIntelligence,
+  runner: routineAgentRunner,
+  components: { store: componentStore, auditStore: bootAuditStore },
+  buildAgentFor,
+  toolsForTurn: async ({ ownerUserId, agentId, initiator }) => {
+    if (!computerGateway) return [];
+    const actor = await actorFor(ownerUserId);
+    const profile = await agentProfileStore.get(actor, agentId);
+    if (!profile) throw new Error("That Bot is not available to this owner.");
+    // A Team Bot's teammate uses the Bot, not its owner's signed-in computer.
+    if (!canUseComputer(profile, actor)) return [];
+    return createHeadlessComputerTools({
+      gateway: computerGateway,
+      botId: agentId,
+      actor: { id: actor.id, userId: actor.id, initiator },
+      auditStore: bootAuditStore,
+      ...(signInService ? { signIn: signInService } : {}),
+    });
+  },
+  learningContainerForThread: (input) =>
+    copilotRuntime.learning?.containerForThread(input) ??
+    Promise.resolve(undefined),
+});
 const routineRunner = createRoutineRunner({
   routineStore,
   channelStore,
-  runTurn: createTurnRunner({
-    intelligence: routineIntelligence,
-    runner: routineAgentRunner,
-    components: { store: componentStore, auditStore: bootAuditStore },
-    buildAgentFor,
-    toolsForTurn: async ({ ownerUserId, agentId, initiator }) => {
-      if (!computerGateway) return [];
-      const actor = await actorFor(ownerUserId);
-      const profile = await agentProfileStore.get(actor, agentId);
-      if (!profile) throw new Error("That Bot is not available to this owner.");
-      // A Team Bot's teammate uses the Bot, not its owner's signed-in computer.
-      if (!canUseComputer(profile, actor)) return [];
-      return createHeadlessComputerTools({
-        gateway: computerGateway,
-        botId: agentId,
-        actor: { id: actor.id, userId: actor.id, initiator },
-        auditStore: bootAuditStore,
-        ...(signInService ? { signIn: signInService } : {}),
+  runTurn: governedTurnRunner,
+});
+
+const panelTaskService = createNormalPanelTaskService({
+  database,
+  createConversation: async (request) => {
+    const channel = await channelStore.create(await actorFor(request.actorId), [
+      request.botId,
+    ]);
+    return { channelId: channel.id, threadId: channel.threadId };
+  },
+  isWaiting: (error) => error instanceof HeadlessToolSuspension,
+  run: async (input) => {
+    const actor = await actorFor(input.ownerUserId),
+      source = await channelSourceForRun({
+        actorId: input.ownerUserId,
+        botId: input.agentId,
+        threadId: input.threadId,
+        runId: input.runId!,
+        depth: 0,
       });
+    if (!source) throw new PanelError("task_binding_refused", 403);
+    await channelStore.recordActivity(
+      actor,
+      source.channelId,
+      { text: input.instruction, agentId: null, at: new Date() },
+      { id: `${input.runId}:input` },
+    );
+    const outcome = await governedTurnRunner({
+      ...input,
+      userMessage: {
+        id: `${input.runId}:input`,
+        role: "user",
+        content: input.instruction,
+      },
+    });
+    if (outcome.replyText)
+      await channelStore.recordActivity(
+        actor,
+        source.channelId,
+        { text: outcome.replyText, agentId: input.agentId, at: new Date() },
+        { id: `${input.runId}:reply` },
+      );
+    return outcome;
+  },
+  stop: async (input) => {
+    const stopped = await routineAgentRunner.stop(input);
+    if (!localBackend && !stopped)
+      throw new PanelError("normal_run_cancel_unconfirmed", 409);
+    return stopped;
+  },
+  read: async (request) => {
+    const [task] = await database
+      .select()
+      .from(panelTaskRequests)
+      .where(
+        and(
+          eq(panelTaskRequests.id, request.id),
+          eq(panelTaskRequests.actorId, request.actorId),
+          eq(panelTaskRequests.botId, request.botId),
+        ),
+      );
+    if (!task) throw new PanelError("task_binding_refused", 403);
+    const threadId = task.threadId;
+    let transportStatus: string | undefined,
+      waiting = false;
+    if (threadId && task.runId) {
+      const approvals = await database.$client.unsafe<{ waiting: boolean }[]>(
+        `SELECT EXISTS(SELECT 1 FROM approval_requests WHERE owner_user_id=$1 AND run_id=$2
+          AND action->>'botId'=$3 AND action->>'threadId'=$4
+          AND action->'continuation'->>'runId'=$2 AND action->'continuation'->>'threadId'=$4
+          AND status IN ('pending','approved','consumed','completed','denied')) AS waiting`,
+        [task.actorId, task.runId, task.botId, threadId],
+      );
+      waiting = approvals[0]?.waiting === true;
+    }
+    if (localBackend && threadId && task.runId) {
+      const runs = await database.$client.unsafe<{ status: string }[]>(
+        "SELECT status FROM openbot_local_runs WHERE thread_id=$1 AND run_id=$2",
+        [threadId, task.runId],
+      );
+      transportStatus = runs[0]?.status;
+      const events = await database.$client.unsafe<{ waiting: boolean }[]>(
+        `SELECT EXISTS(SELECT 1 FROM openbot_local_events WHERE thread_id=$1 AND run_id=$2
+          AND event->>'type'='CUSTOM' AND event->>'name'='openbot.headless.waiting') AS waiting`,
+        [threadId, task.runId],
+      );
+      waiting ||= events[0]?.waiting === true;
+    }
+    const status = recoverPanelTaskStatus({
+      savedStatus: task.status,
+      ageMs: Date.now() - task.createdAt.getTime(),
+      bound: !!threadId && !!task.runId,
+      waiting,
+      transportStatus,
+      isRunning:
+        !!threadId && (await routineAgentRunner.isRunning({ threadId })),
+    });
+    if (!threadId) return { status };
+    let replyText: string | undefined;
+    try {
+      const history = await routineIntelligence.getThreadMessages({
+        threadId,
+        userId: request.actorId,
+      });
+      const message = history.messages
+        .filter((m) => m.role === "assistant" && typeof m.content === "string")
+        .at(-1);
+      if (message && typeof message.content === "string")
+        replyText = message.content.slice(0, 16000);
+    } catch {
+      /* A new or interrupted run may not yet have a transcript. */
+    }
+    return { status, ...(replyText ? { replyText } : {}) };
+  },
+});
+const panelOverviewCapability: PanelCapability = {
+  id: "overview",
+  adapter: "bot",
+  action: "overview",
+  effect: "read",
+  inputSchema: { type: "object", additionalProperties: false },
+  outputSchema: {
+    type: "object",
+    properties: { name: { type: "string" } },
+    required: ["name"],
+    additionalProperties: false,
+  },
+  scope: { actor: "current", bot: "current" },
+};
+const panelTaskCapability: PanelCapability = {
+  id: "task",
+  adapter: "bot",
+  action: "task",
+  effect: "write",
+  inputSchema: {
+    type: "object",
+    properties: {
+      instruction: { type: "string", minLength: 1, maxLength: 5000 },
     },
-    learningContainerForThread: (input) =>
-      copilotRuntime.learning?.containerForThread(input) ??
-      Promise.resolve(undefined),
-  }),
+    required: ["instruction"],
+    additionalProperties: false,
+  },
+  outputSchema: { type: "object", additionalProperties: false },
+  scope: { actor: "current", bot: "current" },
+};
+const panels = createPanelServices({
+  database,
+  permissions: async (ctx) => {
+    const controls = enterpriseControls();
+    if (!controls) throw new PanelError("panel_policy_unavailable", 503);
+    const actor = await actorFor(ctx.actorId);
+    if (!(await controls.capabilityFor(actor.id, "useBots")))
+      throw new PanelError("panel_permission_refused", 403);
+    const profile = await agentProfileStore.get(actor, ctx.botId);
+    if (!profile) throw new PanelError("panel_bot_unavailable", 404);
+    return {
+      canInteract: true,
+      canManage:
+        actor.role === "admin" ||
+        (!profile.systemOwned && profile.ownerUserId === actor.id),
+    };
+  },
+  adapters: [
+    {
+      definition: panelOverviewCapability,
+      read: async (ctx) => {
+        const profile = await agentProfileStore.get(
+          await actorFor(ctx.actorId),
+          ctx.botId,
+        );
+        if (!profile) throw new PanelError("panel_bot_unavailable", 404);
+        return { name: profile.name };
+      },
+    },
+    createGovernedPanelTaskAdapter(panelTaskCapability, panelTaskService),
+  ],
+  audit: async (event) => {
+    await recordAuditEvent(bootAuditStore, {
+      eventType: "panel.action",
+      targetType: "panel",
+      targetId:
+        typeof event.instanceId === "string"
+          ? event.instanceId
+          : typeof event.resourceId === "string"
+            ? event.resourceId
+            : undefined,
+      actorUserId: String(event.actorId),
+      initiator: PERSON_INITIATOR,
+      payload: event,
+    });
+  },
 });
 
 /**
@@ -1764,11 +1978,25 @@ const actorAgentResolver = createActorAgentResolver({
   loadVendors,
   selectionForActor,
   agentFetch,
-  handoffForActor: (actorId, initiator, depth) =>
-    restrictCoordinationForRun(
+  handoffForActor: (actorId, initiator, depth) => {
+    const coordination = restrictCoordinationForRun(
       initiator,
       coordinationForActor(actorId, initiator, depth),
-    ),
+    );
+    return async (botId, input) => {
+      const tools = await coordination(botId, input);
+      const props = input.forwardedProps as
+        | { panelAuthoring?: { sessionId?: unknown } }
+        | undefined;
+      const sessionId = props?.panelAuthoring?.sessionId;
+      if (typeof sessionId !== "string" || !sessionId || sessionId.length > 128)
+        return tools;
+      return [
+        ...tools,
+        ...(await panels.authoring.tools({ actorId, botId }, sessionId)),
+      ];
+    };
+  },
   loadInstructionsForActor,
   loadAttachmentForActor,
   markAttachmentsSentForActor,
@@ -2020,7 +2248,7 @@ const executeApprovedAction = createApprovedActionExecutor({
   refusalMarker: REFUSAL_MARKER,
   personInitiator: PERSON_INITIATOR,
 });
-const approvalContinuationRunner = createTurnRunner({
+const approvalTurnRunner = createTurnRunner({
   intelligence: routineIntelligence,
   runner: routineAgentRunner,
   components: { store: componentStore, auditStore: bootAuditStore },
@@ -2031,6 +2259,8 @@ const approvalContinuationRunner = createTurnRunner({
     copilotRuntime.learning?.containerForThread(input) ??
     Promise.resolve(undefined),
 });
+const approvalContinuationRunner: typeof approvalTurnRunner = (input) =>
+  panelTaskService.runContinuation(input, approvalTurnRunner);
 const approvalSweep = repeatAfterEach(async () => {
   try {
     const [item] = await approvalQueue.claim({
@@ -3102,6 +3332,7 @@ const app = createApp(
   modelSettings,
   agentModels,
   modelCatalog,
+  panels,
 );
 
 /**
@@ -3358,4 +3589,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-console.info(`ChisaBot server listening on http://127.0.0.1:${port}`);
+console.info(`OpenBot server listening on http://127.0.0.1:${port}`);
