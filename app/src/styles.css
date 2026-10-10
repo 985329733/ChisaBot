@@ -891,3 +891,8 @@ body {
 .glass-main [data-slot="page-shell"] {
   background: transparent;
 }
+
+/* Markdown lists inside a Bot's glass bubble keep their markers inside the card's padding. */
+.glass-main [data-slot="message"][data-align="start"] [data-slot="bubble-content"] :is(ul, ol) {
+  padding-inline-start: 1.35em;
+}
