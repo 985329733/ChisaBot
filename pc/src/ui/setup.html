@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:" />
+<title>ChisaBot PC · 设置向导</title>
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="setup.css" />
+</head>
+<body>
+<main class="setup">
+  <div class="brand"><img src="../../assets/icon.png" alt="" width="56" height="56" /><div><div class="eyebrow">ChisaBot PC 客户端</div><h1>连接到你的 ChisaBot</h1></div></div>
+  <form id="form" class="card pad" autocomplete="on">
+    <div id="err" class="error" role="alert"></div>
+    <div class="field">
+      <label for="server">服务器地址</label>
+      <input id="server" class="input" placeholder="https://ayase.cn:8443" required inputmode="url" />
+      <span class="hint">就是你在浏览器里打开 ChisaBot 的地址。</span>
+    </div>
+    <div class="field">
+      <label for="user">账号</label>
+      <input id="user" class="input" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label for="pass">密码</label>
+      <input id="pass" class="input" type="password" autocomplete="current-password" required />
+    </div>
+    <div class="field">
+      <label for="name">这台电脑的名字</label>
+      <input id="name" class="input" maxlength="64" />
+    </div>
+    <button id="submit" class="btn lg" type="submit">登录并连接</button>
+    <p class="hint center">密码只用来登录一次；之后这台电脑用自己的设备令牌连接（可随时在网页上撤销）。所有远程能力默认关闭。</p>
+  </form>
+  <div id="done" class="card pad hidden">
+    <div class="ok-ic">✓</div>
+    <h2 class="center">已连接</h2>
+    <p class="sub center" id="doneText"></p>
+    <button id="finish" class="btn lg" type="button">打开 ChisaBot</button>
+  </div>
+</main>
+<script src="ui.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

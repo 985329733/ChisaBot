@@ -1,0 +1,94 @@
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { createOps, resolveInRoots, encodePowerShell, winInputScript, escapeSendKeys } = require("../src/agent/ops");
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cbpc-"));
+const root = path.join(tmp, "allowed");
+fs.mkdirSync(path.join(root, "sub"), { recursive: true });
+fs.writeFileSync(path.join(root, "a.txt"), "你好 ChisaBot");
+fs.writeFileSync(path.join(tmp, "secret.txt"), "nope");
+fs.symlinkSync(tmp, path.join(root, "escape"));
+const ops = createOps({ clientVersion: "test" });
+const ctx = { allowedRoots: [root] };
+
+test("no roots refuses file ops", async () => {
+  await assert.rejects(ops.run("read_file", { path: "a.txt" }, { allowedRoots: [] }), /允许的文件夹/);
+});
+
+test("list roots and dir", async () => {
+  const roots = await ops.run("list_files", {}, ctx);
+  assert.equal(roots.roots[0].path, root);
+  const listing = await ops.run("list_files", { path: "." }, ctx);
+  assert.deepEqual(listing.entries.map((e) => e.name).sort(), ["a.txt", "escape", "sub"]);
+  assert.equal(listing.entries[0].type, "dir");
+});
+
+test("read inside root, refuse outside and via symlink", async () => {
+  const file = await ops.run("read_file", { path: "a.txt" }, ctx);
+  assert.equal(file.content, "你好 ChisaBot");
+  await assert.rejects(ops.run("read_file", { path: path.join(tmp, "secret.txt") }, ctx), /不在允许/);
+  await assert.rejects(ops.run("read_file", { path: "../secret.txt" }, ctx), /不在允许/);
+  await assert.rejects(ops.run("read_file", { path: "escape/secret.txt" }, ctx), /不在允许/);
+});
+
+test("write creates backup on overwrite, append works", async () => {
+  const first = await ops.run("write_file", { path: "sub/new.txt", content: "one" }, ctx);
+  assert.equal(first.backup, null);
+  const second = await ops.run("write_file", { path: "sub/new.txt", content: "two" }, ctx);
+  assert.ok(second.backup.endsWith(".chisabot-bak"));
+  assert.equal(fs.readFileSync(second.backup, "utf8"), "one");
+  await ops.run("write_file", { path: "sub/new.txt", content: "+", append: true }, ctx);
+  assert.equal(fs.readFileSync(path.join(root, "sub/new.txt"), "utf8"), "two+");
+  await assert.rejects(ops.run("write_file", { path: "../x.txt", content: "x" }, ctx), /不在允许/);
+});
+
+test("shell: output, exit code, timeout, cap", async () => {
+  const ok = await ops.run("shell", { command: "echo hi; echo err >&2; exit 3" }, {});
+  assert.equal(ok.stdout.trim(), "hi");
+  assert.equal(ok.stderr.trim(), "err");
+  assert.equal(ok.exitCode, 3);
+  const slow = await ops.run("shell", { command: "sleep 5", timeoutSec: 1 }, {});
+  assert.equal(slow.timedOut, true);
+  assert.ok(slow.durationMs < 4000);
+  const big = await ops.run("shell", { command: "head -c 200000 /dev/zero | tr '\\0' a" }, {});
+  assert.equal(big.truncated, true);
+  assert.ok(big.stdout.length <= 64 * 1024);
+});
+
+test("shell cancel via signal", async () => {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 200);
+  const result = await ops.run("shell", { command: "sleep 5" }, { signal: controller.signal });
+  assert.equal(result.cancelled, true);
+});
+
+test("clipboard fallback and system info", async () => {
+  await ops.run("clipboard_write", { text: "剪贴板" }, {});
+  assert.equal((await ops.run("clipboard_read", {}, {})).text, "剪贴板");
+  const info = await ops.run("system_info", {}, {});
+  assert.equal(info.platform, process.platform);
+  assert.ok(info.cpus > 0);
+});
+
+test("windows path rules (win32 api)", async () => {
+  await assert.rejects(resolveInRoots("D:\\other\\x.txt", ["C:\\Users\\me\\Docs"], "win32"), /不在允许/);
+  const ok = await resolveInRoots("c:\\users\\ME\\docs\\a.txt", ["C:\\Users\\me\\Docs"], "win32");
+  assert.match(ok, /a\.txt$/i);
+  await assert.rejects(resolveInRoots("C:\\Users\\me\\Docs2\\a.txt", ["C:\\Users\\me\\Docs"], "win32"), /不在允许/);
+});
+
+test("powershell encoding and input scripts", () => {
+  assert.equal(Buffer.from(encodePowerShell("echo 你好"), "base64").toString("utf16le"), "echo 你好");
+  assert.match(winInputScript({ action: "click", x: 10, y: 20 }), /SetCursorPos\(10, 20\)/);
+  assert.match(winInputScript({ action: "type", text: "a+b" }), /a\{\+\}b/);
+  assert.equal(escapeSendKeys("50%(x)"), "50{%}{(}x{)}");
+  assert.throws(() => winInputScript({ action: "move" }), /x 和 y/);
+});
+
+test("open refuses dangerous schemes", async () => {
+  await assert.rejects(ops.run("open", { target: "javascript:alert(1)" }, {}), /不允许/);
+});

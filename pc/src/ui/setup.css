@@ -1,0 +1,8 @@
+.setup { max-width: 420px; margin: 0 auto; padding: 28px 20px; }
+.brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.brand img { border-radius: 16px; box-shadow: var(--shadow-1); }
+.brand h1 { font-size: 21px; }
+.pad { padding: 22px; }
+.center { text-align: center; }
+.ok-ic { width: 56px; height: 56px; margin: 4px auto 0; border-radius: 99px; display: grid; place-items: center; font-size: 28px; color: #fff; background: var(--success); }
+p.hint { margin: 14px 0 0; }

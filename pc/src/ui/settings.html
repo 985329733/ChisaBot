@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:" />
+<title>ChisaBot PC · 设置与权限</title>
+<link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+<main class="wrap">
+  <div class="row" style="padding:0;min-height:0;gap:14px">
+    <img src="../../assets/icon.png" alt="" width="52" height="52" style="border-radius:16px;box-shadow:var(--shadow-1)" />
+    <div class="grow">
+      <div class="eyebrow">ChisaBot PC · <span id="ver"></span></div>
+      <h1 id="devName">这台电脑</h1>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><span id="status" class="badge"><i class="dot"></i>离线</span><span class="badge mono" id="server"></span></div>
+    </div>
+    <button id="kill" class="btn danger" type="button">■ 紧急停止</button>
+  </div>
+  <div id="killbar" class="killbar">■ 紧急停止中：这台电脑拒绝一切远程操作。<button id="unkill" class="btn sm secondary" type="button" style="margin-left:auto">解除</button></div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="perm">权限</button>
+    <button role="tab" aria-selected="false" data-tab="audit">本机记录</button>
+    <button role="tab" aria-selected="false" data-tab="general">通用</button>
+  </div>
+
+  <section data-panel="perm">
+    <h2>能力</h2>
+    <p class="sub">默认全部关闭。「询问」= 每次弹窗确认；「允许」= 直接执行。修改会同步到网页和手机。</p>
+    <div class="card" id="caps"></div>
+    <h2>允许的文件夹</h2>
+    <p class="sub">文件类能力只能访问这些文件夹（含子文件夹）。</p>
+    <div class="card"><div id="roots"></div><div class="row"><span class="grow s">也可以在网页 设置 → 设备 里添加。</span><button id="addRoot" class="btn sm secondary" type="button">＋ 添加文件夹</button></div></div>
+    <p class="sub" style="margin-top:14px">哪些机器人可以使用这台电脑，在网页的设备详情里设置。<button id="openWeb" class="btn sm ghost" type="button">在网页中打开 →</button></p>
+  </section>
+
+  <section data-panel="audit" class="hidden">
+    <h2>本机操作记录</h2>
+    <p class="sub">这台电脑执行过的远程操作（完整记录在网页设备详情的「操作记录」里）。</p>
+    <div class="card audit" id="audit"></div>
+  </section>
+
+  <section data-panel="general" class="hidden">
+    <h2>通用</h2>
+    <div class="card">
+      <div class="row wrapable"><div class="grow"><div class="t">开机自动启动</div><div class="s">登录 Windows 后在托盘里静默运行并自动连接。</div></div><div class="ctl"><button class="switch" id="autoStart" role="switch" aria-checked="false" aria-label="开机自动启动"></button></div></div>
+      <div class="row wrapable"><div class="grow"><div class="t">高风险操作始终在本机确认</div><div class="s">命令行、写入文件、鼠标键盘即使设为「允许」，也在这台电脑上弹窗确认。</div></div><div class="ctl"><button class="switch" id="forceLocal" role="switch" aria-checked="true" aria-label="高风险操作始终在本机确认"></button></div></div>
+      <div class="row wrapable"><div class="grow"><div class="t">设备名称</div><div class="s">在网页和机器人工具里显示。</div></div><div class="ctl" style="display:flex;gap:8px"><input id="nameInput" class="input" maxlength="64" style="height:34px;width:200px" /><button id="rename" class="btn sm secondary" type="button">保存</button></div></div>
+    </div>
+    <h2>账号与服务器</h2>
+    <div class="card">
+      <div class="row wrapable"><div class="grow"><div class="t">服务器</div><div class="s mono" id="server2"></div></div></div>
+      <div class="row wrapable"><div class="grow"><div class="t">账号</div><div class="s" id="user"></div></div></div>
+      <div class="row wrapable"><div class="grow"><div class="t">设备令牌</div><div class="s" id="tokenInfo"></div></div></div>
+      <div class="row wrapable"><div class="grow"><div class="t">退出登录 / 更换服务器</div><div class="s">作废这台电脑的令牌并断开，之后可以连接其他服务器。</div></div><div class="ctl"><button id="logout" class="btn sm danger" type="button">退出登录</button></div></div>
+    </div>
+  </section>
+</main>
+<script src="ui.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

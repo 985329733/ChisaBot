@@ -1,0 +1,484 @@
+"use strict";
+/**
+ * 节点操作的本机实现（docs/pc-node.md §8）。纯 Node，不依赖 Electron：
+ * Electron 版通过 hooks 提供更好的截图 / 剪贴板 / 打开网址；无 hooks 时在 Windows 上
+ * 用 PowerShell 兜底，在 Linux 上用常见命令兜底（便于在 Linux 上测试）。
+ */
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const { spawn } = require("node:child_process");
+
+const OUTPUT_CAP = 64 * 1024;
+const LIST_CAP = 500;
+
+class OpError extends Error {}
+
+function pathApi(platform) {
+  return platform === "win32" ? path.win32 : path.posix;
+}
+
+/** 截断到字节上限，返回 [text, truncated]。 */
+function capText(buffer, cap = OUTPUT_CAP) {
+  if (buffer.length <= cap) return [buffer.toString("utf8"), false];
+  return [buffer.subarray(0, cap).toString("utf8"), true];
+}
+
+function encodePowerShell(script) {
+  return Buffer.from(script, "utf16le").toString("base64");
+}
+
+const PS_PREFIX =
+  "$ErrorActionPreference='Continue';$ProgressPreference='SilentlyContinue';" +
+  "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;$OutputEncoding=[System.Text.Encoding]::UTF8;";
+
+function killTree(child, platform) {
+  if (!child.pid) return;
+  try {
+    if (platform === "win32")
+      spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+    else process.kill(-child.pid, "SIGKILL");
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }
+}
+
+/**
+ * 运行一个进程，带超时、输出上限和取消。
+ * 返回 { exitCode, stdout, stderr, truncated, timedOut, durationMs }。
+ */
+function runProcess(file, args, { cwd, timeoutMs = 60_000, signal, platform = process.platform, input } = {}) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    let child;
+    try {
+      child = spawn(file, args, {
+        cwd: cwd || undefined,
+        windowsHide: true,
+        detached: platform !== "win32",
+        env: process.env,
+      });
+    } catch (error) {
+      reject(new OpError(`无法启动进程：${error.message}`));
+      return;
+    }
+    const out = [];
+    const err = [];
+    let outBytes = 0;
+    let errBytes = 0;
+    let truncated = false;
+    let timedOut = false;
+    child.stdout.on("data", (chunk) => {
+      if (outBytes < OUTPUT_CAP) out.push(chunk);
+      else truncated = true;
+      outBytes += chunk.length;
+    });
+    child.stderr.on("data", (chunk) => {
+      if (errBytes < OUTPUT_CAP) err.push(chunk);
+      else truncated = true;
+      errBytes += chunk.length;
+    });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killTree(child, platform);
+    }, timeoutMs);
+    const onAbort = () => killTree(child, platform);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(new OpError(`进程出错：${error.message}`));
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      const [stdout, t1] = capText(Buffer.concat(out));
+      const [stderr, t2] = capText(Buffer.concat(err));
+      resolve({
+        exitCode: code,
+        stdout,
+        stderr,
+        truncated: truncated || t1 || t2,
+        timedOut,
+        cancelled: !!signal?.aborted,
+        durationMs: Date.now() - started,
+      });
+    });
+    if (input !== undefined) child.stdin.end(input);
+    else child.stdin.end();
+  });
+}
+
+function runPowerShell(script, options = {}) {
+  return runProcess(
+    "powershell.exe",
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodePowerShell(PS_PREFIX + script)],
+    { ...options, platform: "win32" },
+  );
+}
+
+function which(command) {
+  const dirs = (process.env.PATH || "").split(path.delimiter);
+  for (const dir of dirs) {
+    const full = path.join(dir, command);
+    try {
+      fs.accessSync(full, fs.constants.X_OK);
+      return full;
+    } catch {}
+  }
+  return null;
+}
+
+/**
+ * 把请求的路径解析到允许的文件夹之内。
+ * - 没有允许的文件夹：拒绝。
+ * - 相对路径相对于第一个允许的文件夹。
+ * - 解析符号链接后再比较，防止用链接跳出去。
+ */
+async function resolveInRoots(requested, roots, platform = process.platform) {
+  const P = pathApi(platform);
+  if (!Array.isArray(roots) || roots.length === 0)
+    throw new OpError("这台电脑还没有设置「允许的文件夹」，请先在 PC 客户端或网页的设备设置里添加。");
+  const raw = typeof requested === "string" ? requested.trim() : "";
+  const candidate = raw ? (P.isAbsolute(raw) ? P.resolve(raw) : P.resolve(roots[0], raw)) : P.resolve(roots[0]);
+  const fold = (p) => (platform === "win32" ? p.toLowerCase() : p);
+  const real = async (p) => {
+    // 对还不存在的路径（写新文件）解析其最近的已存在祖先。
+    let current = p;
+    const tail = [];
+    for (;;) {
+      try {
+        const resolved = await fsp.realpath(current);
+        return tail.length ? P.join(resolved, ...tail.reverse()) : resolved;
+      } catch {
+        const parent = P.dirname(current);
+        if (parent === current) return p;
+        tail.push(P.basename(current));
+        current = parent;
+      }
+    }
+  };
+  const target = await real(candidate);
+  for (const root of roots) {
+    const rootReal = await real(P.resolve(root));
+    const a = fold(target);
+    const b = fold(rootReal);
+    if (a === b || a.startsWith(b.endsWith(P.sep) ? b : b + P.sep)) return target;
+  }
+  throw new OpError(`路径不在允许的文件夹内：${raw || "(空)"}`);
+}
+
+function looksBinary(buffer) {
+  const n = Math.min(buffer.length, 8000);
+  for (let i = 0; i < n; i++) if (buffer[i] === 0) return true;
+  return false;
+}
+
+function escapeSendKeys(text) {
+  return String(text).replace(/[+^%~(){}[\]]/g, (ch) => `{${ch}}`);
+}
+
+const WIN_INPUT_TYPE = `
+if (-not ('CBInput' -as [type])) {
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public static class CBInput {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, int data, UIntPtr extra);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+}
+"@
+}
+[CBInput]::SetProcessDPIAware() | Out-Null
+`;
+
+function winInputScript(args) {
+  const x = Number.isFinite(args.x) ? Math.round(args.x) : null;
+  const y = Number.isFinite(args.y) ? Math.round(args.y) : null;
+  const move = x !== null && y !== null ? `[CBInput]::SetCursorPos(${x}, ${y}) | Out-Null; Start-Sleep -Milliseconds 30;` : "";
+  const click = (down, up) => `[CBInput]::mouse_event(${down},0,0,0,[UIntPtr]::Zero); [CBInput]::mouse_event(${up},0,0,0,[UIntPtr]::Zero);`;
+  switch (args.action) {
+    case "move":
+      if (!move) throw new OpError("move 需要 x 和 y。");
+      return WIN_INPUT_TYPE + move;
+    case "click":
+      return WIN_INPUT_TYPE + move + click("0x0002", "0x0004");
+    case "double_click":
+      return WIN_INPUT_TYPE + move + click("0x0002", "0x0004") + "Start-Sleep -Milliseconds 60;" + click("0x0002", "0x0004");
+    case "right_click":
+      return WIN_INPUT_TYPE + move + click("0x0008", "0x0010");
+    case "scroll": {
+      const amount = Number.isFinite(args.amount) ? Math.round(args.amount) : -3;
+      return WIN_INPUT_TYPE + move + `[CBInput]::mouse_event(0x0800,0,0,${amount * 120},[UIntPtr]::Zero);`;
+    }
+    case "type": {
+      const text = escapeSendKeys(args.text ?? "").replace(/'/g, "''");
+      return `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${text}');`;
+    }
+    case "key": {
+      const keys = String(args.keys ?? "").replace(/'/g, "''");
+      if (!keys) throw new OpError("key 需要 keys，例如 {ENTER} 或 ^c。");
+      return `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${keys}');`;
+    }
+    default:
+      throw new OpError(`不支持的输入动作：${args.action}`);
+  }
+}
+
+const WIN_SCREENSHOT = (maxWidth) => `
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public static class CBDpi { [DllImport("user32.dll")] public static extern bool SetProcessDPIAware(); }'
+[CBDpi]::SetProcessDPIAware() | Out-Null
+$b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+$w = [Math]::Min(${maxWidth}, $b.Width); $h = [int]($b.Height * $w / $b.Width)
+$out = New-Object System.Drawing.Bitmap $bmp, $w, $h
+$ms = New-Object System.IO.MemoryStream
+$out.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+Write-Output ("{0}x{1}x{2}x{3}:" -f $b.Width, $b.Height, $w, $h) -NoNewline
+[Convert]::ToBase64String($ms.ToArray())
+`;
+
+function createOps(options = {}) {
+  const platform = options.platform || process.platform;
+  const hooks = options.hooks || {};
+  const P = pathApi(platform);
+  let memoryClipboard = "";
+
+  async function systemInfo() {
+    const screen = hooks.screenInfo ? await hooks.screenInfo().catch(() => null) : null;
+    return {
+      hostname: os.hostname(),
+      platform,
+      release: os.release(),
+      version: typeof os.version === "function" ? os.version() : undefined,
+      arch: os.arch(),
+      user: (() => {
+        try {
+          return os.userInfo().username;
+        } catch {
+          return undefined;
+        }
+      })(),
+      cpus: os.cpus().length,
+      cpuModel: os.cpus()[0]?.model,
+      memoryTotalMB: Math.round(os.totalmem() / 1048576),
+      memoryFreeMB: Math.round(os.freemem() / 1048576),
+      uptimeHours: Math.round((os.uptime() / 3600) * 10) / 10,
+      homeDir: os.homedir(),
+      screen,
+      clientVersion: options.clientVersion,
+    };
+  }
+
+  async function shell(args, ctx) {
+    const command = String(args.command || "");
+    if (!command.trim()) throw new OpError("命令为空。");
+    const timeoutMs = Math.min(Math.max(Number(args.timeoutSec) || 60, 1), 600) * 1000;
+    let cwd;
+    if (args.cwd) {
+      cwd = P.resolve(String(args.cwd));
+      if (!fs.existsSync(cwd)) throw new OpError(`工作目录不存在：${cwd}`);
+    }
+    const result =
+      platform === "win32"
+        ? await runPowerShell(command, { cwd, timeoutMs, signal: ctx.signal })
+        : await runProcess("/bin/sh", ["-c", command], { cwd, timeoutMs, signal: ctx.signal, platform });
+    return { shell: platform === "win32" ? "powershell" : "sh", ...result };
+  }
+
+  async function listFiles(args, ctx) {
+    const roots = ctx.allowedRoots || [];
+    if (!args.path) {
+      if (!roots.length) await resolveInRoots("", roots, platform);
+      return { roots: roots.map((root) => ({ path: root, exists: fs.existsSync(root) })) };
+    }
+    const dir = await resolveInRoots(args.path, roots, platform);
+    const stat = await fsp.stat(dir).catch(() => null);
+    if (!stat) throw new OpError(`不存在：${dir}`);
+    if (!stat.isDirectory()) throw new OpError(`不是文件夹：${dir}`);
+    const names = await fsp.readdir(dir);
+    const entries = [];
+    for (const name of names.slice(0, LIST_CAP)) {
+      const full = P.join(dir, name);
+      const s = await fsp.lstat(full).catch(() => null);
+      entries.push({
+        name,
+        type: !s ? "unknown" : s.isDirectory() ? "dir" : s.isSymbolicLink() ? "link" : "file",
+        size: s && s.isFile() ? s.size : undefined,
+        modified: s ? s.mtime.toISOString() : undefined,
+      });
+    }
+    entries.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
+    return { path: dir, entries, truncated: names.length > LIST_CAP, total: names.length };
+  }
+
+  async function readFile(args, ctx) {
+    const file = await resolveInRoots(args.path, ctx.allowedRoots, platform);
+    const stat = await fsp.stat(file).catch(() => null);
+    if (!stat) throw new OpError(`文件不存在：${file}`);
+    if (!stat.isFile()) throw new OpError(`不是文件：${file}`);
+    const max = Math.min(Math.max(Number(args.maxBytes) || 262_144, 1), 1_048_576);
+    const handle = await fsp.open(file, "r");
+    try {
+      const buffer = Buffer.alloc(Math.min(max, stat.size));
+      await handle.read(buffer, 0, buffer.length, 0);
+      const binary = looksBinary(buffer);
+      return {
+        path: file,
+        size: stat.size,
+        truncated: stat.size > max,
+        encoding: binary ? "base64" : "utf8",
+        content: binary ? buffer.toString("base64") : buffer.toString("utf8"),
+      };
+    } finally {
+      await handle.close();
+    }
+  }
+
+  async function writeFile(args, ctx) {
+    const file = await resolveInRoots(args.path, ctx.allowedRoots, platform);
+    const content = String(args.content ?? "");
+    await fsp.mkdir(P.dirname(file), { recursive: true });
+    let backup = null;
+    const exists = await fsp.stat(file).catch(() => null);
+    if (exists && !exists.isFile()) throw new OpError(`不是文件：${file}`);
+    if (exists && !args.append) {
+      backup = `${file}.chisabot-bak`;
+      await fsp.copyFile(file, backup);
+    }
+    if (args.append) await fsp.appendFile(file, content, "utf8");
+    else await fsp.writeFile(file, content, "utf8");
+    return { path: file, bytes: Buffer.byteLength(content), appended: !!args.append, backup };
+  }
+
+  async function screenshot(args) {
+    const maxWidth = Math.min(Math.max(Number(args.maxWidth) || 1600, 320), 3840);
+    if (hooks.screenshot) return hooks.screenshot({ maxWidth });
+    if (platform === "win32") {
+      const result = await runPowerShell(WIN_SCREENSHOT(maxWidth), { timeoutMs: 30_000 });
+      const text = result.stdout.trim();
+      const match = /^(\d+)x(\d+)x(\d+)x(\d+):(.+)$/s.exec(text);
+      if (!match) throw new OpError(`截图失败：${(result.stderr || text).slice(0, 300)}`);
+      return {
+        format: "png",
+        screenWidth: Number(match[1]),
+        screenHeight: Number(match[2]),
+        width: Number(match[3]),
+        height: Number(match[4]),
+        base64: match[5].replace(/\s+/g, ""),
+      };
+    }
+    // Linux：ImageMagick import（需要 X 显示）。
+    if (process.env.DISPLAY && which("import")) {
+      const result = await runProcess("sh", ["-c", `import -silent -window root -resize '${maxWidth}x>' png:- | base64 -w0`], { timeoutMs: 30_000 });
+      if (result.exitCode === 0 && result.stdout) return { format: "png", base64: result.stdout.trim(), note: "Linux import" };
+    }
+    throw new OpError("这台电脑上没有可用的截图方式。");
+  }
+
+  async function input(args) {
+    if (hooks.input) return hooks.input(args);
+    if (platform === "win32") {
+      const result = await runPowerShell(winInputScript(args), { timeoutMs: 20_000 });
+      if (result.exitCode !== 0) throw new OpError(`输入失败：${result.stderr.slice(0, 300)}`);
+      return { done: true, action: args.action };
+    }
+    if (which("xdotool") && process.env.DISPLAY) {
+      const map = {
+        move: ["mousemove", String(args.x), String(args.y)],
+        click: ["mousemove", String(args.x), String(args.y), "click", "1"],
+        double_click: ["mousemove", String(args.x), String(args.y), "click", "--repeat", "2", "1"],
+        right_click: ["mousemove", String(args.x), String(args.y), "click", "3"],
+        scroll: ["click", (args.amount ?? -3) > 0 ? "4" : "5"],
+        type: ["type", "--", String(args.text ?? "")],
+        key: ["key", String(args.keys ?? "")],
+      };
+      const argv = map[args.action];
+      if (!argv) throw new OpError(`不支持的输入动作：${args.action}`);
+      const result = await runProcess("xdotool", argv, { timeoutMs: 20_000 });
+      if (result.exitCode !== 0) throw new OpError(`输入失败：${result.stderr.slice(0, 300)}`);
+      return { done: true, action: args.action };
+    }
+    throw new OpError("这台电脑上没有可用的鼠标键盘控制方式。");
+  }
+
+  async function open(args) {
+    const target = String(args.target || "").trim();
+    if (!target) throw new OpError("没有要打开的目标。");
+    const isUrl = /^https?:\/\//i.test(target);
+    if (/^(javascript|file|data|vbscript):/i.test(target)) throw new OpError("不允许打开这种地址。");
+    if (isUrl && hooks.openExternal) {
+      await hooks.openExternal(target);
+      return { opened: target, via: "browser" };
+    }
+    if (platform === "win32") {
+      const quoted = (s) => `'${String(s).replace(/'/g, "''")}'`;
+      const argList = Array.isArray(args.args) && args.args.length ? ` -ArgumentList @(${args.args.map(quoted).join(",")})` : "";
+      const result = await runPowerShell(`Start-Process -FilePath ${quoted(target)}${argList}`, { timeoutMs: 20_000 });
+      if (result.exitCode !== 0) throw new OpError(`打开失败：${result.stderr.slice(0, 300)}`);
+      return { opened: target, via: "Start-Process" };
+    }
+    const opener = which("xdg-open");
+    if (!opener) throw new OpError("这台电脑上没有 xdg-open。");
+    const child = spawn(opener, [target], { detached: true, stdio: "ignore" });
+    child.unref();
+    return { opened: target, via: "xdg-open" };
+  }
+
+  async function clipboardRead() {
+    if (hooks.clipboardRead) return { text: await hooks.clipboardRead() };
+    if (platform === "win32") {
+      const result = await runPowerShell("Get-Clipboard -Raw", { timeoutMs: 10_000 });
+      return { text: result.stdout.replace(/\r?\n$/, "") };
+    }
+    return { text: memoryClipboard, note: "无系统剪贴板，使用进程内剪贴板" };
+  }
+
+  async function clipboardWrite(args) {
+    const text = String(args.text ?? "");
+    if (hooks.clipboardWrite) {
+      await hooks.clipboardWrite(text);
+      return { written: text.length };
+    }
+    if (platform === "win32") {
+      const b64 = Buffer.from(text, "utf8").toString("base64");
+      const result = await runPowerShell(
+        `Set-Clipboard -Value ([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}')))`,
+        { timeoutMs: 10_000 },
+      );
+      if (result.exitCode !== 0) throw new OpError("写入剪贴板失败。");
+      return { written: text.length };
+    }
+    memoryClipboard = text;
+    return { written: text.length, note: "进程内剪贴板" };
+  }
+
+  const table = {
+    system_info: systemInfo,
+    shell,
+    list_files: listFiles,
+    read_file: readFile,
+    write_file: writeFile,
+    screenshot,
+    input,
+    open,
+    clipboard_read: clipboardRead,
+    clipboard_write: clipboardWrite,
+  };
+
+  return {
+    platform,
+    async run(operation, args, ctx = {}) {
+      const fn = table[operation];
+      if (!fn) throw new OpError(`不支持的操作：${operation}`);
+      return fn(args || {}, ctx);
+    },
+  };
+}
+
+module.exports = { createOps, resolveInRoots, runProcess, encodePowerShell, winInputScript, escapeSendKeys, OpError };
