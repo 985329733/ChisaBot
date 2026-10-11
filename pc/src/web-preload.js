@@ -11,7 +11,24 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 const isLocalPage = location.protocol === "file:";
 
+/** 无边框主窗口的窗口控制：网页顶栏 / 离线页右上角的 最小化 · 最大化 · 关闭。 */
+function exposeWindowControls() {
+  contextBridge.exposeInMainWorld("chisabotWindow", {
+    platform: process.platform,
+    minimize: () => ipcRenderer.send("window:minimize"),
+    toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),
+    close: () => ipcRenderer.send("window:close"),
+    isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+    onMaximizedChange(callback) {
+      const listener = (_event, value) => callback(Boolean(value));
+      ipcRenderer.on("window:maximized", listener);
+      return () => ipcRenderer.removeListener("window:maximized", listener);
+    },
+  });
+}
+
 if (isLocalPage) {
+  exposeWindowControls();
   const CHANNELS = new Set(["state:get", "paused:set", "chat:retry"]);
   contextBridge.exposeInMainWorld("chisa", {
     invoke(channel, payload) {
@@ -30,6 +47,7 @@ if (isLocalPage) {
     origin = ipcRenderer.sendSync("pc:origin");
   } catch {}
   if (origin && location.origin === origin && window.top === window) {
+    exposeWindowControls();
     const bool = (v) => (typeof v === "boolean" ? v : undefined);
     contextBridge.exposeInMainWorld("chisabotPC", {
       state: () => ipcRenderer.invoke("pc:state"),

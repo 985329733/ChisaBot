@@ -160,6 +160,11 @@ function openChat(pathname) {
     title: "ChisaBot",
     icon: path.join(ASSETS, "icon.png"),
     autoHideMenuBar: true,
+    // 无边框：网页顶栏就是标题栏（拖动区 + 网页里的最小化 / 最大化 / 关闭，DESIGN-v3 §3）。
+    // 不透明窗口 + thickFrame：Windows 11 由系统画圆角（约 8px）和窗口阴影，拖边调整大小、
+    // Win+方向键贴靠、最大化都是系统行为；Windows 10 上是方角。网页不再自己画圆角。
+    frame: false,
+    thickFrame: true,
     backgroundColor: windowBackground(),
     webPreferences: {
       partition: PARTITION,
@@ -203,6 +208,10 @@ function openChat(pathname) {
     showOffline(win, description || String(code));
   });
   win.webContents.on("render-process-gone", () => showOffline(win, "页面进程意外退出"));
+  const sendMaximized = () => {
+    if (!win.isDestroyed()) win.webContents.send("window:maximized", win.isMaximized() || win.isFullScreen());
+  };
+  for (const name of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen"]) win.on(name, sendMaximized);
   win.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
@@ -600,6 +609,12 @@ function fromLocalUi(event) {
   }
 }
 
+/** 主窗口里的本机离线页（file://）：同样要能最小化 / 关闭无边框窗口。 */
+function fromChatLocalPage(event) {
+  const chat = windows.chat;
+  return Boolean(chat && !chat.isDestroyed() && event.sender === chat.webContents && String(event.senderFrame?.url || "").startsWith("file:"));
+}
+
 /** 网页本机桥：只认主窗口、顶层框架、而且是已登录的那台服务器。 */
 function fromServerPage(event) {
   const chat = windows.chat;
@@ -710,6 +725,17 @@ function registerIpc() {
     event.returnValue = event.sender === windows.chat?.webContents ? serverOrigin() : "";
   });
   handleWeb("pc:state", () => webLocalState());
+  // 无边框主窗口的窗口控制（网页顶栏右上角）。关闭 = 和原来点 ✕ 一样隐藏到托盘。
+  const chatWin = (event) => (fromServerPage(event) || fromChatLocalPage(event) ? windows.chat : null);
+  ipcMain.on("window:minimize", (event) => chatWin(event)?.minimize());
+  ipcMain.on("window:toggle-maximize", (event) => {
+    const win = chatWin(event);
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on("window:close", (event) => chatWin(event)?.close());
+  ipcMain.handle("window:is-maximized", (event) => Boolean(chatWin(event)?.isMaximized()));
   handleWeb("pc:set", (patch) => setLocal(patch && typeof patch === "object" ? patch : {}));
   handleWeb("pc:pick-folders", async () => {
     const result = await dialog.showOpenDialog(windows.chat, {
