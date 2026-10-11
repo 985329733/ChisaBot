@@ -637,6 +637,14 @@ function handleWeb(channel, fn) {
   });
 }
 
+/** 无边框主窗口的窗口控制：已登录服务器的顶层页面，或主窗口里的本机离线页。 */
+function handleChatWindow(channel, fn) {
+  ipcMain.handle(channel, (event, payload) => {
+    if (!fromServerPage(event) && !fromChatLocalPage(event)) throw new Error("拒绝：只有主窗口可以控制窗口。");
+    return fn(payload, event);
+  });
+}
+
 async function logout() {
   const local = config.get();
   const token = config.getToken();
@@ -735,7 +743,7 @@ function registerIpc() {
     else win.maximize();
   });
   ipcMain.on("window:close", (event) => chatWin(event)?.close());
-  ipcMain.handle("window:is-maximized", (event) => Boolean(chatWin(event)?.isMaximized()));
+  handleChatWindow("window:is-maximized", () => Boolean(windows.chat && !windows.chat.isDestroyed() && windows.chat.isMaximized()));
   handleWeb("pc:set", (patch) => setLocal(patch && typeof patch === "object" ? patch : {}));
   handleWeb("pc:pick-folders", async () => {
     const result = await dialog.showOpenDialog(windows.chat, {
