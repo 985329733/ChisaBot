@@ -11,43 +11,39 @@ import {
   IconStarOff,
   IconUsers,
   IconTrash,
+  IconUserCircle,
 } from "@tabler/icons-react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useRouterState,
-} from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
-import { useEffect, useRef, useState } from "react";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+import { useRef, useState } from "react";
+import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
+import { SidebarSearchField } from "@/components/layout/sidebar-search-field";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarHeader,
   SidebarMenu,
   SidebarRail,
   useOptionalSidebar,
 } from "@/components/ui/sidebar";
-import { setSidebarSearch, useSidebarSearch } from "@/lib/sidebar-search";
+import { requestSidebarSearchFocus, useSidebarSearch } from "@/lib/sidebar-search";
 import { cn } from "@/lib/utils";
 import {
   type ChannelSummary,
   channelListQueryOptions,
 } from "@/lib/channels/queries";
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
+import { latestChannelFor } from "@/lib/channels/latest";
+import { openCreateBot } from "@/lib/agents/create-bot";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
+import { BotChatMenuItems, BotRowComputerChip } from "@/components/agents/bot-chat-actions";
+import { useBotChat, useCurrentBotChat } from "@/lib/agents/bot-chat-context";
 import {
   type MessageListEmphasis,
   useMainBot,
@@ -212,21 +208,8 @@ function ChannelRow({
   );
 }
 
-/**
- * The conversation a Bot's row opens: its most recent one-to-one channel, or a fresh chat with it
- * when none is loaded. Group channels are not any one Bot's chat, so they never count.
- */
-export function latestChannelFor(
-  botId: string,
-  channels: ChannelSummary[] | undefined,
-): ChannelSummary | undefined {
-  let best: ChannelSummary | undefined;
-  for (const channel of channels ?? []) {
-    if (channel.agentIds.length !== 1 || channel.agentIds[0] !== botId) continue;
-    if (!best || (channel.lastMessageAt ?? "") > (best.lastMessageAt ?? "")) best = channel;
-  }
-  return best;
-}
+/** Kept exported from here for existing callers; lives in lib/channels/latest.ts. */
+export { latestChannelFor };
 
 type RosterBot = {
   id: string;
@@ -234,42 +217,6 @@ type RosterBot = {
   title?: string | null;
   canManage?: boolean;
 };
-
-/** Opening the app at its home page lands in the main Bot's chat, once per page load. */
-let landedOnce = false;
-
-function useLandOnMainBot(
-  mainBotId: string | null,
-  preferencesSettled: boolean,
-  roster: RosterBot[],
-  rosterLoaded: boolean,
-  channels: ChannelSummary[] | undefined,
-  channelsSettled: boolean,
-) {
-  const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  useEffect(() => {
-    if (landedOnce) return;
-    if (pathname !== "/") {
-      landedOnce = true;
-      return;
-    }
-    if (!preferencesSettled) return;
-    if (!mainBotId) {
-      landedOnce = true;
-      return;
-    }
-    if (!rosterLoaded || !channelsSettled) return;
-    landedOnce = true;
-    if (!roster.some((bot) => bot.id === mainBotId)) return;
-    const latest = latestChannelFor(mainBotId, channels);
-    if (latest) {
-      void navigate({ to: "/channel/$channelId", params: { channelId: latest.id }, replace: true });
-    } else {
-      void navigate({ to: "/channel/new", search: { agent: mainBotId }, replace: true });
-    }
-  }, [pathname, mainBotId, preferencesSettled, roster, rosterLoaded, channels, channelsSettled, navigate]);
-}
 
 function BotRow({
   bot,
@@ -292,6 +239,8 @@ function BotRow({
   const waiting = attention ? needsInput(attention) : 0;
   const unread = !selected && attention ? attention.unread > 0 : false;
   const paused = attention?.paused ?? false;
+  // DESIGN v4.1：当前对话的机器人控件（设置窗格 / 计算机 / 新话题）由聊天页登记，在这一行里操作。
+  const chat = useBotChat(bot.id);
   const content = (
     <>
       <span className="glass-bot-ava">
@@ -321,7 +270,7 @@ function BotRow({
   );
   return (
     <div
-      className={cn("glass-bot-row", selected && "is-on", menuOpen && "menu-open")}
+      className={cn("glass-bot-row", (selected || chat) && "is-on", menuOpen && "menu-open")}
       onContextMenu={(event) => {
         event.preventDefault();
         setMenuOpen(true);
@@ -348,60 +297,30 @@ function BotRow({
           {content}
         </Link>
       )}
+      <BotRowComputerChip chat={chat} />
       <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
         <DropdownMenuTrigger
           render={
             <button
-              aria-label={`${bot.name} 更多操作`}
+              aria-label={`${bot.name} 机器人菜单`}
               className="glass-bot-more"
+              title={"机器人菜单"}
               type="button"
             />
           }
         >
           <IconDots className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="glass-pop min-w-44 p-1.5">
-          <DropdownMenuItem className="gap-2" onClick={onToggleMain}>
-            {main ? <IconStarOff className="size-4" /> : <IconStar className="size-4" />}
-            {main ? "取消主机器人" : "设为主机器人"}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="gap-2"
-            render={<Link search={{ agent: bot.id }} to="/channel/new" />}
-          >
-            <IconPlus className="size-4" />
-            {"新聊天"}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="gap-2"
-            render={<Link params={{ agentId: bot.id }} to="/bots/$agentId" />}
-          >
-            <IconRobot className="size-4" />
-            {"机器人设置"}
-          </DropdownMenuItem>
-          {paused ? (
-            <DropdownMenuItem
-              className="gap-2"
-              onClick={() => resume.mutate({ agentId: bot.id, paused: false })}
-            >
-              <IconPlayerPause className="size-4" />
-              {"恢复运行"}
-            </DropdownMenuItem>
-          ) : null}
-          {bot.canManage ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="gap-2 text-destructive focus:text-destructive"
-                onClick={() => setDeleteOpen(true)}
-              >
-                <IconTrash className="size-4" />
-                {"删除机器人…"}
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
+        <BotMenuContent
+          bot={bot}
+          chat={chat}
+          latest={latest}
+          main={main}
+          onDelete={() => setDeleteOpen(true)}
+          onResume={() => resume.mutate({ agentId: bot.id, paused: false })}
+          onToggleMain={onToggleMain}
+          paused={paused}
+        />
       </DropdownMenu>
       {bot.canManage ? (
         <DeleteBotDialog
@@ -411,6 +330,129 @@ function BotRow({
           selectedBotId={selected ? bot.id : undefined}
         />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * 机器人「⋯」菜单（DESIGN v4.1 §W5，原来在聊天列头部，现在在左栏机器人行）：
+ * 机器人设置 · 查看计算机 · 新话题 ‖ 设为主机器人 · 机器人资料页 · 恢复运行 ‖ 删除机器人…
+ */
+function BotMenuContent({
+  bot,
+  chat,
+  latest,
+  main,
+  paused,
+  onToggleMain,
+  onResume,
+  onDelete,
+}: {
+  bot: RosterBot;
+  chat: ReturnType<typeof useBotChat>;
+  latest: ChannelSummary | undefined;
+  main: boolean | null;
+  paused: boolean;
+  onToggleMain: (() => void) | null;
+  onResume: () => void;
+  onDelete: () => void;
+}) {
+  const icon = "size-[18px] shrink-0 opacity-80";
+  return (
+    <DropdownMenuContent align="start" className="glass-pop w-[288px] p-1.5" side="right" sideOffset={10}>
+      <BotChatMenuItems agentId={bot.id} chat={chat} latest={latest} />
+      <DropdownMenuSeparator className="glass-sep" />
+      {onToggleMain ? (
+        <DropdownMenuItem className="glass-mi" onClick={onToggleMain}>
+          {main ? <IconStarOff className={icon} /> : <IconStar className={icon} />}
+          <span className="min-w-0 flex-1">{main ? "取消主机器人" : "设为主机器人"}</span>
+        </DropdownMenuItem>
+      ) : null}
+      <DropdownMenuItem
+        className="glass-mi"
+        render={<Link params={{ agentId: bot.id }} to="/bots/$agentId" />}
+      >
+        <IconUserCircle className={icon} />
+        <span className="min-w-0 flex-1">{"机器人资料页"}</span>
+      </DropdownMenuItem>
+      {paused ? (
+        <DropdownMenuItem className="glass-mi" onClick={onResume}>
+          <IconPlayerPause className={icon} />
+          <span className="min-w-0 flex-1">{"恢复运行"}</span>
+        </DropdownMenuItem>
+      ) : null}
+      {bot.canManage ? (
+        <>
+          <DropdownMenuSeparator className="glass-sep" />
+          <DropdownMenuItem className="glass-mi text-destructive focus:text-destructive" onClick={onDelete}>
+            <IconTrash className={icon} />
+            <span className="min-w-0 flex-1">{"删除机器人…"}</span>
+          </DropdownMenuItem>
+        </>
+      ) : null}
+    </DropdownMenuContent>
+  );
+}
+
+/**
+ * 当前对话的机器人不在列表里（隐藏的机器人，例如浏览器机器人）时，在列表顶部临时给它一行，
+ * 这样它的「⋯」和计算机提示仍然够得着。
+ */
+function HiddenChatBotRow({ known }: { known: Set<string> }) {
+  const current = useCurrentBotChat();
+  const agents = useQuery(agentListQueryOptions());
+  if (!current || known.has(current.agentId)) return null;
+  const profile = agents.data?.find((a) => a.id === current.agentId);
+  const bot: RosterBot = {
+    id: current.agentId,
+    name: profile?.name ?? current.fallbackName ?? "",
+    title: profile?.title ?? null,
+  };
+  return (
+    <>
+      <div className="glass-sec">
+        <span>{"当前对话"}</span>
+      </div>
+      <div className="glass-bot-list mb-2">
+        <HiddenBotRow bot={bot} chat={current} />
+      </div>
+    </>
+  );
+}
+
+function HiddenBotRow({ bot, chat }: { bot: RosterBot; chat: NonNullable<ReturnType<typeof useBotChat>> }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div className={cn("glass-bot-row is-on", menuOpen && "menu-open")}>
+      <span className="glass-bot-link">
+        <span className="glass-bot-ava">
+          <ChannelAvatar participantIds={[bot.id]} size={28} />
+        </span>
+        <span className="glass-bot-text">
+          <span className="glass-item-t">{bot.name}</span>
+          {bot.title ? <span className="glass-item-s">{bot.title}</span> : null}
+        </span>
+      </span>
+      <BotRowComputerChip chat={chat} />
+      <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+        <DropdownMenuTrigger
+          render={
+            <button aria-label={`${bot.name} 机器人菜单`} className="glass-bot-more" title={"机器人菜单"} type="button" />
+          }
+        >
+          <IconDots className="size-4" />
+        </DropdownMenuTrigger>
+        <BotMenuContent
+          bot={bot}
+          chat={chat}
+          latest={undefined}
+          main={null}
+          onDelete={() => {}}
+          onResume={() => {}}
+          onToggleMain={null}
+          paused={false}
+        />
+      </DropdownMenu>
     </div>
   );
 }
@@ -429,17 +471,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   useAttentionNotifications(attention.data);
   const attentionById = new Map((attention.data ?? []).map((a) => [a.agentId, a]));
   const { botId: selectedBotId } = usePanelBot();
-  const { mainBotId, settled: preferencesSettled, setMainBot } = useMainBot();
+  const { mainBotId, setMainBot } = useMainBot();
   const mainBot = mainBotId ? roster.find((bot) => bot.id === mainBotId) : undefined;
   const others = mainBot ? roster.filter((bot) => bot.id !== mainBot.id) : roster;
-  useLandOnMainBot(
-    mainBotId,
-    preferencesSettled,
-    roster,
-    agents.isSuccess,
-    channels.data,
-    !channels.isPending,
-  );
 
   const searching = search.trim().length > 0;
   const visibleChannels = searching
@@ -469,6 +503,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           channels={channels.data}
           mainBotId={mainBot?.id}
           selectedBotId={selectedBotId}
+          setMainBot={setMainBot}
         />
       </Sidebar>
     );
@@ -476,34 +511,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" variant="floating" {...props}>
-      <SidebarHeader className="glass-side-header glass-side-full gap-3 p-0 pb-3">
-        <Link
-          className="glass-newchat"
-          search={selectedBotId ? { agent: selectedBotId } : {}}
-          to="/channel/new"
-        >
-          <IconPlus className="size-[18px]" />
-          {"新聊天"}
-        </Link>
-        {sidebar?.isMobile ? (
-          <InputGroup className="bg-background text-sm rounded-full h-10">
-            <InputGroupInput
-              aria-label={"搜索会话"}
-              onChange={(event) => setSidebarSearch(event.target.value)}
-              placeholder={"搜索会话"}
-              value={search}
-            />
-            <InputGroupAddon>
-              <IconSearch />
-            </InputGroupAddon>
-          </InputGroup>
-        ) : null}
-      </SidebarHeader>
       <SidebarContent className="glass-side-full gap-3 overflow-hidden" id="chisabot-bot-list">
         <section
           aria-label={searching ? "搜索结果" : "机器人"}
           className="glass-card glass-side-card min-h-0 flex-1"
         >
+          {/* DESIGN-v4：搜索在它要搜的列表上面，同一张卡片里（Ctrl K 聚焦这里）。 */}
+          <SidebarSearchField />
           {searching ? (
             <>
               <div className="glass-sec">
@@ -551,7 +565,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </>
           ) : (
             <>
+              {/* The list's own header: title, ＋ 新建机器人 at the top-left, 管理 on the right. */}
+              <div className="glass-list-head">
+                <span className="glass-list-title">{"机器人"}</span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        aria-label={"新建机器人"}
+                        className="glass-list-add"
+                        onClick={openCreateBot}
+                        type="button"
+                      />
+                    }
+                  >
+                    <IconPlus className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={6}>
+                    {"新建机器人"}
+                  </TooltipContent>
+                </Tooltip>
+                <Link
+                  className="glass-sec-link ml-auto"
+                  title={"管理机器人（右键机器人可设为主机器人）"}
+                  to="/bots"
+                >
+                  {"管理"}
+                </Link>
+              </div>
               <div className="glass-side-scroll glass-bot-scroll scroll-fade-b">
+                <HiddenChatBotRow known={new Set(roster.map((bot) => bot.id))} />
                 {mainBot ? (
                   <>
                     <div className="glass-sec">
@@ -561,25 +604,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       </span>
                     </div>
                     <div className="glass-bot-list">{row(mainBot, true)}</div>
+                    {others.length > 0 ? (
+                      <div className="glass-sec mt-2">
+                        <span>{"其他"}</span>
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
-                <div className={cn("glass-sec", mainBot && "mt-2")}>
-                  <span>{"AI 同事"}</span>
-                  <Link aria-label={"管理 AI 同事"} className="glass-sec-btn" to="/bots">
-                    <IconPlus className="size-[15px]" />
-                  </Link>
-                </div>
                 <div className="glass-bot-list">
                   {others.map((bot) => row(bot, false))}
                   {roster.length === 0 && agents.isSuccess ? (
-                    <p className="px-2.5 py-1.5 text-muted-foreground text-xs">
-                      {"还没有 AI 同事。"}
-                    </p>
+                    <button className="glass-list-empty" onClick={openCreateBot} type="button">
+                      <IconPlus className="size-4" />
+                      {"新建一个机器人"}
+                    </button>
                   ) : null}
                 </div>
-                {!mainBot && roster.length > 0 ? (
-                  <p className="glass-bot-hint">{"右键机器人可设为主机器人，置顶显示"}</p>
-                ) : null}
               </div>
               <div className="glass-side-links">
                 {sideLinks.map((item) => (
@@ -598,6 +638,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </>
           )}
         </section>
+        {/* 账号永远在左栏最底下，单独一张小卡：「我是谁」和「我在用什么」分开。 */}
+        <AccountCard />
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
@@ -626,76 +668,36 @@ function BotMiniRail({
   selectedBotId,
   channels,
   attentionById,
+  setMainBot,
 }: {
   bots: RosterBot[];
   mainBotId: string | undefined;
   selectedBotId: string | null | undefined;
   channels: ChannelSummary[] | undefined;
   attentionById: Map<string, BotAttention>;
+  setMainBot: (id: string | null) => void;
 }) {
   return (
     <nav aria-label={"机器人"} className="glass-mini" id="chisabot-bot-list">
-      <RailTip label={"新聊天"}>
-        <Link
-          aria-label={"新聊天"}
-          className="glass-mini-new"
-          search={selectedBotId ? { agent: selectedBotId } : {}}
-          to="/channel/new"
-        >
+      <MiniSearchButton />
+      <RailTip label={"新建机器人"}>
+        <button aria-label={"新建机器人"} className="glass-mini-new" onClick={openCreateBot} type="button">
           <IconPlus className="size-5" />
-        </Link>
+        </button>
       </RailTip>
       <div className="glass-card glass-mini-card">
         <div className="glass-mini-scroll scroll-fade-b">
-          {bots.map((bot) => {
-            const selected = selectedBotId === bot.id;
-            const main = bot.id === mainBotId;
-            const attention = attentionById.get(bot.id);
-            const waiting = attention ? needsInput(attention) : 0;
-            const unread = !selected && attention ? attention.unread > 0 : false;
-            const latest = latestChannelFor(bot.id, channels);
-            const label = main ? `${bot.name}（主机器人）` : bot.name;
-            const inner = (
-              <>
-                <ChannelAvatar participantIds={[bot.id]} size={36} />
-                {main ? (
-                  <span aria-hidden className="glass-bot-star">
-                    <IconStarFilled className="size-2.5" />
-                  </span>
-                ) : null}
-                {waiting > 0 ? (
-                  <span className="glass-mini-badge">{waiting}</span>
-                ) : unread ? (
-                  <span aria-hidden className="glass-mini-dot" />
-                ) : null}
-              </>
-            );
-            return (
-              <RailTip key={bot.id} label={label}>
-                {latest ? (
-                  <Link
-                    aria-current={selected ? "page" : undefined}
-                    aria-label={label}
-                    className={cn("glass-mini-bot", selected && "is-on")}
-                    params={{ channelId: latest.id }}
-                    to="/channel/$channelId"
-                  >
-                    {inner}
-                  </Link>
-                ) : (
-                  <Link
-                    aria-current={selected ? "page" : undefined}
-                    aria-label={label}
-                    className={cn("glass-mini-bot", selected && "is-on")}
-                    search={{ agent: bot.id }}
-                    to="/channel/new"
-                  >
-                    {inner}
-                  </Link>
-                )}
-              </RailTip>
-            );
-          })}
+          {bots.map((bot) => (
+            <MiniBot
+              attention={attentionById.get(bot.id)}
+              bot={bot}
+              key={bot.id}
+              latest={latestChannelFor(bot.id, channels)}
+              main={bot.id === mainBotId}
+              onToggleMain={() => setMainBot(bot.id === mainBotId ? null : bot.id)}
+              selected={selectedBotId === bot.id}
+            />
+          ))}
         </div>
         <div className="glass-mini-links">
           {sideLinks.map((item) => (
@@ -712,6 +714,149 @@ function BotMiniRail({
           ))}
         </div>
       </div>
+      <div className="glass-card acct-mini-card">
+        <AccountMenu compact />
+      </div>
     </nav>
+  );
+}
+
+/**
+ * 收起的左栏里的一个机器人头像（DESIGN v4.2）：右键或悬停 / 聚焦时出现的小「⋯」打开和展开行同一个
+ * 菜单（BotMenuContent）；选中的机器人「⋯」常显（头像左下角的小徽标）。计算机打开 / 需要你时，
+ * 选中的头像左上角有一个圆点（蓝 = 已打开，琥珀 = 需要你）。
+ */
+function MiniBot({
+  bot,
+  selected,
+  main,
+  latest,
+  attention,
+  onToggleMain,
+}: {
+  bot: RosterBot;
+  selected: boolean;
+  main: boolean;
+  latest: ChannelSummary | undefined;
+  attention: BotAttention | undefined;
+  onToggleMain: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const resume = useMutation(setBotPausedMutationOptions(queryClient));
+  const chat = useBotChat(bot.id);
+  const waiting = attention ? needsInput(attention) : 0;
+  const unread = !selected && attention ? attention.unread > 0 : false;
+  const paused = attention?.paused ?? false;
+  const label = main ? `${bot.name}（主机器人）` : bot.name;
+  const computer = chat?.canComputer && (chat.needsYou || chat.computerOpen) ? (chat.needsYou ? "needs" : "open") : null;
+  const inner = (
+    <>
+      <ChannelAvatar participantIds={[bot.id]} size={36} />
+      {main ? (
+        <span aria-hidden className="glass-bot-star">
+          <IconStarFilled className="size-2.5" />
+        </span>
+      ) : null}
+      {waiting > 0 ? (
+        <span className="glass-mini-badge">{waiting}</span>
+      ) : unread ? (
+        <span aria-hidden className="glass-mini-dot" />
+      ) : null}
+    </>
+  );
+  const linkClass = cn("glass-mini-bot", (selected || chat) && "is-on");
+  return (
+    <div
+      className={cn("glass-mini-slot", (selected || chat) && "is-on", menuOpen && "menu-open")}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setMenuOpen(true);
+      }}
+    >
+      <RailTip label={label}>
+        {latest ? (
+          <Link
+            aria-current={selected ? "page" : undefined}
+            aria-label={label}
+            className={linkClass}
+            params={{ channelId: latest.id }}
+            to="/channel/$channelId"
+          >
+            {inner}
+          </Link>
+        ) : (
+          <Link
+            aria-current={selected ? "page" : undefined}
+            aria-label={label}
+            className={linkClass}
+            search={{ agent: bot.id }}
+            to="/channel/new"
+          >
+            {inner}
+          </Link>
+        )}
+      </RailTip>
+      {computer ? (
+        <span
+          className={cn("glass-mini-comp", computer === "needs" && "is-needs")}
+          role="img"
+          aria-label={computer === "needs" ? "计算机需要你" : "计算机已打开"}
+          title={computer === "needs" ? "计算机需要你" : "计算机已打开"}
+        />
+      ) : null}
+      <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+        <DropdownMenuTrigger
+          render={
+            <button
+              aria-label={`${bot.name} 机器人菜单`}
+              className="glass-mini-more"
+              title={"机器人菜单"}
+              type="button"
+            />
+          }
+        >
+          <IconDots className="size-3" />
+        </DropdownMenuTrigger>
+        <BotMenuContent
+          bot={bot}
+          chat={chat}
+          latest={latest}
+          main={main}
+          onDelete={() => setDeleteOpen(true)}
+          onResume={() => resume.mutate({ agentId: bot.id, paused: false })}
+          onToggleMain={onToggleMain}
+          paused={paused}
+        />
+      </DropdownMenu>
+      {bot.canManage ? (
+        <DeleteBotDialog
+          bot={{ id: bot.id, name: bot.name }}
+          onOpenChange={setDeleteOpen}
+          open={deleteOpen}
+          selectedBotId={selected ? bot.id : undefined}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** 收起的左栏：搜索变成一个图标，点它（或 Ctrl K）先展开左栏再聚焦搜索框，位置和展开时一致（最上面）。 */
+function MiniSearchButton() {
+  const sidebar = useOptionalSidebar();
+  return (
+    <RailTip label={"搜索会话（Ctrl K）"}>
+      <button
+        aria-label={"搜索会话"}
+        className="glass-mini-search"
+        onClick={() => {
+          sidebar?.setOpen(true);
+          requestSidebarSearchFocus();
+        }}
+        type="button"
+      >
+        <IconSearch className="size-[18px]" />
+      </button>
+    </RailTip>
   );
 }

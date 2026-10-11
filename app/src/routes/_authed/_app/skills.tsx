@@ -20,7 +20,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import {
   Item,
   ItemActions,
@@ -109,12 +108,12 @@ function SkillsPage() {
       <PageShell
         description={
           <>
-            {"技能是您用...调用的命名指令"}
-            <code>/</code>{" "}
-            {"和一个机器人跟随。你的属于你自己，并且属于你拥有的机器人。"}
+            {"在对话里输入 "}
+            <code>/</code>
+            {" 调用的命名指令。你写的技能只属于你和你拥有的机器人。"}
           </>
         }
-        title={"代理技能"}
+        title={"技能"}
       >
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -151,13 +150,7 @@ function SkillsPage() {
               {"您的技能无法加载。"}
             </p>
           ) : mine.length === 0 ? (
-            <Empty className="mt-4 h-[180px] border border-dashed">
-              <EmptyHeader>
-                <EmptyTitle className="text-muted-foreground">
-                  {"您还没有任何技能。"}
-                </EmptyTitle>
-              </EmptyHeader>
-            </Empty>
+            <p className="page-empty-line">{"还没有自己的技能。"}</p>
           ) : (
             <PageRows>
               {mine.map((skill, index) => (

@@ -319,8 +319,8 @@ function GeneralSection({
 
       <Item variant="muted">
         <ItemContent>
-          <ItemTitle>{"开始会话"}</ItemTitle>
-          <ItemDescription>{"与此 AI 同事开启新会话。"}</ItemDescription>
+          <ItemTitle>{"和它聊天"}</ItemTitle>
+          <ItemDescription>{"打开和这个机器人的对话。"}</ItemDescription>
         </ItemContent>
         <ItemActions>
           <Button
@@ -332,7 +332,7 @@ function GeneralSection({
             }
             size="sm"
           >
-            {"开始"}
+            {"去聊天"}
           </Button>
         </ItemActions>
       </Item>

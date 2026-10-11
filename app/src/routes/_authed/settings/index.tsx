@@ -18,7 +18,9 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { IconMoon, IconSun } from "@tabler/icons-react";
-import { formatHotkey, HOTKEYS } from "@/lib/hotkeys/hotkeys";
+import { formatHotkey, HOTKEYS, SHELL_HOTKEYS } from "@/lib/hotkeys/hotkeys";
+
+const ALL_HOTKEYS = [...HOTKEYS, ...SHELL_HOTKEYS];
 
 export const Route = createFileRoute("/_authed/settings/")({
   component: RouteComponent,
@@ -90,7 +92,7 @@ function RouteComponent() {
        */}
       <PageSection title={"键盘快捷键"}>
         <PageRows>
-          {HOTKEYS.map((hotkey, index) => (
+          {ALL_HOTKEYS.map((hotkey, index) => (
             <React.Fragment key={hotkey.id}>
               <Item size="sm">
                 <ItemContent>
@@ -110,7 +112,7 @@ function RouteComponent() {
                   </span>
                 </ItemActions>
               </Item>
-              {index !== HOTKEYS.length - 1 && <Separator />}
+              {index !== ALL_HOTKEYS.length - 1 && <Separator />}
             </React.Fragment>
           ))}
         </PageRows>

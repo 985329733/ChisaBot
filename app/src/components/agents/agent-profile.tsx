@@ -105,7 +105,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
             void navigate({ search: { agent: agentId }, to: "/channel/new" })
           }
         >
-          {"开始新会话"}
+          {"去聊天"}
         </Button>
         <Button
           className="w-full text-sm!"

@@ -1,7 +1,11 @@
 import type { Message } from "@ag-ui/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
+import { LandingRedirect } from "@/components/agents/landing-redirect";
+import { channelListQueryOptions } from "@/lib/channels/queries";
+import { latestChannelFor } from "@/lib/channels/latest";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
@@ -9,18 +13,7 @@ import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
 import { canSend, type Recipient } from "@/components/channels/compose-state";
 import { ConversationView } from "@/components/channels/conversation-view";
 import { seedMessage } from "@/components/channels/transcript-messages";
-import { SidebarToggle } from "@/components/layout/sidebar-toggle";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox";
-import { defaultAgentProfile } from "@/lib/agents/default-agent";
-import {
-  type AgentProfile,
   agentListQueryOptions,
   agentQueryOptions,
 } from "@/lib/agents/queries";
@@ -29,6 +22,10 @@ import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import { newId } from "../../../../lib/new-id";
 
 /**
+ * A Bot's chat before its first conversation exists. There is no "new chat" any more: without
+ * `?agent=` this forwards to the landing Bot, and with one whose one-to-one conversation already
+ * exists it forwards there, so every "open this Bot" link lands in the same ongoing chat.
+ *
  * Creates the channel on first send. The selected coworker stays in the URL so profile links and
  * reloads preserve the pending recipient without creating an empty channel.
  */
@@ -36,16 +33,24 @@ import { newId } from "../../../../lib/new-id";
 const AGENT_NOT_FOUND = "Agent not found.";
 
 export const Route = createFileRoute("/_authed/_app/channel/new")({
-  validateSearch: (search: Record<string, unknown>): { agent?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { agent?: string; topic?: "new" } => ({
     ...(typeof search.agent === "string" ? { agent: search.agent } : {}),
+    // 新话题（DESIGN-v3 §5.3）：留在这个机器人的空聊天，不转跳到它已有的对话；第一条消息发出时才建会话。
+    ...(search.topic === "new" ? { topic: "new" as const } : {}),
   }),
   component: RouteComponent,
 });
 
 function RouteComponent() {
+  const { agent, topic } = Route.useSearch();
+  if (!agent) return <LandingRedirect />;
+  return <BotChat agent={agent} fresh={topic === "new"} key={`${agent}:${topic ?? ""}`} />;
+}
+
+function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
   const modelQueryClient = useQueryClient();
-  const { agent } = Route.useSearch();
-  const navigate = Route.useNavigate();
+  const navigate = useNavigate();
+  const channels = useInfiniteQuery(channelListQueryOptions());
   const { startChosen, pending } = useStartChannel();
   const { data: profiles, isError: rosterError } = useQuery(
     agentListQueryOptions(),
@@ -54,6 +59,13 @@ function RouteComponent() {
   const [error, setError] = useState<string | null>(null);
   // Optimistic seed shown before the first channel record exists.
   const [sent, setSent] = useState<Message | null>(null);
+
+  // This Bot already has a conversation: open it rather than an empty chat beside it.
+  const existing = sent || fresh ? undefined : latestChannelFor(agent, channels.data)?.id;
+  useEffect(() => {
+    if (existing)
+      void navigate({ to: "/channel/$channelId", params: { channelId: existing }, replace: true });
+  }, [existing, navigate]);
 
   // Stale or private `?agent=` values are ignored because the roster is permission-filtered.
   const listed = profiles?.find((profile) => profile.id === agent);
@@ -73,10 +85,10 @@ function RouteComponent() {
   });
   const chosen =
     listed ??
-    (fetched?.id === agent ? fetched : undefined) ??
-    (agent ? undefined : defaultAgentProfile(profiles));
+    (fetched?.id === agent ? fetched : undefined);
   const needsUrlAgentDetail =
     Boolean(agent) && profiles !== undefined && !listed;
+  // The Bot is chosen in the left roster only (no "至：" picker here); `?agent=` carries the choice.
   const waitingForUrlAgent =
     needsUrlAgentDetail && detailPending && !detailError;
   const urlAgentDetailFailed = needsUrlAgentDetail && detailError && !fetched;
@@ -99,58 +111,20 @@ function RouteComponent() {
   const skillCommands = useSkillCommands(chosen?.id ?? "");
   const modelSaving = useModelSelectionSaving(chosen?.id ?? "");
 
-  if (profiles === undefined && !rosterError) return null;
+  if ((profiles === undefined && !rosterError) || channels.isPending || existing) return null;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="h-12 border-b border-border sticky top-0 flex flex-row px-2 items-center">
-        <SidebarToggle className="mr-1" />
-        <span className="text-sm text-muted-foreground">{"至："}</span>
-        <Combobox
-          // Do not auto-open when the recipient came from the URL; the field is already answered.
-          defaultOpen={!chosen && !loadError && !waitingForUrlAgent}
-          autoHighlight
-          items={profiles ?? []}
-          isItemEqualToValue={(item: AgentProfile, value: AgentProfile) =>
-            item.id === value.id
-          }
-          itemToStringLabel={(item: AgentProfile) => item.name}
-          itemToStringValue={(item: AgentProfile) => item.id}
-          onValueChange={(next) => {
-            // Recipient changes are not separate navigation history entries.
-            void navigate({
-              replace: true,
-              search: next ? { agent: next.id } : {},
-            });
-          }}
-          value={chosen ?? null}
-        >
-          <ComboboxInput
-            // The popup opening is not enough on its own: typing filters through this input, so
-            // the caret starts here whenever the recipient question is still open. Same condition
-            // as `defaultOpen` — a recipient from the URL means the composer takes focus instead.
-            autoFocus={!chosen}
-            placeholder={"选择一个AI同事…"}
-            // InputGroup owns focus rings via `has-[…:focus-visible]`; disable that wrapper ring here.
-            className="border-none w-full bg-transparent! text-sm has-[[data-slot=input-group-control]:focus-visible]:ring-0"
-          />
-          {/* Allow max-w to constrain the popup even though its anchor is full-width. */}
-          <ComboboxContent className="min-w-0 max-w-lg" sideOffset={12}>
-            <ComboboxEmpty>{"未找到机器人。"}</ComboboxEmpty>
-            <ComboboxList>
-              {(item: AgentProfile) => (
-                <ComboboxItem key={item.id} value={item} className="h-10">
-                  <ChannelAvatar participantIds={[item.id]} size={24} />
-                  {item.name}
-                  <span className="truncate text-muted-foreground ml-1">
-                    {item.title}
-                  </span>
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
-      </div>
+    <div className="relative flex h-full flex-col">
+      <RegisterBotChat agentId={chosen?.id} freshTopic />
+      {chosen && !sent ? (
+        // Quiet identity of the Bot picked in the left column, until the first message replaces it.
+        <div aria-hidden className="chat-intro">
+          <ChannelAvatar participantIds={[chosen.id]} size={48} />
+          <p className="chat-intro-name">{chosen.name}</p>
+          {chosen.title ? <p className="chat-intro-sub">{chosen.title}</p> : null}
+          {fresh ? <p className="chat-intro-topic">{"新话题 · 之前的对话不会发给它"}</p> : null}
+        </div>
+      ) : null}
       <ConversationView
         modelControl={chosen ? <BotModelSelector agentId={chosen.id} compact /> : null}
         sendBlocked={modelSaving}

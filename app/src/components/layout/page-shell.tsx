@@ -122,9 +122,8 @@ export function PageShell({
           {backButton.label}
         </Link>
       </>
-    ) : (
-      area?.label
-    ));
+    ) : null);
+  // Top-level pages carry no eyebrow: the left column already names the area (偏好设置 / 管理后台).
 
   return (
     /*

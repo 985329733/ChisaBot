@@ -6,6 +6,7 @@ import {
 import { useEffect } from "react";
 import { StartupFailure } from "@/components/startup-status";
 import { SkyBackground } from "@/components/sky-background";
+import { DesktopStrip } from "@/components/layout/desktop-strip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmHost } from "@/components/ui/confirm";
@@ -128,6 +129,7 @@ function RootComponent() {
     <div className="min-h-dvh w-full antialiased">
       <ThemeProvider>
         <SkyBackground />
+        <DesktopStrip />
         <TooltipProvider>
           <Outlet />
           <ConfirmHost />

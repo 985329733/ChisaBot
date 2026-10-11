@@ -42,6 +42,36 @@ export function ComputerControlButton({
   );
 }
 
+/**
+ * Whether this Bot's computer needs the person right now (a takeover request, a secret, an
+ * interrupted step, or the person already holding control). Each new prompt opens the computer
+ * pane once; closing it stays a real dismissal. Shared by the old inline controls and the v3
+ * top-bar chip (DESIGN-v3 §3.4), so the auto-open rule lives in one place.
+ */
+export function useComputerAttention(
+  computerId: string | undefined,
+  onOpenChange: (open: boolean) => void,
+): boolean {
+  const { control } = useComputerControl(computerId ?? "", Boolean(computerId));
+  const needsYou = Boolean(
+    control &&
+      (control.requested ||
+        control.holder === "human" ||
+        control.request?.status === "interrupted" ||
+        control.secretWanted !== undefined),
+  );
+  const promptKey = needsYou
+    ? `${computerId}:${control?.secretWanted ?? control?.request?.id ?? "human"}`
+    : null;
+  const shownPrompt = useRef<string | null>(null);
+  useEffect(() => {
+    if (shownPrompt.current === promptKey) return;
+    shownPrompt.current = promptKey;
+    if (promptKey) onOpenChange(true);
+  }, [promptKey, onOpenChange]);
+  return needsYou;
+}
+
 export function ComputerChatControls({
   computerId,
   open,

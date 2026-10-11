@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { useState } from "react";
-import useMeasure from "react-use-measure";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -70,6 +69,28 @@ export function CreateAgentDialog({
   );
 }
 
+/**
+ * The pane's layout height, unaffected by transforms.
+ *
+ * `react-use-measure` reads `getBoundingClientRect`, which is scaled while the dialog zooms in; the
+ * size measured mid-zoom never re-fires once the zoom ends (the box did not resize), so the frame
+ * stayed a few dozen pixels short and clipped the 角色 textarea. ResizeObserver's content box is the
+ * untransformed size.
+ */
+function useLayoutHeight(): [React.RefObject<HTMLDivElement | null>, { height: number }] {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [height, setHeight] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    setHeight(node.offsetHeight);
+    const observer = new ResizeObserver(() => setHeight(node.offsetHeight));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, { height }];
+}
+
 /** The steps, in the order they are asked. The name is the questionnaire item's name. */
 const STEPS = ["identity", "visibility", "kind"] as const;
 type StepName = (typeof STEPS)[number];
@@ -83,12 +104,12 @@ const VISIBILITY_OPTIONS: Array<{
   {
     value: "private",
     title: "私有",
-    description: "只有你能看到它并与之启动会话。",
+    description: "只有你能看到它、和它聊天。",
   },
   {
     value: "public",
     title: "公开",
-    description: "部署中的每个人都可以找到并使用它。",
+    description: "这个部署里的每个人都能找到并使用它。",
   },
 ];
 
@@ -107,13 +128,13 @@ const KIND_OPTIONS: Array<{
     value: "builtin",
     title: "内置",
     description:
-      "在此部署的自身机器人上运行。无需托管或连接——它在创建瞬间就准备就绪。",
+      "在这台服务器上运行，不用另外部署，创建后马上可用。",
   },
   {
     value: "managed",
-    title: "已管理",
+    title: "自托管",
     description:
-      "在您托管的代理上运行，通过 AG-UI 对话。该服务器在每次运行时拨打您的端点。",
+      "在你自己部署的代理上运行（AG-UI 协议），每次对话由这台服务器调用你的端点。",
   },
 ];
 
@@ -173,7 +194,7 @@ function CreateAgentWizard({
 
   const [connection, setConnection] = useState<ConnectionVerdict | null>(null);
   const [testing, setTesting] = useState(false);
-  const [ref, bounds] = useMeasure();
+  const [ref, bounds] = useLayoutHeight();
 
   const last = step === STEPS.length - 1;
   const set = <K extends keyof AgentFormValues>(
@@ -198,7 +219,7 @@ function CreateAgentWizard({
   const endpointError = !tried
     ? undefined
     : kind === "managed" && values.endpoint.trim() === ""
-      ? "托管 AI 同事需要端点。"
+      ? "自托管的机器人需要填写端点。"
       : agentFormSchema.shape.endpoint.safeParse(values.endpoint).error
           ?.issues[0]?.message;
 
@@ -245,7 +266,7 @@ function CreateAgentWizard({
     <>
       {/* Read aloud, never shown: each step carries its own heading, and a dialog-level title
           above them made two heading sizes compete. The popup still needs an accessible name. */}
-      <DialogTitle className="sr-only">{"新AI同事"}</DialogTitle>
+      <DialogTitle className="sr-only">{"新建机器人"}</DialogTitle>
       <DialogBody className="overflow-y-auto">
         <Questionnaire
           item={STEPS[step]}
@@ -275,9 +296,7 @@ function CreateAgentWizard({
           {/* A plain element rather than QuestionnaireProgress: only the active step is mounted,
               so the primitive would count one question and announce the wrong total. */}
           <p className="text-xs font-medium text-muted-foreground tabular-nums">
-            {"步骤"}
-            {step + 1} {"的"}
-            {STEPS.length}
+            {`第 ${step + 1} 步，共 ${STEPS.length} 步`}
           </p>
           <MotionConfig
             transition={{ duration: 0.5, type: "spring", bounce: 0 }}
@@ -362,7 +381,7 @@ function CreateAgentWizard({
               onClick={() => void advance()}
               type="button"
             >
-              {last ? "创建AI同事" : "继续"}
+              {last ? "创建机器人" : "继续"}
             </Button>
           </div>
         </Questionnaire>
@@ -407,9 +426,9 @@ function IdentityStep({
 }) {
   return (
     <StepItem name="identity">
-      <QuestionnaireTitle>{"这个AI同事是谁？"}</QuestionnaireTitle>
+      <QuestionnaireTitle>{"新建机器人"}</QuestionnaireTitle>
       <QuestionnaireDescription>
-        {"您在这里写入的角色适用于此AI同事工作的每个会话。"}
+        {"名字和角色会出现在左栏；角色就是它每次对话的工作说明。"}
       </QuestionnaireDescription>
       <FieldGroup>
         <Field data-invalid={errors.name ? true : undefined}>
@@ -418,7 +437,7 @@ function IdentityStep({
             aria-invalid={errors.name ? true : undefined}
             id="create-agent-name"
             onChange={(event) => set("name", event.target.value)}
-            placeholder={"费用管理器"}
+            placeholder={"报销助手"}
             value={values.name}
           />
           {errors.name ? (
@@ -426,12 +445,12 @@ function IdentityStep({
           ) : null}
         </Field>
         <Field data-invalid={errors.title ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-title">{"标题"}</FieldLabel>
+          <FieldLabel htmlFor="create-agent-title">{"职责"}</FieldLabel>
           <Input
             aria-invalid={errors.title ? true : undefined}
             id="create-agent-title"
             onChange={(event) => set("title", event.target.value)}
-            placeholder={"财务运营"}
+            placeholder={"财务"}
             value={values.title}
           />
           {errors.title ? (
@@ -444,7 +463,7 @@ function IdentityStep({
             aria-invalid={errors.roleDescription ? true : undefined}
             id="create-agent-role"
             onChange={(event) => set("roleDescription", event.target.value)}
-            placeholder={"查看收据、分类费用并准备报销报告"}
+            placeholder={"核对发票、给费用分类、整理报销单"}
             rows={4}
             value={values.roleDescription}
           />
@@ -538,7 +557,7 @@ function KindStep({
               <span className="font-medium">{option.title}</span>
               <QuestionnaireChoiceDescription>
                 {unavailable
-                  ? "此处不可用：此部署没有自己的机器人供AI同事运行。"
+                  ? "不可用：这个部署没有配置内置的运行环境。"
                   : option.description}
               </QuestionnaireChoiceDescription>
             </QuestionnaireChoice>
@@ -547,7 +566,7 @@ function KindStep({
       </QuestionnaireChoices>
       {showKindError ? (
         <p className="text-sm text-destructive" role="alert">
-          {"选择这个AI同事在哪里运行。"}
+          {"请选择它在哪里运行。"}
         </p>
       ) : null}
       {kind === "managed" ? (

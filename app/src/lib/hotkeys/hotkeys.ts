@@ -5,7 +5,7 @@
  * shows a person are the same entry, so they cannot drift apart. Adding a shortcut is adding an
  * entry here and one `useHotkey` call where it acts; the settings list picks it up by itself.
  *
- * Browsers reserve their own combos. Cmd/Ctrl+N — the obvious key for "new chat" — opens a new
+ * Browsers reserve their own combos. Cmd/Ctrl+N — the obvious key for "new" — opens a new
  * browser window before the page ever sees the keystroke, and `preventDefault` is ignored for
  * reserved shortcuts, so no entry here can use one. Plain Shift+letter combos work everywhere,
  * at the cost that they are also just how capital letters are typed — which is why `useHotkey`
@@ -31,14 +31,30 @@ export type Hotkey = {
 
 export const HOTKEYS = [
   {
-    id: "new-chat",
-    label: "新聊天",
-    description: "从应用任何位置开始新聊天。",
+    id: "new-bot",
+    label: "新建机器人",
+    description: "从应用任何位置新建一个机器人。",
     combo: { key: "n", shift: true },
+  },
+  {
+    id: "new-topic",
+    label: "新话题",
+    description: "在当前机器人的聊天里开始新话题：清空发给它的上下文，之前的对话保留在搜索里。",
+    combo: { key: "t", shift: true },
   },
 ] as const satisfies readonly Hotkey[];
 
 export type HotkeyId = (typeof HOTKEYS)[number]["id"];
+
+/**
+ * 外壳自己处理的快捷键（顶栏搜索、左右栏开关），在这里只为了让设置页的列表完整（DESIGN-v3 §7.4）。
+ * 监听在各自组件里：TopSearch（Ctrl K）、shadcn 侧边栏（Ctrl B）、PanelRailToggle（Ctrl Alt B）。
+ */
+export const SHELL_HOTKEYS = [
+  { id: "search", label: "搜索会话", description: "展开顶栏搜索并聚焦；Esc 清空并收起。", combo: { key: "k", mod: true } },
+  { id: "toggle-left", label: "收起 / 展开左栏", description: "机器人列表、设置分区、管理导航共用。", combo: { key: "b", mod: true } },
+  { id: "toggle-panels", label: "收起 / 展开面板栏", description: "只在窗口宽度 ≥ 1280 时有右侧面板栏。", combo: { key: "b", mod: true, alt: true } },
+] as const satisfies readonly Hotkey[];
 
 export function getHotkey(id: HotkeyId): Hotkey {
   const hotkey = HOTKEYS.find((candidate) => candidate.id === id);

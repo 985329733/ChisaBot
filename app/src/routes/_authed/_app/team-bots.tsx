@@ -43,26 +43,23 @@ function TeamBotsPage() {
   return (
     <PageShell
       description={
-        "您AI 同事发布的机器人，以及您共享的机器人。与团队机器人的每次聊天对拥有者是私密的。"
+        "同事发布给你的机器人，以及你发布出去的机器人。你和团队机器人的聊天，它的所有者看不到。"
       }
       title={"团队 Bot"}
-      width="wide"
     >
       {data.isError ? (
         <p className="text-sm text-destructive" role="alert">
           {data.error.message}
         </p>
       ) : null}
-      <PageSection title={"可供你使用"}>
+      <PageSection title={"共享给我的"}>
         {shared.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {"尚未有人将机器人发布给您。"}
-          </p>
+          <p className="page-empty-line">{"还没有人把机器人发布给你。"}</p>
         ) : (
           shared.map((bot) => <TeamBotRow bot={bot} key={bot.id} />)
         )}
       </PageSection>
-      <PageSection title={"您的"}>
+      <PageSection title={"我发布的"}>
         {mine.map((bot) => (
           <div className="flex flex-col gap-2" key={bot.id}>
             <TeamBotRow bot={bot} />
@@ -72,29 +69,23 @@ function TeamBotsPage() {
         {(data.data?.publishable ?? []).length ? (
           <PublishNew publishable={data.data?.publishable ?? []} />
         ) : mine.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {"您没有自己的机器人可以发布。"}
-          </p>
+          <p className="page-empty-line">{"你没有可以发布的机器人。"}</p>
         ) : null}
       </PageSection>
       {me?.role === "admin" ? (
-        <PageSection title={"分配到组"}>
-          <p className="text-sm text-muted-foreground">
-            {
-              "分配的机器人出现在每个成员的侧边栏中，他们无法隐藏它。使用 * 表示整个团队。"
-            }
-          </p>
+        <PageSection
+          description={"分配的机器人会出现在每个成员的左栏里，成员不能隐藏。用 * 表示整个团队。"}
+          title={"分配到组"}
+        >
           {bots.map((bot) => (
             <Assignments bot={bot} key={bot.id} />
           ))}
         </PageSection>
       ) : null}
-      <PageSection title={"您的账号"}>
-        <p className="text-sm text-muted-foreground">
-          {
-            "团队机器人使用其所有者的连接应用。它仅在您允许它在显示的卡片上时使用您的账号。"
-          }
-        </p>
+      <PageSection
+        description={"团队机器人默认用所有者的已连接应用；只有你在卡片上允许后，才会用你的账号。"}
+        title={"我的账号"}
+      >
         <div className="flex items-center gap-2">
           <Button
             disabled={clear.isPending}
@@ -171,11 +162,11 @@ function PublishNew({
 }) {
   const [botId, setBotId] = useState(publishable[0]?.id ?? "");
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      <label className="grid gap-1 text-sm">
-        {"发布您的机器人之一"}
+    <div className="glass-card flex flex-col gap-3 rounded-[20px] p-5">
+      <label className="grid gap-1.5 text-sm font-medium">
+        {"发布一个机器人"}
         <select
-          className="h-9 rounded-md border bg-background px-3 text-sm"
+          className="h-10 max-w-sm rounded-[14px] border border-[var(--line-strong)] bg-[var(--glass-2)] px-3 font-normal text-sm"
           onChange={(event) => setBotId(event.target.value)}
           value={botId}
         >

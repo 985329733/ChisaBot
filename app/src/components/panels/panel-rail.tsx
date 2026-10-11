@@ -7,6 +7,8 @@ import {
   IconChevronUp,
   IconDots,
   IconLayoutGrid,
+  IconLayoutSidebarRightCollapse,
+  IconLayoutSidebarRightExpand,
   IconPencil,
   IconPlus,
   IconRefresh,
@@ -59,7 +61,15 @@ import {
   readStoredPreference,
   writeStoredPreference,
 } from "@/lib/preference-storage";
-import { usePanelRailOpen } from "@/lib/panels/rail-open";
+import {
+  PANEL_RAIL_HOTKEY,
+  PANEL_RAIL_HOTKEY_LABEL,
+  setPanelRailOpen,
+  togglePanelRail,
+  usePanelRailOpen,
+} from "@/lib/panels/rail-open";
+import { matchesHotkey } from "@/lib/hotkeys/hotkeys";
+import { ToggleTip } from "@/components/layout/glass-topbar";
 import { cn } from "@/lib/utils";
 import { PanelFrame, type PanelFrameBridge, previewBridge } from "./panel-frame";
 
@@ -112,7 +122,21 @@ export function PanelRail({ className }: { className?: string }) {
     });
   };
 
+  // Ctrl+Alt+B（⌘⌥B）收起 / 展开面板卡。只在面板栏存在的宽度（≥1280px）生效。
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!matchesHotkey(event, PANEL_RAIL_HOTKEY)) return;
+      if (!window.matchMedia("(min-width: 1280px)").matches) return;
+      event.preventDefault();
+      togglePanelRail();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
+    <>
+    <PanelRailHandle open={open} />
     <aside
       aria-hidden={open ? undefined : true}
       aria-label={"自定义面板栏"}
@@ -158,10 +182,35 @@ export function PanelRail({ className }: { className?: string }) {
         tabIndex={0}
       />
       {dragging ? <div className="fixed inset-0 z-40 cursor-col-resize" /> : null}
-      <div className="glass-rail-inner flex h-full min-h-0 flex-col gap-3" style={{ width: width - 24 }}>
+      {/* DESIGN-v4：面板栏是一张独立的玻璃卡；标题、面板库、新建、收起都在卡片自己的头部里。 */}
+      <section className="glass-card glass-rail-inner rail-card flex h-full min-h-0 flex-col" style={{ width: width - 24 }}>
         <PanelRailBody />
-      </div>
+      </section>
     </aside>
+    </>
+  );
+}
+
+/**
+ * 面板卡收起后留在右边缘的小把手（竖排「面板」）：收起的东西在它原来的位置留下痕迹，点它展开。
+ * 面板卡展开时不渲染。
+ */
+function PanelRailHandle({ open }: { open: boolean }) {
+  if (open) return null;
+  return (
+    <ToggleTip keys={PANEL_RAIL_HOTKEY_LABEL} label={"展开面板"} side="left">
+      <button
+        aria-controls={"chisabot-panel-rail"}
+        aria-expanded={false}
+        aria-label={"展开面板"}
+        className="rail-tab hidden xl:flex"
+        onClick={() => setPanelRailOpen(true)}
+        type="button"
+      >
+        <IconLayoutSidebarRightExpand className="size-4" />
+        <span className="rail-tab-t">{"面板"}</span>
+      </button>
+    </ToggleTip>
   );
 }
 
@@ -207,11 +256,11 @@ function PanelRailBody() {
 
   return (
     <>
-      <header className="flex h-10 shrink-0 items-center gap-2 px-1">
-        <h2 className="font-semibold text-[15px] tracking-tight">{"自定义面板"}</h2>
+      <header className="rail-head">
+        <h2 className="rail-head-t">{"面板"}</h2>
         <span className="flex-1" />
         <button
-          className="glass-pill flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px]"
+          className="rail-head-btn"
           disabled={!botId}
           onClick={() => setLibraryOpen(true)}
           type="button"
@@ -219,6 +268,36 @@ function PanelRailBody() {
           <IconLayoutGrid className="size-4" />
           {"面板库"}
         </button>
+        <button
+          aria-busy={beginState === "pending" || undefined}
+          className="rail-head-btn async-raw"
+          data-btn-state={beginState}
+          disabled={!botId || !canManage || begin.isPending || Boolean(session.data)}
+          onClick={() => begin.mutate(undefined)}
+          title={botId && list.data && !canManage ? "管理面板需要 BOT 所有者或管理员权限" : "让 BOT 创建一个新面板"}
+          type="button"
+        >
+          <AsyncContent
+            labels={{ pending: "打开中…", success: "已开始", error: "打开失败" }}
+            state={beginState}
+          >
+            <IconPlus className="size-4" />
+            {"新建"}
+          </AsyncContent>
+        </button>
+        <span aria-hidden className="rail-head-div" />
+        <ToggleTip keys={PANEL_RAIL_HOTKEY_LABEL} label={"收起面板"} side="bottom">
+          <button
+            aria-controls={"chisabot-panel-rail"}
+            aria-expanded={true}
+            aria-label={"收起面板"}
+            className="rail-head-icon"
+            onClick={() => setPanelRailOpen(false)}
+            type="button"
+          >
+            <IconLayoutSidebarRightCollapse className="size-[18px]" />
+          </button>
+        </ToggleTip>
       </header>
 
       {error ? (
@@ -288,9 +367,9 @@ function PanelRailBody() {
             </button>
           </div>
         ) : items.length === 0 ? (
-          <div className="glass-card border border-white/50 border-dashed p-6 text-center text-muted-foreground text-sm">
-            {"让 BOT 为您创建仪表盘、列表或小工具，或从面板库安装一个。"}
-          </div>
+          <p className="rail-empty">
+            {"还没有面板。点「新建」让 BOT 做一个仪表盘、列表或小工具，或从面板库安装。"}
+          </p>
         ) : (
           items.map((instance) => (
             <PanelCard
@@ -303,28 +382,6 @@ function PanelRailBody() {
           ))
         )}
       </div>
-
-      <button
-        aria-busy={beginState === "pending" || undefined}
-        className="glass-pill async-raw flex h-12 shrink-0 items-center justify-center gap-2 rounded-full font-medium text-sm disabled:opacity-60"
-        data-btn-state={beginState}
-        disabled={!botId || !canManage || begin.isPending || Boolean(session.data)}
-        onClick={() => begin.mutate(undefined)}
-        type="button"
-      >
-        <AsyncContent
-          labels={{ pending: "正在打开创作…", success: "已开始创作", error: "打开失败" }}
-          state={beginState}
-        >
-          <IconPlus className="size-5" stroke={2} />
-          {"创建一个新面板"}
-        </AsyncContent>
-      </button>
-      {botId && list.data && !canManage ? (
-        <p className="-mt-1 text-center text-muted-foreground text-xs">
-          {"您可交互；管理面板需要 BOT 所有者或管理员权限。"}
-        </p>
-      ) : null}
 
       {botId ? (
         <PanelLibrary

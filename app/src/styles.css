@@ -138,6 +138,8 @@ html {
   --lh-tight: 1.3; --lh: 1.6;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px; --sp-16: 64px;
   --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 24px; --r-pill: 999px;
+  /* v4.1：对话气泡四角一致的圆角矩形（用户 / 机器人、亮 / 暗都一样，没有尖角「尾巴」）。 */
+  --r-bubble: 16px;
   --blur-1: 12px; --blur-2: 22px; --blur-3: 36px;
   --dur-1: 150ms; --dur-2: 220ms; --dur-3: 300ms; --dur-collapse: 260ms;
   --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1); --ease-in: cubic-bezier(0.4, 0, 1, 1); --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
@@ -1116,14 +1118,14 @@ body::before {
 }
 .glass-main [data-slot="message"][data-align="start"] [data-slot="bubble"][data-variant="ghost"] > [data-slot="bubble-content"] {
   padding: 12px 16px;
-  border-radius: 22px;
+  border-radius: var(--r-bubble);
   background: var(--glass-strong);
   backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow-sm);
 }
 .glass-main [data-slot="bubble"][data-align="end"] > [data-slot="bubble-content"] {
   padding: 10px 16px;
-  border-radius: 22px;
+  border-radius: var(--r-bubble);
   background: var(--glass-user);
   backdrop-filter: var(--glass-blur);
   color: var(--glass-ink);
@@ -2862,14 +2864,14 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .glass-main [data-slot="bubble"][data-align="end"] > [data-slot="bubble-content"] {
   background: var(--ink-primary);
   color: var(--on-primary);
-  border-radius: 20px 20px 6px 20px;
+  border-radius: var(--r-bubble);
   box-shadow: var(--shadow-1);
 }
 .glass-main [data-slot="bubble"][data-align="end"] > [data-slot="bubble-content"] a { color: inherit; text-decoration: underline; }
 .glass-main [data-slot="message"][data-align="start"] [data-slot="bubble"][data-variant="ghost"] > [data-slot="bubble-content"] {
   background: var(--glass-1);
   border: 1px solid var(--stroke);
-  border-radius: 6px 20px 20px 20px;
+  border-radius: var(--r-bubble);
   box-shadow: var(--shadow-1), var(--inset-hl);
 }
 .glass-composer { border-radius: var(--r-xl); border: 1px solid var(--stroke); }
@@ -3301,3 +3303,665 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   .jr-progress-bar { transition: none; }
 }
 @keyframes jr-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ==========================================================================================
+ * §18 布局整理（2026-10-11）：去掉装饰性的竖条 / 蓝色焦点框 / 大圆按钮，顶栏 = PC 标题栏。
+ * 放在最后，压过上面的旧规则。只写不带前缀的 backdrop-filter。
+ * ========================================================================================== */
+
+/* ---------- Top bar: wordmark + small collapse control, no home button ---------- */
+.glass-shell { --glass-top: 64px; }
+.glass-topbar { padding: 0 16px; gap: 16px; }
+.glass-topbar-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 260px;
+  padding-left: 12px;
+}
+.glass-topbar-end { display: flex; align-items: center; gap: 8px; }
+.glass-brand {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-1);
+  white-space: nowrap;
+  user-select: none;
+}
+.glass-ghost-btn {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  background: transparent;
+  outline: none;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.glass-ghost-btn.hidden { display: none; }
+@media (min-width: 1280px) { .glass-ghost-btn.xl\:grid { display: grid; } }
+.glass-ghost-btn:hover { background: var(--glass-hover); color: var(--ink-1); }
+.glass-ghost-btn:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.glass-ghost-btn-ico { width: 18px; height: 18px; animation: glass-fade-in var(--dur-2) ease-out; }
+.glass-seg { padding: 3px; gap: 2px; box-shadow: none; border: 1px solid var(--stroke); }
+.glass-seg-item { padding: 6px 18px; }
+.glass-search { height: 36px; width: 220px; padding: 0 10px 0 14px; box-shadow: none; }
+.glass-search:focus-within { width: 260px; box-shadow: none; background: var(--glass-3); border-color: var(--line-strong); }
+.glass-avatar-dot { width: 9px; height: 9px; right: 0; top: 0; }
+@media (max-width: 767px) {
+  .glass-shell { --glass-top: 60px; }
+  .glass-topbar-start { width: auto; padding-left: 0; }
+}
+
+/* ---------- Left column: selected = quiet L3 highlight, no accent bar ---------- */
+.glass-bot-row.is-on::before,
+.dark .glass-bot-row.is-on::before,
+.nav-row.is-on::before,
+.glass-mini-bot.is-on::before,
+.dark .glass-mini-bot.is-on::before { display: none; }
+.glass-mini-bot.is-on { background: var(--glass-3); box-shadow: var(--shadow-1); }
+.dark .glass-mini-bot.is-on { background: rgba(255, 255, 255, 0.1); box-shadow: none; }
+.glass-newchat { height: 40px; box-shadow: var(--shadow-1); border: 1px solid var(--stroke); }
+.glass-sec-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.glass-sec-link:hover { color: var(--ink-1); background: var(--glass-hover); }
+/* Section rails (偏好设置 / 管理后台): one-line rows, plain icons, no icon chips. */
+.rail-list .nav-row { min-height: 40px; padding: 8px 10px; gap: 12px; }
+.rail-list .nav-row-s { display: none; }
+.nav-row-ico { width: 20px; height: 20px; background: transparent; color: var(--ink-3); }
+.nav-row.is-on .nav-row-ico { background: transparent; color: var(--ink-1); }
+
+/* ---------- Composer: focus is a slightly stronger glass, never a blue outline ---------- */
+.glass-composer:focus-within,
+.dark .glass-composer:focus-within {
+  border-color: var(--stroke);
+  box-shadow: var(--shadow-2), var(--inset-hl);
+}
+.glass-composer:focus-within { background: var(--glass-3); }
+
+/* ---------- Chat: the chosen Bot, quietly, before the first message ---------- */
+.chat-intro {
+  position: absolute;
+  inset: 0 0 auto 0;
+  top: 26%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  animation: page-in var(--dur-3) var(--ease-out);
+}
+.chat-intro-name { margin-top: 8px; font-size: 20px; font-weight: 600; color: var(--ink-1); }
+.chat-intro-sub { font-size: 14px; color: var(--ink-3); }
+
+/* ---------- Right panel column: one header row, handle only on hover ---------- */
+.rail-head { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 2px 0 4px; flex: none; }
+.rail-head-t { font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.rail-head-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink-2);
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.rail-head-btn:hover:not(:disabled) { background: var(--glass-hover); color: var(--ink-1); }
+.rail-head-btn:disabled { opacity: 0.5; }
+.rail-empty {
+  padding: 16px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--line-strong);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.glass-rail-handle::after { opacity: 0; transition: opacity var(--dur-2), height var(--dur-1); }
+.glass-rail-handle:hover::after,
+.glass-rail-handle:focus-visible::after,
+.glass-rail-handle.is-dragging::after { opacity: 1; }
+
+/* ---------- Pages ---------- */
+.page-empty-line {
+  margin-top: 12px;
+  padding: 16px 20px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--line-strong);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.sg-empty { padding: 28px 24px; }
+.sg-empty-ic { width: 40px; height: 40px; border-radius: 12px; margin-bottom: 10px; }
+.sg-empty p { margin-bottom: 0; }
+.admin-group [data-slot="item-description"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-group [data-slot="item"] { flex-wrap: nowrap; }
+.admin-group [data-slot="item-content"] { min-width: 0; }
+.page-rows.admin-group [data-slot="item-media"][data-variant="icon"] { width: 24px; height: 24px; background: transparent; border: 0; box-shadow: none; color: var(--ink-3); }
+
+/* ---------- ChisaBot PC frameless window (html[data-desktop]) ---------- */
+/* v3：不透明无边框窗口，圆角和阴影交给 Windows 11（DWM，约 8px），网页不再画圆角 / 描边；
+   最大化、贴靠、拖边调整大小都是系统行为。Windows 10 上是方角。 */
+html[data-desktop] .glass-topbar { -webkit-app-region: drag; app-region: drag; pointer-events: auto; }
+html[data-desktop] .glass-topbar :is(a, button, input, label, kbd, [role="menu"], [role="toolbar"] > *, .glass-seg) { -webkit-app-region: no-drag; app-region: no-drag; }
+html[data-desktop] .glass-brand { cursor: default; }
+/* 传统 Windows 标题按钮：46×40，贴住窗口右上角，无胶囊底、无圆角。 */
+.win-ctrls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.win-ctrl {
+  width: 46px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 0;
+  color: var(--ink-1);
+  transition: background var(--dur-1) linear, color var(--dur-1) linear;
+}
+.win-ctrl:hover { background: rgba(17, 26, 43, 0.07); }
+.win-ctrl:active { background: rgba(17, 26, 43, 0.12); }
+.dark .win-ctrl:hover { background: rgba(255, 255, 255, 0.08); }
+.dark .win-ctrl:active { background: rgba(255, 255, 255, 0.04); }
+.win-ctrl.is-close:hover,
+.dark .win-ctrl.is-close:hover { background: #c42b1c; color: #fff; }
+.win-ctrl.is-close:active,
+.dark .win-ctrl.is-close:active { background: #c84031; color: rgba(255, 255, 255, 0.85); }
+.win-ctrl:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus); }
+.desk-strip {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 40px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.desk-strip .win-ctrls { -webkit-app-region: no-drag; app-region: no-drag; }
+body:has(.glass-topbar) .desk-strip { display: none; }
+/* Collapsed left column: the collapse control follows the wordmark instead of floating at 276px. */
+.glass-shell:has([data-slot="sidebar"][data-state="collapsed"]) .glass-topbar-start { width: auto; gap: 12px; }
+/* Send key is ink (DESIGN.md §11), not blue. */
+.glass-composer .glass-composer-send:not(:disabled):not([data-testid="composer-stop"]) { background: var(--ink-primary) !important; color: var(--on-primary) !important; }
+/* ---------- Bot list header: 机器人 ＋ (新建机器人) … 管理 — no home page, no 新聊天 ---------- */
+.glass-list-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 4px 0 8px;
+  margin-bottom: 6px;
+  flex: none;
+}
+.glass-list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-1);
+  letter-spacing: 0.01em;
+}
+.glass-list-add {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--ink-2);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  transition: background var(--dur-1), color var(--dur-1), transform var(--dur-1);
+}
+.glass-list-add:hover { background: var(--glass-3); color: var(--ink-1); }
+.glass-list-add:active { transform: scale(0.94); }
+.glass-list-add:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus); }
+.glass-list-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed var(--stroke);
+  color: var(--ink-3);
+  font-size: 13px;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.glass-list-empty:hover { background: var(--glass-hover); color: var(--ink-1); }
+.glass-mini-new { height: 40px; }
+@media (prefers-reduced-motion: reduce) { .glass-list-add, .glass-list-empty { transition: none; } .glass-list-add:active { transform: none; } }
+
+/* ==========================================================================================
+ * v3 总体设计（2026-10-11，DESIGN-v3.md）：动效令牌 + 一行顶栏 + 设置/管理左栏 + 页头。
+ * 放在最后，压过上面的旧规则。只写不带前缀的 backdrop-filter。
+ * ========================================================================================== */
+
+/* ---------- 动效令牌（DESIGN-v3 §8）：时长 / 缓动 / 位移 / 缩放，组件只引用这些名字 ---------- */
+:root {
+  --dur-0: 100ms;        /* 按下、菜单项高亮 */
+  --dur-1: 150ms;        /* 悬停、颜色、提示出现 */
+  --dur-2: 220ms;        /* 状态切换、菜单 / 弹出层进入、搜索展开、开关 */
+  --dur-3: 300ms;        /* 弹窗、抽屉、页面进入、toast 进入 */
+  --dur-exit: 160ms;     /* 所有退出（菜单、弹窗、toast）都比进入快 */
+  --dur-collapse: 260ms; /* 左右栏收起 / 展开 */
+  --dur-shimmer: 1400ms; /* 骨架流光一个周期 */
+  --dur-success-hold: 1500ms; /* 异步按钮 ✓ 停留（实现见 async-action.ts） */
+  --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1);   /* 进入、展开 */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);          /* 退出、收起到消失 */
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);       /* 原地变化（颜色、宽度互换） */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1); /* ✓ 对号弹出、按下回弹，只用于小元素 */
+  --rise-sm: 4px;        /* 菜单、弹出层、列表项进入的位移 */
+  --rise-md: 8px;        /* 弹窗、toast、页面进入的位移 */
+  --scale-pop: 0.96;     /* 菜单 / 弹窗进入起始缩放 */
+  --scale-press: 0.97;   /* 按下 */
+  --glass-collapse-ms: var(--dur-collapse);
+  --glass-collapse-ease: var(--ease-out);
+}
+
+/* 菜单 / 弹出层 / 下拉选择 / 右键菜单：淡入 + 0.96→1 缩放 + 4px 从触发方向滑入；退出更快、ease-in。 */
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="combobox-content"], [data-slot="popover-content"]) {
+  --tw-enter-scale: var(--scale-pop);
+  --tw-exit-scale: 0.98;
+  animation-duration: var(--dur-2) !important;
+  animation-timing-function: var(--ease-out) !important;
+}
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="combobox-content"], [data-slot="popover-content"])[data-side="bottom"] { --tw-enter-translate-y: calc(var(--rise-sm) * -1); }
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="combobox-content"], [data-slot="popover-content"])[data-side="top"] { --tw-enter-translate-y: var(--rise-sm); }
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="combobox-content"], [data-slot="popover-content"])[data-closed] {
+  animation-duration: var(--dur-exit) !important;
+  animation-timing-function: var(--ease-in) !important;
+}
+/* 提示：150ms 淡入，100ms 淡出，不缩放。 */
+[data-slot="tooltip-content"] { --tw-enter-scale: 1; --tw-exit-scale: 1; animation-duration: var(--dur-1) !important; animation-timing-function: var(--ease-out) !important; }
+[data-slot="tooltip-content"][data-closed] { animation-duration: var(--dur-0) !important; }
+/* 菜单项高亮跟手：100ms。 */
+.glass-mi[data-slot="dropdown-menu-item"] { transition: background var(--dur-0) linear, color var(--dur-0) linear; }
+
+/* 弹窗：遮罩 220ms 淡入；卡片 300ms 淡入 + 0.96→1 + 8px 上浮；退出 160ms ease-in，只缩到 0.98。 */
+:is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"]) {
+  transition-property: opacity, backdrop-filter;
+  transition-duration: var(--dur-2);
+  transition-timing-function: var(--ease-out);
+}
+:is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"])[data-ending-style] { transition-duration: var(--dur-exit); transition-timing-function: var(--ease-in); }
+[data-slot="dialog-content"] {
+  transition-property: opacity, scale, transform;
+  transition-duration: var(--dur-3);
+  transition-timing-function: var(--ease-out);
+}
+[data-slot="dialog-content"][data-starting-style] { opacity: 0; scale: var(--scale-pop); transform: translateY(var(--rise-md)); }
+[data-slot="dialog-content"][data-ending-style] { opacity: 0; scale: 0.98; transform: none; transition-duration: var(--dur-exit); transition-timing-function: var(--ease-in); }
+/* 抽屉（面板库、移动端左栏）：300ms 从边缘滑入，160ms 退出。 */
+[data-slot="sheet-content"] { transition-duration: var(--dur-3); transition-timing-function: var(--ease-out); }
+[data-slot="sheet-content"][data-ending-style] { transition-duration: var(--dur-exit); transition-timing-function: var(--ease-in); }
+
+/* Toast：260→300ms 上浮淡入，160ms 淡出下沉。 */
+.glass-toast { animation-duration: var(--dur-3); animation-timing-function: var(--ease-out); }
+.glass-toast[data-leaving="true"] { animation-duration: var(--dur-exit); animation-timing-function: var(--ease-in); }
+/* 骨架流光：统一 1.4s 线性。 */
+.sky-skel-glass, .page-skeleton-bar, .page-skeleton-dot { animation-duration: var(--dur-shimmer) !important; }
+/* 页面进入：300ms，8px 上浮。 */
+@keyframes page-in { from { opacity: 0; transform: translateY(var(--rise-md)); } to { opacity: 1; transform: none; } }
+/* 列表新项：220ms，从上方 4px 落下。 */
+@keyframes list-enter { from { opacity: 0; transform: translateY(calc(var(--rise-sm) * -1)); } }
+.list-enter { animation: list-enter var(--dur-2) var(--ease-out) both; }
+
+/* 按下：所有按钮 100ms 缩到 0.97，松开 150ms 回弹（用独立的 scale 属性，不和 transform 打架）。 */
+:is([data-slot="button"], .glass-ghost-btn, .rail-head-btn, .glass-list-add, .glass-seg-item, .win-ctrl, .rail-switch, .glass-mini-bot) {
+  transition-property: background, color, box-shadow, border-color, opacity, scale;
+  transition-duration: var(--dur-1);
+  transition-timing-function: var(--ease-std);
+}
+:is([data-slot="button"], .glass-ghost-btn, .rail-head-btn, .glass-list-add, .glass-seg-item, .rail-switch, .glass-mini-bot):active:not(:disabled) {
+  scale: var(--scale-press);
+  transition-duration: var(--dur-0);
+}
+.win-ctrl:active { scale: 1; }
+
+/* ---------- 一行顶栏（DESIGN-v3 §3）：左 品牌 + 左栏开关 ｜ 中 主导航 ｜ 右 页面操作 · 面板开关 ‖ 搜索 · 头像 ---------- */
+.glass-shell { --glass-top: 56px; }
+.glass-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+}
+.glass-topbar > .glass-seg { position: static; transform: none; justify-self: center; }
+.glass-topbar-start { justify-self: start; }
+.glass-topbar-end { justify-self: end; display: flex; align-items: center; gap: 4px; min-width: 0; }
+html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
+.glass-seg-item { padding: 5px 18px; font-size: 14px; }
+.glass-topbar-end .glass-ghost-btn { width: 36px; height: 36px; border-radius: var(--r-pill); color: var(--ink-2); position: relative; }
+.glass-topbar-end .glass-ghost-btn:hover { color: var(--ink-1); }
+.glass-topbar-end .topbar-more[data-popup-open] { background: var(--glass-2); color: var(--ink-1); }
+/* 搜索展开时，被它盖住的页面操作和面板开关淡出（不透过玻璃看到半个图标）。 */
+.glass-topbar-end :is(.topbar-ctx, > .glass-ghost-btn, .topbar-divider) { transition: opacity var(--dur-1) var(--ease-std); }
+.glass-topbar-end:has(.topbar-search[data-open]) :is(.topbar-ctx, > .glass-ghost-btn, .topbar-divider) { opacity: 0; pointer-events: none; }
+.glass-topbar .glass-avatar { width: 32px !important; height: 32px !important; font-size: 12px !important; }
+.glass-topbar-end > button[aria-label="账号与设置"] { margin-left: 4px; }
+.topbar-ctx { display: flex; align-items: center; gap: 4px; }
+.topbar-ctx:empty { display: none; }
+.topbar-divider { width: 1px; height: 18px; margin: 0 6px; background: var(--line-strong); flex: none; }
+.topbar-ctx:empty + .topbar-divider { display: none; }
+@media (max-width: 1279px) { .topbar-ctx:empty + .glass-ghost-btn + .topbar-divider { display: none; } }
+.topbar-chip.is-on { background: var(--glass-2); color: var(--ink-1); }
+.topbar-chip-dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--glass-3); animation: topbar-dot-in var(--dur-2) var(--ease-spring) both; }
+.topbar-chip-dot.is-inline { position: static; box-shadow: none; flex: none; }
+@keyframes topbar-dot-in { from { scale: 0; } to { scale: 1; } }
+
+/* 搜索：平时 36px 图标，点击 / Ctrl K 向左展开到 280px，浮在左侧按钮上方，不推动布局。 */
+.topbar-search { position: relative; width: 36px; height: 36px; flex: none; }
+.topbar-search .glass-search {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  width: 36px;
+  height: 36px;
+  gap: 8px;
+  backdrop-filter: none;
+  padding: 0 9px;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-2);
+  transition: width var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-std), border-color var(--dur-2) var(--ease-std), box-shadow var(--dur-2) var(--ease-std), padding var(--dur-2) var(--ease-out);
+}
+.topbar-search .glass-search:hover { background: var(--glass-hover); color: var(--ink-1); }
+.topbar-search .glass-search :is(input, kbd, button) { opacity: 0; transition: opacity var(--dur-1) var(--ease-std); }
+.topbar-search[data-open] .glass-search {
+  width: 280px;
+  padding: 0 10px 0 12px;
+  cursor: text;
+  background: var(--glass-3);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: var(--glass-blur);
+}
+.topbar-search[data-open] .glass-search :is(input, kbd, button) { opacity: 1; transition-delay: 60ms; }
+.topbar-search .glass-search:focus-within { box-shadow: var(--shadow-2); }
+
+/* ---------- 偏好设置 / 管理后台左栏（DESIGN-v3 §6.1）：区域名在卡片顶，底部只留区域切换 ---------- */
+.rail-title { padding: 4px 10px 10px; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--ink-1); flex: none; }
+.rail-foot { margin: 8px -10px -12px; padding: 8px 10px 10px; }
+.rail-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.rail-switch:hover { background: var(--glass-hover); color: var(--ink-1); }
+.rail-switch-arrow { color: var(--ink-3); transition: transform var(--dur-1) var(--ease-out); }
+.rail-switch:hover .rail-switch-arrow { transform: translateX(2px); }
+.rail-switch:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus); }
+
+/* ---------- 页头（DESIGN-v3 §4）：操作区与标题顶对齐，标题行高 32 ---------- */
+.ph { align-items: flex-start; margin: 4px 0 24px; }
+.ph-actions { min-height: 32px; padding-top: 0; }
+.ph-title { line-height: 32px; }
+
+/* ---------- 聊天：新话题标记 + 菜单副文本 ---------- */
+.chat-intro-topic { margin-top: 10px; padding: 3px 10px; border-radius: var(--r-pill); background: var(--glass-2); font-size: 12px; color: var(--ink-3); }
+.glass-mi-sub { display: block; margin-top: 1px; font-size: 12px; line-height: 1.35; color: var(--ink-3); }
+.glass-mi-key { margin-left: 8px; font-size: 11px; letter-spacing: 0; color: var(--ink-3); }
+
+/* ---------- 减少动态效果：去掉所有位移 / 缩放，只留淡入淡出；宽度直接切换 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :root { --rise-sm: 0px; --rise-md: 0px; --scale-pop: 1; --scale-press: 1; --dur-collapse: 0ms; }
+  :is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="context-menu-content"], [data-slot="select-content"], [data-slot="combobox-content"], [data-slot="popover-content"]) { --tw-enter-scale: 1; --tw-exit-scale: 1; --tw-enter-translate-y: 0; --tw-enter-translate-x: 0; }
+  [data-slot="dialog-content"][data-starting-style], [data-slot="dialog-content"][data-ending-style] { scale: 1; transform: none; }
+  .topbar-search .glass-search { transition: background var(--dur-1), border-color var(--dur-1); }
+  .topbar-chip-dot { animation: none; }
+  .rail-switch-arrow { transition: none; }
+}
+
+/* ==========================================================================================
+ * v4（2026-10-11 晚，DESIGN-v4.md）：控件放在它所控制的区域里。顶栏右上角只剩窗口按钮；
+ * 搜索 → 左栏卡片顶部；账号 → 左栏最底下的账号卡；机器人上下文 → 聊天列头部；面板 → 独立玻璃卡。
+ * 放在最后，压过上面的旧规则。只写不带前缀的 backdrop-filter。
+ * ========================================================================================== */
+
+/* ---------- 顶栏：左 字标 + 左栏开关 ｜ 中 主导航 ｜ 右 空（窗口按钮贴角） ---------- */
+.glass-topbar-end:empty { display: block; }
+.glass-brand { display: inline-flex; align-items: center; gap: 8px; }
+.proto-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #9a5b00;
+  background: rgba(255, 196, 77, 0.28);
+  border: 1px solid rgba(214, 150, 20, 0.35);
+}
+.dark .proto-badge { color: #ffd27a; background: rgba(255, 196, 77, 0.12); border-color: rgba(255, 196, 77, 0.28); }
+
+/* ---------- 左栏：搜索框在卡片顶部 ---------- */
+.side-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 0 0 10px;
+  padding: 0 8px 0 11px;
+  flex: none;
+  border-radius: var(--r-md);
+  background: var(--glass-1);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-3);
+  cursor: text;
+  transition: background var(--dur-2) var(--ease-std), border-color var(--dur-2) var(--ease-std), box-shadow var(--dur-2) var(--ease-out);
+}
+.side-search:hover { background: var(--glass-2); }
+.side-search:focus-within { background: var(--glass-3); border-color: rgba(56, 128, 220, 0.45); box-shadow: 0 0 0 3px rgba(56, 128, 220, 0.12); color: var(--ink-2); }
+.dark .side-search:focus-within { border-color: rgba(120, 175, 255, 0.45); box-shadow: 0 0 0 3px rgba(120, 175, 255, 0.12); }
+.side-search-ico { width: 16px; height: 16px; flex: none; }
+.side-search-input { flex: 1; min-width: 0; height: 100%; background: transparent; outline: none; font-size: 13px; color: var(--ink-1); }
+.side-search-input::placeholder { color: var(--ink-3); }
+.side-search-kbd {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--ink-3);
+  background: var(--glass-2);
+  border: 1px solid var(--line-strong);
+}
+.side-search-clear { flex: none; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: var(--ink-3); }
+.side-search-clear:hover { background: var(--glass-hover); color: var(--ink-1); }
+
+/* ---------- 左栏最底下：账号卡 ---------- */
+.acct-card { flex: none; padding: 6px; border-radius: var(--r-lg); }
+.acct-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--r-md);
+  text-align: left;
+  outline: none;
+  transition: background var(--dur-1) var(--ease-std);
+}
+.acct-row:hover, .acct-row[data-popup-open] { background: var(--glass-hover); }
+.dark .acct-row:hover, .dark .acct-row[data-popup-open] { background: rgba(255, 255, 255, 0.06); }
+.acct-row:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.acct-ava { position: relative; flex: none; display: grid; }
+.acct-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.acct-name { font-size: 13px; font-weight: 600; color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-sub { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-chev { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
+.acct-mini-card { flex: none; display: grid; place-items: center; padding: 8px 0; border-radius: var(--r-lg); }
+.acct-mini { position: relative; display: grid; border-radius: 50%; outline: none; transition: scale var(--dur-1) var(--ease-std), box-shadow var(--dur-1); }
+.acct-mini:hover, .acct-mini[data-popup-open] { box-shadow: 0 0 0 3px var(--glass-2); }
+.acct-mini:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.glass-mini-search {
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--ink-2);
+  background: var(--glass-1);
+  border: 1px solid var(--line-strong);
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.glass-mini-search:hover { background: var(--glass-2); color: var(--ink-1); }
+.glass-mini-search:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus); }
+
+/* ---------- v4.1：聊天列没有头部；机器人「⋯」+ 计算机提示在左栏机器人行 ---------- */
+.glass-bot-row.is-on .glass-bot-more { opacity: 1; }
+.glass-bot-more[data-popup-open] { opacity: 1; background: var(--glass-2); color: var(--ink-1); }
+.glass-bot-comp {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-right: 2px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  transition: background var(--dur-1) var(--ease-std), color var(--dur-1);
+}
+.glass-bot-comp:hover, .glass-bot-comp.is-on { background: var(--glass-2); color: var(--ink-1); }
+.glass-bot-comp:focus-visible, .glass-bot-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus); opacity: 1; }
+.glass-bot-comp-dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--glass-3); animation: topbar-dot-in var(--dur-2) var(--ease-spring) both; }
+.glass-bot-comp-dot.is-inline { position: static; box-shadow: none; flex: none; }
+
+/* ---------- 面板栏 = 一张独立玻璃卡，头部在卡片里 ---------- */
+.rail-card { padding: 10px 10px 12px; gap: 10px; border-radius: var(--r-xl); overflow: hidden; }
+.rail-card .rail-head { height: 36px; padding: 0 0 0 8px; gap: 2px; }
+.rail-card .rail-head-t { font-size: 14px; }
+.rail-card .rail-head-btn { height: 30px; padding: 0 9px; font-size: 13px; }
+.rail-head-div { width: 1px; height: 16px; margin: 0 4px; background: var(--line-strong); flex: none; }
+.rail-head-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+  outline: none;
+  transition: background var(--dur-1), color var(--dur-1), scale var(--dur-1);
+}
+.rail-head-icon:hover { background: var(--glass-hover); color: var(--ink-1); }
+.rail-head-icon:active { scale: var(--scale-press); }
+.rail-head-icon:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+/* 卡片里的面板：不再是第二层浮起的玻璃，而是卡片上的一块浅色区域。 */
+.rail-card .glass-card { border-radius: var(--r-lg); background: var(--glass-1); box-shadow: none; border: 1px solid var(--line-strong); backdrop-filter: none; }
+.dark .rail-card .glass-card { background: rgba(255, 255, 255, 0.035); }
+.rail-card .glass-rail-scroll { margin: 0 -4px; padding: 0 4px 2px; }
+.rail-card .rail-empty { margin: 0 2px; }
+/* 收起后：右边缘中间的小把手（竖排「面板」），在卡片收走之后再淡入。 */
+.rail-tab {
+  position: absolute;
+  right: 0;
+  top: calc(var(--glass-top) + (100% - var(--glass-top)) / 2);
+  translate: 0 -50%;
+  z-index: 5;
+  width: 30px;
+  padding: 12px 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px 0 0 12px;
+  border: 1px solid var(--stroke);
+  border-right: 0;
+  background: var(--glass-2);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-1);
+  color: var(--ink-2);
+  outline: none;
+  animation: rail-tab-in var(--dur-2) var(--ease-out) 120ms both;
+  transition: background var(--dur-1), color var(--dur-1), width var(--dur-1) var(--ease-out);
+}
+.rail-tab:hover { background: var(--glass-3); color: var(--ink-1); width: 34px; }
+.rail-tab:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.rail-tab-t { display: block; width: 1em; font-size: 12px; line-height: 1.25; word-break: break-all; text-align: center; }
+@keyframes rail-tab-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+.rail-tab.hidden { display: none; }
+@media (min-width: 1280px) { .rail-tab.xl\:flex { display: flex; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-tab { animation: rail-tab-fade var(--dur-2) linear 120ms both; transition: background var(--dur-1), color var(--dur-1); }
+  .rail-tab:hover { width: 30px; }
+  .side-search, .acct-row { transition: background var(--dur-1), border-color var(--dur-1); }
+  .glass-bot-comp-dot { animation: none; }
+  .rail-head-icon:active, .acct-mini { scale: 1; }
+}
+@keyframes rail-tab-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- v4.2：收起左栏的头像也有「⋯」菜单 + 计算机圆点 ---------- */
+.glass-mini-slot { position: relative; flex: none; width: 48px; height: 48px; }
+.glass-mini-more {
+  position: absolute;
+  left: -3px;
+  bottom: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  background: var(--glass-3);
+  box-shadow: var(--glass-shadow-sm), 0 0 0 1px var(--line-strong);
+  opacity: 0;
+  scale: 0.85;
+  transition: opacity var(--dur-1) var(--ease-std), scale var(--dur-1) var(--ease-std), color var(--dur-1);
+}
+.glass-mini-slot:hover .glass-mini-more,
+.glass-mini-slot:focus-within .glass-mini-more,
+.glass-mini-slot.is-on .glass-mini-more,
+.glass-mini-slot.menu-open .glass-mini-more { opacity: 1; scale: 1; }
+.glass-mini-more:hover,
+.glass-mini-slot.menu-open .glass-mini-more { color: var(--ink-1); }
+.glass-mini-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus); opacity: 1; }
+.glass-mini-comp {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  box-shadow: 0 0 0 2px var(--glass-3);
+  animation: topbar-dot-in var(--dur-2) var(--ease-spring) both;
+}
+.glass-mini-comp.is-needs { background: var(--warn); }
+@media (hover: none) { .glass-mini-more { opacity: 0.8; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .glass-mini-more { transition: none; } .glass-mini-comp { animation: none; } }

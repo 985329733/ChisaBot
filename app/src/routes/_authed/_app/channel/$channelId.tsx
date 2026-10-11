@@ -1,4 +1,3 @@
-import { IconSettings } from "@tabler/icons-react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -6,17 +5,15 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { z } from "zod";
 import { AgentProfile } from "@/components/agents/agent-profile";
 import { hasUnseenActivity } from "@/components/app-sidebar/app-sidebar";
 import { BotPausedBanner } from "@/components/bot-profile/pause-banner";
 import { ChannelChat } from "@/components/channels/channel-chat";
-import { ComputerChatControls } from "@/components/computer/computer-controls";
 import { ComputerViewPanel } from "@/components/computer/computer-panel";
 import { DetailPanel } from "@/components/layout/detail-panel";
-import { SidebarToggle } from "@/components/layout/sidebar-toggle";
-import { Button } from "@/components/ui/button";
+import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { markChannelReadMutationOptions } from "@/lib/channels/mutations";
 import {
   type AgentChannel,
@@ -110,6 +107,12 @@ function RouteComponent() {
     });
   };
 
+  const onComputerChange = useCallback(
+    (open: boolean) => void show(open ? "watch" : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isWatching, isSettingsOpen],
+  );
+
   return (
     <DetailPanel
       onClose={() => show(null)}
@@ -125,32 +128,19 @@ function RouteComponent() {
         )
       }
     >
-      <div className="flex flex-col">
-        <div className="min-h-12 border-b border-border sticky top-0 flex flex-row flex-wrap items-center justify-between px-3 py-2 gap-2">
-          {/* The Bot is shown selected in the left roster, so the header carries only its controls. */}
-          <div className="flex min-w-0 items-center">
-            <SidebarToggle />
-          </div>
-          <div className="ml-auto flex flex-row items-center gap-1.5">
-            <ComputerChatControls
-              computerId={agentId}
-              open={isWatching}
-              onOpenChange={(open) => show(open ? "watch" : null)}
-            />
-            <Button
-              aria-label={"会话 AI 同事"}
-              aria-pressed={isSettingsOpen}
-              className={isSettingsOpen ? "bg-foreground/5" : undefined}
-              disabled={agentId === undefined}
-              onClick={() => show(isSettingsOpen ? null : "settings")}
-              variant="ghost"
-              size="icon"
-            >
-              <IconSettings className="size-4.5" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      {/* DESIGN v4.1：聊天列没有头部；机器人「⋯」与计算机提示在左栏它那一行。 */}
+      <RegisterBotChat
+        agentId={agentId}
+        computerOpen={isWatching}
+        onComputerChange={onComputerChange}
+        onNewTopic={() =>
+          agentId
+            ? void navigate({ to: "/channel/new", search: { agent: agentId, topic: "new" } })
+            : undefined
+        }
+        onSettingsChange={(open) => void show(open ? "settings" : null)}
+        settingsOpen={isSettingsOpen}
+      />
       {agentId && channel.data?.agentIds.length === 1 ? (
         <BotPausedBanner agentId={agentId} />
       ) : null}

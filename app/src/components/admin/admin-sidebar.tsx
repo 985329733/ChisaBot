@@ -139,6 +139,7 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
   return (
     <SectionRail
       ariaLabel={"管理导航"}
+      title={"管理后台"}
       footerLink={{ label: "偏好设置", to: "/settings", icon: IconAdjustmentsHorizontal }}
       groups={GROUPS}
       {...props}

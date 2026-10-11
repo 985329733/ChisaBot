@@ -3,12 +3,14 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BootCommitMarker, reportBootStage } from "./lib/boot-status";
+import { installPreviewWindowBridge } from "./lib/proto-preview";
 import { queryClient } from "./query-client";
 import { router } from "./router";
 import "@copilotkit/react-core/v2/styles.css";
 import "./styles.css";
 
 reportBootStage("entry-executing");
+installPreviewWindowBridge();
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {

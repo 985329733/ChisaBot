@@ -155,7 +155,7 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          {"登录到"}
+          {"登录到 "}
           {appConfig.brand.productName}
         </motion.h1>
         <motion.div

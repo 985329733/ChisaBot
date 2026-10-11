@@ -4,6 +4,8 @@ import {
   IconChevronRight,
   IconCode,
   IconDeviceDesktop,
+  IconDeviceLaptop,
+  IconSchool,
   IconExternalLink,
   IconFileText,
   IconKey,
@@ -77,7 +79,7 @@ const SECTIONS: {
       },
       {
         title: "权限规则",
-        description: "决定机器人永远不能做什么的规则",
+        description: "决定机器人永远不能做什么的规则。",
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
@@ -86,6 +88,12 @@ const SECTIONS: {
         description: "机器人运行其工具的机器。",
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
+      },
+      {
+        title: "设备（PC）",
+        description: "所有人登记的 PC 客户端、在线状态与紧急停止。",
+        icon: IconDeviceLaptop,
+        linkOptions: { to: "/admin/devices" },
       },
     ],
   },
@@ -108,12 +116,12 @@ const SECTIONS: {
       {
         title: "自动学习",
         description: "从已完成的会话中学习并审查建议的技能。",
-        icon: IconFileText,
+        icon: IconSchool,
         linkOptions: { to: "/admin/learning" },
       },
       {
         title: "UI 组件",
-        description: "Bot可以在对话中绘制的自定义片段。",
+        description: "机器人可以在对话中绘制的自定义片段。",
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
@@ -139,7 +147,7 @@ const SECTIONS: {
       {
         title: "企业控制",
         description:
-          "按角色和组的能力，SSO必需，SCIM，网络策略，MCP和模型白名单，动作记录。",
+          "按角色和组的能力、强制 SSO、SCIM、网络策略、MCP 与模型白名单。",
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/enterprise" },
       },
@@ -170,7 +178,7 @@ function RouteComponent() {
   return (
     <PageShell
       description={
-        "适用于此部署中所有人的设置。此处的任何内容都会影响每个人和每个机器人，这与您的个人偏好不同。"
+        "这里的设置作用于整个部署：每个人、每个机器人。个人偏好在「偏好设置」里。"
       }
       title={"部署概览"}
     >

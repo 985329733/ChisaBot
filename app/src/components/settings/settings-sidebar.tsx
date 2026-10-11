@@ -18,7 +18,6 @@ import { currentUserQueryOptions } from "@/lib/auth/queries";
  */
 const GROUPS: RailGroup[] = [
   {
-    label: "偏好设置",
     items: [
       {
         title: "通用",
@@ -28,6 +27,11 @@ const GROUPS: RailGroup[] = [
         exact: true,
         linkOptions: { to: "/settings" },
       },
+    ],
+  },
+  {
+    label: "账号与连接",
+    items: [
       {
         /* What this deployment may reach as you (Admin's Plugins is the deployment-wide side). */
         title: "已连接账号",
@@ -47,6 +51,11 @@ const GROUPS: RailGroup[] = [
         icon: IconKey,
         linkOptions: { to: "/settings/passwords" },
       },
+    ],
+  },
+  {
+    label: "参考",
+    items: [
       {
         title: "组件库",
         sub: "机器人可绘制的片段",
@@ -62,6 +71,7 @@ export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
   return (
     <SectionRail
       ariaLabel={"偏好设置分区"}
+      title={"偏好设置"}
       footerLink={
         user?.role === "admin"
           ? { label: "管理后台", to: "/admin", icon: IconBuildingSkyscraper }

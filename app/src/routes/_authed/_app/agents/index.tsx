@@ -80,7 +80,6 @@ function AgentsScreen() {
             </Button>
           }
           description={"你创建的代理、与你共享的代理，以及可以随时找回的隐藏代理。"}
-          eyebrow={"AI 同事"}
           title={"代理"}
         />
         {pinned?.length ? (

@@ -21,6 +21,7 @@ import {
   deleteChannelMutationOptions,
   setChannelPinnedMutationOptions,
 } from "@/lib/channels/mutations";
+import { type ChannelPage, channelKeys } from "@/lib/channels/queries";
 import type { MessageListEmphasis } from "@/lib/settings/message-list";
 import { useTypedReveal } from "@/lib/typed-reveal";
 import { ChannelItemContent } from "./channel-item-content";
@@ -93,11 +94,25 @@ export const Channel = memo(function Channel({
      * puts them on the roster with the channel still in it, and says why in the dialog.
      */
     if (isOpen) {
+      // "/" lands on the Bot's latest conversation, so drop this one from the roster first or the
+      // landing would send them straight back here. A refused delete refetches and restores it.
+      queryClient.setQueryData(
+        channelKeys.list(),
+        (data: { pages: ChannelPage[]; pageParams: unknown[] } | undefined) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              channels: page.channels.filter((channel) => channel.id !== channelId),
+            })),
+          },
+      );
       await navigate({ to: "/" });
     }
     try {
       await deleteChannel.mutateAsync(channelId);
     } catch {
+      void queryClient.invalidateQueries({ queryKey: channelKeys.list() });
       // The error is on the mutation and rendered in the dialog; leaving it open says "not done".
       return;
     }

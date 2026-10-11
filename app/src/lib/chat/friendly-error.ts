@@ -42,7 +42,7 @@ const RULES: Array<{ test: RegExp; title: string; hint?: string; retryable?: boo
   {
     test: /context[_ ]?length|too long|maximum context|token limit|超出.*长度|上下文/i,
     title: "对话太长，超出了模型的上下文上限",
-    hint: "点击右上角“新聊天”开始一个新会话，或换用上下文更长的模型。",
+    hint: "换用上下文更长的模型后重试。",
   },
   {
     test: /timeout|timed out|超时|stopped responding|停止响应|停止了输出|no longer streaming/i,

@@ -77,8 +77,8 @@ function ResponsibilitiesPage() {
           <NewResponsibility onCreated={() => window.setTimeout(() => setCreating(false), 900)} />
         </DialogContent>
       </Dialog>
-      <PageSection title={"进行中的任务"}>
-        <div className="mt-3 grid gap-4">
+      <PageSection title={goals.data?.length ? "进行中" : undefined}>
+        <div className="grid gap-4">
           {goals.isPending ? (
             <PageSkeleton rows={2} />
           ) : goals.error ? (
@@ -86,15 +86,10 @@ function ResponsibilitiesPage() {
           ) : goals.data?.length ? (
             goals.data.map((goal) => <GoalCard key={goal.id} goal={goal} />)
           ) : (
+            // The page header already holds 新长期任务; the empty state only says what is missing.
             <EmptyState
-              action={
-                <Button onClick={() => setCreating(true)}>
-                  <IconPlus />
-                  {"新长期任务"}
-                </Button>
-              }
               description={"给机器人一个持久目标，它会按计划或事件持续推进。"}
-              title={"您还没有长期任务"}
+              title={"还没有长期任务"}
             />
           )}
         </div>

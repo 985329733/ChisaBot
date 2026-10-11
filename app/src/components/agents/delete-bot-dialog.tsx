@@ -112,7 +112,13 @@ export function DeleteBotDialog({
       const fallbackBot = !isMain && mainBotId ? mainBotId : null;
       if (fallbackBot)
         await navigate({ to: "/channel/new", search: { agent: fallbackBot } });
-      else await navigate({ to: "/" });
+      else {
+        // Forget it first: "/" lands on the last-used Bot, which must not be the one just deleted.
+        await forgetDeletedBot(queryClient, bot.id);
+        await navigate({ to: "/" });
+        onDeleted?.();
+        return;
+      }
     }
     await forgetDeletedBot(queryClient, bot.id);
     onDeleted?.();

@@ -1,0 +1,184 @@
+import {
+  IconDeviceDesktop,
+  IconMessagePlus,
+  IconSettings,
+} from "@tabler/icons-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useComputerAttention } from "@/components/computer/computer-controls";
+import {
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { type BotChatContext, publishBotChat } from "@/lib/agents/bot-chat-context";
+import type { ChannelSummary } from "@/lib/channels/queries";
+import { getHotkey } from "@/lib/hotkeys/hotkeys";
+import { useHotkey } from "@/lib/hotkeys/use-hotkey";
+import { cn } from "@/lib/utils";
+
+type RegisterProps = {
+  agentId: string | undefined;
+  settingsOpen?: boolean;
+  /** Absent where the page has no settings pane (the empty chat): the row menu links instead. */
+  onSettingsChange?: (open: boolean) => void;
+  computerOpen?: boolean;
+  onComputerChange?: (open: boolean) => void;
+  onNewTopic?: () => void;
+  /** Already on an empty topic: 新话题 has nothing to clear. */
+  freshTopic?: boolean;
+  /** Shown in the roster when the Bot is hidden from it (e.g. the browser Bot). */
+  fallbackName?: string;
+};
+
+/**
+ * DESIGN v4.1：聊天列不再有头部。页面只登记「这个对话的机器人控件」（设置窗格、计算机、新话题），
+ * 左栏里这个机器人的那一行读取它：「⋯」菜单和计算机提示都在那一行里。渲染为空。
+ *
+ * 计算机「需要你」时自动打开计算机、Shift+T 新话题，这两件事仍由页面这里负责（不依赖左栏是否展开）。
+ */
+export function RegisterBotChat({
+  agentId,
+  settingsOpen = false,
+  onSettingsChange,
+  computerOpen = false,
+  onComputerChange,
+  onNewTopic,
+  freshTopic = false,
+  fallbackName,
+}: RegisterProps) {
+  const noop = useCallback(() => {}, []);
+  const needsYou = useComputerAttention(onComputerChange ? agentId : undefined, onComputerChange ?? noop);
+  useHotkey("new-topic", () => {
+    if (!freshTopic && onNewTopic) onNewTopic();
+  });
+  // Handlers change identity every render; the published snapshot only changes with the state.
+  const latest = useRef({ settingsOpen, onSettingsChange, computerOpen, onComputerChange, onNewTopic });
+  latest.current = { settingsOpen, onSettingsChange, computerOpen, onComputerChange, onNewTopic };
+  const canSettings = Boolean(onSettingsChange);
+  const canComputer = Boolean(onComputerChange);
+  const canNewTopic = Boolean(onNewTopic) && !freshTopic;
+  const snapshot = useMemo<BotChatContext | null>(
+    () =>
+      agentId
+        ? {
+            agentId,
+            fallbackName,
+            settingsOpen,
+            computerOpen,
+            needsYou,
+            freshTopic,
+            canSettings,
+            canComputer,
+            canNewTopic,
+            toggleSettings: () => latest.current.onSettingsChange?.(!latest.current.settingsOpen),
+            toggleComputer: () => latest.current.onComputerChange?.(!latest.current.computerOpen),
+            newTopic: () => latest.current.onNewTopic?.(),
+          }
+        : null,
+    [agentId, fallbackName, settingsOpen, computerOpen, needsYou, freshTopic, canSettings, canComputer, canNewTopic],
+  );
+  useEffect(() => (snapshot ? publishBotChat(snapshot) : undefined), [snapshot]);
+  return null;
+}
+
+/** 左栏机器人行里的计算机提示：只在计算机已打开或需要你时出现（琥珀色圆点 = 需要你）。 */
+export function BotRowComputerChip({ chat }: { chat: BotChatContext | null }) {
+  if (!chat || !chat.canComputer || !(chat.computerOpen || chat.needsYou)) return null;
+  const label = chat.needsYou ? "计算机需要你" : chat.computerOpen ? "关闭计算机" : "打开计算机";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            aria-expanded={chat.computerOpen}
+            aria-label={label}
+            className={cn("glass-bot-comp", chat.computerOpen && "is-on")}
+            onClick={chat.toggleComputer}
+            type="button"
+          />
+        }
+      >
+        <IconDeviceDesktop className="size-4" />
+        {chat.needsYou ? <span aria-hidden className="glass-bot-comp-dot" /> : null}
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * 机器人「⋯」菜单的上半部分（机器人设置 · 查看计算机 · 新话题）。
+ *
+ * 对正在打开的这个机器人：直接操作当前对话（切换设置窗格 / 计算机、清空上下文）。
+ * 对其他机器人：先打开它最近的对话，并带上对应的窗格；没有对话时设置去资料页、新话题去空聊天。
+ */
+export function BotChatMenuItems({
+  agentId,
+  chat,
+  latest,
+}: {
+  agentId: string;
+  chat: BotChatContext | null;
+  latest: ChannelSummary | undefined;
+}) {
+  const navigate = useNavigate();
+  const icon = "size-[18px] shrink-0 opacity-80";
+  const topicKey = getHotkey("new-topic").combo;
+  const openLatest = (flag: "settings" | "watch") =>
+    latest
+      ? void navigate({
+          to: "/channel/$channelId",
+          params: { channelId: latest.id },
+          search: { [flag]: true } as never,
+        })
+      : void navigate({ to: "/bots/$agentId", params: { agentId } });
+  return (
+    <>
+      <DropdownMenuItem
+        className="glass-mi"
+        onClick={() => (chat?.canSettings ? chat.toggleSettings() : openLatest("settings"))}
+      >
+        <IconSettings className={icon} />
+        <span className="min-w-0 flex-1">
+          {chat?.canSettings && chat.settingsOpen ? "收起机器人设置" : "机器人设置"}
+        </span>
+      </DropdownMenuItem>
+      {chat?.canComputer || latest ? (
+        <DropdownMenuItem
+          className="glass-mi"
+          onClick={() => (chat?.canComputer ? chat.toggleComputer() : openLatest("watch"))}
+        >
+          <IconDeviceDesktop className={icon} />
+          <span className="min-w-0 flex-1">
+            {chat?.canComputer && chat.computerOpen ? "关闭计算机" : "查看计算机"}
+          </span>
+          {chat?.needsYou ? <span className="glass-bot-comp-dot is-inline" /> : null}
+        </DropdownMenuItem>
+      ) : null}
+      <DropdownMenuItem
+        className="glass-mi"
+        disabled={Boolean(chat?.freshTopic)}
+        onClick={() =>
+          chat?.canNewTopic
+            ? chat.newTopic()
+            : void navigate({ to: "/channel/new", search: { agent: agentId, topic: "new" } })
+        }
+      >
+        <IconMessagePlus className={icon} />
+        <span className="min-w-0 flex-1">
+          <span className="block">{"新话题"}</span>
+          <span className="glass-mi-sub">{"清空上下文，旧对话保留"}</span>
+        </span>
+        {chat ? (
+          <DropdownMenuShortcut className="glass-mi-key">
+            {topicKey.shift ? "Shift+" : ""}
+            {topicKey.key.toUpperCase()}
+          </DropdownMenuShortcut>
+        ) : null}
+      </DropdownMenuItem>
+    </>
+  );
+}

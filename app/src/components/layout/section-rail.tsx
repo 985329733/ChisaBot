@@ -1,17 +1,15 @@
-import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { IconArrowRight, IconExternalLink } from "@tabler/icons-react";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import type * as React from "react";
-import { GlassAvatar } from "@/components/layout/glass-topbar";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarRail, useOptionalSidebar } from "@/components/ui/sidebar";
+import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
+import { Sidebar, SidebarContent, SidebarRail, useOptionalSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { cn } from "@/lib/utils";
 
 /**
  * The left column for settings and admin (DESIGN.md §11 左栏行 / §13).
  *
- * Same family as the chat roster: a pill on top ("返回应用" here, "新聊天" there), one L1 glass card
+ * Same family as the chat roster: one L1 glass card (area title on top — no "返回应用" pill since v3)
  * holding grouped `nav-row`s, a footer, and — collapsed with Ctrl+B — the same 80px rail of icon
  * tiles the roster turns into. Only the rows differ: sections instead of Bots.
  */
@@ -28,11 +26,14 @@ export type RailGroup = { label?: string; items: RailItem[] };
 
 export function SectionRail({
   ariaLabel,
+  title,
   groups,
   footerLink,
   ...props
 }: {
   ariaLabel: string;
+  /** The area's name at the top of the card (偏好设置 / 管理后台). DESIGN-v3 §6.1. */
+  title: string;
   groups: RailGroup[];
   /** The icon button in the footer: the way across to the other area (settings ↔ admin). */
   footerLink?: { label: string; to: string; icon: React.ComponentType<{ className?: string }> };
@@ -44,11 +45,6 @@ export function SectionRail({
     return (
       <Sidebar collapsible="icon" variant="floating" {...props}>
         <nav aria-label={ariaLabel} className="glass-mini" id="chisabot-bot-list">
-          <RailTip label={"返回应用"}>
-            <Link aria-label={"返回应用"} className="glass-mini-new" to="/">
-              <IconArrowLeft className="size-5" />
-            </Link>
-          </RailTip>
           <div className="glass-card glass-mini-card">
             <div className="glass-mini-scroll scroll-fade-b">
               {groups.map((group, gi) => (
@@ -86,6 +82,9 @@ export function SectionRail({
               </div>
             ) : null}
           </div>
+          <div className="glass-card acct-mini-card">
+            <AccountMenu compact />
+          </div>
         </nav>
       </Sidebar>
     );
@@ -93,14 +92,10 @@ export function SectionRail({
 
   return (
     <Sidebar collapsible="icon" variant="floating" {...props}>
-      <SidebarHeader className="glass-side-header glass-side-full gap-3 p-0 pb-3">
-        <Link className="glass-newchat rail-back" to="/">
-          <IconArrowLeft className="size-[18px]" />
-          {"返回应用"}
-        </Link>
-      </SidebarHeader>
       <SidebarContent className="glass-side-full gap-3 overflow-hidden" id="chisabot-bot-list">
         <nav aria-label={ariaLabel} className="glass-card glass-side-card min-h-0 flex-1">
+          {/* DESIGN-v3 §6.1：没有「返回应用」胶囊（顶栏主导航就是回去的路），卡片顶部是区域名。 */}
+          <div className="rail-title">{title}</div>
           <div className="glass-side-scroll rail-scroll scroll-fade-b">
             {groups.map((group, gi) => (
               <div className={cn("rail-group", gi > 0 && "mt-2")} key={group.label ?? gi}>
@@ -119,6 +114,8 @@ export function SectionRail({
           </div>
           <RailFooter link={footerLink} />
         </nav>
+        {/* DESIGN-v4：账号在每个区域都在左栏最底下同一个位置。 */}
+        <AccountCard />
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
@@ -160,22 +157,19 @@ function NavRow({ item }: { item: RailItem }) {
   );
 }
 
+/**
+ * 卡片底部只留一条「切换到另一个区域」（偏好设置 ⇄ 管理后台，只有管理员有）。账号在卡片下面单独的账号卡里
+ * （DESIGN-v4，三个区域同一位置）。
+ */
 function RailFooter({ link }: { link?: { label: string; to: string; icon: React.ComponentType<{ className?: string }> } }) {
-  const { data: user } = useQuery(currentUserQueryOptions());
+  if (!link) return null;
   return (
     <div className="rail-foot">
-      <GlassAvatar ring={false} size={32} />
-      <span className="min-w-0 flex-1">
-        <span className="rail-foot-name">{user?.name || user?.email || "\u00a0"}</span>
-        <span className="rail-foot-role">{user?.role === "admin" ? "管理员" : "成员"}</span>
-      </span>
-      {link ? (
-        <RailTip label={link.label}>
-          <Link aria-label={link.label} className="rail-foot-btn" to={link.to}>
-            <link.icon className="size-[18px]" />
-          </Link>
-        </RailTip>
-      ) : null}
+      <Link className="rail-switch" to={link.to}>
+        <link.icon className="size-[17px] shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{link.label}</span>
+        <IconArrowRight className="rail-switch-arrow size-4" />
+      </Link>
     </div>
   );
 }

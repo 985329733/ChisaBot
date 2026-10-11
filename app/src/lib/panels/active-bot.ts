@@ -98,3 +98,8 @@ export function forgetStoredPanelBot(botId: string): void {
     // Storage unavailable: nothing was remembered there either.
   }
 }
+
+/** The Bot last opened (the same memory the panel rail and the roster selection use). */
+export function readStoredPanelBot(): string | null {
+  return readStoredPreference(PANEL_BOT_KEY);
+}

@@ -1,14 +1,12 @@
 import { RouteSkeleton } from "@/components/startup-status";
 import { CopilotChat } from "@copilotkit/react-core/v2";
-import { IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ComputerChatControls } from "@/components/computer/computer-controls";
+import { useCallback } from "react";
+import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { BotModelInput } from "@/components/agents/bot-model-input";
 import { ComputerViewPanel } from "@/components/computer/computer-panel";
 import { DetailPanel } from "@/components/layout/detail-panel";
-import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
-import { Button } from "@/components/ui/button";
 import { defaultAgentId } from "@/lib/agents/default-agent";
 import {
   type AgentProfile,
@@ -155,10 +153,13 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   const stopped = useStoppedTurn(agentId);
   const { watch } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const showComputer = (open: boolean) =>
-    navigate({
-      search: (previous) => ({ ...previous, watch: open ? true : undefined }),
-    });
+  const showComputer = useCallback(
+    (open: boolean) =>
+      void navigate({
+        search: (previous) => ({ ...previous, watch: open ? true : undefined }),
+      }),
+    [navigate],
+  );
 
   return (
     <DetailPanel
@@ -168,38 +169,14 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
       detail={<ComputerViewPanel agentId={agentId} name={name} />}
     >
       <div className="flex h-full min-h-0 flex-col">
-        <SidebarToggleBar />
-        <header className="border-b px-6 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/*
-             * The Bot this screen is actually showing. A name written into the markup is wrong on
-             * every deployment whose package did not happen to use it, which is the same defect the
-             * route default above was fixed for: this screen called whichever Bot you opened
-             * "Browser Bot", including the one named something else two lines of state away.
-             */}
-            <h1 className="text-lg font-semibold">{name}</h1>
-            {/*
-             * Labelled rather than the bare icon button the sidebar uses for its own "start
-             * something new" control: that one opens an empty screen, but this one throws away
-             * whatever conversation is currently on screen, and a click with that consequence
-             * deserves a word, not just a glyph.
-             */}
-            <div className="flex flex-wrap items-start gap-2">
-              <ComputerChatControls
-                computerId={agentId}
-                open={watch === true}
-                onOpenChange={showComputer}
-              />
-              <Button onClick={startNew} size="sm" variant="ghost">
-                <IconPlus />
-                {"新聊天"}
-              </Button>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {"询问它打开一个页面并观看其工作。"}
-          </p>
-        </header>
+        {/* DESIGN v4.1：聊天列没有头部；机器人「⋯」与计算机提示在左栏它那一行（新话题 Shift+T）。 */}
+        <RegisterBotChat
+          agentId={agentId}
+          computerOpen={watch === true}
+          onComputerChange={showComputer}
+          fallbackName={name}
+          onNewTopic={startNew}
+        />
         {/*
          * Both banners render as plain siblings in this fixed order, never one nested inside the
          * other, so either can appear alone or both together without the layout jumping around

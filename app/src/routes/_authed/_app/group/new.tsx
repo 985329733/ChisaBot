@@ -36,7 +36,7 @@ function RouteComponent() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="sticky top-0 flex h-12 flex-row items-center gap-1.5 border-b border-border px-3">
+      <div className="sticky top-0 flex h-12 flex-row items-center gap-1.5 px-3">
         <SidebarToggle />
         <span className="text-sm tracking-tight">{"新群组会话"}</span>
       </div>
