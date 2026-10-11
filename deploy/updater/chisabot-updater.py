@@ -294,6 +294,7 @@ class Updater(object):
         self.add_history(entry, "rejected", reason)
         audit({"event": "request_rejected", "id": entry["id"], "action": entry["action"], "actor": entry["actor"], "reason": reason})
         self.save_internal()
+        self.write_state()
 
     def take_requests(self):
         try:
