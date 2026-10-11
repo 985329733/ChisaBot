@@ -369,7 +369,20 @@ export function createAgentRoutes(
   routes.get("/", requireUser, async (context) => {
     try {
       const hidden = context.req.query("hidden") === "true";
-      const agents = await store.list(context.var.actor, hidden);
+      let agents = await store.list(context.var.actor, hidden);
+      /*
+       * 首次使用：一个机器人都看不到的人第一次读列表时，给他建一个私有的「助手」（见 `ensureDefaultBot`）。
+       * 只在普通列表为空时才问；失败只记日志，列表照常返回，下次读取再试。
+       */
+      if (!hidden && agents.length === 0 && store.ensureDefaultBot) {
+        try {
+          if (await store.ensureDefaultBot(context.var.actor)) {
+            agents = await store.list(context.var.actor, false);
+          }
+        } catch (error) {
+          console.error("[agents] default bot seeding failed", error);
+        }
+      }
       return context.json({
         agents: agents.map((agent) => dto(context.var.actor, agent)),
       });

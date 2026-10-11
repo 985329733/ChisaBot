@@ -759,3 +759,69 @@ describe("which Bots a Bot may hand work to", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("first-run default Bot", () => {
+  test("seeds once when the person can see no Bot, then lists again", async () => {
+    let seeded = false;
+    const seedCalls: unknown[] = [];
+    const store = fakeStore({
+      async list() {
+        return seeded ? [profile({ id: "agent-default", name: "助手" })] : [];
+      },
+      async ensureDefaultBot(receivedActor) {
+        seedCalls.push(receivedActor);
+        seeded = true;
+        return true;
+      },
+    });
+    const response = await appFor(store).request("/");
+    expect(response.status).toBe(200);
+    const body = await json(response);
+    expect(body.agents.map((agent: { id: string }) => agent.id)).toEqual([
+      "agent-default",
+    ]);
+    expect(seedCalls).toHaveLength(1);
+  });
+
+  test("does not seed when the roster is not empty or for the hidden list", async () => {
+    let seedCount = 0;
+    const store = fakeStore({
+      async ensureDefaultBot() {
+        seedCount += 1;
+        return true;
+      },
+    });
+    expect((await appFor(store).request("/")).status).toBe(200);
+    const empty = fakeStore({
+      async list() {
+        return [];
+      },
+      async ensureDefaultBot() {
+        seedCount += 1;
+        return true;
+      },
+    });
+    expect((await appFor(empty).request("/?hidden=true")).status).toBe(200);
+    expect(seedCount).toBe(0);
+  });
+
+  test("a failed seed only logs; the list still answers", async () => {
+    const original = console.error;
+    console.error = () => {};
+    try {
+      const store = fakeStore({
+        async list() {
+          return [];
+        },
+        async ensureDefaultBot() {
+          throw new Error("database unavailable");
+        },
+      });
+      const response = await appFor(store).request("/");
+      expect(response.status).toBe(200);
+      expect((await json(response)).agents).toEqual([]);
+    } finally {
+      console.error = original;
+    }
+  });
+});

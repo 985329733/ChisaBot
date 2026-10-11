@@ -944,3 +944,63 @@ describe("agent profile store integration", () => {
     });
   });
 });
+
+/*
+ * 首次使用的默认机器人。只有在测试库里没有任何公开机器人时才有意义：公开机器人对每个人都可见，
+ * 那样的部署本来就不会是空的。
+ */
+const publicBotsExist =
+  (
+    await database
+      .select({ id: agentProfiles.agentId })
+      .from(agentProfiles)
+      .where(
+        and(
+          eq(agentProfiles.visibility, "public"),
+          sql`${agentProfiles.deletedAt} is null`,
+        ),
+      )
+      .limit(1)
+  ).length > 0;
+
+describe("first-run default Bot", () => {
+  test.skipIf(publicBotsExist)(
+    "creates one private 助手 per person, even when two reads race, and makes it the main Bot",
+    async () => {
+      const person = await createUser();
+      const results = await Promise.all([
+        store.ensureDefaultBot?.(person),
+        store.ensureDefaultBot?.(person),
+      ]);
+      expect(results.filter(Boolean)).toHaveLength(1);
+      const roster = await store.list(person);
+      for (const agent of roster) createdAgentIds.push(agent.id);
+      expect(roster).toHaveLength(1);
+      expect(roster[0]).toMatchObject({
+        name: "助手",
+        visibility: "private",
+        ownerUserId: person.id,
+      });
+      const [row] = await database
+        .select({ preferences: users.preferences })
+        .from(users)
+        .where(eq(users.id, person.id));
+      expect(row?.preferences?.mainBotId).toBe(roster[0]?.id);
+      expect(await store.ensureDefaultBot?.(person)).toBe(false);
+    },
+  );
+
+  test("does nothing when the person can already see a Bot", async () => {
+    const person = await createUser();
+    const own = await store.create(person, {
+      name: "已有",
+      title: "测试",
+      roleDescription: "测试",
+      visibility: "private",
+    });
+    createdAgentIds.push(own.id);
+    await store.setHidden(person, own.id, true);
+    expect(await store.ensureDefaultBot?.(person)).toBe(false);
+    expect(await store.list(person, true)).toHaveLength(1);
+  });
+});

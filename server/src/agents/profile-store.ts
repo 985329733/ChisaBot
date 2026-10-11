@@ -6,6 +6,7 @@ import {
   agentProfiles,
   agents,
   deploymentPackages,
+  users,
 } from "../db/schema";
 import {
   authFromConfiguration,
@@ -77,6 +78,15 @@ export type AgentProfileStore = {
     input: CreateAgentInput,
   ): Promise<AgentProfile>;
   duplicate(actor: AgentActor, id: string): Promise<AgentProfile>;
+  /**
+   * 首次使用的默认机器人：这个人一个机器人都看不到（含隐藏的、公开的、团队共享给他的；管理员看全部）时，
+   * 给他建一个私有的「助手」，他还没有主机器人时设为主机器人。返回是否新建了。
+   *
+   * 先一次轻查询；为空才开事务、按用户加 `pg_advisory_xact_lock`、再查一遍，仍为空才创建，所以同时
+   * 打开两个标签页也只会建一个。不指定模型 = 部署默认模型；有托管代理时和向导里选「内置」一样跑在托管代理上。
+   * 可选：测试替身不用实现。
+   */
+  ensureDefaultBot?(actor: AgentActor): Promise<boolean>;
   setHidden(actor: AgentActor, id: string, hidden: boolean): Promise<void>;
   setPinned(actor: AgentActor, id: string, pinned: boolean): Promise<void>;
   softDelete(actor: AgentActor, id: string): Promise<void>;
@@ -360,6 +370,28 @@ function requireManageable(actor: AgentActor, profile: AgentProfile) {
   }
 }
 
+/** 首次使用的默认机器人（见 `ensureDefaultBot`）。私有、他自己的，可改名 / 改提示词 / 删除。 */
+const DEFAULT_BOT = {
+  name: "助手",
+  title: "通用助手",
+  roleDescription:
+    "协助处理日常工作，回答清晰、简洁且准确。默认使用简体中文；用户明确要求其他语言时按其要求回复。",
+  visibility: "private",
+  systemPrompt:
+    "你是一个乐于助人的通用助手，回答清晰、简洁且准确。默认使用简体中文与用户交流；用户明确要求其他语言时按其要求回复。保留代码、命令、API 标识符和专有名称。",
+} satisfies Parameters<AgentProfileStore["create"]>[1];
+
+/** 这个人能看到至少一个机器人吗（含隐藏的）。一次很轻的查询。 */
+async function seesAnyBot(executor: DatabaseExecutor, actor: AgentActor) {
+  const rows = await executor
+    .select({ id: agents.id })
+    .from(agents)
+    .innerJoin(agentProfiles, eq(agentProfiles.agentId, agents.id))
+    .where(and(isNull(agentProfiles.deletedAt), accessFilter(actor)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 function newAgentId() {
   return `agent_${crypto.randomUUID()}`;
 }
@@ -417,6 +449,82 @@ export function createAgentProfileStore(
     ? { endpoint: managedAgentAgUiUrl.toString() }
     : undefined;
 
+  /** `create` on the caller's open transaction, so the first-run seed can lock, check and create in one. */
+  async function createWithin(
+    transaction: Transaction,
+    actor: AgentActor,
+    input: Parameters<AgentProfileStore["create"]>[1],
+  ): Promise<AgentProfile> {
+    const id = newAgentId();
+    const endpoint = input.endpoint
+      ? { endpoint: input.endpoint }
+      : managedConfiguration;
+    const systemPrompt = input.systemPrompt?.trim();
+    if (endpoint) {
+      await transaction.insert(agents).values({
+        id,
+        name: input.name,
+        type: "remote_ag_ui",
+        // Their endpoint if they gave one, ours if they did not. Validated before it reaches
+        // here; see endpoint.ts for why a stored URL is a security decision and not a text
+        // field.
+        //
+        // The key, if there is one, goes to the vault and only its reference is stored here. See
+        // auth-header.ts for why a bearer token must not sit next to the endpoint.
+        configuration: {
+          ...endpoint,
+          ...(input.auth && vault
+            ? {
+                auth: await storeAgentAuth({
+                  store: vault.store,
+                  encryptionKey: vault.encryptionKey,
+                  agentId: id,
+                  header: input.auth.header,
+                  value: input.auth.value,
+                  executor: transaction,
+                }),
+              }
+            : {}),
+        },
+      });
+    } else if (systemPrompt) {
+      /*
+       * Nowhere to send it, so it runs here.
+       *
+       * This is the shape General Assistant and Knowledge already have, and the shape
+       * `registeredAgentFromRow` reads: `built_in` plus a non-empty `configuration.systemPrompt`.
+       * A key is deliberately not written on this branch — a key authenticates to an address and
+       * this coworker has none, so storing one would leave a live credential in the vault that
+       * nothing can ever present.
+       */
+      await transaction.insert(agents).values({
+        id,
+        name: input.name,
+        type: "built_in",
+        configuration: { systemPrompt },
+      });
+    } else {
+      /*
+       * No address, no Bot in the box, and no instruction to run on. There is nothing to create:
+       * a `built_in` row with an empty prompt is a coworker `registeredAgentFromRow` drops on
+       * the floor, and the Bot would exist on every screen while answering nobody.
+       */
+      throw new ManagedAgentUnavailableError();
+    }
+    await transaction.insert(agentProfiles).values({
+      agentId: id,
+      ownerUserId: actor.id,
+      title: input.title,
+      roleDescription: input.roleDescription,
+      avatarSeed: id,
+      visibility: input.visibility,
+    });
+
+    const profile = await findAccessibleProfile(transaction, actor, id);
+    if (!profile) throw new AgentNotFoundError(id);
+    return profile;
+  }
+
   return {
     async list(actor, hidden = false) {
       const rows = await joinedProfiles(database, actor).where(
@@ -441,77 +549,35 @@ export function createAgentProfileStore(
     },
 
     create(actor, input) {
-      return database.transaction(async (transaction) => {
-        const id = newAgentId();
-        const endpoint = input.endpoint
-          ? { endpoint: input.endpoint }
-          : managedConfiguration;
-        const systemPrompt = input.systemPrompt?.trim();
-        if (endpoint) {
-          await transaction.insert(agents).values({
-            id,
-            name: input.name,
-            type: "remote_ag_ui",
-            // Their endpoint if they gave one, ours if they did not. Validated before it reaches
-            // here; see endpoint.ts for why a stored URL is a security decision and not a text
-            // field.
-            //
-            // The key, if there is one, goes to the vault and only its reference is stored here. See
-            // auth-header.ts for why a bearer token must not sit next to the endpoint.
-            configuration: {
-              ...endpoint,
-              ...(input.auth && vault
-                ? {
-                    auth: await storeAgentAuth({
-                      store: vault.store,
-                      encryptionKey: vault.encryptionKey,
-                      agentId: id,
-                      header: input.auth.header,
-                      value: input.auth.value,
-                      executor: transaction,
-                    }),
-                  }
-                : {}),
-            },
-          });
-        } else if (systemPrompt) {
-          /*
-           * Nowhere to send it, so it runs here.
-           *
-           * This is the shape General Assistant and Knowledge already have, and the shape
-           * `registeredAgentFromRow` reads: `built_in` plus a non-empty `configuration.systemPrompt`.
-           * A key is deliberately not written on this branch — a key authenticates to an address and
-           * this coworker has none, so storing one would leave a live credential in the vault that
-           * nothing can ever present.
-           */
-          await transaction.insert(agents).values({
-            id,
-            name: input.name,
-            type: "built_in",
-            configuration: { systemPrompt },
-          });
-        } else {
-          /*
-           * No address, no Bot in the box, and no instruction to run on. There is nothing to create:
-           * a `built_in` row with an empty prompt is a coworker `registeredAgentFromRow` drops on
-           * the floor, and the Bot would exist on every screen while answering nobody.
-           */
-          throw new ManagedAgentUnavailableError();
-        }
-        await transaction.insert(agentProfiles).values({
-          agentId: id,
-          ownerUserId: actor.id,
-          title: input.title,
-          roleDescription: input.roleDescription,
-          avatarSeed: id,
-          visibility: input.visibility,
-        });
+      return database.transaction((transaction) =>
+        createWithin(transaction, actor, input),
+      );
+    },
 
-        const profile = await findAccessibleProfile(transaction, actor, id);
-        if (!profile) throw new AgentNotFoundError(id);
-        return profile;
+    async ensureDefaultBot(actor) {
+      if (!actor.id) return false;
+      if (await seesAnyBot(database, actor)) return false;
+      return database.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`chisabot:default-bot:${actor.id}`}, 0))`,
+        );
+        if (await seesAnyBot(transaction, actor)) return false;
+        const profile = await createWithin(transaction, actor, DEFAULT_BOT);
+        await transaction
+          .update(users)
+          .set({
+            preferences: sql`coalesce(${users.preferences}, '{}'::jsonb) || jsonb_build_object('mainBotId', ${profile.id}::text)`,
+          })
+          .where(
+            and(
+              eq(users.id, actor.id),
+              sql`coalesce(${users.preferences}->>'mainBotId', '') = ''`,
+            ),
+          );
+        return true;
       });
     },
+
 
     update(actor, id, input) {
       return database.transaction(
