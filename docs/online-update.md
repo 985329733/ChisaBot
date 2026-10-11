@@ -13,8 +13,11 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
   可以关掉，同一个构建号关掉后不再提示。开发环境（`dev`）永不提示。
 - **从不自动刷新。** 用户点了刷新时，如果机器人还在回复（`channel-chat.tsx` 通过 `useReportBusy` 登记）或页面上有
   没发出去的文字，先弹确认框（`lib/activity.ts`）。
-- 缓存：应用对 `index.html` 一律 `Cache-Control: no-cache`、带哈希的 `/assets/*` 永久缓存（直连 3001 时生效）；
-  经公网网关时 `security-headers.conf` 对所有响应都是 `no-store`，入口页同样不会是旧的。没有 service worker。
+- 缓存：应用对 `index.html` 一律 `Cache-Control: no-cache`、带哈希的 `/assets/*` 永久缓存（直连 3001 时生效）。
+  经公网网关（`/opt/openbot-zh/public/nginx.conf`）时入口页和接口仍是 `no-store`（`security-headers.conf`），入口页不会是旧的；
+  **带哈希的 `/assets/*` 单独一段 `location ^~ /assets/`**：仍要登录（`auth_request`），成功响应
+  `Cache-Control: private, max-age=31536000, immutable`（浏览器长期缓存，`CDN-Cache-Control: no-store` 让 Cloudflare 不缓存），
+  非 200 是 `no-store`。以前所有资源都是 `no-store`，每次打开都要重新下载约 1 MB（gzip 后）的脚本。没有 service worker。
 
 ## 2. PC 客户端（0.2.2 起）
 
@@ -66,17 +69,18 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
   - 没有令牌时读本机镜像本身，由发布者在推 GitHub 的同时推一份：`git push root@<host>:/opt/chisabot-updater/mirror.git main`。
 - **update.sh** 步骤（与 `shared/system-update.ts` 的 `UPDATE_STEPS` 一致）：
   1. 准备：目标提交在 `main` 上，磁盘剩余 ≥ 2.5 GB；
-  2. 检查依赖：`bun.lock`、各 `package.json`、`Dockerfile`、`docker/` 的指纹必须等于 `base-deps.sha256`（底座构建时的指纹），
+  2. 检查依赖：`bun.lock`、各 `package.json`（含 `agent-computer/` 的 `package.json` 和 `bun.lock`）、`Dockerfile`、`docker/` 的指纹必须等于 `base-deps.sha256`（底座构建时的指纹），
      否则停下：「需要完整构建」（一键更新只替换代码层）；
   3. 备份：`pg_dump`、compose、profiles / workspace 卷 → `/opt/chisabot-updater/backups/<时间>-<任务>/`（保留 5 份）；
   4. 构建前端：`git archive` 导出源码，`node_modules` 硬链接自 `node_modules-base`，暂停原型沙箱，在限内存
      （3500m，无 swap 的 7.6 GB 机器）的容器里 `vite build`（注入构建号），结束后恢复沙箱；
   5. 构建镜像：`FROM` 压平底座 `flat-20261011b`（1 层），只覆盖 `app/dist`、`server/{src,drizzle,scripts}`、`shared`、
-     `examples/zh-CN`、`build-info.json`，层数固定，不会碰到 127 层上限；标签 `auto-<UTC 时间>-<提交>`，标签
+     `examples/zh-CN`、`agent-computer/src`（服务器直接 import 它的 `egress.ts`）、`build-info.json`，层数固定，不会碰到 127 层上限；标签 `auto-<UTC 时间>-<提交>`，标签
      `chisabot.commit` 记录提交；
   6. 切换：写回滚脚本 `/opt/openbot-zh/rollback-to-<旧标签>.sh`，`compose.yaml.before-<新标签>`，改镜像行，`docker compose up --wait`；
   7. 健康检查（`health.sh`）：容器 healthy、20 秒内没有重启、本机 `/health` 200、`https://ayase.cn:8443/login` 200、
-     `/api/version` 的构建号是新的；**不通过就自动执行回滚脚本**，任务记为「已自动回滚」；
+     `/api/version` 的构建号是新的；最后做一次模型往返自检（`POST /api/admin/smoke`，见 `docs/admin-smoke.md`，不写任何对话），
+     结果只记进日志、不影响通过与否；**不通过就自动执行回滚脚本**，任务记为「已自动回滚」；
   8. 完成：只保留最近 3 个 `auto-*` 镜像，`docker image prune`。
 - **回滚到上一版**（`rollback.sh`）：「上一版」= 当前镜像上线前的 compose（`compose.yaml.before-<当前标签>`，手动发布
   和一键更新都会留下）。只换镜像，数据库不回退（备份在 backups/）。

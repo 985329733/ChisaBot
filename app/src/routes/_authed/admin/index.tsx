@@ -183,7 +183,7 @@ function RouteComponent() {
       title={"部署概览"}
     >
       {/* Template E: the four questions as a 2-up grid of glass cards (DESIGN.md §12). */}
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {SECTIONS.map((section) => (
           <section className="page-rows admin-group" key={section.title}>
             <div className="sg-card-h pb-1">

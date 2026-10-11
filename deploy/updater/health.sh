@@ -28,4 +28,9 @@ if [ -n "$TAG" ]; then
   echo "/api/version $V"
   echo "$V" | grep -q "\"buildId\":\"$TAG\"" || { echo "/api/version 不是新构建 $TAG"; exit 1; }
 fi
+# 模型往返自检（docs/admin-smoke.md）：不建对话、不写消息。只记录，不影响结果 —— 模型服务商一时不通不该把新版本回滚掉。
+if [ -n "$TAG" ]; then
+  S=$(curl -s --max-time 60 -X POST -H 'content-type: application/json' -d '{}' "$LOCAL_URL/api/admin/smoke" | head -c 400)
+  echo "模型自检（不影响结果）$S"
+fi
 echo "健康检查通过"

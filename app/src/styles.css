@@ -3963,6 +3963,8 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   animation: topbar-dot-in var(--dur-2) var(--ease-spring) both;
 }
 .glass-mini-comp.is-needs { background: var(--warn); }
+/* 收起左栏「当前对话」的隐藏机器人和普通机器人之间的分隔线 */
+.glass-mini-sep { flex: none; width: 28px; height: 1px; margin: 2px 0; background: var(--line-strong); border-radius: 1px; }
 @media (hover: none) { .glass-mini-more { opacity: 0.8; scale: 1; } }
 @media (prefers-reduced-motion: reduce) { .glass-mini-more { transition: none; } .glass-mini-comp { animation: none; } }
 
@@ -4061,6 +4063,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   .sysupd-commit { grid-template-columns: auto minmax(0, 1fr); }
   .sysupd-meta { grid-column: 2; }
 }
+.sysupd-smoke { font-weight: 500; }
+.sysupd-smoke.is-ok { color: var(--success); }
+.sysupd-smoke.is-bad { color: var(--danger); }
 .sysupd-uptodate { display: flex; align-items: center; gap: 10px; padding: 18px 20px; font-size: 14px; color: var(--ink-2); }
 .sysupd-ok-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--success); background: var(--success-soft); }
 .sysupd-job { padding: 20px; display: flex; flex-direction: column; gap: 14px; }

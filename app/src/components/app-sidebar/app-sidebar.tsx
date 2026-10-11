@@ -687,6 +687,7 @@ function BotMiniRail({
       </RailTip>
       <div className="glass-card glass-mini-card">
         <div className="glass-mini-scroll scroll-fade-b">
+          <HiddenChatMiniBot known={new Set(bots.map((bot) => bot.id))} />
           {bots.map((bot) => (
             <MiniBot
               attention={attentionById.get(bot.id)}
@@ -838,6 +839,82 @@ function MiniBot({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * 收起的左栏里「当前对话」的隐藏机器人（例如浏览器机器人）：和展开时的 HiddenChatBotRow 对应，放在头像列最上面，
+ * 下面一道细分隔线和普通机器人隔开。和 MiniBot 一样右键或「⋯」徽标打开同一个菜单（BotMenuContent），
+ * 计算机打开 / 需要你时左上角有圆点。它就是当前对话，所以头像本身不是链接。
+ */
+function HiddenChatMiniBot({ known }: { known: Set<string> }) {
+  const current = useCurrentBotChat();
+  const agents = useQuery(agentListQueryOptions());
+  const [menuOpen, setMenuOpen] = useState(false);
+  if (!current || known.has(current.agentId)) return null;
+  const profile = agents.data?.find((a) => a.id === current.agentId);
+  const bot: RosterBot = {
+    id: current.agentId,
+    name: profile?.name ?? current.fallbackName ?? "",
+    title: profile?.title ?? null,
+  };
+  const label = `当前对话：${bot.name}`;
+  const computer =
+    current.canComputer && (current.needsYou || current.computerOpen)
+      ? current.needsYou
+        ? "needs"
+        : "open"
+      : null;
+  return (
+    <>
+      <div
+        className={cn("glass-mini-slot is-on", menuOpen && "menu-open")}
+        data-hidden-chat-bot=""
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenuOpen(true);
+        }}
+      >
+        <RailTip label={label}>
+          <span aria-current="page" aria-label={label} className="glass-mini-bot is-on" role="img">
+            <ChannelAvatar participantIds={[bot.id]} size={36} />
+          </span>
+        </RailTip>
+        {computer ? (
+          <span
+            className={cn("glass-mini-comp", computer === "needs" && "is-needs")}
+            role="img"
+            aria-label={computer === "needs" ? "计算机需要你" : "计算机已打开"}
+            title={computer === "needs" ? "计算机需要你" : "计算机已打开"}
+          />
+        ) : null}
+        <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+          <DropdownMenuTrigger
+            render={
+              <button
+                aria-label={`${bot.name} 机器人菜单`}
+                className="glass-mini-more"
+                title={"机器人菜单"}
+                type="button"
+              />
+            }
+          >
+            <IconDots className="size-3" />
+          </DropdownMenuTrigger>
+          <BotMenuContent
+            bot={bot}
+            chat={current}
+            latest={undefined}
+            main={null}
+            onDelete={() => {}}
+            onResume={() => {}}
+            onToggleMain={null}
+            paused={false}
+          />
+        </DropdownMenu>
+      </div>
+      <span aria-hidden className="glass-mini-sep" />
+    </>
   );
 }
 

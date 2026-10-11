@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
+import { settingsKeys } from "@/lib/settings/queries";
+import { queryClient } from "@/query-client";
 
 export type AgentVisibility = "public" | "private";
 
@@ -116,10 +118,28 @@ export type HandoffGrants = {
 export function agentListQueryOptions(hidden = false) {
   return queryOptions({
     queryKey: agentKeys.list(hidden),
-    queryFn: (): Promise<AgentProfile[]> =>
-      client(`/api/agents${hidden ? "?hidden=true" : ""}`, "agents", {
-        fallback: "无法加载 AI 同事",
-      }),
+    queryFn: async (): Promise<AgentProfile[]> => {
+      const fallback = "无法加载 AI 同事";
+      const response = await client(
+        `/api/agents${hidden ? "?hidden=true" : ""}`,
+        { fallback },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        agents?: AgentProfile[];
+        seededDefault?: boolean;
+      } | null;
+      if (!body || !Array.isArray(body.agents)) throw new Error(fallback);
+      /*
+       * 首次使用时服务器刚建了默认「助手」并把它设成主机器人（偏好里的 mainBotId）。偏好可能早在
+       * 这之前就读过了，不刷新的话星标要等下次读偏好才出现。
+       */
+      if (body.seededDefault) {
+        void queryClient.invalidateQueries({
+          queryKey: [...settingsKeys.all, "preferences"],
+        });
+      }
+      return body.agents;
+    },
   });
 }
 

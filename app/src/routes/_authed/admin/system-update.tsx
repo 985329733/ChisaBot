@@ -7,10 +7,12 @@ import {
   IconHistory,
   IconPackage,
   IconServer,
+  IconStethoscope,
   IconX,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import {
   ROLLBACK_STEPS,
   type SystemUpdateHistoryEntry,
@@ -31,6 +33,7 @@ import {
   systemUpdateQueryOptions,
   timeText,
 } from "@/lib/system-update";
+import { type AdminSmokeResult, runAdminSmoke } from "@/lib/admin-smoke";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/admin/system-update")({
@@ -283,6 +286,8 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
         </Card>
       </PageSection>
 
+      <SmokeSection />
+
       <PageSection title="历史">
         {data.history.length ? (
           <Card>
@@ -316,6 +321,51 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
         )}
       </PageSection>
     </>
+  );
+}
+
+/**
+ * 更新后自检（docs/admin-smoke.md）：用聊天同一套模型配置做一次真实往返，不建对话、不写消息。
+ * 结果只留在这一页的内存里。
+ */
+function SmokeSection() {
+  const [result, setResult] = useState<AdminSmokeResult | null>(null);
+  const smoke = useAsyncAction(
+    async () => {
+      const next = await runAdminSmoke();
+      setResult(next);
+      if (!next.ok) throw new Error(next.message);
+    },
+    { errorToast: (error) => error.message },
+  );
+  return (
+    <PageSection title="自检">
+      <Card>
+        <SettingRow
+          description={
+            result ? (
+              <span className={cn("sysupd-smoke", result.ok ? "is-ok" : "is-bad")} data-smoke-result="">
+                {`${result.message} · ${result.model} · ${result.latencyMs} ms · 未保存任何对话`}
+              </span>
+            ) : (
+              "用聊天同一套模型配置跟模型说一句话，确认这台服务器能正常回复。不会建对话，也不写任何消息。"
+            )
+          }
+          title="模型往返自检"
+        >
+          <Button
+            feedback={{ pending: "自检中…", success: "通过", error: "未通过" }}
+            onClick={() => void smoke.run()}
+            size="sm"
+            state={smoke.state}
+            variant="outline"
+          >
+            <IconStethoscope />
+            {"自检"}
+          </Button>
+        </SettingRow>
+      </Card>
+    </PageSection>
   );
 }
 

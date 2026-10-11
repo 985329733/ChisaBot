@@ -31,6 +31,7 @@ beforeEach(() => {
       preferences: {
         messageListEmphasis: "thread",
         selfHostBannerDismissed: true,
+        mainBotId: null,
       },
     });
   globalThis.fetch = Object.assign(
@@ -84,6 +85,7 @@ function setup({
   const preferences: UserPreferences = {
     messageListEmphasis: "thread",
     selfHostBannerDismissed: dismissed,
+    mainBotId: null,
   };
   client.setQueryData(
     userPreferencesQueryOptions("alice").queryKey,

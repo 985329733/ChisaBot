@@ -370,6 +370,7 @@ export function createAgentRoutes(
     try {
       const hidden = context.req.query("hidden") === "true";
       let agents = await store.list(context.var.actor, hidden);
+      let seededDefault = false;
       /*
        * 首次使用：一个机器人都看不到的人第一次读列表时，给他建一个私有的「助手」（见 `ensureDefaultBot`）。
        * 只在普通列表为空时才问；失败只记日志，列表照常返回，下次读取再试。
@@ -378,6 +379,7 @@ export function createAgentRoutes(
         try {
           if (await store.ensureDefaultBot(context.var.actor)) {
             agents = await store.list(context.var.actor, false);
+            seededDefault = true;
           }
         } catch (error) {
           console.error("[agents] default bot seeding failed", error);
@@ -385,6 +387,8 @@ export function createAgentRoutes(
       }
       return context.json({
         agents: agents.map((agent) => dto(context.var.actor, agent)),
+        // 刚建了默认「助手」（同时可能写了偏好里的 mainBotId）：前端据此刷新偏好，主机器人星标立刻出现。
+        ...(seededDefault ? { seededDefault: true } : {}),
       });
     } catch (error) {
       return mapStoreError(context, error);

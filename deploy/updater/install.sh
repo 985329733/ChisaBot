@@ -13,7 +13,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 U=/opt/chisabot-updater
 BASE_COMMIT=${1:?usage: install.sh <base-commit>}
 mkdir -p "$U"/{jobs,backups} "$U/spool/requests" "$U/spool/state"
-for f in update.sh rollback.sh health.sh deps-fingerprint.sh rollback.template.sh git-askpass.sh chisabot-updater.py Dockerfile.update; do
+for f in update.sh rollback.sh health.sh smoke.sh deps-fingerprint.sh rollback.template.sh git-askpass.sh chisabot-updater.py Dockerfile.update; do
   install -m 0755 "$HERE/$f" "$U/$f"
 done
 chmod 0644 "$U/Dockerfile.update" "$U/rollback.template.sh"

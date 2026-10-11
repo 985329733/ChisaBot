@@ -4,4 +4,5 @@
 set -euo pipefail
 git --git-dir=/opt/chisabot-updater/mirror.git ls-tree -r "$1" -- \
   bun.lock package.json app/package.json server/package.json worker/package.json Dockerfile docker \
+  agent-computer/package.json agent-computer/bun.lock \
   | sha256sum | cut -d' ' -f1

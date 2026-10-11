@@ -11,7 +11,8 @@ import { getHotkey, matchesHotkey } from "@/lib/hotkeys/hotkeys";
  * so the shortcut Settings lists never fired for anybody with one of those layouts selected.
  */
 
-const combo = getHotkey("new-chat").combo;
+// 「新建机器人」占用了原来「新聊天」的 Shift+N（DESIGN v4.2 去掉了新聊天）。
+const combo = getHotkey("new-bot").combo;
 
 /** A keydown as a browser reports it: `key` from the layout, `code` from the physical key. */
 function keydown(

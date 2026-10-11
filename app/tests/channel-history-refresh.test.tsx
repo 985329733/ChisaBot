@@ -15,7 +15,6 @@ import {
   channelKeys,
 } from "@/lib/channels/queries";
 import { applyChannelEvent } from "@/lib/channels/use-channel-events";
-import { a2uiProviderOptions, OPENBOT_A2UI_CATALOG } from "@/lib/copilot/a2ui";
 import { queryClient } from "@/query-client";
 
 type ChannelCache = InfiniteData<ChannelPage>;
@@ -156,12 +155,11 @@ afterAll(() => {
   GlobalRegistrator.unregister();
 });
 
-function tree(selected: AgentChannel, a2uiEnabled = false) {
+function tree(selected: AgentChannel) {
   return (
     <QueryClientProvider client={queryClient}>
       <CopilotKitProvider
         runtimeUrl="http://localhost/api/copilotkit"
-        {...a2uiProviderOptions(a2uiEnabled)}
       >
         <CoreProbe />
         <ChannelChat channel={selected} runtimeAgentId="refresh-bot" />
@@ -197,7 +195,6 @@ function mounting(
   read: typeof history = async () => stored([initial]),
   snapshot: readonly Message[] = [],
   cachedActivity: ActivityFixture | null = null,
-  a2uiEnabled = false,
 ) {
   historyReads = [];
   gatewaySnapshot = snapshot;
@@ -209,7 +206,7 @@ function mounting(
   ];
   history = read;
   cacheChannel(channel, cachedActivity);
-  return render(tree(channel, a2uiEnabled));
+  return render(tree(channel));
 }
 async function mounted() {
   const view = mounting();
@@ -217,85 +214,6 @@ async function mounted() {
   return view;
 }
 
-test("A2UI activity actions run the actual channel agent and thread with edited values", async () => {
-  const activity = {
-    id: "channel-trip-form",
-    role: "activity",
-    activityType: "a2ui-surface",
-    content: {
-      a2ui_operations: [
-        {
-          version: "v0.9",
-          createSurface: {
-            surfaceId: "trip",
-            catalogId: OPENBOT_A2UI_CATALOG.id,
-          },
-        },
-        {
-          version: "v0.9",
-          updateComponents: {
-            surfaceId: "trip",
-            components: [
-              {
-                id: "root",
-                component: "Column",
-                children: ["destination", "confirm"],
-              },
-              {
-                id: "destination",
-                component: "TextField",
-                label: "Destination",
-                value: { path: "/destination" },
-              },
-              {
-                id: "confirm",
-                component: "Button",
-                child: "confirm-label",
-                action: {
-                  event: {
-                    name: "confirm_trip",
-                    context: { destination: { path: "/destination" } },
-                  },
-                },
-              },
-              { id: "confirm-label", component: "Text", text: "Confirm trip" },
-            ],
-          },
-        },
-        {
-          version: "v0.9",
-          updateDataModel: {
-            surfaceId: "trip",
-            path: "/",
-            value: { destination: "Paris" },
-          },
-        },
-      ],
-    },
-  } satisfies Message;
-  const view = mounting(async () => stored([activity]), [activity], null, true);
-  const user = userEvent.setup({ document: view.container.ownerDocument });
-  const destination = await view.findByRole("textbox", { name: "Destination" });
-  await user.clear(destination);
-  await user.type(destination, "Kyoto");
-  await user.click(view.getByRole("button", { name: "Confirm trip" }));
-  await waitFor(() => expect(runRequests).toHaveLength(1));
-  expect(runRequests[0]?.path).toBe("/api/copilotkit/agent/refresh-bot/run");
-  expect(runRequests[0]?.input.threadId).toBe(channel.threadId);
-  expect(runRequests[0]?.input.forwardedProps).toMatchObject({
-    a2uiAction: {
-      userAction: {
-        name: "confirm_trip",
-        surfaceId: "trip",
-        sourceComponentId: "confirm",
-        context: { destination: "Kyoto" },
-      },
-    },
-  });
-  await waitFor(() =>
-    expect(core?.properties).not.toHaveProperty("a2uiAction"),
-  );
-});
 function currentAgent(selected = channel) {
   const agent = core?.getAgent(`channel:${selected.id}`);
   if (!agent) throw new Error("Mounted channel agent is not registered");

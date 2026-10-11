@@ -781,6 +781,8 @@ describe("first-run default Bot", () => {
       "agent-default",
     ]);
     expect(seedCalls).toHaveLength(1);
+    // 前端靠这个刷新偏好，主机器人星标立刻出现。
+    expect(body.seededDefault).toBe(true);
   });
 
   test("does not seed when the roster is not empty or for the hidden list", async () => {
@@ -791,7 +793,9 @@ describe("first-run default Bot", () => {
         return true;
       },
     });
-    expect((await appFor(store).request("/")).status).toBe(200);
+    const listed = await appFor(store).request("/");
+    expect(listed.status).toBe(200);
+    expect((await json(listed)).seededDefault).toBeUndefined();
     const empty = fakeStore({
       async list() {
         return [];

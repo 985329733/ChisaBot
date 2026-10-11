@@ -13,7 +13,7 @@
 # 最后一行一定是 "::result:: succeeded|failed|rolled_back"（被中断时由 trap 写 failed）。
 #
 # 镜像的做法和手动发布一样（127 层上限）：FROM 压平的底座（BASE_IMAGE），只覆盖 app/dist、server/src、
-# server/drizzle、server/scripts、shared、examples/zh-CN 和 build-info.json，层数固定。依赖（bun.lock、
+# server/drizzle、server/scripts、shared、examples/zh-CN、agent-computer/src 和 build-info.json，层数固定。依赖（bun.lock、
 # package.json）、Dockerfile、docker/ 有变化时一键更新做不了 —— deps 一步会停下，需要完整构建新底座。
 # 内存只有 7.6 GB、没有 swap：前端构建在限内存的容器里跑，构建期间停掉原型沙箱，结束后（含失败）恢复。
 set -uo pipefail
@@ -137,11 +137,12 @@ echo "前端构建完成"
 # ---------- image ----------
 step image "构建镜像 $NEW_IMAGE（底座 $BASE_IMAGE）"
 C="$B/ctx"
-mkdir -p "$C/app" "$C/server" "$C/examples"
+mkdir -p "$C/app" "$C/server" "$C/examples" "$C/agent-computer"
 cp -a "$B/src/app/dist" "$C/app/dist"
 cp -a "$B/src/server/src" "$B/src/server/drizzle" "$B/src/server/scripts" "$C/server/"
 cp -a "$B/src/shared" "$C/shared"
 cp -a "$B/src/examples/zh-CN" "$C/examples/zh-CN"
+cp -a "$B/src/agent-computer/src" "$C/agent-computer/src"
 cp -p "$B/build-info.json" "$C/build-info.json"
 sed -e "s#@BASE_IMAGE@#$BASE_IMAGE#" -e "s#@COMMIT@#$TARGET#g" -e "s#@TAG@#$TAG#g" -e "s#@VERSION@#${VERSION:-0.0.0}#g" \
   "$U/Dockerfile.update" > "$C/Dockerfile" || fail "生成 Dockerfile 失败"

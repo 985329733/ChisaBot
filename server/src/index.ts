@@ -267,6 +267,7 @@ import { createModelCatalogService } from "./model-catalog";
 import { createMagpieService, readMagpieWebKey } from "./magpie";
 import { readRunningBuild } from "./build-info";
 import { createSystemUpdateRoutes, createSystemUpdateService } from "./system-update";
+import { createAdminSmokeRoutes } from "./admin-smoke";
 import { createSelfHostBanner } from "./self-host-banner";
 import { createTeamBots } from "./team-bots/team-bots";
 import {
@@ -3436,6 +3437,14 @@ const app = createApp(
   {
     modelCatalogRefreshMinutes,
     extraRoutes: ({ requireUser }) => [
+      [
+        "/api/admin/smoke",
+        createAdminSmokeRoutes({
+          requireUser,
+          resolveConnection: resolveRuntimeConnection,
+          resolveConnectionForAgent: resolveRuntimeConnectionForAgent,
+        }),
+      ],
       [
         "/api/admin/system-update",
         createSystemUpdateRoutes({

@@ -198,7 +198,10 @@ export type RuntimeModelConnection = {
 };
 export type RuntimeModelResolver = () => Promise<RuntimeModelConnection>;
 
-function connectionLanguageModel(model: RuntimeModel, apiKey: string | null) {
+export function connectionLanguageModel(
+  model: RuntimeModel,
+  apiKey: string | null,
+) {
   const connectionFetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
