@@ -2225,23 +2225,10 @@ export function mountCopilotRuntime(
           },
         }
       : {}),
-    /*
-     * What lets a Bot answer with an interface it wrote itself.
-     *
-     * This one flag is the whole difference between a Bot that draws and a Bot that describes
-     * markup it cannot show. The middleware it turns on does not give the model the tool — the
-     * browser does that — it reads the arguments of the `generateSandboxedUi` call as they stream
-     * and re-emits them as `open-generative-ui` activity events. Those events are the only thing
-     * that paints: the tool's own renderer shows the waiting message and then returns nothing. So a
-     * deployment with the browser half and not this one has Bots generating whole interfaces that
-     * never appear, which is the shape this capability arrived in.
-     *
-     * `true` rather than a list of Bots. The list narrows only the event transform, and the tool
-     * stays offered to every Bot regardless, so naming some Bots here would leave the others able to
-     * call it and draw nothing. Whether the capability exists at all is the switch this deployment
-     * has; see DeploymentConfig.generativeUi.
-     */
-    ...(config.generativeUi ? { openGenerativeUI: true } : {}),
+    // Open Generative UI（`generateSandboxedUi`，沙箱 iframe 里的自写 HTML）已停用：json-render 的
+    // `render_ui` 服务器工具（server/src/generative-ui/render-ui.ts）是唯一的生成式界面，仍由
+    // DeploymentConfig.generativeUi（OPENBOT_GENERATIVE_UI）控制。这里不再传 `openGenerativeUI`，
+    // 运行时就不会声明该能力，浏览器端也就不会把 `generateSandboxedUi` 工具提供给 Bot。
     // A2UI 已被 json-render 取代（server/src/generative-ui/render-ui.ts 的 `render_ui` 工具）。
     // 始终关闭 SDK 的 A2UI 中间件：旧的浏览器缓存仍可能带着 A2UI 目录，不能让它把中间件重新打开。
     a2ui: { enabled: false },

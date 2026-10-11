@@ -51,10 +51,10 @@ export type SentAttachment = {
 };
 
 /**
- * The SDK's own tool for drawing an interface, whose output is an activity rather than a result.
+ * Open Generative UI 的工具名（已停用，Bot 不再拿到这个工具）。
  *
- * Named here rather than imported because the SDK exports the renderer and the argument schema but
- * not the tool name; it is the string the runtime middleware matches on to emit the activity.
+ * 仍保留：旧会话的历史里还存着这种调用，它的界面以 `open-generative-ui` 活动的形式另外保存并照常
+ * 显示（见 chat-transcript.tsx），调用本身不应再画成一行空的工具卡片。
  */
 const GENERATE_SANDBOXED_UI = "generateSandboxedUi";
 
@@ -407,12 +407,8 @@ export function toVisibleChatItems(
         // call with no `function`, threw before a single row could be drawn.
         if (!isReadableToolCall(toolCall)) continue;
         /*
-         * The call that draws an interface is not a row of its own; the interface is.
-         *
-         * Its renderer shows the waiting message and then returns nothing, so once the interface has
-         * arrived this leaves an empty item behind — invisible in itself, but still a child of a
-         * `gap-6` column, so every generated interface gained a stray gap under it. The activity
-         * beside it already shows its own progress while it is being written.
+         * 旧历史里的 `generateSandboxedUi` 调用不是单独一行，界面在旁边的活动消息里；跳过它，
+         * 否则会留下一个空条目，在 `gap-6` 列里多出一道空隙。
          */
         if (toolCall.function.name === GENERATE_SANDBOXED_UI) continue;
         items.push({

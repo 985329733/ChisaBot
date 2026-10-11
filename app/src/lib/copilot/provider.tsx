@@ -8,7 +8,6 @@ import { BotTools } from "./bot-tools";
 import { ComputerTools } from "./computer-tools";
 import { EscalationTool } from "./escalation-tool";
 import { GalleryTools } from "./gallery-tools";
-import { GENERATIVE_UI_DESIGN_SKILL } from "./generative-ui";
 import { HandoffTool } from "./handoff-tool";
 import { RenderUiTool } from "./render-ui-tool";
 import { SandboxedTools } from "./sandboxed-tools";
@@ -36,22 +35,10 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       runtimeUrl="/api/copilotkit"
       credentials="include"
       /*
-       * Passed only when this deployment actually has the capability, and this is the load-bearing
-       * part rather than a tidiness. The SDK reads generative UI as on when EITHER the runtime says
-       * so OR this prop is present at all, so passing it unconditionally would switch the browser
-       * half on in a deployment that had switched the server half off. The Bot would then be offered
-       * the tool, generate a whole interface, and nothing would draw it, because the events that
-       * paint one come from the runtime middleware this deployment declined to run.
-       *
-       * Absent, the SDK asks the runtime and believes the answer, which is the behaviour we want
-       * while this query is still in flight.
-       *
-       * The object carries guidance only. It does not turn anything on that the server has not
-       * already turned on; it replaces the SDK's shadcn-flavoured house style with OpenBot's.
+       * 不传 `openGenerativeUI`：Open Generative UI（`generateSandboxedUi`，沙箱 iframe 自写 HTML）
+       * 已停用。SDK 只要运行时声明了该能力或这里出现了这个属性就会把工具提供给 Bot；服务器已不再
+       * 声明，这里也不再传，于是 json-render 的 `render_ui`（下面的 RenderUiTool）是唯一的生成式界面。
        */
-      {...(capabilities?.generativeUi
-        ? { openGenerativeUI: { designSkill: GENERATIVE_UI_DESIGN_SKILL } }
-        : {})}
     >
       {/* Computer tools target the Bot declared by the mounted surface. */}
       <ActiveBotProvider>

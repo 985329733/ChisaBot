@@ -280,30 +280,18 @@ export type DeploymentConfig = {
   /** Names OpenBot on the analytics the runtime already sends. Off with OPENBOT_ACCESSIBILITY_DISABLED. */
   accessibility: boolean;
   /**
-   * Whether a Bot may answer with an interface it wrote itself.
+   * 生成式界面开关（OPENBOT_GENERATIVE_UI）：Bot 能否用 json-render 画界面。
    *
-   * This is not the component catalogue. A component is something this deployment holds: it was
-   * either compiled into the build or authored in the playground, an administrator granted it to a
-   * Bot, and all a Bot decides is which of them to draw. Here there is nothing to grant, because
-   * there is nothing yet — the Bot writes the markup, the styles and the script for this one answer,
-   * and they are gone when the conversation moves on.
+   * 打开时每个机器人都有 `render_ui` 服务器工具（server/src/generative-ui/render-ui.ts），浏览器
+   * 注册它的渲染器（app/src/lib/copilot/render-ui-tool.tsx）；关闭时两边都没有。界面只能由共享
+   * 目录里的 Skyglass 组件拼成，规格在服务器上校验，不运行 Bot 写的脚本。
    *
-   * A deployment switch rather than a per-Bot grant because the SDK offers no seam for one. The
-   * interface is painted from activity events that only the runtime middleware emits, and the tool
-   * the model calls is registered by the browser for every Bot the moment that middleware is on.
-   * Narrowing the middleware to some Bots would leave the rest able to call the tool and draw
-   * nothing at all, which is a worse answer than never offering it.
+   * 这不是组件库（编译进来或在 playground 里写、由管理员授权给 Bot 的组件），那是另一套机制。
    *
-   * On by default. A deployment that cannot allow generated interfaces can explicitly opt out with
-   * OPENBOT_GENERATIVE_UI=false or OPENBOT_GENERATIVE_UI=0.
+   * 早先的 Open Generative UI（`generateSandboxedUi`，Bot 在沙箱 iframe 里自写 HTML/CSS/JS）已停用，
+   * 这个开关不再打开它；运行时和浏览器都不再声明该能力。
    *
-   * What it runs is sandboxed by the SDK, in an iframe with no same-origin access to this app, so a
-   * generated interface reaches this deployment's data only through what the host hands it. This
-   * deployment hands it nothing. It can load libraries from a CDN, which is the part a deployment
-   * that must not reach the public internet from a browser tab needs to weigh.
-   *
-   * 同一个开关也控制 json-render 生成式界面（取代 A2UI）：打开时每个机器人都有 `render_ui` 工具
-   * （server/src/generative-ui/render-ui.ts），浏览器注册它的渲染器；关闭时两边都没有。
+   * 默认打开。显式设为 OPENBOT_GENERATIVE_UI=false 或 0 即关闭。
    */
   generativeUi: boolean;
   /**
@@ -1156,19 +1144,11 @@ function accessibilityEnabled(environment: Environment): boolean {
 }
 
 /**
- * Whether a Bot may draw an interface it wrote itself.
+ * 生成式界面（json-render `render_ui`）是否打开。
  *
- * Default-on, matching the product capability the browser can already render. Operators who cannot
- * allow generated interfaces can explicitly opt out. `false` is the documented spelling and `0` is
- * accepted alongside it as the conventional off value used by environment-driven switches.
- *
- * Anything else leaves the capability on. A typo should not silently become an opt-out, and the
- * capability must stay consistent between runtime and browser projection.
- *
- * The answer has to reach the browser as well as the runtime, which is why it ends up on
- * /api/capabilities rather than staying server-side. Enabling only the runtime half would leave the
- * browser never offering the tool; enabling only the browser half would have a Bot generate a whole
- * interface that nothing renders. See DeploymentConfig.generativeUi.
+ * 默认打开；`false` 是文档写法，`0` 作为常见的关闭值一并接受。其他任何值都保持打开，拼写错误不应
+ * 悄悄变成关闭。结果同时用于服务器（是否提供 `render_ui`）和 /api/capabilities（浏览器是否注册
+ * 渲染器），两边必须一致。见 DeploymentConfig.generativeUi。
  */
 function generativeUiEnabled(environment: Environment): boolean {
   const value = optional(environment, "OPENBOT_GENERATIVE_UI");
