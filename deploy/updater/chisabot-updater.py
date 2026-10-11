@@ -94,7 +94,7 @@ def clean(text, limit=400):
 def write_json(path, data, mode=0o644):
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
+        json.dump(data, f, ensure_ascii=True, indent=1)
     os.chmod(tmp, mode)
     os.rename(tmp, path)
 

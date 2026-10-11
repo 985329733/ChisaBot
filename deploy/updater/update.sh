@@ -121,10 +121,12 @@ done
 docker run --rm --memory "$BUILD_MEMORY" --memory-swap "$BUILD_MEMORY" --network none \
   -v "$B/src:/src" -e VITE_CHISABOT_BUILD_ID="$TAG" -e VITE_MAGPIE_MANAGEMENT_URL="$VITE_MAGPIE_MANAGEMENT_URL" \
   --entrypoint sh "$CUR_IMAGE" -c '
-set -e
-cd /src && bun scripts/generate-app-config.ts >/dev/null 2>&1
-cd app && bun --bun ../node_modules/@tanstack/router-cli/bin/tsr.cjs generate >/dev/null 2>&1
-rm -rf dist && NODE_OPTIONS=--max-old-space-size=2800 node ../node_modules/vite/bin/vite.js build 2>&1 | grep -v "^dist\|^ *dist" | tail -n 8
+cd /src && bun scripts/generate-app-config.ts >/dev/null 2>&1 || echo "（generate-app-config 未成功，使用仓库里的配置）"
+# routeTree.gen.ts 由 vite 的 TanStack Router 插件在构建时重新生成。
+cd app && rm -rf dist && NODE_OPTIONS=--max-old-space-size=2800 node ../node_modules/vite/bin/vite.js build > /tmp/vite.log 2>&1
+code=$?
+grep -v "^dist\|^ *dist" /tmp/vite.log | tail -n 12
+exit $code
 ' || fail "前端构建失败"
 for c in $PROTO_STOPPED; do docker start "$c" >/dev/null 2>&1 && echo "原型沙箱 $c 已恢复"; done
 PROTO_STOPPED=""
