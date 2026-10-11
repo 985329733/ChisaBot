@@ -265,6 +265,8 @@ import {
 } from "./model-connection-context";
 import { createModelCatalogService } from "./model-catalog";
 import { createMagpieService, readMagpieWebKey } from "./magpie";
+import { readRunningBuild } from "./build-info";
+import { createSystemUpdateRoutes, createSystemUpdateService } from "./system-update";
 import { createSelfHostBanner } from "./self-host-banner";
 import { createTeamBots } from "./team-bots/team-bots";
 import {
@@ -1057,6 +1059,15 @@ const magpie = createMagpieService({
   webKey: readMagpieWebKey(process.env),
 });
 magpie.onChange(() => modelCatalog.invalidate());
+
+/**
+ * 管理后台 → 系统更新：和宿主机更新程序共享的目录（CHISABOT_UPDATER_DIR，compose 里挂
+ * /var/lib/chisabot-updater）。没挂就显示「未安装」，其余照常。docs/online-update.md。
+ */
+const systemUpdate = createSystemUpdateService({
+  dir: process.env.CHISABOT_UPDATER_DIR,
+  running: readRunningBuild(),
+});
 const modelCatalogRefreshMinutes = (() => {
   const value = Number(process.env.MODEL_CATALOG_REFRESH_MINUTES ?? 10);
   return Number.isFinite(value) && value >= 0 ? Math.min(value, 24 * 60) : 10;
@@ -3425,6 +3436,14 @@ const app = createApp(
   {
     modelCatalogRefreshMinutes,
     extraRoutes: ({ requireUser }) => [
+      [
+        "/api/admin/system-update",
+        createSystemUpdateRoutes({
+          service: systemUpdate,
+          requireUser,
+          auditStore: bootAuditStore,
+        }),
+      ],
       [
         "/api/devices",
         createDeviceRoutes({

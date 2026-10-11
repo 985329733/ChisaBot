@@ -41,6 +41,7 @@ import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
 import { readThreadMessages } from "@/lib/copilot/thread-messages";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
+import { useReportBusy } from "@/lib/activity";
 import {
   askChannelAgent,
   messageText,
@@ -914,6 +915,9 @@ export function ChannelChat({
 
     // Keep `seed` in state; transcriptMessages gives it up once the agent holds a user turn.
   }, []);
+
+  // 机器人还在回复时，「有新版本」的刷新先确认（lib/activity.ts）。
+  useReportBusy(`chat:${channel.id}`, agent.isRunning || turnsInFlight > 0);
 
   return (
     // Activity renderers resolve their agent through this SDK context. It must match useAgent's

@@ -23,9 +23,26 @@ export type PcLocalState = {
   forceLocalApproval: boolean;
   autoStart: boolean;
   startHidden: boolean;
+  /** 0.2.2 起：自动更新（docs/online-update.md §PC）。旧客户端没有这个字段，网页就不显示更新设置。 */
+  autoUpdate?: boolean;
+  update?: PcUpdateState;
 };
 
-export type PcLocalPatch = Partial<Pick<PcLocalState, "localPaused" | "forceLocalApproval" | "autoStart" | "startHidden">>;
+export type PcUpdateState = {
+  /** 打包后的安装版才能自动更新；开发运行 / 免安装版为 false。 */
+  supported: boolean;
+  status: "idle" | "checking" | "available" | "downloading" | "downloaded" | "none" | "error";
+  /** 发现 / 下载好的新版本号。 */
+  version?: string;
+  /** 下载进度 0–100。 */
+  percent?: number;
+  checkedAt?: string;
+  error?: string;
+};
+
+export type PcLocalPatch = Partial<
+  Pick<PcLocalState, "localPaused" | "forceLocalApproval" | "autoStart" | "startHidden" | "autoUpdate">
+>;
 
 export type PcBridge = {
   state(): Promise<PcLocalState>;
@@ -35,6 +52,10 @@ export type PcBridge = {
   pickFolders(): Promise<string[]>;
   /** 退出登录并作废这台电脑的设备令牌（本机确认后），回到设置向导。 */
   logout(): Promise<boolean>;
+  /** 0.2.2 起：立即检查更新（返回最新的更新状态）。 */
+  checkUpdate?(): Promise<PcUpdateState>;
+  /** 0.2.2 起：新版本已下载时，退出并安装（会先在本机弹确认窗）。 */
+  installUpdate?(): Promise<boolean>;
   onChange(callback: () => void): () => void;
 };
 

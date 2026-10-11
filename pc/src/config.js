@@ -17,6 +17,8 @@ const DEFAULTS = {
   forceLocalApproval: true,
   localPaused: false,
   startHidden: false,
+  /** 在线更新（updater.js）：开着时启动后和每 4 小时自动检查并在后台下载。 */
+  autoUpdate: true,
   /** 主窗口里网页的外观（深色 / 时间天空），本机窗口跟着它走；dark 为 null 时跟随系统。 */
   appearance: { dark: null, sky: true },
 };

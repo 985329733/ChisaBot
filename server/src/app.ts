@@ -75,6 +75,7 @@ import type { Database } from "./db/client";
 import { withModelConnectionScope } from "./model-connection-context";
 import { type ModelCatalogService, ModelCatalogError } from "./model-catalog";
 import { MAGPIE_MOUNT, type MagpieService } from "./magpie";
+import { readRunningBuild, versionPayload } from "./build-info";
 import type { MagpieOverview } from "../../shared/model-selection";
 import {
   type ModelSettingsService,
@@ -458,6 +459,15 @@ export function createApp(
   mountProviderOAuthProxy(app, modelProviderProxy);
 
   app.get("/health", (context) => context.json({ status: "ok" }));
+  /*
+   * 正在运行的这一版（docs/online-update.md）。网页每隔几分钟和切回前台时问一次，和自己打包进去的
+   * 构建号不同就提示「有新版本，点此刷新」。只有版本、提交、构建号、构建时间，没有秘密；公网网关
+   * 照常先认证会话。
+   */
+  app.get("/api/version", (context) => {
+    context.header("Cache-Control", "no-store");
+    return context.json(versionPayload(readRunningBuild()));
+  });
   // Projected, never the raw runtime. config.runtime carries the Intelligence contract, including
   // INTELLIGENCE_API_KEY and the licence token, and this endpoint is reachable by anyone. Returning
   // the object wholesale would serve deployment secrets to the browser. Add fields here explicitly.
@@ -2172,6 +2182,20 @@ export function createApp(
 
   if (config.appDistDir) {
     const root = config.appDistDir;
+    /*
+     * 缓存（docs/online-update.md）：带哈希的 /assets/* 永久缓存；index.html 每次都向服务器确认，
+     * 这样部署新版本后，刷新一次就一定拿到新的入口，而不是浏览器里存着的旧 index.html。
+     */
+    app.use("/assets/*", async (context, next) => {
+      await next();
+      if (context.res.status === 200)
+        context.res.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    });
+    app.use("/*", async (context, next) => {
+      await next();
+      if ((context.res.headers.get("content-type") ?? "").startsWith("text/html"))
+        context.res.headers.set("Cache-Control", "no-cache");
+    });
     app.use("/*", serveStatic({ root }));
     /*
      * A single-page app owns its routing, so a path with no file behind it is not missing: it is a
@@ -2189,7 +2213,10 @@ export function createApp(
       const index = Bun.file(`${root}/index.html`);
       if (!(await index.exists())) return context.notFound();
       return new Response(index, {
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-cache",
+        },
       });
     });
   }

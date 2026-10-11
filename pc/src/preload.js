@@ -12,6 +12,8 @@ const CHANNELS = new Set([
   "approval:decide",
   "confirm:current",
   "confirm:answer",
+  "update:current",
+  "update:answer",
 ]);
 
 contextBridge.exposeInMainWorld("chisa", {

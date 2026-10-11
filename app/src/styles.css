@@ -3965,3 +3965,163 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .glass-mini-comp.is-needs { background: var(--warn); }
 @media (hover: none) { .glass-mini-more { opacity: 0.8; scale: 1; } }
 @media (prefers-reduced-motion: reduce) { .glass-mini-more { transition: none; } .glass-mini-comp { animation: none; } }
+
+/* ---------- 在线更新：新版本提示 + 管理后台 → 系统更新 (DESIGN.md §22, docs/online-update.md) ---------- */
+.update-banner {
+  position: fixed;
+  z-index: 101;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100vw - 32px);
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--glass-3);
+  border: 1px solid var(--stroke, rgba(255, 255, 255, 0.72));
+  backdrop-filter: saturate(160%) blur(36px);
+  box-shadow: var(--shadow-2), var(--inset-hl, inset 0 1px 0 rgba(255, 255, 255, 0.6));
+  color: var(--ink-1);
+  animation: update-banner-in var(--dur-3, 300ms) var(--ease-out, ease-out) both;
+}
+.update-banner-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-1, 150ms) var(--ease-out, ease-out);
+}
+.update-banner-main:hover { background: var(--glass-2); }
+.update-banner-main:focus-visible, .update-banner-x:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+.update-banner-ic { color: var(--accent-blue); }
+.update-banner-v {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--accent-blue-ink);
+  background: var(--accent-blue-soft);
+  font-variant-numeric: tabular-nums;
+}
+.update-banner-x {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background var(--dur-1, 150ms), color var(--dur-1, 150ms);
+}
+.update-banner-x:hover { background: var(--glass-2); color: var(--ink-1); }
+@keyframes update-banner-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (max-width: 520px) { .update-banner-v { display: none; } }
+
+.sysupd-mono, .sysupd-sha, .sysupd-image { font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); }
+.sysupd-image { font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.sysupd-commits, .sysupd-history { list-style: none; margin: 0; padding: 0; }
+.sysupd-commit {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 20px;
+  font-size: 14px;
+  border-top: 1px solid var(--line);
+}
+.sysupd-commit:first-child { border-top: 0; }
+.sysupd-sha {
+  font-size: 12px;
+  height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  color: var(--accent-blue-ink);
+  background: var(--accent-blue-soft);
+}
+.sysupd-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-1); }
+.sysupd-meta { font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .sysupd-commit { grid-template-columns: auto minmax(0, 1fr); }
+  .sysupd-meta { grid-column: 2; }
+}
+.sysupd-uptodate { display: flex; align-items: center; gap: 10px; padding: 18px 20px; font-size: 14px; color: var(--ink-2); }
+.sysupd-ok-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--success); background: var(--success-soft); }
+.sysupd-job { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.sysupd-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px 16px;
+  font-size: 13px;
+}
+.sysupd-steps li { display: flex; align-items: center; gap: 8px; color: var(--ink-3); transition: color var(--dur-2, 220ms) var(--ease-out, ease-out); }
+.sysupd-steps li[data-step="active"] { color: var(--ink-1); font-weight: 500; }
+.sysupd-steps li[data-step="done"] { color: var(--success); }
+.sysupd-steps li[data-step="failed"] { color: var(--danger); font-weight: 500; }
+.sysupd-step-ic {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--glass-2);
+}
+.sysupd-steps li[data-step="done"] .sysupd-step-ic { border-color: transparent; background: var(--success-soft); }
+.sysupd-steps li[data-step="failed"] .sysupd-step-ic { border-color: transparent; background: var(--danger-soft); }
+.sysupd-steps li[data-step="active"] .sysupd-step-ic { border-color: transparent; background: var(--accent-blue-soft); color: var(--accent-blue); }
+.sysupd-spin {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: sysupd-spin 0.8s linear infinite;
+}
+@keyframes sysupd-spin { to { transform: rotate(360deg); } }
+.sysupd-error { margin: 0; padding: 10px 12px; border-radius: var(--r-sm, 10px); font-size: 13px; color: var(--danger); background: var(--danger-soft); }
+.sysupd-log {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: var(--r-md, 14px);
+  background: #0f1726;
+  color: #c9d4e6;
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.sysupd-hrow { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 20px; border-top: 1px solid var(--line); }
+.sysupd-hrow:first-child { border-top: 0; }
+.sysupd-htime { width: 92px; flex: none; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.sysupd-ht { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-1); min-width: 0; }
+.sysupd-ht .sysupd-mono { font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sysupd-hs { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .update-banner { animation: update-banner-fade var(--dur-2, 220ms) ease-out both; }
+  .sysupd-spin { animation-duration: 2.4s; }
+}
+@keyframes update-banner-fade { from { opacity: 0; } to { opacity: 1; } }

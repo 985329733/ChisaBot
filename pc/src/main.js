@@ -9,6 +9,7 @@
  *  - 本机窗口（设置向导、审批弹窗、本机确认、离线页）用网页同一套 Skyglass 令牌（ui/skyglass-tokens.css）
  *  - 托盘：在线 / 离线 / 紧急停止三种图标；菜单含紧急停止
  *  - 节点：agent/core.js 出站 WebSocket；审批弹窗；本机审计日志
+ *  - 在线更新（0.2.2 起，updater.js）：后台下载，下载好后本机窗口「新版本已下载，重启以安装」
  */
 const path = require("node:path");
 const os = require("node:os");
@@ -35,6 +36,7 @@ const { createConfig } = require("./config");
 const { createNodeAgent } = require("./agent/core");
 const { createOps } = require("./agent/ops");
 const auth = require("./agent/auth");
+const { createUpdater } = require("./updater");
 const pkg = require("../package.json");
 
 const PARTITION = "persist:chisabot";
@@ -54,6 +56,8 @@ let quitting = false;
 const approvalQueue = [];
 let approvalWindow = null;
 let currentApproval = null;
+let updater = null;
+let updateWindow = null;
 
 function clientInfo() {
   return {
@@ -292,6 +296,9 @@ function refreshTray() {
       { label: "打开 ChisaBot", click: () => openChat() },
       { label: "这台电脑的权限…", click: () => openDeviceSettings() },
       { label: "本机设置…", click: () => openDeviceSettings("local") },
+      ...(updater?.state.status === "downloaded"
+        ? [{ label: `重启以安装 ${updater.state.version || "新版本"}…`, click: () => openUpdateWindow() }]
+        : []),
       { type: "separator" },
       {
         label: paused ? "解除紧急停止…" : "紧急停止（拒绝一切远程操作）",
@@ -529,6 +536,88 @@ function closeApproval(id) {
   }
 }
 
+// ---------- 在线更新 ----------
+// 下载好后弹这个本机窗口（和本机确认同一套对话框）：立即重启 / 稍后。网页只能请它出来，不能替用户点。
+
+function updateLogger() {
+  const write = (level) => (...args) =>
+    config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "update_log", outcome: level, summary: args.map(String).join(" ").slice(0, 300) });
+  // 只记 warn / error；info 太多。
+  return { info: () => {}, debug: () => {}, warn: write("warn"), error: write("error") };
+}
+
+function startUpdater() {
+  let autoUpdater = null;
+  if (app.isPackaged) {
+    try {
+      ({ autoUpdater } = require("electron-updater"));
+    } catch {
+      autoUpdater = null;
+    }
+  }
+  updater = createUpdater({
+    autoUpdater,
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    execPath: process.execPath,
+    productName: pkg.productName || "ChisaBot PC",
+    getAutoUpdate: () => config.get().autoUpdate !== false,
+    logger: updateLogger(),
+    onState: () => {
+      refreshTray();
+    },
+    onDownloaded: (version) => {
+      config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "update_downloaded", outcome: "succeeded", summary: `新版本 ${version || ""} 已下载` });
+      if (Notification.isSupported())
+        new Notification({ title: "ChisaBot PC", body: `新版本 ${version || ""} 已下载，重启以安装。` }).show();
+      openUpdateWindow();
+    },
+  });
+  updater.schedule();
+}
+
+function openUpdateWindow() {
+  if (!updater || updater.state.status !== "downloaded") return false;
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.show();
+    updateWindow.focus();
+    return true;
+  }
+  const { workArea } = screen.getPrimaryDisplay();
+  const width = 440;
+  const height = 260;
+  updateWindow = new BrowserWindow({
+    width,
+    height,
+    x: workArea.x + workArea.width - width - 16,
+    y: workArea.y + workArea.height - height - 16,
+    frame: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    show: false,
+    title: "ChisaBot PC · 新版本",
+    backgroundColor: windowBackground(),
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
+  });
+  updateWindow.loadFile(path.join(UI, "update.html"));
+  updateWindow.once("ready-to-show", () => updateWindow?.showInactive());
+  updateWindow.on("closed", () => {
+    updateWindow = null;
+  });
+  return true;
+}
+
+function installUpdateNow() {
+  if (!updater || updater.state.status !== "downloaded") return false;
+  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "update_install", outcome: "succeeded", summary: `重启并安装 ${updater.state.version || ""}` });
+  quitting = true;
+  agent?.stop();
+  setTimeout(() => updater.install(), 50);
+  return true;
+}
+
 // ---------- 渲染进程接口 ----------
 
 function publicState() {
@@ -566,11 +655,13 @@ function webLocalState() {
     forceLocalApproval: local.forceLocalApproval,
     autoStart: local.autoStart,
     startHidden: local.startHidden,
+    autoUpdate: local.autoUpdate !== false,
+    update: updater ? updater.state : { supported: false, status: "idle" },
   };
 }
 
 function broadcast(kind = "state") {
-  for (const win of [windows.setup, windows.chat, approvalWindow, confirmWindow]) {
+  for (const win of [windows.setup, windows.chat, approvalWindow, confirmWindow, updateWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send("state:changed", kind);
   }
 }
@@ -681,6 +772,11 @@ async function setLocal(patch) {
     if (app.isPackaged || process.platform === "win32") app.setLoginItemSettings({ openAtLogin: patch.autoStart, args: ["--hidden"] });
   }
   if (typeof patch.startHidden === "boolean") config.set({ startHidden: patch.startHidden });
+  if (typeof patch.autoUpdate === "boolean" && patch.autoUpdate !== (current.autoUpdate !== false)) {
+    config.set({ autoUpdate: patch.autoUpdate });
+    config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "config_changed", outcome: "succeeded", summary: `自动更新 → ${patch.autoUpdate ? "开启" : "关闭"}` });
+    updater?.schedule();
+  }
   refreshTray();
   return webLocalState();
 }
@@ -718,6 +814,14 @@ function registerIpc() {
       currentApproval = null;
       approvalWindow?.close();
     }
+  });
+  handleLocal("update:current", () =>
+    updater && updater.state.status === "downloaded" ? { version: updater.state.version || "", currentVersion: pkg.version } : null,
+  );
+  handleLocal("update:answer", ({ restart } = {}) => {
+    if (restart === true) return installUpdateNow();
+    updateWindow?.close();
+    return false;
   });
   handleLocal("confirm:current", () => confirmCurrent?.request ?? null);
   handleLocal("confirm:answer", ({ id, ok }) => {
@@ -761,6 +865,9 @@ function registerIpc() {
     if (ok) setTimeout(() => void logout(), 50);
     return ok;
   });
+  handleWeb("pc:check-update", async () => (updater ? updater.check() : { supported: false, status: "idle" }));
+  // 网页只能把「新版本已下载」的本机窗口叫出来；立即重启要在那个窗口里由本人点。
+  handleWeb("pc:install-update", () => openUpdateWindow());
   handleWeb("pc:appearance", (value) => {
     const next = { dark: typeof value?.dark === "boolean" ? value.dark : null, sky: value?.sky !== false };
     const prev = config.get().appearance || {};
@@ -789,6 +896,7 @@ app.whenReady().then(() => {
   const appearance = config.get().appearance || {};
   nativeTheme.themeSource = typeof appearance.dark === "boolean" ? (appearance.dark ? "dark" : "light") : "system";
   registerIpc();
+  startUpdater();
   tray = new Tray(trayIcon("offline"));
   tray.on("click", () => openChat());
   tray.on("double-click", () => openChat());

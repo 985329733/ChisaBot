@@ -1,0 +1,291 @@
+/**
+ * 在线更新（docs/online-update.md）：服务器版本、网页刷新提示、管理后台 → 系统更新 共用的类型与纯函数。
+ *
+ * 浏览器、服务器、单元测试都 import 这一份；宿主机上的更新程序（deploy/updater/）写的 state.json
+ * 由服务器读出后经 `projectSystemUpdateState` 投影成 `SystemUpdateOverview`，字段一律白名单。
+ */
+
+/** GET /api/version：正在运行的这一版。不需要登录信息以外的任何东西，也不含任何秘密。 */
+export type BuildVersion = {
+  /** 根 package.json 的 version。 */
+  version: string;
+  /** 构建来源提交（完整 40 位），开发环境里没有。 */
+  commit?: string;
+  /** 本次构建的唯一标识（镜像标签，例如 glass-20261012a）；网页拿它和自己打包时的值比较。 */
+  buildId: string;
+  builtAt?: string;
+};
+
+export const SYSTEM_UPDATE_ACTIONS = ["check", "update", "rollback"] as const;
+export type SystemUpdateAction = (typeof SYSTEM_UPDATE_ACTIONS)[number];
+
+export type SystemUpdateCommit = {
+  sha: string;
+  subject: string;
+  author?: string;
+  date?: string;
+};
+
+export type SystemUpdateJobStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "rolled_back";
+
+export type SystemUpdateJob = {
+  id: string;
+  action: SystemUpdateAction;
+  status: SystemUpdateJobStatus;
+  /** 当前步骤的 key（见 UPDATE_STEPS / ROLLBACK_STEPS）。 */
+  step?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  actor?: string;
+  targetCommit?: string;
+  fromImage?: string;
+  toImage?: string;
+  error?: string;
+  /** 日志最后若干行（宿主机已去掉控制字符）。 */
+  log: string[];
+};
+
+export type SystemUpdateHistoryEntry = {
+  id: string;
+  action: SystemUpdateAction;
+  status: SystemUpdateJobStatus | "rejected";
+  at: string;
+  actor?: string;
+  fromImage?: string;
+  toImage?: string;
+  commit?: string;
+  error?: string;
+};
+
+export type SystemUpdateOverview = {
+  /** 宿主机更新程序是否在线（state.json 最近 2 分钟内写过）。 */
+  updaterOnline: boolean;
+  /** 部署里根本没挂更新程序的目录。 */
+  configured: boolean;
+  updatedAt?: string;
+  running: BuildVersion & { image?: string };
+  current?: { image: string; commit?: string; deployedAt?: string };
+  previous?: { image: string; commit?: string } | null;
+  source?: {
+    kind: "github" | "mirror";
+    repo: string;
+    branch: string;
+    fetchedAt?: string;
+    error?: string;
+  };
+  latest?: SystemUpdateCommit;
+  /** 当前版本落后 main 的提交数；未知（当前镜像没有提交信息）时为 null。 */
+  behind: number | null;
+  commits: SystemUpdateCommit[];
+  /** 依赖或底座有变化：一键更新做不了，需要完整构建。 */
+  depsChanged: boolean;
+  job: SystemUpdateJob | null;
+  /** 还在队列里、宿主机没取走的请求。 */
+  pending: SystemUpdateAction[];
+  history: SystemUpdateHistoryEntry[];
+};
+
+export const UPDATE_STEPS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "prepare", label: "准备" },
+  { key: "deps", label: "检查依赖" },
+  { key: "backup", label: "备份数据库" },
+  { key: "frontend", label: "构建前端" },
+  { key: "image", label: "构建镜像" },
+  { key: "swap", label: "切换到新版本" },
+  { key: "health", label: "健康检查" },
+  { key: "done", label: "完成" },
+];
+
+export const ROLLBACK_STEPS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "prepare", label: "准备" },
+  { key: "swap", label: "切换到上一版" },
+  { key: "health", label: "健康检查" },
+  { key: "done", label: "完成" },
+];
+
+const SHA = /^[0-9a-f]{7,40}$/u;
+const IMAGE = /^[a-z0-9][a-z0-9._/-]{0,120}(:[A-Za-z0-9._-]{1,80})?$/u;
+const ID = /^[A-Za-z0-9_-]{6,64}$/u;
+
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** 不含控制字符、长度有限的字符串，否则 undefined。 */
+export function safeText(value: unknown, max = 300): string | undefined {
+  if (typeof value !== "string" || !value || value.length > max * 4) return undefined;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: 正是要去掉控制字符。
+  const cleaned = value.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, "").trim();
+  return cleaned ? cleaned.slice(0, max) : undefined;
+}
+
+function safeSha(value: unknown) {
+  return typeof value === "string" && SHA.test(value) ? value : undefined;
+}
+
+function safeImage(value: unknown) {
+  return typeof value === "string" && IMAGE.test(value) ? value : undefined;
+}
+
+function safeDate(value: unknown) {
+  const text = safeText(value, 40);
+  return text && !Number.isNaN(Date.parse(text)) ? text : undefined;
+}
+
+function action(value: unknown): SystemUpdateAction | undefined {
+  return (SYSTEM_UPDATE_ACTIONS as readonly string[]).includes(value as string)
+    ? (value as SystemUpdateAction)
+    : undefined;
+}
+
+const JOB_STATUSES: readonly string[] = ["queued", "running", "succeeded", "failed", "rolled_back"];
+
+function commit(value: unknown): SystemUpdateCommit | undefined {
+  if (!record(value)) return undefined;
+  const sha = safeSha(value.sha);
+  const subject = safeText(value.subject, 200);
+  if (!sha || !subject) return undefined;
+  return {
+    sha,
+    subject,
+    ...(safeText(value.author, 80) ? { author: safeText(value.author, 80) } : {}),
+    ...(safeDate(value.date) ? { date: safeDate(value.date) } : {}),
+  };
+}
+
+function job(value: unknown): SystemUpdateJob | null {
+  if (!record(value)) return null;
+  const id = typeof value.id === "string" && ID.test(value.id) ? value.id : undefined;
+  const kind = action(value.action);
+  const status = JOB_STATUSES.includes(value.status as string)
+    ? (value.status as SystemUpdateJobStatus)
+    : undefined;
+  if (!id || !kind || !status) return null;
+  const log = Array.isArray(value.log)
+    ? value.log.slice(-80).map((line) => safeText(line, 400) ?? "").filter(Boolean)
+    : [];
+  const out: SystemUpdateJob = { id, action: kind, status, log };
+  const step = safeText(value.step, 20);
+  if (step) out.step = step;
+  for (const key of ["startedAt", "finishedAt"] as const) {
+    const date = safeDate(value[key]);
+    if (date) out[key] = date;
+  }
+  const actor = safeText(value.actor, 80);
+  if (actor) out.actor = actor;
+  const target = safeSha(value.targetCommit);
+  if (target) out.targetCommit = target;
+  for (const key of ["fromImage", "toImage"] as const) {
+    const image = safeImage(value[key]);
+    if (image) out[key] = image;
+  }
+  const error = safeText(value.error, 400);
+  if (error) out.error = error;
+  return out;
+}
+
+function history(value: unknown): SystemUpdateHistoryEntry | undefined {
+  if (!record(value)) return undefined;
+  const id = typeof value.id === "string" && ID.test(value.id) ? value.id : undefined;
+  const kind = action(value.action);
+  const status =
+    value.status === "rejected" || JOB_STATUSES.includes(value.status as string)
+      ? (value.status as SystemUpdateHistoryEntry["status"])
+      : undefined;
+  const at = safeDate(value.at);
+  if (!id || !kind || !status || !at) return undefined;
+  const out: SystemUpdateHistoryEntry = { id, action: kind, status, at };
+  const actor = safeText(value.actor, 80);
+  if (actor) out.actor = actor;
+  for (const key of ["fromImage", "toImage"] as const) {
+    const image = safeImage(value[key]);
+    if (image) out[key] = image;
+  }
+  const sha = safeSha(value.commit);
+  if (sha) out.commit = sha;
+  const error = safeText(value.error, 300);
+  if (error) out.error = error;
+  return out;
+}
+
+/**
+ * 宿主机 state.json → 给管理后台的投影。任何不认识或格式不对的字段都丢掉；
+ * `now` 只用来判断更新程序是否在线。
+ */
+export function projectSystemUpdateState(
+  raw: unknown,
+  running: BuildVersion & { image?: string },
+  pending: SystemUpdateAction[],
+  now = Date.now(),
+): SystemUpdateOverview {
+  const base: SystemUpdateOverview = {
+    updaterOnline: false,
+    configured: true,
+    running,
+    behind: null,
+    commits: [],
+    depsChanged: false,
+    job: null,
+    pending,
+    history: [],
+  };
+  if (!record(raw)) return base;
+  const updatedAt = safeDate(raw.updatedAt);
+  if (updatedAt) {
+    base.updatedAt = updatedAt;
+    base.updaterOnline = now - Date.parse(updatedAt) < 2 * 60_000;
+  }
+  if (record(raw.current)) {
+    const image = safeImage(raw.current.image);
+    if (image)
+      base.current = {
+        image,
+        ...(safeSha(raw.current.commit) ? { commit: safeSha(raw.current.commit) } : {}),
+        ...(safeDate(raw.current.deployedAt) ? { deployedAt: safeDate(raw.current.deployedAt) } : {}),
+      };
+  }
+  if (record(raw.previous)) {
+    const image = safeImage(raw.previous.image);
+    base.previous = image
+      ? { image, ...(safeSha(raw.previous.commit) ? { commit: safeSha(raw.previous.commit) } : {}) }
+      : null;
+  } else base.previous = null;
+  if (record(raw.source) && (raw.source.kind === "github" || raw.source.kind === "mirror")) {
+    base.source = {
+      kind: raw.source.kind,
+      repo: safeText(raw.source.repo, 120) ?? "",
+      branch: safeText(raw.source.branch, 60) ?? "main",
+      ...(safeDate(raw.source.fetchedAt) ? { fetchedAt: safeDate(raw.source.fetchedAt) } : {}),
+      ...(safeText(raw.source.error, 300) ? { error: safeText(raw.source.error, 300) } : {}),
+    };
+  }
+  const latest = commit(raw.latest);
+  if (latest) base.latest = latest;
+  base.behind =
+    typeof raw.behind === "number" && Number.isInteger(raw.behind) && raw.behind >= 0
+      ? raw.behind
+      : null;
+  base.commits = Array.isArray(raw.commits)
+    ? raw.commits.slice(0, 50).map(commit).filter((c): c is SystemUpdateCommit => !!c)
+    : [];
+  base.depsChanged = raw.depsChanged === true;
+  base.job = job(raw.job);
+  base.history = Array.isArray(raw.history)
+    ? raw.history
+        .slice(0, 30)
+        .map(history)
+        .filter((h): h is SystemUpdateHistoryEntry => !!h)
+    : [];
+  return base;
+}
+
+/** 网页的「有新版本」判断：两边都有构建号、而且不一样。开发环境（dev）从不提示。 */
+export function isNewerBuild(bundled: string | undefined, served: BuildVersion | null | undefined) {
+  if (!bundled || bundled === "dev" || !served?.buildId || served.buildId === "dev") return false;
+  return served.buildId !== bundled;
+}

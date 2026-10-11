@@ -1,0 +1,18 @@
+[Unit]
+Description=ChisaBot host updater (管理后台 → 系统更新; docs/online-update.md)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python2 /opt/chisabot-updater/chisabot-updater.py
+Restart=always
+RestartSec=5
+# An update script survives a restart of this service; the new process picks its log up again.
+KillMode=process
+User=root
+WorkingDirectory=/opt/chisabot-updater
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

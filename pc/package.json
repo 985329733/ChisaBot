@@ -1,7 +1,7 @@
 {
   "name": "chisabot-pc",
   "productName": "ChisaBot PC",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "ChisaBot PC 客户端：远程聊天 + 让机器人在授权范围内操作这台电脑",
   "main": "src/main.js",
   "author": "ChisaBot",
@@ -15,6 +15,7 @@
     "dist:dir": "electron-builder --win dir --x64"
   },
   "dependencies": {
+    "electron-updater": "6.8.9",
     "ws": "8.22.0"
   },
   "devDependencies": {
@@ -32,7 +33,7 @@
       "src/**/*",
       "assets/**/*",
       "package.json",
-      "node_modules/ws/**/*"
+      "node_modules/**/*"
     ],
     "asar": true,
     "win": {
@@ -44,7 +45,8 @@
       "signAndEditExecutable": true,
       "executableName": "ChisaBotPC",
       "artifactName": "ChisaBot-PC-${version}-${arch}-portable.${ext}",
-      "signExecutable": false
+      "signExecutable": false,
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
@@ -63,6 +65,13 @@
     "electronLanguages": [
       "zh-CN",
       "en-US"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://ayase.cn/downloads/chisabot-pc/",
+        "channel": "latest"
+      }
     ]
   }
 }

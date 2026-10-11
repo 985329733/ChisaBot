@@ -20,3 +20,6 @@ node src/cli.js run --server https://ayase.cn:8443 --token-file device.token   #
 ```sh
 npx electron-builder --win nsis zip --x64 --publish never   # → dist/ChisaBot-PC-<版本>-x64-setup.exe / -portable.zip
 ```
+
+在线更新（0.2.2 起）：`src/updater.js`（electron-updater，更新源 `https://ayase.cn/downloads/chisabot-pc/`，安装包未签名、
+校验 latest.yml 的 sha512），本机窗口 `src/ui/update.html`。详见 `../docs/online-update.md` §2。

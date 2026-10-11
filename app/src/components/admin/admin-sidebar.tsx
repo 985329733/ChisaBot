@@ -4,6 +4,7 @@ import {
   IconBrain,
   IconBuildingBank,
   IconBuildingSkyscraper,
+  IconCloudDownload,
   IconCode,
   IconDeviceDesktop,
   IconDeviceLaptop,
@@ -34,6 +35,11 @@ const GROUPS: RailGroup[] = [
         /* /admin is a prefix of every other route here. */
         exact: true,
         linkOptions: { to: "/admin" },
+      },
+      {
+        title: "系统更新",
+        icon: IconCloudDownload,
+        linkOptions: { to: "/admin/system-update" },
       },
     ],
   },

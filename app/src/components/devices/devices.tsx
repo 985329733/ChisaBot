@@ -53,7 +53,7 @@ import {
   platformLabel,
   seenText,
 } from "@/lib/devices";
-import { type PcLocalPatch, type PcLocalState, pcBridge } from "@/lib/pc-bridge";
+import { type PcLocalPatch, type PcLocalState, type PcUpdateState, pcBridge } from "@/lib/pc-bridge";
 import { cn } from "@/lib/utils";
 
 const CAP_ICON: Record<DeviceCapability, typeof IconTerminal2> = {
@@ -605,6 +605,90 @@ export function AuditList({ entries }: { entries: DeviceAuditEntry[] }) {
   );
 }
 
+const PC_UPDATE_TEXT: Record<PcUpdateState["status"], string> = {
+  idle: "",
+  checking: "正在检查…",
+  available: "发现新版本，准备下载",
+  downloading: "正在后台下载",
+  downloaded: "已下载，重启后安装",
+  none: "已是最新版本",
+  error: "检查更新失败",
+};
+
+/** 「本机」标签里的客户端更新（0.2.2 起，docs/online-update.md）：自动更新开关 + 当前状态 + 检查 / 重启安装。 */
+function PcUpdateRows({ local, onLocal }: { local: PcLocalState; onLocal: (next: PcLocalState) => void }) {
+  const bridge = pcBridge();
+  const update = local.update as PcUpdateState;
+  const [busy, setBusy] = useState(false);
+  const check = useAsyncAction(
+    async () => {
+      const next = await bridge?.checkUpdate?.();
+      if (next?.status === "error") throw new Error(next.error || "检查更新失败");
+      if (bridge) onLocal(await bridge.state());
+    },
+    { errorToast: (error) => error.message },
+  );
+  const install = useAsyncAction(async () => {
+    await bridge?.installUpdate?.();
+  });
+  const status =
+    update.status === "downloading" && typeof update.percent === "number"
+      ? `正在后台下载 ${Math.round(update.percent)}%`
+      : PC_UPDATE_TEXT[update.status];
+  const detail = [
+    `当前 ${local.version}`,
+    update.version && update.status !== "none" ? `新版本 ${update.version}` : "",
+    status,
+    update.status === "error" && update.error ? update.error : "",
+    update.checkedAt ? `上次检查 ${new Date(update.checkedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <>
+      <SettingRow
+        description={update.supported ? "启动时和每隔几小时检查一次，有新版本就在后台下载，下载好后提示你重启安装。" : "只有安装版能自动更新；免安装版请到 偏好设置 → 设备 下载新版本。"}
+        title="自动更新"
+      >
+        <Switch
+          aria-label="自动更新"
+          checked={!!local.autoUpdate && update.supported}
+          disabled={busy || !update.supported}
+          onCheckedChange={async (value) => {
+            if (!bridge) return;
+            setBusy(true);
+            try {
+              onLocal(await bridge.setLocal({ autoUpdate: value }));
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "修改失败");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </SettingRow>
+      <SettingRow description={detail} title="客户端版本">
+        {update.status === "downloaded" ? (
+          <Button feedback={{ pending: "等待确认…", success: "正在重启", error: "失败" }} onClick={() => void install.run()} size="sm" state={install.state}>
+            {"立即重启以安装"}
+          </Button>
+        ) : (
+          <Button
+            disabled={!update.supported || update.status === "checking" || update.status === "downloading"}
+            feedback={{ pending: "检查中…", success: "已检查", error: "检查失败" }}
+            onClick={() => void check.run()}
+            size="sm"
+            state={check.state}
+            variant="outline"
+          >
+            {"检查更新"}
+          </Button>
+        )}
+      </SettingRow>
+    </>
+  );
+}
+
 /**
  * 「本机」标签：只在 PC 客户端里、而且看的正是这台电脑时出现（DESIGN.md §16.4）。这些设置只存在这台电脑上，
  * 通过 PC 客户端的本机桥读写；放松安全的改动由 PC 弹出本机确认窗，用户在那里取消时这里的开关回到原位。
@@ -691,6 +775,7 @@ export function ThisPcPanel({ local, onLocal }: { local: PcLocalState; onLocal: 
               onCheckedChange={(value) => void set("startHidden", value)}
             />
           </SettingRow>
+          {local.update ? <PcUpdateRows local={local} onLocal={onLocal} /> : null}
           <SettingRow
             description={local.tokenProtected ? "已用 Windows 数据保护（DPAPI）加密，只有当前 Windows 用户能解开。" : "这台电脑不支持系统加密，令牌以普通文件保存。"}
             title="设备令牌"

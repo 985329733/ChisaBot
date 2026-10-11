@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmHost } from "@/components/ui/confirm";
 import { PageLoaderHost } from "@/components/ui/page-loader";
 import { Toaster } from "@/components/ui/toast";
+import { UpdateBanner } from "@/components/update-banner";
 import type { RouterContext } from "../router-context";
 import "@fontsource-variable/inter/wght.css";
 
@@ -135,6 +136,7 @@ function RootComponent() {
           <ConfirmHost />
           <PageLoaderHost />
           <Toaster />
+          <UpdateBanner />
         </TooltipProvider>
       </ThemeProvider>
     </div>

@@ -42,6 +42,7 @@ button, input { font: inherit; color: inherit; }
 .sg-ico.is-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
 .sg-ico.is-danger { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
 .sg-ico.is-ok { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.sg-ico.is-accent { color: var(--accent-blue); background: var(--accent-blue-soft); border-color: transparent; }
 .sg-ico svg { width: 20px; height: 20px; }
 
 /* ---------- 按钮（网页 Button：药丸、40px，sm 32px，lg 48px；default = 墨色）---------- */

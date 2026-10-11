@@ -57,7 +57,10 @@ if (isLocalPage) {
           forceLocalApproval: bool(patch && patch.forceLocalApproval),
           autoStart: bool(patch && patch.autoStart),
           startHidden: bool(patch && patch.startHidden),
+          autoUpdate: bool(patch && patch.autoUpdate),
         }),
+      checkUpdate: () => ipcRenderer.invoke("pc:check-update"),
+      installUpdate: () => ipcRenderer.invoke("pc:install-update"),
       pickFolders: () => ipcRenderer.invoke("pc:pick-folders"),
       logout: () => ipcRenderer.invoke("pc:logout"),
       onChange(callback) {

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+<title>ChisaBot PC · 新版本</title>
+<link rel="stylesheet" href="skyglass-tokens.css" />
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="dialog.css" />
+</head>
+<body class="dialog-page">
+  <!-- 在线更新（updater.js）：新版本在后台下载好后弹出。立即重启 = 退出并静默安装，装好后自动重新打开；稍后 = 下次退出时安装。 -->
+  <main class="auth-card dialog enter">
+    <header class="dialog-h drag">
+      <span class="sg-ico is-accent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></span>
+      <div class="dialog-ht">
+        <div class="t-eyebrow">ChisaBot PC · 在线更新</div>
+        <div class="dialog-title">新版本已下载，重启以安装</div>
+      </div>
+    </header>
+    <p class="dialog-desc" id="desc"></p>
+    <footer class="dialog-f">
+      <button id="later" class="btn outline" type="button">稍后</button>
+      <button id="restart" class="btn" type="button">立即重启</button>
+    </footer>
+  </main>
+<script src="sky.js"></script>
+<script src="ui.js"></script>
+<script src="update.js"></script>
+</body>
+</html>
