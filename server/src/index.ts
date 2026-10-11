@@ -188,6 +188,8 @@ import { createDeviceHub } from "./devices/hub";
 import { createDeviceRoutes } from "./devices/routes";
 import { createDeviceStore } from "./devices/store";
 import { deviceTools } from "./devices/tools";
+import { executeRenderUi, renderUiTools } from "./generative-ui/render-ui";
+import { RENDER_UI_TOOL } from "../../shared/json-render/catalog";
 import { createIntelligenceClient } from "./intelligence-client";
 import { createLocalConversations } from "./local-conversations";
 import { clearLearningRevisionFallback } from "./learning/runtime";
@@ -1249,6 +1251,8 @@ const loadToolsForActor =
       initiator,
     }),
     ...(await deviceToolsFor(actorId, botId, initiator)),
+    // 生成式界面（json-render，取代 A2UI）：与 /api/capabilities 的 generativeUi 同一个开关。
+    ...(config.generativeUi ? renderUiTools() : []),
   ];
 
 /** One person's standing instructions, for both the /api/settings routes and every run they start. */
@@ -3291,6 +3295,15 @@ const app = createApp(
     }).find((candidate) => candidate.name === name);
     if (memory) {
       const text = await memory.execute(args);
+      return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    }
+    if (name === RENDER_UI_TOOL) {
+      if (!config.generativeUi)
+        return {
+          text: `${REFUSAL_MARKER} 这个部署关闭了生成式界面。`,
+          isError: true,
+        };
+      const text = executeRenderUi(args);
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
     if (name.startsWith("device_")) {

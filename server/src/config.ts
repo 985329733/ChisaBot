@@ -301,6 +301,9 @@ export type DeploymentConfig = {
    * generated interface reaches this deployment's data only through what the host hands it. This
    * deployment hands it nothing. It can load libraries from a CDN, which is the part a deployment
    * that must not reach the public internet from a browser tab needs to weigh.
+   *
+   * 同一个开关也控制 json-render 生成式界面（取代 A2UI）：打开时每个机器人都有 `render_ui` 工具
+   * （server/src/generative-ui/render-ui.ts），浏览器注册它的渲染器；关闭时两边都没有。
    */
   generativeUi: boolean;
   /**

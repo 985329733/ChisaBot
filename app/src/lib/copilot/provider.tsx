@@ -2,9 +2,7 @@ import { CopilotKitProvider } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
-import { a2uiProviderOptions } from "./a2ui";
 import { SignInTool } from "./sign-in-tool";
-import "./a2ui.css";
 import { ActiveBotProvider } from "./active-bot";
 import { BotTools } from "./bot-tools";
 import { ComputerTools } from "./computer-tools";
@@ -12,6 +10,7 @@ import { EscalationTool } from "./escalation-tool";
 import { GalleryTools } from "./gallery-tools";
 import { GENERATIVE_UI_DESIGN_SKILL } from "./generative-ui";
 import { HandoffTool } from "./handoff-tool";
+import { RenderUiTool } from "./render-ui-tool";
 import { SandboxedTools } from "./sandboxed-tools";
 import { SkillTools } from "./skill-tools";
 
@@ -36,7 +35,6 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
     <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
       credentials="include"
-      {...a2uiProviderOptions(capabilities?.generativeUi)}
       /*
        * Passed only when this deployment actually has the capability, and this is the load-bearing
        * part rather than a tidiness. The SDK reads generative UI as on when EITHER the runtime says
@@ -58,6 +56,11 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       {/* Computer tools target the Bot declared by the mounted surface. */}
       <ActiveBotProvider>
         <ComputerTools />
+        {/*
+          json-render 生成式界面（取代 A2UI）：`render_ui` 在服务器上执行并校验，这里只负责画。
+          与服务器提供这个工具是同一个开关（/api/capabilities 的 generativeUi）。
+        */}
+        {capabilities?.generativeUi ? <RenderUiTool /> : null}
         {/* The private sign-in request: a card whose form posts to the server, never to the Bot. */}
         <SignInTool />
         {/*

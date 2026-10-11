@@ -355,3 +355,10 @@
   - 审批弹窗 460×320，右下角置顶，无边框：天空上一张玻璃对话框 = 橙色盾牌图标块 + 眉题「ChisaBot · 需要你确认」（本机强制确认时为「高风险操作 · 本机确认」）+ 「〈机器人〉 想〈操作〉」+ 等宽摘要块 + 「N 秒后自动拒绝」/「即将自动拒绝」+ outline「拒绝」+ 主按钮「允许这一次」；默认焦点在「拒绝」，Esc = 拒绝。
   - 本机确认 440×260：同一对话框，红色警示图标块 + 标题 + 后果说明 + outline「取消」+ destructive 确认按钮；默认焦点在「取消」，Esc = 取消。
   - 离线页（主窗口内）：模板 F 卡片「暂时连不上 ChisaBot」+ 一张 `.sg-card`（服务器 + 状态徽标、本机紧急停止按钮）+ 整宽「重新连接」。
+
+## 17. 生成式界面 json-render（2026-10-11 glass-20261011b）
+
+- 取代 A2UI。机器人调用 `render_ui` 工具，参数是 json-render 的 SpecStream（JSONL，每行一个 JSON Patch）；服务器按共享目录 `shared/json-render/catalog.ts` 校验，浏览器用同一份目录在对话里渲染（`app/src/lib/copilot/render-ui-tool.tsx`、`json-render/registry.tsx`），参数流式到达时逐块淡入。开关仍是 `OPENBOT_GENERATIVE_UI`（关闭时既不提供工具也不注册渲染器）。
+- 组件（17 个）：Card、Stack、Grid、Heading、Text、Metric、Table、List、Badge、Button、Input、Select、Checkbox、Alert、Progress、Image、Separator。样式全部是 `styles.css` 的 `.jr-*`，只用 Skyglass 令牌（玻璃 L1 卡片、L2 子块、墨色主按钮、天蓝进度/焦点），亮暗自动适配；动效 `--dur-2` 淡入上移 4px，减少动态效果时只淡入。
+- 按钮动作：`send_message`（以用户身份在当前对话发一条可见消息，可用 `includeState` 附上表单值）、`open_link`（仅 http/https，新标签页）、内置 `setState / pushState / removeState / validateForm`。真正的操作仍由机器人用自己的工具完成并经过审批。
+- 生成中：同形状骨架 →「正在生成界面…」；格式错误：一行琥珀色「生成界面，无法工作 · 格式有误，机器人会修正后重新生成」，问题列表收在展开里（机器人会收到同样的问题并重试）。

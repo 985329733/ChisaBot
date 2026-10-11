@@ -2242,9 +2242,9 @@ export function mountCopilotRuntime(
      * has; see DeploymentConfig.generativeUi.
      */
     ...(config.generativeUi ? { openGenerativeUI: true } : {}),
-    // A browser catalog enables the public A2UI middleware/tool. Explicitly disable it on the
-    // server too, so stale clients cannot reactivate a deployment's generative UI opt-out.
-    a2ui: { enabled: config.generativeUi },
+    // A2UI 已被 json-render 取代（server/src/generative-ui/render-ui.ts 的 `render_ui` 工具）。
+    // 始终关闭 SDK 的 A2UI 中间件：旧的浏览器缓存仍可能带着 A2UI 目录，不能让它把中间件重新打开。
+    a2ui: { enabled: false },
     // `identifyUser` is the Intelligence projection of the same person `identifyActor` returns:
     // one resolver decides both whose threads these are and whose coworkers exist.
     agents: createRequestAgents(identifyActor, resolver) as never,
