@@ -67,19 +67,43 @@ test("requests are written atomically as whitelisted JSON and guarded by state",
   expect(service.overview().pending.sort()).toEqual(["check", "update"]);
 });
 
-test("refusals: offline updater, no previous, deps changed, running job", () => {
+test("refusals: offline updater, no previous, external run, running job", () => {
   const offline = createSystemUpdateService({ dir: spool({ ...fresh, updatedAt: "2026-10-12T01:00:00Z" }), running, now: () => NOW });
   expect(offline.request("update", { id: "u" })).toMatchObject({ status: 503 });
   const noPrev = createSystemUpdateService({ dir: spool({ ...fresh, previous: null }), running, now: () => NOW });
   expect(noPrev.request("rollback", { id: "u" })).toEqual({ error: "没有可以回滚到的上一版。", status: 409 });
-  const deps = createSystemUpdateService({ dir: spool({ ...fresh, depsChanged: true }), running, now: () => NOW });
-  expect(deps.request("update", { id: "u" })).toMatchObject({ status: 409 });
+  const external = createSystemUpdateService({ dir: spool({ ...fresh, externalBusy: true }), running, now: () => NOW });
+  expect(external.request("update", { id: "u" })).toMatchObject({ status: 409 });
+  expect("id" in external.request("check", { id: "u" })).toBe(true);
   const busy = createSystemUpdateService({
     dir: spool({ ...fresh, job: { id: "update-xyz123", action: "update", status: "running", log: [] } }),
     running,
     now: () => NOW,
   });
   expect(busy.request("rollback", { id: "u" })).toMatchObject({ status: 409 });
+});
+
+test("deps changed: the update is accepted as a full build", () => {
+  const dir = spool({ ...fresh, depsChanged: true, fullReason: "这些提交改动了依赖" });
+  const service = createSystemUpdateService({ dir, running, now: () => NOW });
+  expect(service.overview()).toMatchObject({ depsChanged: true, fullReason: "这些提交改动了依赖" });
+  const result = service.request("update", { id: "u" }, "b".repeat(40));
+  expect("id" in result).toBe(true);
+  const files = readdirSync(path.join(dir, "requests")).filter((name) => name.endsWith(".json") && !name.startsWith("."));
+  const body = JSON.parse(readFileSync(path.join(dir, "requests", files[0] as string), "utf8"));
+  expect(body).toMatchObject({ action: "update", mode: "full", expectCommit: "b".repeat(40) });
+});
+
+test("a full rebuild can be forced; a code update carries no mode", () => {
+  const dir = spool(fresh);
+  const service = createSystemUpdateService({ dir, running, now: () => NOW });
+  service.request("update", { id: "u" }, undefined, { full: true });
+  const files = readdirSync(path.join(dir, "requests")).filter((name) => name.endsWith(".json") && !name.startsWith("."));
+  expect(JSON.parse(readFileSync(path.join(dir, "requests", files[0] as string), "utf8")).mode).toBe("full");
+  const plain = spool(fresh);
+  createSystemUpdateService({ dir: plain, running, now: () => NOW }).request("update", { id: "u" });
+  const names = readdirSync(path.join(plain, "requests")).filter((name) => name.endsWith(".json") && !name.startsWith("."));
+  expect(JSON.parse(readFileSync(path.join(plain, "requests", names[0] as string), "utf8")).mode).toBeUndefined();
 });
 
 test("finished jobs are audited exactly once", async () => {

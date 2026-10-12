@@ -33,10 +33,15 @@ export type SystemUpdateJobStatus =
   | "failed"
   | "rolled_back";
 
+/** 快速更新（只替换代码层）或完整构建（仓库 Dockerfile 从头构建：依赖 + 前端 + 镜像）。 */
+export type SystemUpdateMode = "code" | "full";
+
 export type SystemUpdateJob = {
   id: string;
   action: SystemUpdateAction;
   status: SystemUpdateJobStatus;
+  mode?: SystemUpdateMode;
+  durationSec?: number;
   /** 当前步骤的 key（见 UPDATE_STEPS / ROLLBACK_STEPS）。 */
   step?: string;
   startedAt?: string;
@@ -60,6 +65,8 @@ export type SystemUpdateHistoryEntry = {
   toImage?: string;
   commit?: string;
   error?: string;
+  mode?: SystemUpdateMode;
+  durationSec?: number;
 };
 
 export type SystemUpdateOverview = {
@@ -82,8 +89,14 @@ export type SystemUpdateOverview = {
   /** 当前版本落后 main 的提交数；未知（当前镜像没有提交信息）时为 null。 */
   behind: number | null;
   commits: SystemUpdateCommit[];
-  /** 依赖或底座有变化：一键更新做不了，需要完整构建。 */
+  /** 依赖或底座有变化：这次更新要完整构建（「一键完整更新」）。 */
   depsChanged: boolean;
+  /** 为什么要完整构建（宿主机给的一句话）。 */
+  fullReason?: string;
+  /** 最近一次成功的快速 / 完整更新用了多少秒。 */
+  estimates: Partial<Record<SystemUpdateMode, number>>;
+  /** 宿主机上有人直接运行了 update.sh / rollback.sh（不经过队列）：暂时不能点更新。 */
+  externalBusy: boolean;
   job: SystemUpdateJob | null;
   /** 还在队列里、宿主机没取走的请求。 */
   pending: SystemUpdateAction[];
@@ -100,6 +113,28 @@ export const UPDATE_STEPS: ReadonlyArray<{ key: string; label: string }> = [
   { key: "health", label: "健康检查" },
   { key: "done", label: "完成" },
 ];
+
+/** 完整构建（update.sh --full 或依赖变了时自动）。 */
+export const FULL_UPDATE_STEPS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "prepare", label: "准备" },
+  { key: "deps", label: "检查依赖" },
+  { key: "backup", label: "备份数据库" },
+  { key: "build", label: "完整构建" },
+  { key: "load", label: "导入镜像" },
+  { key: "swap", label: "切换到新版本" },
+  { key: "health", label: "健康检查" },
+  { key: "done", label: "完成" },
+];
+
+/** 没有历史数据时的估计（FRA 6 核：完整构建首次约 8 分钟，有缓存约 4 分钟；快速更新约 2 分钟）。 */
+export const DEFAULT_UPDATE_ESTIMATE_SEC: Record<SystemUpdateMode, number> = { code: 150, full: 600 };
+
+/** 「约 N 分钟」。 */
+export function estimateText(seconds: number | undefined) {
+  if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return "";
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `约 ${minutes} 分钟`;
+}
 
 export const ROLLBACK_STEPS: ReadonlyArray<{ key: string; label: string }> = [
   { key: "prepare", label: "准备" },
@@ -158,6 +193,14 @@ function commit(value: unknown): SystemUpdateCommit | undefined {
   };
 }
 
+function mode(value: unknown): SystemUpdateMode | undefined {
+  return value === "code" || value === "full" ? value : undefined;
+}
+
+function seconds(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value < 24 * 3600 ? value : undefined;
+}
+
 function job(value: unknown): SystemUpdateJob | null {
   if (!record(value)) return null;
   const id = typeof value.id === "string" && ID.test(value.id) ? value.id : undefined;
@@ -170,6 +213,10 @@ function job(value: unknown): SystemUpdateJob | null {
     ? value.log.slice(-80).map((line) => safeText(line, 400) ?? "").filter(Boolean)
     : [];
   const out: SystemUpdateJob = { id, action: kind, status, log };
+  const jobMode = mode(value.mode);
+  if (jobMode) out.mode = jobMode;
+  const duration = seconds(value.durationSec);
+  if (duration) out.durationSec = duration;
   const step = safeText(value.step, 20);
   if (step) out.step = step;
   for (const key of ["startedAt", "finishedAt"] as const) {
@@ -200,6 +247,10 @@ function history(value: unknown): SystemUpdateHistoryEntry | undefined {
   const at = safeDate(value.at);
   if (!id || !kind || !status || !at) return undefined;
   const out: SystemUpdateHistoryEntry = { id, action: kind, status, at };
+  const entryMode = mode(value.mode);
+  if (entryMode) out.mode = entryMode;
+  const duration = seconds(value.durationSec);
+  if (duration) out.durationSec = duration;
   const actor = safeText(value.actor, 80);
   if (actor) out.actor = actor;
   for (const key of ["fromImage", "toImage"] as const) {
@@ -230,6 +281,8 @@ export function projectSystemUpdateState(
     behind: null,
     commits: [],
     depsChanged: false,
+    estimates: {},
+    externalBusy: false,
     job: null,
     pending,
     history: [],
@@ -274,6 +327,15 @@ export function projectSystemUpdateState(
     ? raw.commits.slice(0, 50).map(commit).filter((c): c is SystemUpdateCommit => !!c)
     : [];
   base.depsChanged = raw.depsChanged === true;
+  const reason = safeText(raw.fullReason, 200);
+  if (base.depsChanged && reason) base.fullReason = reason;
+  if (record(raw.estimates)) {
+    for (const key of ["code", "full"] as const) {
+      const value = seconds(raw.estimates[key]);
+      if (value) base.estimates[key] = value;
+    }
+  }
+  base.externalBusy = raw.externalBusy === true;
   base.job = job(raw.job);
   base.history = Array.isArray(raw.history)
     ? raw.history

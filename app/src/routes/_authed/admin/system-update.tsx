@@ -4,6 +4,7 @@ import {
   IconCheck,
   IconCloudDownload,
   IconGitCommit,
+  IconHammer,
   IconHistory,
   IconPackage,
   IconServer,
@@ -12,8 +13,11 @@ import {
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  DEFAULT_UPDATE_ESTIMATE_SEC,
+  estimateText,
+  FULL_UPDATE_STEPS,
   ROLLBACK_STEPS,
   type SystemUpdateHistoryEntry,
   type SystemUpdateJob,
@@ -26,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Card, EmptyState, ErrorCard, SettingRow, StatTile } from "@/components/ui/skyglass";
 import {
+  durationText,
   loadSystemUpdate,
   requestSystemUpdate,
   shortSha,
@@ -54,7 +59,24 @@ const STATUS_TEXT: Record<SystemUpdateHistoryEntry["status"], { text: string; to
 const ACTION_TEXT = { check: "检查更新", update: "更新", rollback: "回滚" } as const;
 
 function isActive(data?: SystemUpdateOverview) {
-  return !!data && (data.pending.some((a) => a !== "check") || data.job?.status === "running" || data.job?.status === "queued");
+  return (
+    !!data &&
+    (data.externalBusy ||
+      data.pending.some((a) => a !== "check") ||
+      data.job?.status === "running" ||
+      data.job?.status === "queued")
+  );
+}
+
+/** 这次更新预计多久：最近一次同类更新的实际用时，没有就用默认估计。 */
+function estimateFor(data: SystemUpdateOverview, full: boolean) {
+  const mode = full ? "full" : "code";
+  return data.estimates[mode] ?? DEFAULT_UPDATE_ESTIMATE_SEC[mode];
+}
+
+function sourceText(data: SystemUpdateOverview) {
+  if (!data.source) return "还没有从 GitHub 拉取过";
+  return data.source.kind === "github" ? `GitHub ${data.source.repo || ""} · ${data.source.branch}`.replace("  ", " ") : "本机镜像（不联网）";
 }
 
 /**
@@ -127,11 +149,15 @@ function SystemUpdatePage() {
 function Overview({ data }: { data: SystemUpdateOverview }) {
   const queryClient = useQueryClient();
   const active = isActive(data);
-  const canUpdate = data.configured && data.updaterOnline && !active && !data.depsChanged && (data.behind ?? 0) > 0;
+  const full = data.depsChanged;
+  // 当前镜像没有记录提交（behind 未知）时只能完整构建一次。
+  const pendingUpdate = (data.behind ?? 0) > 0 || (data.behind === null && full && !!data.latest);
+  const canUpdate = data.configured && data.updaterOnline && !active && pendingUpdate;
+  const estimate = estimateText(estimateFor(data, full));
 
   const update = useAsyncAction(
     async () => {
-      const result = await requestSystemUpdate("update", data.latest?.sha);
+      const result = await requestSystemUpdate("update", data.latest?.sha, { full });
       queryClient.setQueryData(systemUpdateKeys.overview, result.overview);
     },
     { errorToast: (error) => error.message },
@@ -144,11 +170,20 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
     { errorToast: (error) => error.message },
   );
   async function startUpdate() {
-    const ok = await confirmDialog({
-      title: `更新到 ${shortSha(data.latest?.sha)}？`,
-      description: `会先备份数据库，然后构建新版本并切换，整个过程约 5–10 分钟；切换时有十几秒连不上。健康检查不通过会自动回到 ${data.current?.image ?? "当前版本"}。`,
-      confirmLabel: "开始更新",
-    });
+    const back = data.current?.image?.replace(/^.*:/u, "") ?? "当前版本";
+    const ok = await confirmDialog(
+      full
+        ? {
+            title: `完整更新到 ${shortSha(data.latest?.sha)}？`,
+            description: `会先备份数据库，再从 GitHub 下载最新代码，重新安装依赖、构建前端和镜像（限内存），然后切换，${estimate || "需要几分钟"}；构建期间照常可用，切换时有十几秒连不上。健康检查不通过会自动回到 ${back}。`,
+            confirmLabel: "开始完整更新",
+          }
+        : {
+            title: `更新到 ${shortSha(data.latest?.sha)}？`,
+            description: `会先备份数据库，然后构建新版本并切换，${estimate || "需要几分钟"}；切换时有十几秒连不上。健康检查不通过会自动回到 ${back}。`,
+            confirmLabel: "开始更新",
+          },
+    );
     if (ok) await update.run();
   }
   async function startRollback() {
@@ -194,11 +229,11 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
           value={<span className="sysupd-image">{(data.current?.image ?? data.running.buildId).replace(/^.*:/u, "")}</span>}
         />
         <StatTile
-          delta={data.source ? (data.source.kind === "github" ? `GitHub · ${data.source.branch}` : "本机镜像（发布时同步）") : undefined}
+          delta={data.source?.error ? "上次拉取失败" : sourceText(data)}
           icon={<IconBrandGithub className="size-4" />}
           label="上次检查"
           tone={data.source?.error ? "warn" : undefined}
-          value={timeText(data.source?.fetchedAt)}
+          value={data.source?.fetchedAt ? timeText(data.source.fetchedAt) : "从未检查"}
         />
         <StatTile
           delta={data.behind === null ? "当前镜像没有记录提交" : data.behind ? `最新 ${shortSha(data.latest?.sha)}` : "已是最新"}
@@ -213,28 +248,65 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
         <ErrorCard className="mt-4" description={data.source.error} title="检查更新失败" />
       ) : null}
 
+      {data.externalBusy ? (
+        <Card className="sysupd-note is-busy mt-4" role="status">
+          <span className="sysupd-note-ic" aria-hidden>
+            <i className="sysupd-spin" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h4>{"宿主机上正在手动更新"}</h4>
+            <p>{"有人在服务器上直接运行了更新或回滚脚本。等它结束后这里会自动刷新，再点更新。"}</p>
+          </div>
+        </Card>
+      ) : null}
+
       <PageSection
         action={
-          <Button
-            disabled={!canUpdate}
-            feedback={{ pending: "提交中…", success: "已开始", error: "未开始" }}
-            onClick={() => void startUpdate()}
-            size="sm"
-            state={update.state}
-          >
-            <IconCloudDownload />
-            {"更新"}
-          </Button>
+          full ? null : (
+            <Button
+              disabled={!canUpdate}
+              feedback={{ pending: "提交中…", success: "已开始", error: "未开始" }}
+              onClick={() => void startUpdate()}
+              size="sm"
+              state={update.state}
+            >
+              <IconCloudDownload />
+              {"更新"}
+            </Button>
+          )
         }
-        description={data.source?.kind === "mirror" ? "GitHub 仓库是私有的，宿主机没有配置只读令牌时，读取发布时同步到服务器的本机镜像。" : `来自 ${data.source?.repo ?? "GitHub"} 的 ${data.source?.branch ?? "main"}。`}
+        description={
+          data.source?.kind === "mirror"
+            ? "宿主机设置为不联网（GITHUB_FETCH=off），读取发布时推送到服务器的本机镜像。"
+            : `来自 GitHub ${data.source?.repo || "ChisaAlter/ChisaBot"} 的 ${data.source?.branch ?? "main"}，点「检查更新」立即拉取。`
+        }
         title="可用更新"
       >
-        {data.depsChanged ? (
-          <ErrorCard
-            className="mb-3"
-            description="这些提交改动了依赖（bun.lock / package.json）或镜像底座，一键更新只替换代码，做不了这类改动，需要按 docs/online-update.md 完整构建一次。"
-            title="需要完整构建"
-          />
+        {full && pendingUpdate ? (
+          <Card className="sysupd-note is-full mb-3">
+            <span className="sysupd-note-ic" aria-hidden>
+              <IconHammer className="size-[18px]" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h4>{"这次需要完整构建"}</h4>
+              <p>
+                {`${data.fullReason ?? "这些提交改动了依赖或镜像底座"}，只替换代码的快速更新做不了。一键完整更新会从 GitHub 下载最新代码，重新安装依赖、构建前端和镜像，然后切换；先备份数据库，健康检查不通过自动回滚。`}
+              </p>
+              <p className="sysupd-note-meta">
+                {[estimate ? `预计${estimate}` : "", "构建期间照常可用", "切换时断开十几秒"].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <Button
+              className="sysupd-note-btn"
+              disabled={!canUpdate}
+              feedback={{ pending: "提交中…", success: "已开始", error: "未开始" }}
+              onClick={() => void startUpdate()}
+              state={update.state}
+            >
+              <IconHammer />
+              {"一键完整更新"}
+            </Button>
+          </Card>
         ) : null}
         {data.commits.length ? (
           <Card>
@@ -262,7 +334,9 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
         )}
       </PageSection>
 
-      {data.job || data.pending.some((a) => a !== "check") ? <JobCard job={data.job} pending={data.pending} /> : null}
+      {data.job || data.pending.some((a) => a !== "check") ? (
+        <JobCard estimates={data.estimates} job={data.job} pending={data.pending} />
+      ) : null}
 
       <PageSection title="回滚">
         <Card>
@@ -304,14 +378,16 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
                     </time>
                     <div className="min-w-0 flex-1">
                       <div className="sysupd-ht">
-                        <b>{ACTION_TEXT[entry.action]}</b>
+                        <b>{entry.action === "update" && entry.mode === "full" ? "完整更新" : ACTION_TEXT[entry.action]}</b>
                         {entry.fromImage || entry.toImage ? (
                           <span className="sysupd-mono">
                             {[entry.fromImage, entry.toImage].filter(Boolean).map((i) => i?.replace(/^.*:/u, "")).join(" → ")}
                           </span>
                         ) : null}
                       </div>
-                      <div className="sysupd-hs">{[entry.actor, entry.error].filter(Boolean).join(" · ")}</div>
+                      <div className="sysupd-hs">
+                        {[entry.actor, entry.durationSec ? `用时 ${durationText(entry.durationSec)}` : "", entry.error].filter(Boolean).join(" · ")}
+                      </div>
                     </div>
                     <span className={cn("device-badge is-sm", `is-${status.tone}`)}>{status.text}</span>
                   </li>
@@ -372,22 +448,59 @@ function SmokeSection() {
   );
 }
 
-function JobCard({ job, pending }: { job: SystemUpdateJob | null; pending: SystemUpdateOverview["pending"] }) {
+/** 进行中的任务每秒走一次的「已用 x 分 y 秒」。 */
+function useElapsed(startedAt: string | undefined, running: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  const started = startedAt ? Date.parse(startedAt) : Number.NaN;
+  return running && Number.isFinite(started) ? Math.max(0, (now - started) / 1000) : undefined;
+}
+
+function JobCard({
+  job,
+  pending,
+  estimates,
+}: {
+  job: SystemUpdateJob | null;
+  pending: SystemUpdateOverview["pending"];
+  estimates: SystemUpdateOverview["estimates"];
+}) {
   const queued = !job || (job.status !== "running" && pending.some((a) => a !== "check"));
   const action = queued ? (pending.find((a) => a !== "check") ?? "update") : job.action;
-  const steps = action === "rollback" ? ROLLBACK_STEPS : UPDATE_STEPS;
+  const full = !queued && job.action === "update" && job.mode === "full";
+  const steps = action === "rollback" ? ROLLBACK_STEPS : full ? FULL_UPDATE_STEPS : UPDATE_STEPS;
   const status = queued ? "queued" : job.status;
   const currentIndex = queued ? -1 : steps.findIndex((s) => s.key === job.step);
   const badge = STATUS_TEXT[status];
+  const elapsed = useElapsed(job?.startedAt, !queued && status === "running");
+  const expected = full ? (estimates.full ?? DEFAULT_UPDATE_ESTIMATE_SEC.full) : (estimates.code ?? DEFAULT_UPDATE_ESTIMATE_SEC.code);
+  const timing = queued
+    ? ""
+    : status === "running" && elapsed !== undefined
+      ? `已用 ${durationText(elapsed)}${action === "update" ? ` · 预计${estimateText(expected)}` : ""}`
+      : job.durationSec
+        ? `用时 ${durationText(job.durationSec)}`
+        : "";
   return (
     <PageSection
       action={<span className={cn("device-badge", `is-${badge.tone}`)}>{badge.text}</span>}
       description={
         queued
           ? "已提交，等待宿主机更新程序开始（几秒内）。"
-          : [job.actor ? `由 ${job.actor} 发起` : "", job.startedAt ? `开始于 ${timeText(job.startedAt)}` : "", job.finishedAt ? `结束于 ${timeText(job.finishedAt)}` : ""].filter(Boolean).join(" · ")
+          : [
+              job.actor ? `由 ${job.actor} 发起` : "",
+              job.startedAt ? `开始于 ${timeText(job.startedAt)}` : "",
+              job.finishedAt ? `结束于 ${timeText(job.finishedAt)}` : "",
+              timing,
+            ]
+              .filter(Boolean)
+              .join(" · ")
       }
-      title={action === "rollback" ? "回滚进度" : "更新进度"}
+      title={action === "rollback" ? "回滚进度" : full ? "完整更新进度" : "更新进度"}
     >
       <Card className="sysupd-job">
         <ol className="sysupd-steps">
@@ -413,13 +526,40 @@ function JobCard({ job, pending }: { job: SystemUpdateJob | null; pending: Syste
           })}
         </ol>
         {!queued && job.error ? <p className="sysupd-error">{job.error}</p> : null}
-        {!queued && job.log.length ? (
-          <pre aria-label={"更新日志"} className="sysupd-log">
-            {job.log.join("\n")}
-          </pre>
+        {!queued && status === "succeeded" && action === "update" && job.toImage ? (
+          <p className="sysupd-done">
+            <IconCheck className="size-4" />
+            {`已上线 ${job.toImage.replace(/^.*:/u, "")}${job.durationSec ? `，用时 ${durationText(job.durationSec)}` : ""}。打开的页面会提示「有新版本，点此刷新」。`}
+          </p>
         ) : null}
+        {!queued && job.log.length ? <JobLog lines={job.log} /> : null}
       </Card>
     </PageSection>
+  );
+}
+
+/** 日志块：新行进来时自动滚到底（用户往上翻看时不打扰）。 */
+function JobLog({ lines }: { lines: string[] }) {
+  const [node, setNode] = useState<HTMLPreElement | null>(null);
+  const last = lines[lines.length - 1];
+  useEffect(() => {
+    if (!node) return;
+    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+    if (nearBottom || node.dataset.stuck !== "0") node.scrollTop = node.scrollHeight;
+  }, [node, last, lines.length]);
+  return (
+    <pre
+      aria-label={"更新日志"}
+      aria-live="polite"
+      className="sysupd-log"
+      onScroll={(event) => {
+        const el = event.currentTarget;
+        el.dataset.stuck = el.scrollHeight - el.scrollTop - el.clientHeight < 48 ? "1" : "0";
+      }}
+      ref={setNode}
+    >
+      {lines.join("\n")}
+    </pre>
   );
 }
 

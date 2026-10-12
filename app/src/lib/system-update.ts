@@ -23,7 +23,10 @@ export function systemUpdateQueryOptions() {
       const data = query.state.data;
       const active =
         !!data &&
-        (data.pending.length > 0 || data.job?.status === "running" || data.job?.status === "queued");
+        (data.pending.length > 0 ||
+          data.externalBusy ||
+          data.job?.status === "running" ||
+          data.job?.status === "queued");
       return active ? 2_000 : 30_000;
     },
     refetchOnWindowFocus: "always",
@@ -33,10 +36,14 @@ export function systemUpdateQueryOptions() {
 export async function requestSystemUpdate(
   action: SystemUpdateAction,
   expectCommit?: string,
+  options?: { full?: boolean },
 ): Promise<{ id: string; overview: SystemUpdateOverview }> {
   const response = await client(`/api/admin/system-update/${action}`, {
     method: "POST",
-    body: action === "update" && expectCommit ? { expectCommit } : {},
+    body:
+      action === "update"
+        ? { ...(expectCommit ? { expectCommit } : {}), ...(options?.full ? { mode: "full" } : {}) }
+        : {},
     fallback: action === "update" ? "无法开始更新。" : action === "rollback" ? "无法开始回滚。" : "无法检查更新。",
   });
   return response.json();
@@ -51,4 +58,14 @@ export function timeText(at?: string) {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/** 「3 分 12 秒」。 */
+export function durationText(seconds?: number) {
+  if (seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return "";
+  const s = Math.round(seconds);
+  if (s < 60) return `${s} 秒`;
+  const m = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest ? `${m} 分 ${rest} 秒` : `${m} 分钟`;
 }

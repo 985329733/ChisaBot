@@ -43,6 +43,7 @@ export type SystemUpdateService = {
     action: SystemUpdateAction,
     actor: { id: string; name?: string | null; email?: string | null },
     expectCommit?: string,
+    options?: { full?: boolean },
   ): { id: string } | { error: string; status: 409 | 503 };
   /** 宿主机写完一个任务后，补一条审计（每个任务只记一次）。 */
   pollFinishedJobs(record: (job: NonNullable<SystemUpdateOverview["job"]>) => Promise<void>): Promise<void>;
@@ -105,7 +106,7 @@ export function createSystemUpdateService(options: {
   return {
     configured,
     overview,
-    request(action, actor, expectCommit) {
+    request(action, actor, expectCommit, options) {
       if (!configured) return { error: "这个部署没有安装宿主机更新程序。", status: 503 };
       const state = overview();
       if (!state.updaterOnline && action !== "check")
@@ -114,9 +115,10 @@ export function createSystemUpdateService(options: {
         (state.job && (state.job.status === "running" || state.job.status === "queued")) ||
         state.pending.some((item) => item !== "check");
       if (busy && action !== "check") return { error: "已经有一个更新或回滚在进行中。", status: 409 };
+      if (state.externalBusy && action !== "check")
+        return { error: "宿主机上有人正在手动运行更新或回滚，等它结束再试。", status: 409 };
       if (action === "rollback" && !state.previous) return { error: "没有可以回滚到的上一版。", status: 409 };
-      if (action === "update" && state.depsChanged)
-        return { error: "新版本改动了依赖或底座，一键更新做不了，需要完整构建。", status: 409 };
+      // 依赖或底座变了不再拒绝：宿主机自动改为完整构建（「一键完整更新」）。
       if (action === "check" && state.pending.includes("check")) return { id: "pending" };
       const id = `${action}-${randomUUID().replace(/-/gu, "").slice(0, 20)}`;
       const body = {
@@ -126,6 +128,7 @@ export function createSystemUpdateService(options: {
         actor: (actor.name || actor.email || actor.id).slice(0, 80),
         actorId: actor.id.slice(0, 80),
         ...(expectCommit && /^[0-9a-f]{40}$/u.test(expectCommit) ? { expectCommit } : {}),
+        ...(action === "update" && (options?.full || state.depsChanged) ? { mode: "full" } : {}),
       };
       const tmp = path.join(requestsDir, `.${id}.tmp`);
       writeFileSync(tmp, JSON.stringify(body), { mode: 0o600 });
@@ -208,15 +211,17 @@ export function createSystemUpdateRoutes(options: {
     routes.post(`/${action}`, async (context) => {
       const actor = context.var.actor;
       let expectCommit: string | undefined;
+      let full = false;
       if (action === "update") {
         try {
-          const body = (await context.req.json()) as { expectCommit?: unknown };
+          const body = (await context.req.json()) as { expectCommit?: unknown; mode?: unknown };
           if (typeof body?.expectCommit === "string") expectCommit = body.expectCommit;
+          full = body?.mode === "full";
         } catch {
           expectCommit = undefined;
         }
       }
-      const result = service.request(action, actor, expectCommit);
+      const result = service.request(action, actor, expectCommit, { full });
       if ("error" in result) {
         if (action !== "check")
           await audit(actor.id, { change: `system_update.${action}.refused`, detail: result.error });
@@ -227,6 +232,7 @@ export function createSystemUpdateRoutes(options: {
           change: `system_update.${action}.requested`,
           job: result.id,
           ...(expectCommit ? { commit: expectCommit } : {}),
+          ...(full ? { mode: "full" } : {}),
         });
       return context.json({ id: result.id, overview: service.overview() }, 202);
     });

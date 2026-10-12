@@ -71,47 +71,69 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
 ```
 
 - 容器只能放三种请求：`check`、`update`、`rollback`。宿主机只认这三种动作，请求里的字符串从不执行；`update` 只能更新到
-  本机镜像 `main` 的最新提交（请求里的 `expectCommit` 必须等于它，否则拒绝「main 已经变了」）。
+  本机镜像 `main` 的最新提交（请求里的 `expectCommit` 必须等于它，否则拒绝「main 已经变了」），可选 `"mode": "full"` 强制完整构建。
+- 宿主机上手动操作也走同一个队列：`/opt/chisabot-updater/request.sh check | update [--full] | rollback | status`
+  （页面上能看到进度、日志、历史）。直接运行 `update.sh` 页面看不到任务，只会显示「宿主机上正在手动更新」并暂时禁用按钮。
 - 认证就是文件系统权限：`spool/requests` 归 uid 1002（镜像里的 API 用户）、700；`spool/state` 归 root、只读挂载。
   公网网关先认证会话，`/api/admin/system-update` 再要求管理员。
 - 同时只有一个任务：`/opt/chisabot-updater/update.lock`（flock，更新和回滚共用）；切换 compose 时再拿
   `/opt/openbot-zh/.deploy.lock`（和手动发布脚本同一把锁）。
-- **更新来源**：本机裸仓库 `/opt/chisabot-updater/mirror.git`。仓库是私有的：
-  - 有 `/opt/chisabot-updater/github-token`（root 600，**只读**的 fine-grained token，只给 Contents: Read）时，每 30 分钟和
-    点「检查更新」时从 GitHub 拉 `main`（`git-askpass.sh`，令牌只在宿主机，从不进容器或前端）；
-  - 没有令牌时读本机镜像本身，由发布者在推 GitHub 的同时推一份：`git push root@<host>:/opt/chisabot-updater/mirror.git main`。
-- **update.sh** 步骤（与 `shared/system-update.ts` 的 `UPDATE_STEPS` 一致）：
-  1. 准备：目标提交在 `main` 上，磁盘剩余 ≥ 2.5 GB；
+- **更新来源**：本机裸仓库 `/opt/chisabot-updater/mirror.git`，每 30 分钟和点「检查更新」时从
+  `https://github.com/<GITHUB_REPO>.git` 拉 `GITHUB_BRANCH`（`config.env`）。仓库公开（ChisaAlter/ChisaBot 是公开的），**匿名拉取，
+  不需要令牌**；「上次检查」显示拉取时间，拉取失败时显示原因。
+  - 私有 fork：放 `/opt/chisabot-updater/github-token`（root 600，**只读**的 fine-grained token，只给 Contents: Read；
+    `git-askpass.sh`，令牌只在宿主机，从不进容器或前端）；
+  - 不想让宿主机联网：`GITHUB_FETCH=off`，由发布者推一份到本机镜像：`git push root@<host>:/opt/chisabot-updater/mirror.git main`。
+- **两种更新，update.sh 自动选**（页面上依赖变了时显示「这次需要完整构建」说明卡 + 主按钮「一键完整更新」，写着预计用时）：
+  - **快速更新**（`UPDATE_STEPS`）：依赖没变，只替换代码层，约 2 分钟；
+  - **完整构建**（`FULL_UPDATE_STEPS`：准备 → 检查依赖 → 备份 → 完整构建 → 导入镜像 → 切换 → 健康检查 → 完成）：`bun.lock`、
+    各 `package.json`、`Dockerfile`、`docker/` 的指纹和底座不一样，或者底座镜像 / 依赖树不在了，或者当前镜像没有记录提交时。
+    用仓库根目录的 `Dockerfile`（最后一段 `chisabot`）从 `ubuntu:24.04` 起完整构建：Playwright Chromium、s6、PostgreSQL 16、
+    `bun install --frozen-lockfile --linker hoisted`（根目录 + agent-computer + 生产依赖树）、前端（注入构建号）、
+    `build-info.json` 和 `chisabot.commit` 标签，约 26 层，离 127 层上限很远。
+    - 构建器：`docker buildx` 的 docker-container 驱动，名字 `chisabot-builder`，**内存上限 `FULL_BUILD_MEMORY`（默认 6g，不含 swap）**，
+      构建期间暂停 `PROTO_CONTAINERS`；层缓存留在构建器里（超过 `BUILD_CACHE_MAX` 时修剪），所以下一次完整构建只重做变了的层。
+      完整日志在 `jobs/<任务>.build.log`，页面上显示每一步的开头和错误。改了内存上限要 `docker buildx rm chisabot-builder` 让它重建。
+    - 构建成功、切换并通过健康检查后，新镜像成为快速更新的**新底座**：写 `base.env`（`BASE_IMAGE`、`NODE_MODULES_BASE`、`BASE_COMMIT`，
+      覆盖 `config.env` 同名项）、`base-deps.sha256`，并把构建时的完整依赖树（含 vite 等开发依赖，`--target updater-deps` 导出）放在
+      `deps-<标签>/`（保留两份）。之后依赖不变的提交又走快速更新。没通过就自动回滚，底座不变。
+    - 用时（FRA，6 核 / 24 GB）：首次（无缓存）约 5–8 分钟，有缓存约 3–5 分钟；页面「预计」取最近一次同类更新的实际用时。
+- **update.sh** 步骤（快速更新；与 `shared/system-update.ts` 的 `UPDATE_STEPS` 一致）：
+  1. 准备：目标提交在 `main` 上，磁盘剩余 ≥ 2.5 GB（完整构建 ≥ 12 GB）；
   2. 检查依赖：`bun.lock`、各 `package.json`（含 `agent-computer/` 的 `package.json` 和 `bun.lock`）、`Dockerfile`、`docker/` 的指纹（根 `package.json` 去掉顶层 `version` 行再算，改版本号不影响）必须等于 `base-deps.sha256`（底座构建时的指纹），
-     否则停下：「需要完整构建」（一键更新只替换代码层）；
+     否则自动改为完整构建（`--code-only` 时停下）；
   3. 备份：`pg_dump`、compose、profiles / workspace 卷 → `/opt/chisabot-updater/backups/<时间>-<任务>/`（保留 5 份）；
   4. 构建前端：`git archive` 导出源码，`node_modules` 硬链接自 `node_modules-base`，暂停原型沙箱，在限内存
      （3500m，无 swap 的 7.6 GB 机器）的容器里 `vite build`（注入构建号），结束后恢复沙箱；
-  5. 构建镜像：`FROM` 压平底座 `flat-20261011b`（1 层），只覆盖 `app/dist`、`server/{src,drizzle,scripts}`、`shared`、
+  5. 构建镜像：`FROM` 底座（`base.env` 的 `BASE_IMAGE`；最早是压平的 `flat-20261011b`），只覆盖 `app/dist`、`server/{src,drizzle,scripts}`、`shared`、
      `examples/zh-CN`、`agent-computer/src`（服务器直接 import 它的 `egress.ts`）、`build-info.json`，层数固定，不会碰到 127 层上限；标签 `auto-<UTC 时间>-<提交>`，标签
      `chisabot.commit` 记录提交；
   6. 切换：写回滚脚本 `/opt/openbot-zh/rollback-to-<旧标签>.sh`，`compose.yaml.before-<新标签>`，改镜像行，`docker compose up --wait`；
   7. 健康检查（`health.sh`）：容器 healthy、20 秒内没有重启、本机 `/health` 200、`PUBLIC_HEALTH_URL`（公网登录页）200、
      `/api/version` 的构建号是新的；最后做一次模型往返自检（`POST /api/admin/smoke`，见 `docs/admin-smoke.md`，不写任何对话），
      结果只记进日志、不影响通过与否；**不通过就自动执行回滚脚本**，任务记为「已自动回滚」；
-  8. 完成：只保留最近 3 个 `auto-*` 镜像，`docker image prune`。
+  8. 完成：只保留最近 3 个 `auto-*` 镜像（正在用的、上一版 = 回滚目标、底座都不删），`docker image prune`。
 - **回滚到上一版**（`rollback.sh`）：「上一版」= 当前镜像上线前的 compose（`compose.yaml.before-<当前标签>`，手动发布
   和一键更新都会留下）。只换镜像，数据库不回退（备份在 backups/）。
 - 进度：脚本输出 `::step::` / `::error::` / `::result::` 标记，守护进程解析后把步骤、日志尾巴（60 行）写进 state.json，
   页面运行中每 2 秒刷新。守护进程重启（`KillMode=process`）不会打断正在跑的更新，新进程接着读日志。
 - 审计：容器在请求被接受 / 拒绝时写 `configuration.changed`（`targetType: system_update`），宿主机写完一个任务后
   管理后台下次读取时补一条结果；宿主机自己另有 `/opt/chisabot-updater/audit.log`。
-- 手动：`update.sh --job manual-xxxx --target <sha> --dry-run`（备份 + 构建，在切换前停下）、`--build-only --tag <标签>`
-  （只构建镜像，供手动发布）。
+- 手动：`request.sh update [--full]`（排队，页面可见）；演练 `update.sh --job manual-xxxx --target <sha> [--full] --dry-run`
+  （备份 + 构建，在切换前停下）、`--build-only --tag <标签>`（只构建镜像，供手动发布）。
 
 ### 安装（一次）
 
+需要 Docker Engine + Compose v2 + **buildx 插件**（`docker buildx version`）、git、python2、flock。
+
 ```sh
 # 宿主机 root，在仓库的 deploy/updater/ 下
-git push root@host:/opt/chisabot-updater/mirror.git main     # 先建镜像（install.sh 会 git init --bare）
-cp -al /opt/chisabot-glass-build/src/node_modules /opt/chisabot-updater/node_modules-base   # 与 bun.lock 一致的依赖
-bash install.sh <底座对应的提交>                               # 写 base-deps.sha256，装 systemd 服务
+vi config.env        # 先改 COMPOSE_DIR、PUBLIC_HEALTH_URL、GITHUB_REPO（自己的 fork）、FULL_BUILD_MEMORY 等；install.sh 只在第一次复制它
+bash install.sh      # 建 /opt/chisabot-updater、从 GitHub 拉 main 到 mirror.git、装并启动 systemd 服务
 ```
+
+全新安装没有快速更新的底座：第一次在 系统更新 页点「一键完整更新」就是用仓库 Dockerfile 完整构建，之后自动有底座。
+已经有压平底座的老部署：`bash install.sh <底座对应的提交>`（写 `base-deps.sha256`，`NODE_MODULES_BASE` 放一份与 bun.lock 一致的 node_modules）。
 
 compose（`/opt/openbot-zh/compose.yaml`）的 openbot 服务加：
 
@@ -123,5 +145,7 @@ compose（`/opt/openbot-zh/compose.yaml`）的 openbot 服务加：
       CHISABOT_UPDATER_DIR: /var/lib/chisabot-updater
 ```
 
-依赖或底座变了（指纹不符）：按原来的方式完整构建并压平新底座，改 `config.env` 的 `BASE_IMAGE`、
-`node_modules-base` 和 `base-deps.sha256`。
+依赖或底座变了（指纹不符）：不用再手动构建，点「一键完整更新」（或 `request.sh update --full`）。
+
+回滚完整更新：和快速更新一样，「回滚到上一版」或 `/opt/openbot-zh/rollback-to-<旧标签>.sh`（只换镜像，数据库不回退）；
+`base.env` 指向新底座不影响回滚。要连底座一起退回：`mv base.env base.env.off` 并把 `base-deps.sha256` 改回旧值。
