@@ -1,7 +1,7 @@
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconNetwork } from "@tabler/icons-react";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -41,8 +41,15 @@ function ModelSettingsPage() {
   const settings = useQuery(modelSettingsQueryOptions());
   return (
     <PageShell
-      description="配置聊天使用的模型和接口。保存后从下一轮对话开始使用，无需重启。"
-      title="模型设置"
+      action={
+        /* Magpie 网关页已从左栏移除（2026-10-12 精简），从这里进入。 */
+        <Button nativeButton={false} render={<Link to="/admin/magpie" />} size="sm" variant="outline">
+          <IconNetwork />
+          {"Magpie 网关"}
+        </Button>
+      }
+      description="聊天使用的模型和接口。保存后从下一轮对话开始使用，无需重启。"
+      title="模型"
     >
       {settings.isPending ? (
         <p className="mt-8 text-muted-foreground text-sm" role="status">

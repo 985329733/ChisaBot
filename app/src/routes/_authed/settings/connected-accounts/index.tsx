@@ -13,6 +13,7 @@ import {
   PageSection,
   PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
+import { SavedLoginsSection } from "@/components/settings/saved-logins";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
 import {
   InputGroup,
@@ -160,8 +161,8 @@ function RouteComponent() {
   return (
     <PageShell
       className="max-w-4xl @container"
-      description={"连接您的应用，以便您的机器人可以与它们配合。"}
-      title={"已连接账号"}
+      description={"机器人代表你使用的应用，以及你保存的网站登录。"}
+      title={"账号与密码"}
     >
       {/*
        * Only the failure is worth saying. A success needs no sentence: the row it came back to now
@@ -281,6 +282,9 @@ function RouteComponent() {
           )}
         </>
       )}
+      <div className="mt-10">
+        <SavedLoginsSection />
+      </div>
     </PageShell>
   );
 }

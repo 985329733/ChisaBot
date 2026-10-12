@@ -37,8 +37,7 @@ const WIDTHS: Record<ShellWidth, string> = {
 
 /** The eyebrow a page gets when it does not name one: the area it lives in. */
 function areaOf(pathname: string): { label: string; to: string } | null {
-  if (pathname.startsWith("/settings")) return { label: "偏好设置", to: "/settings" };
-  if (pathname.startsWith("/admin")) return { label: "管理后台", to: "/admin" };
+  if (pathname.startsWith("/settings") || pathname.startsWith("/admin")) return { label: "设置", to: "/settings" };
   return null;
 }
 

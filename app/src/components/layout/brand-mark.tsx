@@ -58,15 +58,17 @@ export function BrandMark() {
   return (
     <>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            aria-label={`${accent}${rest}，点击修改名称`}
-            className="brand-mark-btn"
-            onClick={() => setOpen(true)}
-            type="button"
-          >
-            <BrandWordmark accent={accent} rest={rest} />
-          </button>
+        <TooltipTrigger
+          render={
+            <button
+              aria-label={`${accent}${rest}，点击修改名称`}
+              className="brand-mark-btn"
+              onClick={() => setOpen(true)}
+              type="button"
+            />
+          }
+        >
+          <BrandWordmark accent={accent} rest={rest} />
         </TooltipTrigger>
         <TooltipContent>{"点击修改名称"}</TooltipContent>
       </Tooltip>

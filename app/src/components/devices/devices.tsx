@@ -647,7 +647,7 @@ function PcUpdateRows({ local, onLocal }: { local: PcLocalState; onLocal: (next:
   return (
     <>
       <SettingRow
-        description={update.supported ? "启动时和每隔几小时检查一次，有新版本就在后台下载，下载好后提示你重启安装。" : "只有安装版能自动更新；免安装版请到 偏好设置 → 设备 下载新版本。"}
+        description={update.supported ? "启动时和每隔几小时检查一次，有新版本就在后台下载，下载好后提示你重启安装。" : "只有安装版能自动更新；免安装版请到 设置 → 电脑操作 下载新版本。"}
         title="自动更新"
       >
         <Switch

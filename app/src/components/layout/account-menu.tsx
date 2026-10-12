@@ -1,6 +1,5 @@
 import {
   IconBell,
-  IconBuildingSkyscraper,
   IconLogout,
   IconMoon,
   IconSelector,
@@ -50,7 +49,6 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const sidebar = useOptionalSidebar();
   const signOut = useMutation(signOutMutationOptions(queryClient));
-  const isAdmin = user?.role === "admin";
   const pending =
     (approvals.data?.requests.filter((r) => r.status === "pending").length ?? 0) +
     (approvals.data?.questions.length ?? 0);
@@ -154,7 +152,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
               setProfileOpen(true);
             }}
           />
-          <Row icon={<IconSettings className={icon} />} label={"偏好设置"} onClick={() => go("/settings")} />
+          <Row icon={<IconSettings className={icon} />} label={"设置"} onClick={() => go("/settings")} />
           <Row
             hint={pending > 0 ? `${pending} 项待审批` : undefined}
             icon={<IconShieldCheck className={icon} />}
@@ -162,9 +160,6 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
             onClick={() => go("/approvals")}
           />
           <Row icon={<IconBell className={icon} />} label={"通知"} onClick={() => go("/reachability")} />
-          {isAdmin ? (
-            <Row icon={<IconBuildingSkyscraper className={icon} />} label={"管理后台"} onClick={() => go("/admin")} />
-          ) : null}
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="glass-sep" />
         <DropdownMenuGroup className="py-1">
