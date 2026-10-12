@@ -98,9 +98,12 @@ ARG VITE_CHISABOT_BUILD_ID=dev
 ARG VITE_MAGPIE_MANAGEMENT_URL=
 # `app`'s own build script names `app/node_modules/vite`, which only exists under the isolated linker;
 # with the hoisted tree above vite sits at the root. Same steps as the script (prebuild, then vite).
+# Vite runs under node with a bounded heap rather than `bun --bun`: the host updater builds this inside
+# a memory-capped builder (FULL_BUILD_MEMORY) next to other stages, and bun's heap has no such ceiling.
+ARG VITE_MAX_OLD_SPACE=3072
 RUN bun scripts/generate-app-config.ts \
   && cd app && V=node_modules/vite/bin/vite.js && { [ -f "$V" ] || V="../$V"; } \
-  && bun --bun "$V" build
+  && node --max-old-space-size="$VITE_MAX_OLD_SPACE" "$V" build
 
 
 # The full install tree (dev dependencies included) as one tar, for the host updater only:

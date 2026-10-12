@@ -33,6 +33,8 @@ U=/opt/chisabot-updater
 [ -f "$U/base.env" ] && . "$U/base.env"
 FULL_BUILD_MEMORY=${FULL_BUILD_MEMORY:-6g}
 FULL_BUILDER=${FULL_BUILDER:-chisabot-builder}
+# 同时跑的构建步骤数：冷缓存时多个阶段会并行（apt、bun install、vite），一起超过内存上限。
+FULL_BUILD_PARALLELISM=${FULL_BUILD_PARALLELISM:-2}
 BUILD_CACHE_MAX=${BUILD_CACHE_MAX:-20gb}
 KEEP_IMAGES=${KEEP_IMAGES:-3}
 KEEP_BACKUPS=${KEEP_BACKUPS:-5}
@@ -162,11 +164,19 @@ BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 if [ "$MODE" = full ]; then
   # ---------- build（完整）----------
   step build "完整构建：安装依赖、构建前端、构建镜像（限内存 $FULL_BUILD_MEMORY）"
+  # 构建器的设置（内存上限、并行数）变了就重建它（层缓存随之清空）。
+  printf '[worker.oci]\n  max-parallelism = %s\n' "$FULL_BUILD_PARALLELISM" > "$U/buildkitd.toml"
+  WANT="memory=$FULL_BUILD_MEMORY parallelism=$FULL_BUILD_PARALLELISM"
+  if docker buildx inspect "$FULL_BUILDER" >/dev/null 2>&1 && [ "$(cat "$U/.builder-config" 2>/dev/null)" != "$WANT" ]; then
+    echo "构建器设置变了（$(cat "$U/.builder-config" 2>/dev/null || echo 旧) → $WANT），重建 $FULL_BUILDER"
+    docker buildx rm "$FULL_BUILDER" >/dev/null 2>&1 || true
+  fi
   if ! docker buildx inspect "$FULL_BUILDER" >/dev/null 2>&1; then
-    docker buildx create --name "$FULL_BUILDER" --driver docker-container \
+    docker buildx create --name "$FULL_BUILDER" --driver docker-container --buildkitd-config "$U/buildkitd.toml" \
       --driver-opt "memory=$FULL_BUILD_MEMORY,memory-swap=$FULL_BUILD_MEMORY" --bootstrap >/dev/null 2>&1 \
       || fail "无法创建构建器 $FULL_BUILDER"
-    echo "已创建构建器 $FULL_BUILDER（内存上限 $FULL_BUILD_MEMORY，无 swap）"
+    echo "$WANT" > "$U/.builder-config"
+    echo "已创建构建器 $FULL_BUILDER（内存上限 $FULL_BUILD_MEMORY，无 swap；同时最多 $FULL_BUILD_PARALLELISM 步）"
   else
     docker buildx inspect --bootstrap "$FULL_BUILDER" >/dev/null 2>&1 || fail "构建器 $FULL_BUILDER 启动失败"
   fi
@@ -187,6 +197,9 @@ if [ "$MODE" = full ]; then
   if [ "$CODE" != 0 ]; then
     echo "构建日志（最后 25 行，完整的在 $BLOG）："
     grep -v '^#[0-9]* \(sha256\|extracting\|transferring\)' "$BLOG" | tail -n 25 | cut -c1-300
+    if grep -q 'cannot allocate memory\|ResourceExhausted\|signal: killed\|exit code: 137' "$BLOG"; then
+      fail "完整构建内存不够（FULL_BUILD_MEMORY=$FULL_BUILD_MEMORY）：在 config.env 调大它或调小 FULL_BUILD_PARALLELISM，再点一次"
+    fi
     fail "完整构建失败（docker buildx 退出码 $CODE）"
   fi
   step load "导入完成，检查镜像"
