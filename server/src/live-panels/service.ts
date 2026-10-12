@@ -15,7 +15,7 @@
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
-import { inspectRenderUiSpec } from "../../../shared/json-render/catalog";
+import { inspectRenderUiSpec, parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../shared/json-render/catalog";
 import type { AppVariables } from "../auth/guards";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
 import { LivePanelError, type LivePanelRow, type LivePanelStore, MIN_REFRESH_MINUTES } from "./store";
@@ -71,6 +71,7 @@ const createParameters = z.object({
     .max(10080)
     .optional()
     .describe("自动刷新间隔（分钟）。行情、天气这类会变的数据填 60（最短 60）；用户说每天就填 1440；不会变的内容填 0 = 不刷新。默认 60。"),
+  duplicate: z.boolean().optional().describe("右栏已有同名面板、而用户确实要再做一个时才填 true"),
 });
 const updateParameters = z.object({
   id: z.string().min(1).describe("panel_create 返回的面板 id"),
@@ -95,6 +96,36 @@ export const LIVE_PANEL_GUIDANCE = [
   "要改已有面板（换内容、换城市、换币种、改刷新频率）时先 panel_list 找到它，取新数据后 panel_update（带新的 instruction / title），不要新建。",
   "实在取不到数据就 panel_fail 说明原因，并在对话里如实告诉用户。不要在对话里贴规范、JSON 或代码。",
 ].join("\n");
+
+
+/**
+ * 面板里的大数字不能是空的（2026-10-13 第二轮实测：比特币面板「现价（美元）」下面一片空白——
+ * 模型把数值绑到了 state 里不存在的路径）。json-render 的校验只管结构，这里补一道：Metric 的 value
+ * 为空、或 $state 指向 spec.state 里没有的值，就退回去让机器人直接写数字。
+ */
+export function emptyMetrics(source: string): string[] {
+  const spec = sanitizeRenderUiSpec(parseRenderUiSpec(source, false))?.spec as
+    | { elements?: Record<string, { type?: string; props?: Record<string, unknown> }>; state?: Record<string, unknown> }
+    | undefined;
+  if (!spec?.elements) return [];
+  const lookup = (path: string) =>
+    path
+      .split("/")
+      .filter(Boolean)
+      .reduce<unknown>((value, key) => (value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined), spec.state ?? {});
+  const missing: string[] = [];
+  for (const element of Object.values(spec.elements)) {
+    if (element?.type !== "Metric") continue;
+    const value = element.props?.value;
+    const label = String(element.props?.label ?? "数值");
+    if (value === undefined || value === null || (typeof value === "string" && !value.trim())) missing.push(label);
+    else if (typeof value === "object" && typeof (value as { $state?: unknown }).$state === "string") {
+      const resolved = lookup((value as { $state: string }).$state);
+      if (resolved === undefined || resolved === null || resolved === "") missing.push(label);
+    }
+  }
+  return missing;
+}
 
 export function createLivePanelService(deps: {
   store: LivePanelStore;
@@ -187,6 +218,8 @@ export function createLivePanelService(deps: {
             await guard(parsed.data.id);
             const verdict = inspectRenderUiSpec(parsed.data.spec);
             if (!verdict.ok) return [`${REFUSAL_MARKER} 面板规范无效，没有保存。修正后再调用 panel_update：`, ...verdict.issues.map((i) => `- ${i}`)].join("\n");
+            const empty = emptyMetrics(parsed.data.spec);
+            if (empty.length) return `${REFUSAL_MARKER} 面板没有保存：${empty.map((l) => `「${l}」`).join("、")}没有数值。把取到的数字直接写进 Metric 的 value（字符串，例如 "$82,407"），不要用 $state 绑定，然后再调用 panel_update。`;
             const row = await store.update(actorId, parsed.data.id, { ...parsed.data, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
             return `面板「${row.title}」已更新${row.refreshMinutes ? `，之后每 ${row.refreshMinutes >= 1440 ? `${Math.round(row.refreshMinutes / 1440)} 天` : row.refreshMinutes >= 60 ? `${Math.round(row.refreshMinutes / 60)} 小时` : `${row.refreshMinutes} 分钟`}自动刷新` : ""}。${options.refreshOf ? "这是后台刷新，不需要回复。" : "对话里只用一句话告诉用户，不要贴面板内容或规范。"}`;
           } catch (error) {
@@ -224,7 +257,18 @@ export function createLivePanelService(deps: {
           const parsed = createParameters.safeParse(args);
           if (!parsed.success) return `${REFUSAL_MARKER} 需要 title 和 instruction`;
           try {
-            const row = await store.create(actorId, botId, { ...parsed.data, refreshMinutes: parsed.data.refreshMinutes ?? MIN_REFRESH_MINUTES });
+            // 一个主题一张卡（Hark 的做法）：同名面板已在右栏就先别新建，让机器人去更新那张。
+            if (!parsed.data.duplicate) {
+              const same = (await store.list(actorId, botId)).find((r) => r.title.trim() === parsed.data.title.trim());
+              if (same)
+                return JSON.stringify({
+                  created: false,
+                  existing: { id: same.id, title: same.title, status: same.status },
+                  next: "右栏已经有这张面板，没有新建。用户要的若是同一个东西，就取最新数据后 panel_update 这张（id 见 existing）；用户明确要再做一张时，才带 duplicate: true 重新 panel_create。",
+                });
+            }
+            const { duplicate: _duplicate, ...input } = parsed.data;
+            const row = await store.create(actorId, botId, { ...input, refreshMinutes: input.refreshMinutes ?? MIN_REFRESH_MINUTES });
             return JSON.stringify({ id: row.id, status: "building", next: "卡片已出现在右栏（正在搭建）。现在用 web_search / web_fetch 取真实数据，然后调用 panel_update 填好。" });
           } catch (error) {
             return say(error);

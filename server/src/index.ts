@@ -2195,7 +2195,7 @@ function startInProcessRoutineSweep() {
         lastPurge = Date.now();
         await queue.purge({ kind: ROUTINE_FIRE_KIND, olderThanMs: 24 * 60 * 60 * 1000 });
       }
-      if (offered || report.fired) console.info(JSON.stringify({ type: "routine-sweep", inProcess: true, offered, fired: report.fired, skipped: report.skipped }));
+      if (offered.length || report.fired.length) console.info(JSON.stringify({ type: "routine-sweep", inProcess: true, offered, fired: report.fired, skipped: report.skipped }));
     } catch (error) {
       console.error(JSON.stringify({ type: "routine-worker-failed", reason: error instanceof Error ? error.message : String(error) }));
     } finally {
