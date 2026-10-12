@@ -1463,6 +1463,11 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
   // A Team Bot asking to use this person's own account draws its consent card, not the sentence.
   const consent = refused ? readTeamBotConsent(body) : null;
   if (consent) return <TeamBotConsentCard {...consent} />;
+  /*
+   * 桌面宿主（host_*）工具被拒绝，几乎都是因为电脑没连上 / 没授权文件夹。这是用户能处理的事，
+   * 所以不当成过程行藏起来，而是一句中文提示，告诉他去哪里处理。
+   */
+  if (refused && name.startsWith("host_")) return <HostAccessHint />;
   return (
     <ToolLine
       {...(detail ? { detail } : {})}
@@ -1477,6 +1482,16 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
         </Streamdown>
       ) : null}
     </ToolLine>
+  );
+}
+
+function HostAccessHint() {
+  return (
+    <p className="chat-host-hint" role="note">
+      {"机器人想读取这台电脑上的文件夹，但电脑还没有连接或没有授权。可以在机器人「⋯」菜单 → "}
+      <strong>{"电脑操作"}</strong>
+      {" 里连接电脑并授权文件夹。"}
+    </p>
   );
 }
 
