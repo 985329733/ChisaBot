@@ -71,8 +71,27 @@ jobs:
           { echo "tag=$tag"; echo "version=$version"; echo "version_code=$code"; echo "flavors=$flavors"; } >> "$GITHUB_OUTPUT"
           echo "版本 $version（$code），标签 ${tag:-（不发布）}，构建 $flavors"
 
+  # PC 单元测试是 POSIX 的（本机操作的 shell 测试用 /bin/sh），在 Linux 上跑；Windows 只负责打包。
+  pc-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm test
+
   pc:
-    needs: config
+    needs: [config, pc-test]
     runs-on: windows-latest
     timeout-minutes: 40
     strategy:
@@ -90,10 +109,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: pc/package-lock.json
       - run: npm ci --no-audit --no-fund
-      - run: npm test
       - name: Build config
         env:
           FLAVOR: ${{ matrix.flavor }}
@@ -150,6 +166,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           gradle-version: "8.9"
+          cache-disabled: true
       - name: Keystore
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
