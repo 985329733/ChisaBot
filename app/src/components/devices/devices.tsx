@@ -139,6 +139,13 @@ export function ThisPcBadge() {
   );
 }
 
+/** 「Windows 11 Pro 24H2」：系统版本里已经带了系统名时不再重复「Windows」。 */
+function osText(platform: string, osVersion: string | null) {
+  const label = platformLabel(platform);
+  if (!osVersion) return label;
+  return osVersion.toLowerCase().includes(label.toLowerCase()) ? osVersion : `${label} ${osVersion}`;
+}
+
 function enabledCaps(capabilities: DeviceCapabilities) {
   return DEVICE_CAPABILITIES.filter((cap) => capabilities[cap] !== "off");
 }
@@ -167,9 +174,10 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
   const busy =
     revoke.state === "pending" ? "撤销中…" : remove.state === "pending" ? "删除中…" : revoke.state === "success" ? "已撤销" : remove.state === "success" ? "已删除" : null;
   const facts = [
-    [platformLabel(device.platform), device.osVersion].filter(Boolean).join(" "),
+    osText(device.platform, device.osVersion),
     device.clientVersion ? `客户端 ${device.clientVersion}` : null,
-    seenText(device.lastSeenAt, device.online),
+    // 在线时右侧徽标已经写了「在线」，这里只在离线时写最后在线时间。
+    device.online ? null : seenText(device.lastSeenAt, device.online),
     linkedText(device.createdAt),
     showOwner ? `所有者 ${device.ownerUserId.slice(0, 8)}` : null,
   ]
