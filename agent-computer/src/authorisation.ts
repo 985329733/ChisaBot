@@ -83,5 +83,6 @@ export function actsOnTheComputer(pathname: string): boolean {
 
 /** Only page mutations need a fresh browser snapshot after handback. */
 export function mutatesBrowser(pathname: string): boolean {
-  return ["/navigate", "/click", "/type", "/key", "/scroll"].includes(pathname);
+  // 打开网址会替换整页、不用元素编号，不需要先拍快照（否则重启后 BOT 第一次打开网页必定失败）。
+  return ["/click", "/type", "/key", "/scroll"].includes(pathname);
 }
