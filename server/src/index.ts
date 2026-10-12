@@ -251,6 +251,14 @@ import { useTriggerTools } from "./responsibilities/trigger-tools";
 import { createTriggerStore } from "./responsibilities/triggers";
 import type { Responsibility } from "./responsibilities/types";
 import { createTurnRunner } from "./routines/run-turn";
+import { createWorkflowEngine, type WorkflowEngine } from "./workflows/engine";
+import {
+  restrictNamedToolsForWorkflow,
+  restrictToolsForWorkflow,
+} from "./workflows/policy";
+import { createWorkflowRoutes } from "./workflows/routes";
+import { createWorkflowStore } from "./workflows/store";
+import { workflowChatTools } from "./workflows/tools";
 import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
 import { createIntentRouter } from "./routing/classify";
@@ -754,6 +762,14 @@ const signInService = computerGateway
         })(request),
     })
   : undefined;
+
+/** 工作流（docs/workflows.md）。执行器在 governedTurnRunner 之后建，这里先给聊天工具一个取用口。 */
+const workflowStore = createWorkflowStore(database);
+let workflowEngineInstance: WorkflowEngine | undefined;
+const workflowEngineRef = (): WorkflowEngine => {
+  if (!workflowEngineInstance) throw new Error("工作流执行器还没准备好。");
+  return workflowEngineInstance;
+};
 
 const pluginStore = createPluginStore({
   database,
@@ -1271,6 +1287,14 @@ const loadToolsForActor =
     ...(await deviceToolsFor(actorId, botId, initiator)),
     // 生成式界面（json-render，取代 A2UI）：与 /api/capabilities 的 generativeUi 同一个开关。
     ...(config.generativeUi ? renderUiTools() : []),
+    // 工作流（docs/workflows.md）：在聊天和长期任务里运行工作流；工作流自己的步骤拿不到。
+    ...workflowChatTools({
+      store: workflowStore,
+      engine: workflowEngineRef,
+      ownerUserId: actorId,
+      botId,
+      initiator,
+    }),
   ];
 
 /** One person's standing instructions, for both the /api/settings routes and every run they start. */
@@ -2047,6 +2071,58 @@ const panels = createPanelServices({
  * invisible: it runs, and quietly holds different tools or a different role from the one the person
  * is talking to.
  */
+/**
+ * 工作流执行器（docs/workflows.md）：每一步 = 某个机器人在一个新对话里跑一个无头回合，用的就是
+ * 定时任务 / 长期任务 / 面板任务那条 governedTurnRunner；步骤对话用完即删（软删除）。
+ */
+workflowEngineInstance = createWorkflowEngine({
+  store: workflowStore,
+  runTurn: governedTurnRunner,
+  audit: bootAuditStore,
+  createConversation: async (ownerUserId, botId) => {
+    const channel = await channelStore.create(await actorFor(ownerUserId), [
+      botId,
+    ]);
+    return { channelId: channel.id, threadId: channel.threadId };
+  },
+  deleteConversation: async (ownerUserId, channelId) => {
+    await channelStore.softDelete(await actorFor(ownerUserId), channelId);
+  },
+  botInfo: async (ownerUserId, botId) => {
+    const profile = await agentProfileStore
+      .get(await actorFor(ownerUserId), botId)
+      .catch(() => null);
+    return profile && !profile.deletedAt
+      ? { id: profile.id, name: profile.name }
+      : null;
+  },
+  librarySkills: async (ownerUserId) => {
+    const actor = await actorFor(ownerUserId);
+    const skills = await pluginStore.listSkills({
+      id: actor.id,
+      isAdmin: actor.role === "admin",
+    });
+    // 管理员能列出所有人的技能；工作流只用部署的和自己的。
+    return skills
+      .filter((skill) => skill.ownerUserId === null || skill.ownerUserId === actor.id)
+      .map(({ slug, title, instructions }) => ({ slug, title, instructions }));
+  },
+  beginPanelSession: async (ownerUserId, botId) => {
+    const actor = await actorFor(ownerUserId);
+    const session = await panels.authoring.beginPanelAuthoring({
+      actorId: actor.id,
+      botId,
+      isAdmin: actor.role === "admin",
+    });
+    return session?.sessionId ?? null;
+  },
+});
+void workflowEngineInstance.recover().catch((error) =>
+  console.error(
+    JSON.stringify({ type: "workflow-recover-failed", reason: String(error) }),
+  ),
+);
+
 const actorAgentResolver = createActorAgentResolver({
   loadAgents: loadAgentsForActor,
   model: runtimeModel,
@@ -2055,10 +2131,13 @@ const actorAgentResolver = createActorAgentResolver({
   resolveConnectionForAgent: resolveRuntimeConnectionForAgent,
   stallGuard,
   loadToolsForActor: (actorId, initiator) =>
-    restrictToolsForRun(
+    restrictToolsForWorkflow(
       initiator,
-      loadToolsForActor(actorId, initiator),
-      proactiveReadOnlyRefs,
+      restrictToolsForRun(
+        initiator,
+        loadToolsForActor(actorId, initiator),
+        proactiveReadOnlyRefs,
+      ),
     ),
   signRunForActor,
   computerGuidance: config.computer ? COMPUTER_GUIDANCE : undefined,
@@ -2066,9 +2145,12 @@ const actorAgentResolver = createActorAgentResolver({
   selectionForActor,
   agentFetch,
   handoffForActor: (actorId, initiator, depth) => {
-    const coordination = restrictCoordinationForRun(
+    const coordination = restrictNamedToolsForWorkflow(
       initiator,
-      coordinationForActor(actorId, initiator, depth),
+      restrictCoordinationForRun(
+        initiator,
+        coordinationForActor(actorId, initiator, depth),
+      ),
     );
     return async (botId, input) => {
       const tools = await coordination(botId, input);
@@ -2080,7 +2162,9 @@ const actorAgentResolver = createActorAgentResolver({
         return tools;
       return [
         ...tools,
-        ...(await panels.authoring.tools({ actorId, botId }, sessionId)),
+        ...(await restrictNamedToolsForWorkflow(initiator, () =>
+          panels.authoring.tools({ actorId, botId }, sessionId),
+        )()),
       ];
     };
   },
@@ -3457,6 +3541,30 @@ const app = createApp(
           service: systemUpdate,
           requireUser,
           auditStore: bootAuditStore,
+        }),
+      ],
+      [
+        "/api/workflows",
+        createWorkflowRoutes({
+          store: workflowStore,
+          engine: workflowEngineRef(),
+          requireUser,
+          auditStore: bootAuditStore,
+          librarySkillSlugs: async (actorId) => {
+            const actor = await actorFor(actorId);
+            const skills = await pluginStore.listSkills({
+              id: actor.id,
+              isAdmin: actor.role === "admin",
+            });
+            return new Set(
+              skills
+                .filter(
+                  (skill) =>
+                    skill.ownerUserId === null || skill.ownerUserId === actor.id,
+                )
+                .map((skill) => skill.slug),
+            );
+          },
         }),
       ],
       [
