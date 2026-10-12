@@ -391,11 +391,15 @@ export function ComputerView({
   useEffect(() => {
     if (!expanded) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpanded(false);
+      if (event.key !== "Escape") return;
+      // 关掉大屏 = 我弄完了：手里有控制权就顺手交还（Hark 的做法）。以前 Esc 只关窗口、控制权
+      // 还留在人手里，机器人下一步全部卡在「等待交还」，而人已经看不到交还按钮了。
+      if (driving && !settled) void changeControl?.("release");
+      setExpanded(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [expanded]);
+  }, [expanded, driving, settled, changeControl]);
 
   // Always render the card frame; help/secret controls live below the conditional picture.
   /*
@@ -634,18 +638,30 @@ export function ComputerView({
                 放不下时卡片自己滚动。
               */}
               <div
-                className="computer-takeover-card relative flex w-full min-w-0 flex-col overflow-y-auto rounded-2xl bg-background p-4 shadow-2xl"
+                className="computer-takeover-card relative flex w-full min-w-0 flex-col overflow-y-auto rounded-2xl p-4 shadow-2xl"
                 style={{
-                  maxWidth: `min(80vw, calc((100vh - 300px) * ${aspectRatio} + 32px))`,
+                  maxWidth: `min(86vw, calc((100vh - 220px) * ${aspectRatio} + 32px))`,
                   maxHeight: "calc(100vh - 2rem)",
                 }}
               >
+                <button
+                  type="button"
+                  className="computer-takeover-close"
+                  aria-label={wheelHere ? "交还并关闭" : "关闭"}
+                  title={wheelHere ? "交还并关闭（Esc）" : "关闭（Esc）"}
+                  onClick={() => {
+                    if (wheelHere) void changeControl?.("release");
+                    setExpanded(false);
+                  }}
+                >
+                  ×
+                </button>
                 {/*
                   Overlay uses the live socket; the inline card keeps low-cost polling. With no page
                   to draw it reserves the same frame and says the same thing the card does — the
                   wheel below is the reason this view opens at all in that state.
                 */}
-                <div className="relative max-h-[80vh] min-h-0 overflow-auto rounded-xl">
+                <div className="relative min-h-0 shrink-0 rounded-xl">
                   {settled && drawn ? (
                     /*
                      * A record, opened larger. Not a window on the browser.
@@ -715,7 +731,7 @@ export function ComputerView({
                   </p>
                 ) : null}
                 {settled ? null : (
-                  <div className="mt-4 flex items-center justify-center gap-4">
+                  <div className="computer-takeover-controls relative z-10 mt-4 flex items-center justify-center gap-4">
                     <span className="flex min-w-0 items-center gap-2 text-sm">
                       {name ? (
                         <span className="flex shrink-0 items-center gap-1.5 font-medium">
@@ -743,12 +759,16 @@ export function ComputerView({
                     <ComputerControlButton computerId={computerId} />
                   </div>
                 )}
+                {/* 录制工作流是进阶功能：默认收起（一直挂着），不再占掉半个大屏、把交还挤到画面底下。 */}
                 {!settled && (
-                  <DemonstrationRecorder
-                    botId={computerId}
-                    driving={driving}
-                    onRecordingChange={() => setRetryKey((value) => value + 1)}
-                  />
+                  <details className="computer-teach relative z-10 mt-3">
+                    <summary>{"录制成工作流…"}</summary>
+                    <DemonstrationRecorder
+                      botId={computerId}
+                      driving={driving}
+                      onRecordingChange={() => setRetryKey((value) => value + 1)}
+                    />
+                  </details>
                 )}
               </div>
             </div>,

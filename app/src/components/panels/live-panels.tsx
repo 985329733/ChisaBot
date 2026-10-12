@@ -39,7 +39,27 @@ export type LivePanel = {
 
 export const livePanelKeys = { list: (botId: string) => ["live-panels", botId] as const };
 
+/**
+ * 聊天正在跑一轮（turn-compaction.ts 广播 chisabot-chat-running）。跑的时候 2.5 秒看一次面板：
+ * 机器人 panel_create 之后卡片要马上出现在右栏，而不是等下一个 30 秒。
+ */
+function useChatRunning() {
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    const on = (event: Event) => setRunning(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener("chisabot-chat-running", on);
+    return () => window.removeEventListener("chisabot-chat-running", on);
+  }, []);
+  return running;
+}
+
 export function useLivePanels(botId: string | undefined) {
+  const running = useChatRunning();
+  const queryClient = useQueryClient();
+  // 一轮刚结束：再看一次（面板可能在最后一步才填好）。
+  useEffect(() => {
+    if (!running && botId) void queryClient.invalidateQueries({ queryKey: livePanelKeys.list(botId) });
+  }, [running, botId, queryClient]);
   return useQuery({
     enabled: Boolean(botId),
     queryKey: livePanelKeys.list(botId ?? ""),
@@ -47,6 +67,7 @@ export function useLivePanels(botId: string | undefined) {
     // 有卡片在搭建 / 刷新时 3 秒看一次，平时 30 秒（机器人在对话里建的卡片要马上出现）。
     refetchInterval: (query) => {
       const items = query.state.data;
+      if (running) return 2500;
       return items?.some((p) => p.status === "building" || p.refreshing) ? 3000 : 30_000;
     },
     refetchOnWindowFocus: true,

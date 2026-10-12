@@ -2151,6 +2151,42 @@ const livePanelService = createLivePanelService({
   },
 });
 livePanelService.start();
+startInProcessRoutineSweep();
+
+/**
+ * 定时任务（routines）在容器里自己转（2026-10-13）。
+ *
+ * 上游把 fire-routines.ts 交给 Kubernetes CronJob；自建部署没有 CronJob，生产机以前靠宿主机的
+ * systemd timer 每分钟 docker exec 一次，别人照 README 部署的就从来不触发。现在服务器每分钟自己跑一次
+ * 同一个脚本（子进程，同一份环境变量、同一个用户）。重复跑无害：每次触发按 key 去重（work queue 的
+ * finished 行），所以宿主机 timer 还开着也只会触发一次。CHISABOT_ROUTINES_WORKER=0 关掉。
+ */
+function startInProcessRoutineSweep() {
+  if (process.env.NODE_ENV === "test" || process.env.CHISABOT_ROUTINES_WORKER === "0") return;
+  if (!process.env.WORKER_SHARED_SECRET || !process.env.SERVER_INTERNAL_URL) {
+    console.info(JSON.stringify({ type: "routine-worker-off", reason: "WORKER_SHARED_SECRET / SERVER_INTERNAL_URL not set" }));
+    return;
+  }
+  const script = new URL("../scripts/fire-routines.ts", import.meta.url).pathname;
+  const cwd = new URL("..", import.meta.url).pathname;
+  let busy = false;
+  const tick = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const child = Bun.spawn([process.execPath, script], { cwd, env: process.env, stdout: "inherit", stderr: "inherit" });
+      const timer = setTimeout(() => child.kill(), 55_000);
+      await child.exited;
+      clearTimeout(timer);
+    } catch (error) {
+      console.error(JSON.stringify({ type: "routine-worker-failed", reason: String(error) }));
+    } finally {
+      busy = false;
+    }
+  };
+  setTimeout(() => void tick(), 20_000);
+  setInterval(() => void tick(), 60_000);
+}
 void workflowEngineInstance.recover().catch((error) =>
   console.error(
     JSON.stringify({ type: "workflow-recover-failed", reason: String(error) }),
