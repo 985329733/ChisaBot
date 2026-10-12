@@ -4130,6 +4130,19 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .sysupd-smoke.is-bad { color: var(--danger); }
 .sysupd-uptodate { display: flex; align-items: center; gap: 10px; padding: 18px 20px; font-size: 14px; color: var(--ink-2); }
 .sysupd-ok-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--success); background: var(--success-soft); }
+/* 「这次需要完整构建」说明卡 + 主按钮「一键完整更新」；宿主机手动更新中的提示（DESIGN.md §22）。 */
+.sysupd-note { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px; }
+.sysupd-note h4 { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: var(--ink-1); }
+.sysupd-note p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.sysupd-note .sysupd-note-meta { margin-top: 6px; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.sysupd-note-ic { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; color: var(--accent-blue); background: var(--accent-blue-soft); }
+.sysupd-note.is-full .sysupd-note-ic { color: var(--warn); background: var(--warn-soft); }
+.sysupd-note-btn { flex: none; align-self: center; }
+@media (max-width: 640px) {
+  .sysupd-note { flex-wrap: wrap; }
+  .sysupd-note-btn { width: 100%; }
+}
+.sysupd-done { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-sm, 10px); font-size: 13px; color: var(--success); background: var(--success-soft); }
 .sysupd-job { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .sysupd-steps {
   list-style: none;

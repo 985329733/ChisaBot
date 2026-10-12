@@ -9,8 +9,12 @@ ChisaBot 容器没有 docker socket。它只能往 spool/requests/ 里放请求�
 update.sh / rollback.sh（带锁，同一时间只有一个）。它把状态写进 spool/state/state.json（容器里只读挂载），
 管理后台 → 系统更新 读这个文件显示版本、新提交、进度、日志和历史。
 
-更新来源：本机裸仓库 mirror.git。有 /opt/chisabot-updater/github-token（root 600，只读令牌）时从 GitHub
-拉 main；没有时读本机镜像本身（发布时由发布者 git push 到这里）。
+更新来源：本机裸仓库 mirror.git，每 30 分钟和点「检查更新」时从 GitHub 拉 main：公开仓库匿名拉取；
+有 /opt/chisabot-updater/github-token（root 600，只读令牌）时带令牌拉（私有仓库）。config.env 里
+GITHUB_FETCH=off 时不联网，只读本机镜像（由发布者 git push 到这里）。
+
+更新有两种（update.sh 自动选）：依赖没变 → 快速更新（只替换代码层）；依赖或底座变了 → 完整构建
+（仓库 Dockerfile 从头构建，限内存），请求里 "mode": "full" 可以强制完整构建。
 
 为了兼容 CentOS 7 自带的 python2.7 / git 1.8 写成这样；不依赖第三方包。
 """
@@ -33,7 +37,8 @@ JOBS = os.path.join(U, "jobs")
 AUDIT = os.path.join(U, "audit.log")
 MIRROR = os.path.join(U, "mirror.git")
 TOKEN_FILE = os.path.join(U, "github-token")
-VERSION = "1"
+BASE_ENV = os.path.join(U, "base.env")
+VERSION = "2"
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{6,64}\.json$")
@@ -50,14 +55,20 @@ def now_iso():
 
 
 def load_config():
+    """config.env，再叠上完整构建后写的 base.env（BASE_IMAGE / NODE_MODULES_BASE）。"""
     cfg = {}
-    with open(os.path.join(U, "config.env")) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            cfg[k.strip()] = v.strip().strip('"')
+    for path in (os.path.join(U, "config.env"), BASE_ENV):
+        try:
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    cfg[k.strip()] = v.strip().strip('"')
+        except IOError:
+            if path != BASE_ENV:
+                raise
     return cfg
 
 
@@ -133,33 +144,57 @@ class Updater(object):
             "at": now_iso(),
             "actor": job.get("actor"),
         }
-        for k in ("fromImage", "toImage", "targetCommit"):
+        for k in ("fromImage", "toImage", "targetCommit", "mode", "durationSec"):
             if job.get(k):
                 entry["commit" if k == "targetCommit" else k] = job[k]
         if error:
             entry["error"] = error
         self.internal["history"] = ([entry] + self.internal.get("history", []))[:30]
 
+    def estimates(self):
+        """最近一次成功的快速 / 完整更新各用了多少秒（页面上显示「预计约 N 分钟」）。"""
+        out = {}
+        for h in self.internal.get("history", []):
+            if h.get("action") != "update" or h.get("status") != "succeeded" or not h.get("durationSec"):
+                continue
+            mode = h.get("mode") or "code"
+            if mode in ("code", "full") and mode not in out:
+                out[mode] = h["durationSec"]
+        return out
+
     # ---------- 来源 ----------
     def fetch(self):
-        """有令牌就从 GitHub 拉 main；没有就只读本机镜像。返回 source 字典。"""
+        """从 GitHub 拉 main 到本机镜像（公开仓库匿名，有令牌时带令牌）；GITHUB_FETCH=off 时只读本机镜像。"""
+        global CFG
+        CFG = load_config()
         repo = CFG.get("GITHUB_REPO", "ChisaAlter/ChisaBot")
         branch = CFG.get("GITHUB_BRANCH", "main")
         source = {"repo": repo, "branch": branch, "fetchedAt": now_iso()}
-        if os.path.isfile(TOKEN_FILE) and os.path.getsize(TOKEN_FILE) > 0:
-            source["kind"] = "github"
-            env = dict(os.environ)
-            env["GIT_ASKPASS"] = os.path.join(U, "git-askpass.sh")
-            env["GIT_TERMINAL_PROMPT"] = "0"
-            code, out = run(
-                ["git", "--git-dir=" + MIRROR, "fetch", "--quiet",
-                 "https://x-access-token@github.com/%s.git" % repo,
-                 "+refs/heads/%s:refs/heads/main" % branch],
-                timeout=120, env=env)
-            if code != 0:
-                source["error"] = u"从 GitHub 拉取失败：" + clean(out.replace("\n", " "), 200)
-        else:
+        if not re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", repo) or not re.match(r"^[A-Za-z0-9_./-]+$", branch):
             source["kind"] = "mirror"
+            source["error"] = u"config.env 里的 GITHUB_REPO / GITHUB_BRANCH 格式不对"
+            return source
+        if CFG.get("GITHUB_FETCH", "auto").lower() in ("off", "no", "0", "false"):
+            source["kind"] = "mirror"
+            return source
+        source["kind"] = "github"
+        env = dict(os.environ)
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        token = os.path.isfile(TOKEN_FILE) and os.path.getsize(TOKEN_FILE) > 0
+        if token:
+            env["GIT_ASKPASS"] = os.path.join(U, "git-askpass.sh")
+            url = "https://x-access-token@github.com/%s.git" % repo
+        else:
+            url = "https://github.com/%s.git" % repo
+        if not os.path.isdir(MIRROR):
+            run(["git", "init", "--bare", "-q", MIRROR], timeout=30)
+        code, out = run(
+            ["git", "--git-dir=" + MIRROR, "fetch", "--quiet", "--no-tags", url,
+             "+refs/heads/%s:refs/heads/main" % branch],
+            timeout=180, env=env)
+        if code != 0:
+            hint = u"" if token else u"（私有仓库请放只读令牌 github-token，或在 config.env 设 GITHUB_FETCH=off 改为推送到本机镜像）"
+            source["error"] = u"从 GitHub 拉取失败：" + clean(out.replace("\n", " "), 200) + hint
         return source
 
     # ---------- 状态 ----------
@@ -247,8 +282,20 @@ class Updater(object):
             base = open(os.path.join(U, "base-deps.sha256")).read().strip()
         except IOError:
             base = ""
-        deps_changed = bool(behind) and code == 0 and fp.strip() != base
-        return main, latest, items, deps_changed, behind
+        reason = None
+        if code == 0 and fp.strip() != base:
+            reason = u"这些提交改动了依赖（bun.lock / package.json）、Dockerfile 或 docker/"
+        else:
+            image = CFG.get("BASE_IMAGE", "")
+            if not image or run(["docker", "image", "inspect", image], timeout=20)[0] != 0:
+                reason = u"快速更新用的底座镜像 %s 不在了" % (image or u"（未配置）")
+            elif not os.path.isdir(CFG.get("NODE_MODULES_BASE", "/nonexistent")):
+                reason = u"快速更新用的依赖树不在了"
+        if not (cur and cur.get("commit")):
+            # 镜像没有 chisabot.commit 标签（例如 deploy/start.sh 第一次构建的）：不知道落后多少，完整构建一次就有了。
+            return main, latest, items, u"当前镜像没有记录来源提交，完整构建一次之后就能按提交快速更新", behind
+        deps_changed = bool(behind) and reason is not None
+        return main, latest, items, (reason if deps_changed else None), behind
 
     def refresh(self):
         cur = self.current()
@@ -261,10 +308,12 @@ class Updater(object):
                 "latest": latest,
                 "commits": items,
                 "behind": behind,
-                "depsChanged": deps,
+                "depsChanged": bool(deps),
+                "fullReason": deps,
             }
             if cur and cur.get("commit") and main == cur["commit"]:
                 self.snapshot["behind"] = 0
+            self.snapshot["externalBusy"] = not self.busy() and self.lock_held()
             self.last_refresh = time.time()
         self.write_state()
 
@@ -282,6 +331,9 @@ class Updater(object):
                 "behind": snap.get("behind"),
                 "commits": snap.get("commits") or [],
                 "depsChanged": bool(snap.get("depsChanged")),
+                "fullReason": snap.get("fullReason"),
+                "estimates": self.estimates(),
+                "externalBusy": bool(snap.get("externalBusy")),
                 "job": job,
                 "history": self.internal.get("history", []),
             }
@@ -332,6 +384,8 @@ class Updater(object):
             return
         if self.busy():
             return self.reject(req, u"已经有一个更新或回滚在进行")
+        if self.lock_held():
+            return self.reject(req, u"宿主机上有人正在手动运行更新或回滚，等它结束再试")
         self.refresh()
         snap = self.snapshot
         if action == "update":
@@ -341,13 +395,15 @@ class Updater(object):
             expect = req.get("expectCommit")
             if expect and expect != main:
                 return self.reject(req, u"main 已经变了（现在是 %s），请刷新页面后重试" % main[:7])
-            if snap.get("depsChanged"):
-                return self.reject(req, u"依赖或底座有变化，需要完整构建")
-            if snap.get("current", {}) and snap["current"].get("commit") == main:
+            full = req.get("mode") == "full" or not (snap.get("current") or {}).get("commit")
+            if snap.get("current", {}) and snap["current"].get("commit") == main and not full:
                 return self.reject(req, u"已经是最新版本")
             args = ["/bin/bash", os.path.join(U, "update.sh"), "--job", req["id"], "--target", main]
+            if full:
+                args.append("--full")
+            mode = "full" if (full or snap.get("depsChanged")) else "code"
             job = {"id": req["id"], "action": "update", "status": "running", "step": "prepare", "startedAt": now_iso(),
-                   "actor": actor, "targetCommit": main, "log": []}
+                   "actor": actor, "targetCommit": main, "mode": mode, "log": []}
         else:
             if not snap.get("previous"):
                 return self.reject(req, u"没有可以回滚到的上一版")
@@ -412,6 +468,15 @@ class Updater(object):
                 job["fromImage"] = line[9:].strip()
             elif line.startswith("::to:: "):
                 job["toImage"] = line[7:].strip()
+            elif line.startswith("::mode:: "):
+                mode = line[9:].strip()
+                if mode in ("code", "full"):
+                    job["mode"] = mode
+            elif line.startswith("::duration:: "):
+                try:
+                    job["durationSec"] = int(line[13:].strip())
+                except ValueError:
+                    pass
             elif line.startswith("::error:: "):
                 job["error"] = line[10:].strip()[:400]
                 visible.append(u"✕ " + line[10:])
@@ -437,6 +502,12 @@ class Updater(object):
         if finished:
             job["status"] = result if result in ("succeeded", "failed", "rolled_back") else "failed"
             job["finishedAt"] = now_iso()
+            if not job.get("durationSec"):
+                try:
+                    started = datetime.strptime(job["startedAt"], "%Y-%m-%dT%H:%M:%SZ")
+                    job["durationSec"] = int((datetime.utcnow() - started).total_seconds())
+                except (KeyError, ValueError):
+                    pass
             if job["status"] == "succeeded":
                 job.pop("error", None)
             self.add_history(job, job["status"], job.get("error"))

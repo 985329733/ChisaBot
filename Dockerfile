@@ -55,7 +55,13 @@ COPY tsconfig.base.json bunfig.toml ./
 COPY app/package.json app/package.json
 COPY server/package.json server/package.json
 COPY worker/package.json worker/package.json
-RUN bun install --frozen-lockfile
+# HOISTED, NOT ISOLATED. `shared/` is not a workspace, yet both the app and the server import it, and
+# its imports (`@json-render/core` and friends) are declared by the workspaces that use it. Under bun's
+# isolated linker those packages exist only in each workspace's own `node_modules`, so resolving from
+# `shared/` walks up to a root `node_modules` that does not have them and the build fails. The hoisted
+# layout puts every package at the root, which is also the layout the running ChisaBot images have
+# always had (deploy/Dockerfile.zh installs the same way).
+RUN bun install --frozen-lockfile --linker hoisted
 
 # The lockfile travels with the manifest, because `--frozen-lockfile` with no lockfile in the context
 # is not an error: bun resolves afresh, succeeds, and the flag has decorated nothing. With both files
@@ -72,7 +78,8 @@ RUN mkdir -p /prod && cp package.json bun.lock /prod/ \
   && cp /src/app/package.json app/package.json \
   && cp /src/server/package.json server/package.json \
   && cp /src/worker/package.json worker/package.json \
-  && bun install --frozen-lockfile --production
+  && bun install --frozen-lockfile --production --linker hoisted \
+  && mkdir -p /prod/server/node_modules
 
 
 FROM deps AS app-build
@@ -84,7 +91,26 @@ COPY shared shared
 # `server/src/tenant-package`, so the app cannot be built without it.
 COPY server server
 COPY examples examples
-RUN bun run --cwd app build
+# ChisaBot online update (docs/online-update.md): the web bundle carries the build id so open pages can
+# tell a new server build apart ("有新版本，点此刷新"). Declared just before the RUN that reads them, so
+# changing them never invalidates the dependency layers above.
+ARG VITE_CHISABOT_BUILD_ID=dev
+ARG VITE_MAGPIE_MANAGEMENT_URL=
+# `app`'s own build script names `app/node_modules/vite`, which only exists under the isolated linker;
+# with the hoisted tree above vite sits at the root. Same steps as the script (prebuild, then vite).
+RUN bun scripts/generate-app-config.ts \
+  && cd app && V=node_modules/vite/bin/vite.js && { [ -f "$V" ] || V="../$V"; } \
+  && bun --bun "$V" build
+
+
+# The full install tree (dev dependencies included) as one tar, for the host updater only:
+#   docker buildx build --target updater-deps --output type=local,dest=<dir> .
+# A later code-only update builds the frontend against it instead of reinstalling. Never in an image.
+FROM deps AS updater-deps-tar
+RUN cd /src && find . -name node_modules -type d -prune | LC_ALL=C sort | tar -cf /node_modules.tar -T -
+
+FROM scratch AS updater-deps
+COPY --from=updater-deps-tar /node_modules.tar /node_modules.tar
 
 
 FROM base AS runtime
@@ -250,3 +276,34 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
   CMD bun -e "const r = await fetch('http://127.0.0.1:3001/health'); process.exit(r.ok ? 0 : 1)"
 
 ENTRYPOINT ["/init"]
+
+
+# ChisaBot: the image `docker build .` produces and the host updater's full update builds
+# (deploy/updater/update.sh, docs/online-update.md). Last stage, so it is the default target.
+FROM runtime AS chisabot
+
+# Migrations wait for the embedded database instead of racing it on a cold start.
+COPY deploy/migrate-wait.sh /etc/s6-overlay/scripts/migrate-wait.sh
+RUN chmod 755 /etc/s6-overlay/scripts/migrate-wait.sh \
+  && sh -n /etc/s6-overlay/scripts/migrate-wait.sh \
+  && test -x /usr/bin/pg_isready \
+  && test -x /etc/s6-overlay/scripts/migrate.sh \
+  && printf '%s\n' '/command/with-contenv /etc/s6-overlay/scripts/migrate-wait.sh' \
+    > /etc/s6-overlay/s6-rc.d/migrate/up
+ENV TENANT_PACKAGE_DIR=../examples/zh-CN
+
+# What GET /api/version reports (server/src/build-info.ts). Last, so a new build id costs one tiny layer.
+ARG CHISABOT_VERSION=0.0.0
+ARG CHISABOT_COMMIT=
+ARG CHISABOT_BUILD=dev
+ARG CHISABOT_BUILT_AT=
+ARG CHISABOT_IMAGE=
+RUN printf '{"version":"%s","commit":"%s","buildId":"%s","builtAt":"%s","image":"%s"}\n' \
+    "$CHISABOT_VERSION" "$CHISABOT_COMMIT" "$CHISABOT_BUILD" "$CHISABOT_BUILT_AT" "$CHISABOT_IMAGE" > /app/build-info.json
+LABEL org.opencontainers.image.title="ChisaBot" \
+      org.opencontainers.image.revision="${CHISABOT_COMMIT}" \
+      org.opencontainers.image.version="${CHISABOT_VERSION}" \
+      openbot.locale="zh-CN" \
+      chisabot.commit="${CHISABOT_COMMIT}" \
+      chisabot.build="${CHISABOT_BUILD}" \
+      chisabot.full-build="1"

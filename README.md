@@ -168,11 +168,9 @@ sh /opt/chisabot-updater/smoke.sh [机器人 id]     # 失败时退出码非 0
 
 ```sh
 cd /opt/chisabot-src/deploy/updater
-git init --bare -q /opt/chisabot-updater/mirror.git 2>/dev/null || true
-git -C /opt/chisabot-src push /opt/chisabot-updater/mirror.git HEAD:main           # 本机镜像仓库
-cp -al <与 bun.lock 一致的 node_modules> /opt/chisabot-updater/node_modules-base     # 硬链接复制
-vi config.env        # COMPOSE_DIR、BASE_IMAGE（压平的底座镜像）、PUBLIC_HEALTH_URL=https://<域名>:<端口>/login、GITHUB_REPO、BUILD_MEMORY 等
-bash install.sh <底座镜像对应的提交>                  # 写 base-deps.sha256，安装并启动 systemd 服务 chisabot-updater
+docker buildx version                                  # 完整构建要用 buildx 插件
+vi config.env        # COMPOSE_DIR、PUBLIC_HEALTH_URL=https://<域名>:<端口>/login、GITHUB_REPO（你的 fork）、FULL_BUILD_MEMORY（小内存机器调小并加 swap）等
+bash install.sh                                        # 建 /opt/chisabot-updater，从 GitHub 拉 main，安装并启动 systemd 服务 chisabot-updater
 systemctl is-active chisabot-updater                   # active
 ```
 
@@ -188,11 +186,12 @@ systemctl is-active chisabot-updater                   # active
 
 新提交怎么到服务器：
 
-- 有 `/opt/chisabot-updater/github-token`（root 600，fine-grained，**只给 Contents: Read**）时，每 30 分钟和点「检查更新」时自动从 GitHub 拉 `main`；
-- 公开仓库也可以不配令牌，直接匿名拉取；私有仓库又没有令牌时，发布者推 GitHub 的同时推一份到本机镜像：`git push root@<主机>:/opt/chisabot-updater/mirror.git main`（或用 `git bundle` 增量包 + `git fetch`）。
+- 每 30 分钟和点「检查更新」时宿主机直接从 GitHub 拉 `main`：公开仓库匿名拉取，不需要令牌；
+- 私有 fork：放 `/opt/chisabot-updater/github-token`（root 600，fine-grained，**只给 Contents: Read**）；不想让宿主机联网就设 `GITHUB_FETCH=off`，发布者推一份到本机镜像：`git push root@<主机>:/opt/chisabot-updater/mirror.git main`。
 
-一键更新只替换代码层：`bun.lock`、各 `package.json`、`Dockerfile`、`docker/` 的指纹必须等于 `base-deps.sha256`，否则会停在「需要完整构建」——这时按原方式完整构建并压平新底座，更新 `config.env` 的 `BASE_IMAGE`、`node_modules-base` 和 `base-deps.sha256`。
-手动演练（备份 + 构建，切换前停下）：`/opt/chisabot-updater/update.sh --job manual-test --target <40 位提交> --dry-run`。
+依赖没变时「更新」只替换代码层（约 2 分钟）；`bun.lock`、各 `package.json`、`Dockerfile`、`docker/` 变了（或第一次安装还没有底座）时页面显示「一键完整更新」：
+用仓库 `Dockerfile` 从头构建（限内存，有层缓存，FRA 上约 3–8 分钟），同样先备份、健康检查、失败自动回滚，成功后它就是之后快速更新的底座。
+宿主机上手动操作用 `/opt/chisabot-updater/request.sh check | update [--full] | rollback | status`（和页面同一个队列）；演练（备份 + 构建，切换前停下）：`/opt/chisabot-updater/update.sh --job manual-test --target <40 位提交> [--full] --dry-run`。
 
 ### 8. 网页与客户端（PC / Android）的更新
 

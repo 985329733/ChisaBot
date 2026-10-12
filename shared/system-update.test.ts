@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isNewerBuild, projectSystemUpdateState, safeText } from "./system-update";
+import { estimateText, isNewerBuild, projectSystemUpdateState, safeText } from "./system-update";
 
 const running = { version: "0.1.2", buildId: "glass-20261012a", commit: "a".repeat(40) };
 const NOW = Date.parse("2026-10-12T02:00:00Z");
@@ -65,4 +65,35 @@ test("safeText strips control characters and bounds length", () => {
   expect(safeText("x".repeat(500), 10)).toBeUndefined();
   expect(safeText(42)).toBeUndefined();
   expect(safeText("   ")).toBeUndefined();
+});
+
+test("full-build fields: mode, duration, estimates, reason, external run", () => {
+  const state = projectSystemUpdateState(
+    {
+      updatedAt: "2026-10-12T01:59:00Z",
+      depsChanged: true,
+      fullReason: "这些提交改动了依赖",
+      estimates: { code: 120, full: 540, bogus: 3, other: "x" },
+      externalBusy: true,
+      job: { id: "update-full01", action: "update", status: "running", mode: "full", durationSec: 30, step: "build", log: [] },
+      history: [
+        { id: "update-full00", action: "update", status: "succeeded", at: "2026-10-12T01:00:00Z", mode: "full", durationSec: 540 },
+        { id: "update-code00", action: "update", status: "succeeded", at: "2026-10-12T00:00:00Z", mode: "weird", durationSec: -1 },
+      ],
+    },
+    running,
+    [],
+    Date.parse("2026-10-12T02:00:00Z"),
+  );
+  expect(state.fullReason).toBe("这些提交改动了依赖");
+  expect(state.estimates).toEqual({ code: 120, full: 540 });
+  expect(state.externalBusy).toBe(true);
+  expect(state.job).toMatchObject({ mode: "full", durationSec: 30, step: "build" });
+  expect(state.history[0]).toMatchObject({ mode: "full", durationSec: 540 });
+  expect(state.history[1]?.mode).toBeUndefined();
+  expect(state.history[1]?.durationSec).toBeUndefined();
+  expect(projectSystemUpdateState({ depsChanged: false, fullReason: "x" }, running, []).fullReason).toBeUndefined();
+  expect(estimateText(540)).toBe("约 9 分钟");
+  expect(estimateText(20)).toBe("约 1 分钟");
+  expect(estimateText(undefined)).toBe("");
 });
