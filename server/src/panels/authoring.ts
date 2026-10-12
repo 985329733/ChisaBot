@@ -112,7 +112,7 @@ export function createPanelAuthoring(options: {
         name,
         ref: `panel:${name}`,
         parameters,
-        description: `${name === "proposePanelDraft" ? "提出" : "修改"}完整面板草稿；只保存草稿，不安装、不授权、不执行。${context} definition 必须包含 name/html/css/script/manifest/stateSchema/schemaVersion/initialState/size。HTML 禁止 script、iframe、事件属性和联网；安全标签使用 data-node，按钮使用 data-action。脚本仅使用 panel.on(action,async event=>{}), panel.ui.patch([{node,text,attrs,children}]), panel.state.read/write, panel.data.read(id,args), panel.tasks.request(id,args)；无 DOM、网络、浏览器存储或模块。预览仅运行示例数据与临时状态。首次 expectedDraftRevision=0，后续使用上次返回的 draftRevision。中文简洁右栏，宽340，自动高。固定能力 bot/overview read: inputSchema={type:'object',additionalProperties:false}, outputSchema={type:'object',properties:{name:{type:'string'}},required:['name'],additionalProperties:false}; bot/task write: inputSchema={type:'object',properties:{instruction:{type:'string',minLength:1,maxLength:5000}},required:['instruction'],additionalProperties:false}, outputSchema={type:'object',additionalProperties:false}; scope={actor:'current',bot:'current'}。manifest 仅申请，保存后用户单独批准。状态 schema 仅支持 type/properties/required/additionalProperties/items/enum/const/minimum/maximum/minLength/maxLength/minItems/maxItems/title/description。`,
+        description: `${name === "proposePanelDraft" ? "创建" : "修改"}面板并保存到右侧面板栏（不授权能力、不执行任务）。用户此刻正在右栏「新建 / 编辑面板」：用户要的面板必须用这个工具保存（不要用 render_ui 在对话里画，那不会出现在面板栏）；工具会直接把面板放进右侧面板栏，之后在对话里只用一句话确认。面板脚本里需要日期、时间时用 new Date() 实时计算，不要写死。一次写对（校验失败不产生修订，重试仍用同一个 expectedDraftRevision；不要在对话里逐条报告重试）：stateSchema 每一层都必须有 type（object 要有 properties），不需要状态时用 {type:'object',properties:{}} 和 initialState {}；CSS 只用类选择器，伪类只允许 hover/focus/focus-visible/focus-within/disabled/checked/first-child/last-child/root，禁止 @规则、url()、animation、filter；不需要能力时 manifest 为 {data:[],tasks:[]}。${context} definition 必须包含 name/html/css/script/manifest/stateSchema/schemaVersion/initialState/size。HTML 禁止 script、iframe、事件属性和联网；安全标签使用 data-node，按钮使用 data-action。脚本仅使用 panel.on(action,async event=>{}), panel.ui.patch([{node,text,attrs,children}]), panel.state.read/write, panel.data.read(id,args), panel.tasks.request(id,args)；无 DOM、网络、浏览器存储或模块。预览仅运行示例数据与临时状态。首次 expectedDraftRevision=0，后续使用上次返回的 draftRevision。中文简洁右栏，宽340，自动高。固定能力 bot/overview read: inputSchema={type:'object',additionalProperties:false}, outputSchema={type:'object',properties:{name:{type:'string'}},required:['name'],additionalProperties:false}; bot/task write: inputSchema={type:'object',properties:{instruction:{type:'string',minLength:1,maxLength:5000}},required:['instruction'],additionalProperties:false}, outputSchema={type:'object',additionalProperties:false}; scope={actor:'current',bot:'current'}。manifest 仅申请，保存后用户单独批准。状态 schema 仅支持 type/properties/required/additionalProperties/items/enum/const/minimum/maximum/minLength/maxLength/minItems/maxItems/title/description。`,
         execute: async (args: unknown) => {
           const input = parameters.parse(args);
           if (
@@ -126,11 +126,37 @@ export function createPanelAuthoring(options: {
             expectedDraftRevision: input.expectedDraftRevision,
             definition: validatePanelDefinition(input.definition),
           });
-          return JSON.stringify({
-            draftId: draft.id,
-            draftRevision: draft.draftRevision,
-            status: draft.status,
-          });
+          // 创作会话只能由用户开启（右栏「新建 / 编辑」或在对话里明确要一个面板），所以这是用户
+          // 明确要的面板：直接保存进面板栏（用户可在卡片上撤销 / 删除），不再停在「预览并保存」。
+          // 保存不了（例如需要重置状态）时退回草稿，请用户在右栏预览后保存。
+          try {
+            const saved = await options.store.commit(ctx, {
+              draftId: draft.id,
+              expectedDraftRevision: draft.draftRevision,
+              mode: draft.targetInstanceId ? "instance" : "first",
+              idempotencyKey: crypto.randomUUID(),
+              resetState: false,
+              ...(draft.baseInstanceVersion !== null
+                ? { baseInstanceVersion: draft.baseInstanceVersion }
+                : {}),
+              ...(draft.baseLibraryVersion !== null
+                ? { baseLibraryVersion: draft.baseLibraryVersion }
+                : {}),
+            });
+            await record(ctx, "commit", draft.id);
+            return JSON.stringify({
+              status: "saved",
+              instanceId: saved.instanceId,
+              note: "面板已保存到右侧面板栏。对话里只用一句话告诉用户已经放好，不要再贴面板内容。",
+            });
+          } catch (error) {
+            return JSON.stringify({
+              draftId: draft.id,
+              draftRevision: draft.draftRevision,
+              status: draft.status,
+              note: `草稿已保存，但没能自动放进面板栏（${error instanceof Error ? error.message : "未知原因"}）。请用户在右栏点「预览与保存」。`,
+            });
+          }
         },
       }));
     },

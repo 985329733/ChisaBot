@@ -3,6 +3,7 @@ import { AsyncContent } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   IconAdjustments,
+  IconCheck,
   IconChevronDown,
   IconChevronUp,
   IconDots,
@@ -301,6 +302,52 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
 
   const items = list.data?.items ?? [];
 
+  // 用户明确要的面板由 BOT 直接保存进面板栏，创作会话随之结束。会话结束时刷新列表，并给刚放进来的
+  // 新面板一个「撤销」（删除它）。编辑已有面板不提供撤销，卡片菜单里仍可删除。
+  const sessionOpen = Boolean(session.data);
+  const idsAtSessionStart = useRef<Set<string> | null>(null);
+  const [justSaved, setJustSaved] = useState<PanelInstance | null>(null);
+  const savedAwaitingList = useRef(false);
+  useEffect(() => {
+    if (sessionOpen) {
+      if (!idsAtSessionStart.current)
+        idsAtSessionStart.current = new Set(items.map((i) => i.id));
+      return;
+    }
+    if (idsAtSessionStart.current) {
+      savedAwaitingList.current = true;
+      void queryClient.invalidateQueries({ queryKey: panelKeys.list(botId as string) });
+    }
+    // items deliberately excluded: only the open/closed transition matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionOpen]);
+  useEffect(() => {
+    if (!savedAwaitingList.current || list.isFetching || !idsAtSessionStart.current) return;
+    const before = idsAtSessionStart.current;
+    savedAwaitingList.current = false;
+    idsAtSessionStart.current = null;
+    setJustSaved(items.find((i) => !before.has(i.id)) ?? null);
+  }, [items, list.isFetching]);
+  useEffect(() => {
+    setJustSaved(null);
+    idsAtSessionStart.current = null;
+  }, [botId]);
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = window.setTimeout(() => setJustSaved(null), 12000);
+    return () => window.clearTimeout(t);
+  }, [justSaved]);
+  const undo = useMutation({
+    mutationFn: (instance: PanelInstance) =>
+      panelsApi.remove(instance.botId, instance.id, instance.instanceVersion),
+    onSuccess: async () => {
+      setJustSaved(null);
+      await queryClient.invalidateQueries({ queryKey: panelKeys.list(botId as string) });
+    },
+    onError: (e) => setError(panelErrorText(e)),
+  });
+  const undoState = useMutationFeedback(undo);
+
   return (
     <>
       <header className="rail-head">
@@ -353,6 +400,36 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
         </p>
       ) : null}
 
+      {justSaved && !session.data ? (
+        <div className="glass-card panel-saved-note shrink-0 flex items-center gap-2 px-4 py-3 text-sm" role="status">
+          <IconCheck className="size-4 shrink-0 text-emerald-600" />
+          <span className="flex min-w-0 flex-1 flex-col leading-tight">
+            <span>{"已放进面板栏"}</span>
+            <span className="truncate text-muted-foreground text-xs">{justSaved.definition.name}</span>
+          </span>
+          <button
+            aria-busy={undoState === "pending" || undefined}
+            className="glass-pill async-raw rounded-full px-3 py-1 text-xs"
+            data-btn-state={undoState}
+            disabled={undo.isPending}
+            onClick={() => undo.mutate(justSaved)}
+            type="button"
+          >
+            <AsyncContent labels={{ pending: "撤销中…", success: "已撤销", error: "撤销失败" }} state={undoState}>
+              {"撤销"}
+            </AsyncContent>
+          </button>
+          <button
+            aria-label={"关闭提示"}
+            className="rail-head-icon size-6"
+            onClick={() => setJustSaved(null)}
+            type="button"
+          >
+            <IconX className="size-3.5" />
+          </button>
+        </div>
+      ) : null}
+
       {session.data ? (
         <div className="glass-card shrink-0 space-y-2 p-4 text-sm">
           <div className="flex items-center gap-2">
@@ -369,7 +446,7 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
             </p>
           ) : (
             <p className="text-muted-foreground text-xs">
-              {"在对话中告诉 BOT 您要什么；首次发送才开始创作。"}
+              {"在对话中告诉 BOT 您要什么，做好后会直接放进面板栏。"}
             </p>
           )}
           <div className="flex flex-wrap gap-2">

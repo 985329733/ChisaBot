@@ -233,6 +233,7 @@ const CUSTOM_RULES = [
   "只展示你真实拥有的信息（来自对话、工具结果或你确定的知识），绝不编造数据、链接或图片；没有数据就不要画这一块。",
   "最外层通常是一个 Card；多个 Metric 放进 Grid；按钮组放进 horizontal Stack。保持简洁，一般不超过 30 个元素。",
   "按钮只用 send_message、open_link 或内置的 setState / pushState / removeState / validateForm；不要使用 confirm 字段。",
+  "用户要的是「面板」（放在右侧面板栏、长期保留的小工具）时不要用 render_ui：有 proposePanelDraft 工具就用它保存；没有就请用户点右栏面板的「新建」后再说一遍。",
   "send_message 只是替用户发一条消息给你，真正的操作（发送邮件、付款、删除等）仍由你在下一轮用工具完成，并照常经过审批。",
   "表单：输入组件用 $bindState 绑定到 /form/... 并在 /state 里给出初始值；提交按钮用 send_message 并设置 includeState 为 \"/form\"。",
 ] as const;

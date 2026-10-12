@@ -277,14 +277,39 @@ export function panelErrorText(error: unknown): string {
 export const PANEL_AUTHORING_PROP = "panelAuthoring";
 
 /**
+ * 这句话是不是在让机器人「做一个面板」。只看明确的说法（建 / 做 / 创建 / 新建 / 生成 / 弄 / 加 + 面板），
+ * 「面板库在哪」「这个面板怎么用」这类问题不算。
+ */
+export function asksForPanel(text: string): boolean {
+  const t = text.replace(/\s+/g, "");
+  return (
+    /(建立|建|做|创建|新建|生成|弄|加|添加|设计|搞|整)(一个|个|一块|块|一张|张)?[^，。？！,.?!]{0,12}面板/.test(t) &&
+    !/面板(库|怎么|在哪|是什么)/.test(t)
+  );
+}
+
+/**
  * forwardedProps for a run on `botId`: the open authoring session, if any, so the server hands the
  * Bot the propose/revise draft tools for exactly that session.
+ *
+ * `botId` 必须是机器人自己的 id（runtimeAgentId），不是对话里 CopilotKit 的 agentId
+ * （`channel:channel_…`）。以前传的是后者，查不到会话，于是机器人拿不到面板工具，只能用 render_ui
+ * 在对话里画一张卡，面板栏里什么也没有。
+ *
+ * `text` 明确在要一个面板、而右栏还没有创作会话时，顺手开一个（与点「新建」相同），这样机器人
+ * 总能用面板工具保存，右栏也会显示「正在创建面板」。
  */
 export async function panelAuthoringForwardedProps(
   botId: string | undefined,
+  text = "",
+  onBegan?: () => void,
 ): Promise<Record<string, unknown> | undefined> {
   if (!botId) return undefined;
-  const session = await panelsApi.session(botId).catch(() => null);
+  let session = await panelsApi.session(botId).catch(() => null);
+  if (!session?.sessionId && asksForPanel(text)) {
+    session = await panelsApi.begin(botId).catch(() => null);
+    if (session?.sessionId) onBegan?.();
+  }
   return session?.sessionId
     ? { [PANEL_AUTHORING_PROP]: { sessionId: session.sessionId } }
     : undefined;

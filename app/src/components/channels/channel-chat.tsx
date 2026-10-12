@@ -7,7 +7,7 @@ import {
   useCopilotKit,
 } from "@copilotkit/react-core/v2";
 import { observeApprovalAgent } from "@/lib/copilot/approval-context";
-import { panelAuthoringForwardedProps } from "@/lib/panels/api";
+import { panelAuthoringForwardedProps, panelKeys } from "@/lib/panels/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HandoffResumeNotice } from "@/components/computer/handoff-resume-notice";
@@ -761,7 +761,11 @@ export function ChannelChat({
 
     // An open custom-panel authoring session for this Bot rides along, so the server hands the Bot
     // its draft tools for that session (see server/src/index.ts handoffForActor).
-    const panelAuthoring = await panelAuthoringForwardedProps(target.agentId);
+    const panelAuthoring = await panelAuthoringForwardedProps(
+      runtimeAgentId,
+      trimmed,
+      () => void modelQueryClient.invalidateQueries({ queryKey: panelKeys.session(runtimeAgentId) }),
+    );
     target.addMessage({
       content: toMessageContent(trimmed, attachments),
       id: newId(),
