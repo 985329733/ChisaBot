@@ -2,10 +2,7 @@ import {
   IconActivity,
   IconAdjustmentsHorizontal,
   IconBrain,
-  IconBuildingBank,
-  IconBuildingSkyscraper,
   IconCloudDownload,
-  IconCode,
   IconDeviceDesktop,
   IconDeviceLaptop,
   IconFileText,
@@ -16,7 +13,6 @@ import {
   IconPuzzle,
   IconSchool,
   IconShieldCheck,
-  IconUsers,
 } from "@tabler/icons-react";
 import type * as React from "react";
 import { type RailGroup, SectionRail } from "@/components/layout/section-rail";
@@ -101,34 +97,10 @@ const GROUPS: RailGroup[] = [
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
-      {
-        title: "游乐场",
-        icon: IconCode,
-        linkOptions: { to: "/admin/playground" },
-      },
+      // 「游乐场」先隐藏（布局偏移、用途不明；路由 /admin/playground 仍在）。
     ],
   },
-  {
-    label: "谁可以进入",
-    items: [
-      {
-        title: "人员",
-        icon: IconUsers,
-        linkOptions: { to: "/admin/people" },
-      },
-      {
-        title: "企业控制",
-        icon: IconBuildingSkyscraper,
-        linkOptions: { to: "/admin/enterprise" },
-      },
-      {
-        title: "身份提供者",
-        icon: IconBuildingBank,
-        linkOptions: { to: "/admin/identity-providers" },
-      },
-
-    ],
-  },
+  // 「谁可以进入」（人员、企业控制、身份提供者）先隐藏：描述难懂，单人自部署用不到。路由仍在。
   {
     label: "发生了什么",
     items: [
