@@ -4374,9 +4374,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .bot-chat-sky .copilotKitChat .cpk\:max-w-3xl {
   max-width: min(42rem, calc(100% - 32px));
 }
-/* 输入区底边与左右卡片底边对齐（16px）。 */
+/* 输入区（输入框 + 模型选择行）底边与左右卡片底边对齐：中间列一直到窗口底边，卡片离底边 16px。 */
 .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] {
-  padding-bottom: 8px;
+  padding-bottom: 16px;
 }
 /* 输入框：与频道聊天同一个玻璃胶囊。 */
 .bot-chat-sky .copilotKitInput {
@@ -4421,6 +4421,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   box-shadow: var(--shadow-1), var(--inset-hl);
   backdrop-filter: var(--glass-blur);
 }
+/* 气泡里第一段 / 最后一段不再带 prose 的上下外边距，气泡上下内边距一致。 */
+.bot-chat-sky .copilotKitAssistantMessage > .cpk\:prose :where(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4):first-child { margin-top: 0; }
+.bot-chat-sky .copilotKitAssistantMessage > .cpk\:prose :where(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4):last-child { margin-bottom: 0; }
 /* 免责声明与回到底部按钮：坐在天空上也看得清。 */
 .bot-chat-sky .copilotKitChat .cpk\:text-muted-foreground.cpk\:text-xs { color: var(--glass-ink-3, inherit); }
 .bot-chat-sky .copilotKitChat button.cpk\:rounded-full.cpk\:w-10 {
