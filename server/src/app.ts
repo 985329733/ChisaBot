@@ -26,6 +26,7 @@ import {
 } from "./agents/model-selection";
 import { createAgentRoutes } from "./agents/routes";
 import { createApprovalRoutes } from "./approvals/routes";
+import { parseProfileInput, profileNeedsSetup } from "./people/onboarding";
 import type { ApprovalService } from "./approvals/service";
 import {
   type AuditEventType,
@@ -658,10 +659,23 @@ export function createApp(
     ),
   );
 
-  app.get("/api/me", requireUser, async (context) =>
-    context.json({
+  app.get("/api/me", requireUser, async (context) => {
+    const actor = context.var.actor;
+    // 名称和头像以 users 行为准（个人资料可编辑；单用户部署的身份对象是固定的）。
+    let profile: { name: string | null; image: string | null } | null = null;
+    try {
+      profile = (await onboardingStore?.profile?.(actor.id)) ?? null;
+    } catch {
+      profile = null;
+    }
+    const name = profile?.name ?? actor.name ?? null;
+    const image = profile?.image ?? actor.image ?? null;
+    return context.json({
       user: {
-        ...context.var.actor,
+        ...actor,
+        name,
+        image,
+        profileNeedsSetup: profileNeedsSetup({ name, image }, actor.email),
         /*
          * Read here rather than in the guard, so only this route pays the extra query. Null means
          * this deployment does not track onboarding, which the app reads as nothing to finish;
@@ -671,8 +685,20 @@ export function createApp(
           ? await onboardingStore.status(context.var.actor.id)
           : null,
       },
-    }),
-  );
+    });
+  });
+  app.patch("/api/me/profile", requireUser, async (context) => {
+    if (!onboardingStore) return context.json({ error: "个人资料不可用。" }, 503);
+    const parsed = parseProfileInput(await context.req.json().catch(() => undefined));
+    if (!parsed.ok) return context.json({ error: parsed.error }, 400);
+    const current = await onboardingStore.profile(context.var.actor.id);
+    const next = {
+      name: parsed.value.name ?? current.name,
+      image: parsed.value.image === undefined ? current.image : parsed.value.image,
+    };
+    await onboardingStore.setProfile(context.var.actor.id, next);
+    return context.json({ profile: next });
+  });
   app.post("/api/me/onboarding", requireUser, async (context) => {
     if (!onboardingStore) {
       return context.json({ error: "Onboarding is not available." }, 503);

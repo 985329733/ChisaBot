@@ -41,7 +41,11 @@ export function GlassAvatar({ size = 44, ring = true }: { size?: number; ring?: 
       className={cn("glass-avatar", ring && "glass-avatar-ring")}
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
-      {initialsOf(user?.name, user?.email)}
+      {user?.image ? (
+        <img alt="" className="glass-avatar-img" draggable={false} src={user.image} />
+      ) : (
+        initialsOf(user?.name, user?.email)
+      )}
     </span>
   );
 }

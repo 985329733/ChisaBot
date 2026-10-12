@@ -46,6 +46,8 @@ function memoryStore(initial: { step: number; completedAt: string | null }) {
     complete: async () => {
       state.completedAt = state.completedAt ?? "2026-08-27T00:00:00.000Z";
     },
+    profile: async () => ({ name: null, image: null }),
+    setProfile: async () => {},
   };
   return { store, state };
 }

@@ -18,6 +18,8 @@ export type AuthenticatedUser = {
   name?: string | null;
   image?: string | null;
   role: "admin" | "user";
+  /** 名称还没设置（空或仍是邮箱）：进入应用前先弹「首次设置」。 */
+  profileNeedsSetup?: boolean;
   /** Null means this deployment does not track onboarding, which reads as nothing to finish. */
   onboarding: OnboardingStatus | null;
 };

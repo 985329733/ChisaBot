@@ -6,11 +6,13 @@ import {
   IconSelector,
   IconSettings,
   IconShieldCheck,
+  IconUserCircle,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { GlassAvatar } from "@/components/layout/glass-topbar";
+import { ProfileDialog } from "@/components/layout/profile-dialog";
 import { useTheme } from "@/components/theme-provider";
 import {
   DropdownMenu,
@@ -53,6 +55,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
     (approvals.data?.requests.filter((r) => r.status === "pending").length ?? 0) +
     (approvals.data?.questions.length ?? 0);
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   // 当前应用版本（/api/version 的 version，例如 0.1.0）。
   const served = useQuery({
     queryKey: ["app-version"],
@@ -112,6 +115,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   );
 
   return (
+    <>
     <DropdownMenu onOpenChange={setOpen} open={open}>
       {compact ? (
         <Tooltip>
@@ -142,6 +146,14 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="glass-sep" />
         <DropdownMenuGroup className="py-1">
+          <Row
+            icon={<IconUserCircle className={icon} />}
+            label={"个人资料"}
+            onClick={() => {
+              setOpen(false);
+              setProfileOpen(true);
+            }}
+          />
           <Row icon={<IconSettings className={icon} />} label={"偏好设置"} onClick={() => go("/settings")} />
           <Row
             hint={pending > 0 ? `${pending} 项待审批` : undefined}
@@ -178,6 +190,8 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+    <ProfileDialog onOpenChange={setProfileOpen} open={profileOpen} />
+    </>
   );
 }
 

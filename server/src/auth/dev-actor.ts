@@ -46,9 +46,9 @@ export async function initializeDevActorUser(
     })
     .onConflictDoUpdate({
       target: users.id,
+      // 不覆盖 name：用户在「个人资料」里改过的名称要跨重启保留。
       set: {
         email: DEV_ACTOR.email,
-        name,
         updatedAt: new Date(),
       },
     });
