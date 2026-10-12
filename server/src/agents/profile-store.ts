@@ -24,7 +24,7 @@ import {
   teamBotAccess,
 } from "../team-bots/access";
 import { teamBotPublications } from "../db/schema/team-bots";
-import { canManageAgent } from "./profile-policy";
+import { canDeleteAgent, canManageAgent } from "./profile-policy";
 import { modelOverrideFromValue } from "./model-selection";
 import type {
   AgentActor,
@@ -808,13 +808,26 @@ export function createAgentProfileStore(
           await lockProfileMutationRows(transaction, id);
           const profile = await findAccessibleProfile(transaction, actor, id);
           if (!profile) throw new AgentNotFoundError(id);
-          requireManageable(actor, profile);
+          if (!canDeleteAgent(actor, profile)) requireManageable(actor, profile);
 
           const deletedAt = new Date();
           await transaction
             .update(agentProfiles)
             .set({ deletedAt, updatedAt: deletedAt })
             .where(eq(agentProfiles.agentId, id));
+          /*
+           * 部署包自带的机器人：在 agents.override 里记一笔「已被删除」。部署包每次启动都会重新同步并清掉
+           * deletedAt，tenant-package 看到这个标记会把它重新标成已删除，不会死而复生。
+           */
+          if (profile.systemOwned) {
+            await transaction
+              .update(agents)
+              .set({
+                override: sql`coalesce(${agents.override}, '{}'::jsonb) || jsonb_build_object('removedAt', ${deletedAt.toISOString()}::text)`,
+                updatedAt: deletedAt,
+              })
+              .where(eq(agents.id, id));
+          }
 
           /*
            * And its key stops working.
@@ -824,7 +837,7 @@ export function createAgentProfileStore(
            * anybody had to retire it. The profile is a soft delete, deliberately, but the key is not
            * something to keep pending an undelete that would ask for a new one anyway.
            */
-          if (vault) {
+          if (vault && !profile.systemOwned) {
             const [row] = await transaction
               .select({ configuration: agents.configuration })
               .from(agents)

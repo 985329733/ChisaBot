@@ -5,7 +5,7 @@ import { recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import { testAgentConnection } from "./connection-test";
 import { checkAgentEndpoint } from "./endpoint";
-import { canManageAgent } from "./profile-policy";
+import { canDeleteAgent, canManageAgent } from "./profile-policy";
 import type { AgentPurge } from "./purge";
 import {
   AgentNotFoundError,
@@ -805,6 +805,8 @@ function agentDto(actor: AgentActor, agent: AgentProfile) {
     // Whether one exists, never what it is.
     hasCallbackToken: agent.hasCallbackToken,
     canManage: canManageAgent(actor, agent),
+    // 删除和修改分开：部署包机器人不能改，但管理员可以删（见 canDeleteAgent）。
+    canDelete: canDeleteAgent(actor, agent),
     // Ownership, kept separate from permission. `canManage` is also true for an administrator on
     // another user's coworker, so a roster that split "mine" on it would file other people's work
     // under yours, and only for administrators, who are the least likely to notice.

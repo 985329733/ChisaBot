@@ -178,7 +178,11 @@ export function createAgentPurge(options: {
         );
 
       // Everything else hangs off `agents` with ON DELETE CASCADE.
-      await tx.delete(agents).where(eq(agents.id, agentId));
+      // 部署包机器人的 agents 行要留着：它带着「已被删除」的标记（override.removedAt），删掉它的话
+      // 下次同步部署包会把机器人原样建回来。
+      await tx
+        .delete(agents)
+        .where(and(eq(agents.id, agentId), isNull(agents.packageId)));
       return instanceIds.length;
     });
   }

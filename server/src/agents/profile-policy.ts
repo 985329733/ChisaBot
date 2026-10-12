@@ -22,6 +22,19 @@ export function canManageAgent(
   return agent.ownerUserId === actor.id || actor.role === "admin";
 }
 
+/**
+ * 能不能删除这个机器人。和「能不能改它」分开：部署包自带的机器人（通用助手、知识助手…）不能改，
+ * 但管理员可以把它删掉（删除会被记住，重启 / 重新同步部署包不会把它变回来，见 tenant-package）。
+ */
+export function canDeleteAgent(
+  actor: AgentActor,
+  agent: AgentProfile,
+): boolean {
+  if (agent.deletedAt !== null) return false;
+  if (agent.systemOwned) return actor.role === "admin";
+  return canManageAgent(actor, agent);
+}
+
 export const canRunAgent = canAccessAgent;
 
 /**

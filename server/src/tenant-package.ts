@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { parse } from "yaml";
 import { DEPLOYMENT_ROUTES } from "./computer/deployment-routes";
 import type { Database } from "./db/client";
@@ -927,6 +927,35 @@ export async function synchronizeTenantPackage(
           `Tenant package agent "${agent.id}" collides with a user-owned profile`,
         );
       }
+    }
+
+    /*
+     * 管理员删掉的部署包机器人（agents.override.removedAt，见 profile-store softDelete）：上面的 upsert
+     * 刚把 deletedAt 清空了，这里再标回去，删除才是永久的。
+     */
+    {
+      const now = new Date();
+      await transaction
+        .update(agentProfiles)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(
+          and(
+            isNull(agentProfiles.ownerUserId),
+            isNull(agentProfiles.deletedAt),
+            inArray(
+              agentProfiles.agentId,
+              transaction
+                .select({ id: agentTable.id })
+                .from(agentTable)
+                .where(
+                  and(
+                    eq(agentTable.packageId, deploymentPackage.id),
+                    sql`${agentTable.override} ? 'removedAt'`,
+                  ),
+                ),
+            ),
+          ),
+        );
     }
 
     for (const channel of tenantPackage.channels) {
