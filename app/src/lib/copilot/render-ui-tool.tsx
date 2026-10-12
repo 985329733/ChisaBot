@@ -6,6 +6,7 @@ import {
   inspectRenderUiSpec,
   parseRenderUiSpec,
   RENDER_UI_TOOL,
+  sanitizeRenderUiSpec,
 } from "../../../../shared/json-render/catalog";
 import { ToolLine } from "@/components/channels/tool-line";
 import { useConversation } from "@/lib/copilot/conversation";
@@ -53,8 +54,9 @@ const RenderUiCall = memo(function RenderUiCall({
   streaming: boolean;
   result?: string;
 }) {
+  // 先宽容处理（跳过坏节点、修正参数别名），与服务器校验的是同一份。
   const spec = useMemo(
-    () => (source ? parseRenderUiSpec(source, streaming) : null),
+    () => (source ? (sanitizeRenderUiSpec(parseRenderUiSpec(source, streaming))?.spec ?? null) : null),
     [source, streaming],
   );
   const verdict = useMemo(

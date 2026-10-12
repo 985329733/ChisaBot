@@ -366,7 +366,7 @@ function actionIssues(key: string, on: unknown): string[] {
 }
 
 export type RenderUiValidation =
-  | { ok: true; spec: Spec; elementCount: number }
+  | { ok: true; spec: Spec; elementCount: number; warnings?: string[] }
   | { ok: false; issues: string[] };
 
 const MAX_ELEMENTS = 200;
@@ -443,6 +443,98 @@ export function validateRenderUiSpec(spec: Spec | null): RenderUiValidation {
 }
 
 /**
+ * 宽容处理：把「一个坏节点」限制在那个节点里，而不是整张界面都被拒绝。
+ *
+ * 线上数据里 render_ui 失败的调用几乎都是这几种（2026-10-11/12，FRA 库里 9 次调用 4 次被拒）：
+ *   - send_message 的参数写成 `message` / `content`（目录里叫 `text`）——每个模型都这么写；
+ *   - 用了目录里没有的组件（例如 Record）；
+ *   - children 引用了不存在的元素（多半是那一行 JSONL 写坏了，被跳过）。
+ * 以前任意一条都会让整个界面「无效，没有显示」，模型要再调一次，用户看到的是一行失败或者红色错误卡。
+ *
+ * 现在：参数别名改成 `text`；未知组件、属性不合法的元素、悬空的 children 引用直接跳过并记成警告；
+ * 只有根元素本身不可用时才算失败。服务器和浏览器都先过这一步，所以两边画的是同一份。
+ */
+export type RenderUiSanitized = { spec: Spec; skipped: string[] };
+
+const ACTION_TEXT_ALIASES = ["message", "content", "prompt", "query"] as const;
+
+function normaliseBinding(binding: unknown): unknown {
+  if (!binding || typeof binding !== "object" || Array.isArray(binding)) return binding;
+  const value = binding as { action?: unknown; params?: unknown };
+  if (value.action !== "send_message") return binding;
+  const params = (value.params && typeof value.params === "object" ? { ...(value.params as Record<string, unknown>) } : {}) as Record<string, unknown>;
+  if (typeof params.text !== "string" || !params.text.trim()) {
+    const alias = ACTION_TEXT_ALIASES.map((key) => params[key]).find(
+      (candidate): candidate is string => typeof candidate === "string" && candidate.trim() !== "",
+    );
+    if (alias) params.text = alias;
+  }
+  return { ...value, params };
+}
+
+function normaliseOn(on: unknown): unknown {
+  if (!on || typeof on !== "object" || Array.isArray(on)) return on;
+  return Object.fromEntries(
+    Object.entries(on as Record<string, unknown>).map(([event, value]) => [
+      event,
+      Array.isArray(value) ? value.map(normaliseBinding) : normaliseBinding(value),
+    ]),
+  );
+}
+
+export function sanitizeRenderUiSpec(spec: Spec | null): RenderUiSanitized | null {
+  if (!spec || typeof spec !== "object") return null;
+  const components = jsonRenderCatalog.data.components as Record<string, { props: z.ZodObject<z.ZodRawShape> }>;
+  const input = (spec.elements ?? {}) as Record<string, unknown>;
+  const skipped: string[] = [];
+  const kept: Record<string, Record<string, unknown>> = {};
+  for (const [key, raw] of Object.entries(input)) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      skipped.push(`${key}（不是对象）`);
+      continue;
+    }
+    const element = { ...(raw as Record<string, unknown>) };
+    const type = element.type;
+    const definition = typeof type === "string" ? components[type] : undefined;
+    if (!definition) {
+      skipped.push(`${key}（未知组件 ${String(type)}）`);
+      continue;
+    }
+    const props = element.props && typeof element.props === "object" && !Array.isArray(element.props)
+      ? (element.props as Record<string, unknown>)
+      : {};
+    const bad = Object.entries(definition.props.shape).find(([name, field]) => {
+      const value = props[name];
+      return !isDynamic(value) && !(field as z.ZodType).safeParse(value).success;
+    });
+    if (bad) {
+      skipped.push(`${key}（${String(type)} 的 ${bad[0]} 无效）`);
+      continue;
+    }
+    if (type === "Image" && typeof props.src === "string" && !/^https:\/\//i.test(props.src)) {
+      skipped.push(`${key}（图片地址不是 https）`);
+      continue;
+    }
+    element.props = props;
+    if (element.on !== undefined) element.on = normaliseOn(element.on);
+    kept[key] = element;
+  }
+  for (const [key, element] of Object.entries(kept)) {
+    const children = Array.isArray(element.children) ? element.children : [];
+    const present = children.filter((child): child is string => typeof child === "string" && child in kept);
+    if (present.length !== children.length) {
+      for (const child of children) {
+        if (typeof child !== "string" || !(child in kept)) {
+          if (!(typeof child === "string" && child in input)) skipped.push(`${key} → ${String(child)}（不存在）`);
+        }
+      }
+    }
+    element.children = present;
+  }
+  return { spec: { ...spec, elements: kept } as unknown as Spec, skipped: [...new Set(skipped)] };
+}
+
+/**
  * 一次完整的检查：先找出写坏的 JSONL 行（compileSpecStream 会静默跳过它们，结果就是「引用了不存在的
  * 子元素」这种让模型摸不着头脑的报错），再做结构 / 目录 / 属性校验。服务器的 `render_ui` 与浏览器
  * 都用它，所以两边对同一个调用的结论一致。
@@ -473,11 +565,19 @@ export function inspectRenderUiSpec(input: unknown): RenderUiValidation {
       });
     }
   }
-  const result = validateRenderUiSpec(parseRenderUiSpec(input));
-  if (lineIssues.length === 0) return result;
+  const sanitized = sanitizeRenderUiSpec(parseRenderUiSpec(input));
+  const result = validateRenderUiSpec(sanitized?.spec ?? null);
+  /*
+   * 写坏的行只是被跳过的那几个元素；只要剩下的界面能画，就画，坏行记成警告。
+   * 根元素都没了（或者整段没有一行能用）才算失败。
+   */
+  if (result.ok) {
+    const warnings = [...lineIssues, ...(sanitized?.skipped.map((item) => `已跳过 ${item}`) ?? [])].slice(0, 20);
+    return warnings.length ? { ...result, warnings } : result;
+  }
   return {
     ok: false,
-    issues: [...lineIssues, ...(result.ok ? [] : result.issues)].slice(0, 20),
+    issues: [...lineIssues, ...result.issues].slice(0, 20),
   };
 }
 
