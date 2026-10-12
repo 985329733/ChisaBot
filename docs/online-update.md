@@ -100,7 +100,8 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
     - 构建成功、切换并通过健康检查后，新镜像成为快速更新的**新底座**：写 `base.env`（`BASE_IMAGE`、`NODE_MODULES_BASE`、`BASE_COMMIT`，
       覆盖 `config.env` 同名项）、`base-deps.sha256`，并把构建时的完整依赖树（含 vite 等开发依赖，`--target updater-deps` 导出）放在
       `deps-<标签>/`（保留两份）。之后依赖不变的提交又走快速更新。没通过就自动回滚，底座不变。
-    - 用时（FRA，6 核 / 24 GB）：首次（无缓存）约 5–8 分钟，有缓存约 3–5 分钟；页面「预计」取最近一次同类更新的实际用时。
+    - 用时（FRA，6 核 / 24 GB，6g 上限、并行 2，2026-10-13 实测）：无缓存 358 秒（约 6 分钟，含备份），有缓存 226 秒（约 4 分钟，
+      其中导出 + 导入镜像约 1 分钟）；快速更新约 60 秒。页面「预计」取最近一次同类更新的实际用时。
 - **update.sh** 步骤（快速更新；与 `shared/system-update.ts` 的 `UPDATE_STEPS` 一致）：
   1. 准备：目标提交在 `main` 上，磁盘剩余 ≥ 2.5 GB（完整构建 ≥ 12 GB）；
   2. 检查依赖：`bun.lock`、各 `package.json`（含 `agent-computer/` 的 `package.json` 和 `bun.lock`）、`Dockerfile`、`docker/` 的指纹（根 `package.json` 去掉顶层 `version` 行再算，改版本号不影响）必须等于 `base-deps.sha256`（底座构建时的指纹），

@@ -126,8 +126,8 @@ export const FULL_UPDATE_STEPS: ReadonlyArray<{ key: string; label: string }> = 
   { key: "done", label: "完成" },
 ];
 
-/** 没有历史数据时的估计（FRA 6 核：完整构建首次约 8 分钟，有缓存约 4 分钟；快速更新约 2 分钟）。 */
-export const DEFAULT_UPDATE_ESTIMATE_SEC: Record<SystemUpdateMode, number> = { code: 150, full: 600 };
+/** 没有历史数据时的估计（FRA 6 核实测：完整构建无缓存约 6 分钟、有缓存约 4 分钟；快速更新约 1 分钟；小机器会慢）。 */
+export const DEFAULT_UPDATE_ESTIMATE_SEC: Record<SystemUpdateMode, number> = { code: 120, full: 480 };
 
 /** 「约 N 分钟」。 */
 export function estimateText(seconds: number | undefined) {

@@ -188,11 +188,12 @@ if [ "$MODE" = full ]; then
     --build-arg "CHISABOT_BUILT_AT=$BUILT_AT" --build-arg "CHISABOT_IMAGE=$NEW_IMAGE")
   # 进度：完整日志进 jobs/<任务>.build.log，页面上只显示每一步的开头和结果。
   docker buildx build "${BARGS[@]}" --target chisabot -t "$NEW_IMAGE" --load "$B/src" 2>&1 \
-    | tee "$BLOG" | stdbuf -oL awk '
-        /^#[0-9]+ \[[^]]+\] / && !seen[$0]++ { sub(/^#[0-9]+ /, ""); print substr($0, 1, 160); next }
+    | tee "$BLOG" | awk '
+        # fflush()：Ubuntu 的 awk 是 mawk，管道里会攒到几 KB 才写，页面上的日志就停住不动。
+        /^#[0-9]+ \[[^]]+\] / { sub(/^#[0-9]+ /, ""); if (!seen[$0]++) { print substr($0, 1, 160); fflush() } next }
         /^#[0-9]+ (DONE|CACHED|ERROR)/ { next }
-        /^#[0-9]+ exporting to docker image format|^#[0-9]+ sending tarball|importing to docker/ && !seen[$0]++ { sub(/^#[0-9]+ /, ""); print "::step:: load"; print "导入镜像到 Docker"; next }
-        /ERROR:|error:|failed to solve/ { print substr($0, 1, 300) }'
+        /^#[0-9]+ (exporting to (docker|oci) image format|exporting layers|sending tarball)/ { if (!loading++) { print "::step:: load"; print "导出并导入镜像到 Docker"; fflush() } next }
+        /ERROR:|error:|failed to solve/ { print substr($0, 1, 300); fflush() }'
   CODE=${PIPESTATUS[0]}
   if [ "$CODE" != 0 ]; then
     echo "构建日志（最后 25 行，完整的在 $BLOG）："
