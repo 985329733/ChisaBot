@@ -5,7 +5,6 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
-import { MessageListPreference } from "@/components/settings/message-list-preference";
 import { SkyPreference } from "@/components/settings/sky-preference";
 import { StandingInstructions } from "@/components/settings/standing-instructions";
 import { useTheme } from "@/components/theme-provider";
@@ -17,7 +16,14 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { IconMoon, IconSun } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { IconKeyboard, IconMoon, IconSun } from "@tabler/icons-react";
 import { formatHotkey, HOTKEYS, SHELL_HOTKEYS } from "@/lib/hotkeys/hotkeys";
 
 const ALL_HOTKEYS = [...HOTKEYS, ...SHELL_HOTKEYS];
@@ -28,6 +34,7 @@ export const Route = createFileRoute("/_authed/settings/")({
 
 function RouteComponent() {
   const { dark, setDark } = useTheme();
+  const [keysOpen, setKeysOpen] = React.useState(false);
 
   /*
    * The measurements that used to be written out here now live in `PageShell`, which Skills, Admin
@@ -40,7 +47,7 @@ function RouteComponent() {
   return (
     <PageShell
       description={
-        "ChisaBot 在你这里的显示和行为。消息列表偏好与账号同步，外观保存在此浏览器。"
+        "外观保存在此浏览器，常驻指令跟随账号。"
       }
       title={"通用"}
     >
@@ -77,30 +84,42 @@ function RouteComponent() {
           <SkyPreference bare />
         </PageRows>
       </PageSection>
-      <PageSection title={"消息列表"}>
-        <MessageListPreference />
-      </PageSection>
-      {/*
-       * Above the shortcuts and below the appearance preferences, because it is the only thing on this
-       * screen that changes what a coworker says rather than what this browser looks like.
-       */}
       <StandingInstructions />
       {/*
        * Drawn from the same registry the listeners match against, so this list is what the keys
        * actually do rather than what somebody remembered they did. Read-only on purpose: these
        * are not rebindable, and a row with nothing to click says so by having nothing to click.
        */}
-      <PageSection title={"键盘快捷键"}>
+      {/* 快捷键只读、不可改，收进一行，点开看全部（2026-10-12 精简）。 */}
+      <PageSection>
         <PageRows>
-          {ALL_HOTKEYS.map((hotkey, index) => (
-            <React.Fragment key={hotkey.id}>
-              <Item size="sm">
-                <ItemContent>
-                  <ItemTitle>{hotkey.label}</ItemTitle>
-                  <ItemDescription>{hotkey.description}</ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <span className="flex gap-1">
+          <Item size="sm">
+            <ItemContent>
+              <ItemTitle>{"键盘快捷键"}</ItemTitle>
+              <ItemDescription>{`共 ${ALL_HOTKEYS.length} 个，不可修改。`}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button onClick={() => setKeysOpen(true)} size="sm" variant="outline">
+                <IconKeyboard />
+                {"查看"}
+              </Button>
+            </ItemActions>
+          </Item>
+        </PageRows>
+      </PageSection>
+      <Dialog onOpenChange={setKeysOpen} open={keysOpen}>
+        <DialogContent className="glass-modal max-h-[80dvh] max-w-[480px] overflow-y-auto">
+          <DialogTitle className="font-semibold text-lg">{"键盘快捷键"}</DialogTitle>
+          <DialogDescription className="text-xs">{"在 ChisaBot 任意位置可用。"}</DialogDescription>
+          <div className="mt-2">
+            {ALL_HOTKEYS.map((hotkey, index) => (
+              <React.Fragment key={hotkey.id}>
+                <div className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm">{hotkey.label}</div>
+                    <div className="text-xs text-muted-foreground">{hotkey.description}</div>
+                  </div>
+                  <span className="flex shrink-0 gap-1">
                     {formatHotkey(hotkey.combo).map((part) => (
                       <kbd
                         className="rounded-md border bg-muted px-1.5 py-0.5 font-sans text-xs text-muted-foreground"
@@ -110,13 +129,13 @@ function RouteComponent() {
                       </kbd>
                     ))}
                   </span>
-                </ItemActions>
-              </Item>
-              {index !== ALL_HOTKEYS.length - 1 && <Separator />}
-            </React.Fragment>
-          ))}
-        </PageRows>
-      </PageSection>
+                </div>
+                {index !== ALL_HOTKEYS.length - 1 && <Separator />}
+              </React.Fragment>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

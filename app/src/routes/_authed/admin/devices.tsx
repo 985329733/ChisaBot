@@ -47,7 +47,7 @@ function AdminDevicesPage() {
                 ))}
               </Card>
             ) : (
-              <EmptyState description="还没有任何电脑登记。在 偏好设置 → 设备 下载 PC 客户端。" icon={<IconDeviceDesktop className="size-6" />} title="还没有设备" />
+              <EmptyState description="还没有任何电脑登记。在 设置 → 电脑操作 下载 PC 客户端。" icon={<IconDeviceDesktop className="size-6" />} title="还没有设备" />
             )}
           </PageSection>
         </>

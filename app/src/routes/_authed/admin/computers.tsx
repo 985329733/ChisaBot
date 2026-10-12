@@ -95,7 +95,7 @@ function ComputersPage() {
       description={
         "每个机器人的浏览器和它保存的配置文件。配置文件让机器人明天还能保持登录，重置配置文件会让它退出所有内容。"
       }
-      title={"计算机"}
+      title={"云端浏览器"}
     >
       {problem ? (
         <p

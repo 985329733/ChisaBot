@@ -51,7 +51,7 @@ function MagpieConsolePage() {
           description={overview.data?.version ? `Magpie ${overview.data.version} · 仅管理员可见 · 沿用 ChisaBot 登录` : "仅管理员可见 · 沿用 ChisaBot 登录"}
           eyebrow={
             <>
-              <Link to="/admin">{"管理后台"}</Link>
+              <Link to="/admin/models">{"模型"}</Link>
               <span aria-hidden className="ph-crumb-sep">
                 {"/"}
               </span>

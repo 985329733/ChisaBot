@@ -150,7 +150,7 @@ function Overview({ data, onSync }: { data: MagpieOverview; onSync: () => Promis
               {data.connection?.viaMagpie ? "经由 Magpie" : "其他接口"}
             </span>
           </SettingRow>
-          <SettingRow description={data.connection ? `${data.connection.protocol === "anthropic" ? "Anthropic 协议" : "OpenAI 兼容协议"} · ${data.connection.source === "saved" ? "管理后台保存" : "环境变量"}` : undefined} title="接口地址">
+          <SettingRow description={data.connection ? `${data.connection.protocol === "anthropic" ? "Anthropic 协议" : "OpenAI 兼容协议"} · ${data.connection.source === "saved" ? "设置中保存" : "环境变量"}` : undefined} title="接口地址">
             <code className="magpie-code">{data.connection?.baseUrl ?? "—"}</code>
           </SettingRow>
           <SettingRow description="没有单独选择模型的机器人使用它；每个机器人也可以在聊天输入框里切换。" title="部署默认模型">
@@ -220,7 +220,7 @@ function Overview({ data, onSync }: { data: MagpieOverview; onSync: () => Promis
             }
             description={
               data.managementAvailable
-                ? "在管理后台内嵌打开 Magpie 控制台：提供方、模型、调用密钥、用量与路由。仅管理员可见，沿用 ChisaBot 登录，Magpie 密钥不会发送到浏览器。"
+                ? "在设置内嵌打开 Magpie 控制台：提供方、模型、调用密钥、用量与路由。仅管理员可见，沿用 ChisaBot 登录，Magpie 密钥不会发送到浏览器。"
                 : "此部署没有为 ChisaBot 配置 Magpie 管理密钥（MAGPIE_ADMIN_URL + MAGPIE_WEB_KEY_FILE），暂时无法内嵌。"
             }
             icon={<IconPlugConnected className="size-5" />}
