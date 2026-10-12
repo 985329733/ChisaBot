@@ -8,7 +8,7 @@ import {
   IconMinus,
   IconX,
 } from "@tabler/icons-react";
-import { type CSSProperties, useId } from "react";
+import { Component, type CSSProperties, type ReactNode, useId } from "react";
 import { jsonRenderCatalog } from "../../../../../shared/json-render/catalog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +45,23 @@ const TREND_ICON = {
   down: IconTrendingDown,
   flat: IconMinus,
 } as const;
+
+/**
+ * 每个节点各自一个错误边界：一个组件画不出来时只跳过它自己（开发者控制台留记录），整张界面照常显示。
+ * 以前任何一个节点抛错都会冒到 ToolRenderBoundary，整张卡变成红色的「render_ui 无法绘制」。
+ */
+class NodeBoundary extends Component<{ type: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.warn("[json-render] 跳过画不出来的节点", this.props.type, error);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog, {
   components: {
@@ -121,7 +138,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
           {props.caption ? <caption>{props.caption}</caption> : null}
           <thead>
             <tr>
-              {props.columns.map((column) => (
+              {(Array.isArray(props.columns) ? props.columns : []).map((column) => (
                 <th key={column.key} className={column.align ? `is-${column.align}` : undefined} scope="col">
                   {column.label}
                 </th>
@@ -132,7 +149,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
             {(Array.isArray(props.rows) ? props.rows : []).map((row, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no identity of their own.
               <tr key={index}>
-                {props.columns.map((column) => (
+                {(Array.isArray(props.columns) ? props.columns : []).map((column) => (
                   <td key={column.key} className={column.align ? `is-${column.align}` : undefined}>
                     {text(row?.[column.key])}
                   </td>
@@ -221,7 +238,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
     Select: ({ props, bindings }) => {
       const id = useId();
       const [value, setValue] = useBoundProp<string | null | undefined>(props.value, bindings?.value);
-      const options = (Array.isArray(props.options) ? props.options : []).map((option) =>
+      const options = (Array.isArray(props.options) ? props.options : []).filter(Boolean).map((option) =>
         typeof option === "string" ? { label: option, value: option } : option,
       );
       return (
@@ -329,3 +346,15 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
     open_link: async () => undefined,
   },
 });
+
+/*
+ * 原地给每个渲染器套上 NodeBoundary。原地改（而不是返回新对象），因为 json-render 用这个对象本身
+ * 作为 WeakMap 的键记录目录元数据。
+ */
+for (const [type, Render] of Object.entries(jsonRenderRegistry)) {
+  jsonRenderRegistry[type] = (props) => (
+    <NodeBoundary type={type}>
+      <Render {...props} />
+    </NodeBoundary>
+  );
+}

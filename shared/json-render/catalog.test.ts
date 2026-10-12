@@ -123,8 +123,9 @@ describe("json-render catalog (render_ui)", () => {
   test("a broken JSONL line is named instead of surfacing as a missing child", () => {
     const broken = GOOD.replace('"children":["m1"]}}', '"children":["m1"]}]}');
     const result = inspectRenderUiSpec(broken);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.issues[0]).toContain("第 3 行");
+    // 写坏的那一行只跳过它定义的元素，其余照常显示；坏行作为警告报给模型。
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.warnings?.[0]).toContain("第 3 行");
     expect(inspectRenderUiSpec(GOOD).ok).toBe(true);
   });
 
@@ -139,5 +140,28 @@ describe("json-render catalog (render_ui)", () => {
     for (const name of jsonRenderCatalog.componentNames) expect(prompt).toContain(`- ${name}:`);
     expect(prompt).toContain("send_message");
     expect(prompt).not.toMatch(/sample data/i);
+  });
+
+  test("tolerant: message/content alias, unknown component and dangling child are skipped, not refused", () => {
+    const spec = [
+      JSON.stringify({ op: "add", path: "/root", value: "card" }),
+      JSON.stringify({ op: "add", path: "/elements/card", value: { type: "Card", props: { title: "状态" }, children: ["m", "rec", "tbl", "btn"] } }),
+      JSON.stringify({ op: "add", path: "/elements/m", value: { type: "Metric", props: { label: "CPU", value: "23%" }, children: [] } }),
+      JSON.stringify({ op: "add", path: "/elements/rec", value: { type: "Record", props: {}, children: [] } }),
+      JSON.stringify({ op: "add", path: "/elements/btn", value: { type: "Button", props: { label: "刷新" }, on: { press: { action: "send_message", params: { message: "刷新" } } }, children: [] } }),
+    ].join("\n");
+    const result = inspectRenderUiSpec(spec);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(Object.keys(result.spec.elements).sort()).toEqual(["btn", "card", "m"]);
+      expect(result.spec.elements.card?.children).toEqual(["m", "btn"]);
+      const on = (result.spec.elements.btn as { on?: { press?: { params?: { text?: string } } } }).on;
+      expect(on?.press?.params?.text).toBe("刷新");
+      expect(result.warnings?.join("\n")).toContain("Record");
+    }
+  });
+
+  test("a spec whose root itself is unusable is still refused", () => {
+    expect(inspectRenderUiSpec(JSON.stringify({ root: "x", elements: { x: { type: "Record", props: {}, children: [] } } })).ok).toBe(false);
   });
 });

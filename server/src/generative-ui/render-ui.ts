@@ -46,7 +46,11 @@ export function executeRenderUi(args: unknown): string {
       ...result.issues.map((issue) => `- ${issue}`),
     ].join("\n");
   }
-  return `${RENDER_UI_SHOWN} 界面已在对话中显示（${result.elementCount} 个元素）。不要再用文字重复界面里的内容；用户点击按钮时你会收到一条用户消息。`;
+  const shown = `${RENDER_UI_SHOWN} 界面已在对话中显示（${result.elementCount} 个元素）。不要再用文字重复界面里的内容；用户点击按钮时你会收到一条用户消息。`;
+  // 跳过的元素告诉模型，下次写对；但界面已经显示了，不要为此重画。
+  return result.warnings?.length
+    ? `${shown}\n以下内容不合规，已跳过（不必重画，下次注意）：\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}`
+    : shown;
 }
 
 export function renderUiTools(): GrantedTool[] {
