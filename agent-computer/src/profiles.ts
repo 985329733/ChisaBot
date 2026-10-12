@@ -450,20 +450,22 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
         existing.usedAt = Date.now();
         return existing.page;
       }
-      if (existing) {
-        // Half-dead: the browser went away, or its page did. Dropped rather than repaired, because a
-        // context whose browser has gone is not usable for anything.
-        //
-        // The one close that does not announce itself, deliberately. A replacement is launched on the
-        // next line and the live screen's follow loop re-attaches to it within the second, so this is
-        // a browser being swapped rather than one going away. Telling the viewer here would end a
-        // screen that is about to be fine, which is the opposite of what the announcement is for.
-        await existing.sessionCookies?.stop();
-        await existing.context.close().catch(() => undefined);
-        live.delete(botId);
-      }
-
+      // 半死的旧浏览器在 launch 里清理：先登记 starting，再等待关闭，避免并发请求各自拉起一个 Chromium
+      // 抢同一个配置目录（审查发现：崩溃恢复时可能同时开两个浏览器、损坏配置）。
       const launch = (async () => {
+        if (existing) {
+          // Half-dead: the browser went away, or its page did. Dropped rather than repaired, because a
+          // context whose browser has gone is not usable for anything.
+          //
+          // The one close that does not announce itself, deliberately. A replacement is launched on the
+          // next line and the live screen's follow loop re-attaches to it within the second, so this is
+          // a browser being swapped rather than one going away. Telling the viewer here would end a
+          // screen that is about to be fine, which is the opposite of what the announcement is for.
+          await existing.sessionCookies?.stop();
+          await existing.context.close().catch(() => undefined);
+          live.delete(botId);
+        }
+
         const dir = directoryFor(botId);
         // A second native helper can target the same data root on another port. Do not remove an
         // active Chrome profile's lock; Chrome reports contention and handles its own stale locks.

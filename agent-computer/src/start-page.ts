@@ -17,6 +17,9 @@ export const START_PAGE_MARK = "chisabotStart";
 /** 正在导航的页面。导航途中网址还是 about:blank，这时候画起始页会和 goto 抢同一个文档。 */
 const navigating = new WeakMap<Page, number>();
 
+/** 同一页面同时只画一次。 */
+const drawing = new WeakMap<Page, Promise<void>>();
+
 /** 包住一次导航，期间不往这个页面上画起始页。 */
 export async function whileNavigating<T>(
   page: Page,
@@ -24,6 +27,9 @@ export async function whileNavigating<T>(
 ): Promise<T> {
   navigating.set(page, (navigating.get(page) ?? 0) + 1);
   try {
+    // 正在画起始页时先等它画完：setContent 用 document.open，和 goto 同时进行会取消导航。
+    const inFlight = drawing.get(page);
+    if (inFlight) await inFlight.catch(() => undefined);
     return await work();
   } finally {
     const left = (navigating.get(page) ?? 1) - 1;
@@ -32,8 +38,6 @@ export async function whileNavigating<T>(
   }
 }
 
-/** 同一页面同时只画一次。 */
-const drawing = new WeakMap<Page, Promise<void>>();
 
 /**
  * 页面停在空白的 about:blank 时，画上起始页。已经画过、正在导航、或者已经打开了真网页，都什么也不做。
@@ -47,6 +51,8 @@ export async function ensureStartPage(page: Page): Promise<void> {
   if (inFlight) return inFlight;
   const run = (async () => {
     try {
+      // 网站弹出的窗口（OAuth、支付）在加载前也是 about:blank，不能往里画，否则会打断它的导航。
+      if (await page.opener().catch(() => null)) return;
       const empty = await page.evaluate(
         (mark) =>
           !document.documentElement.dataset[mark] &&
