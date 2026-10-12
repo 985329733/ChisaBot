@@ -161,6 +161,9 @@ export function addressToUrl(input: string): string | null {
   const text = input.trim();
   if (!text) return null;
   if (/^https?:\/\//i.test(text)) return text;
+  // 工作区里的文件：原样交给计算机，它把 file:///workspace/… 换成 https://workspace.local/…；
+  // 别的 file 地址会被拒绝并提示，而不是被当成搜索词。
+  if (/^file:\/\//i.test(text)) return text;
   if (
     !/\s/.test(text) &&
     (/^localhost(?::\d+)?(?:[/?#].*)?$/i.test(text) ||
@@ -310,7 +313,10 @@ export function LiveScreen({
       if (typeof message.type !== "string") return;
       if (typeof message.url === "string" && message.url.length < 4096) {
         // 打不开时 Chrome 停在 chrome-error://，地址栏留着用户刚输入的网址，方便改了再试。
-        if (message.url.startsWith("chrome-error:")) {
+        if (
+          message.url.startsWith("chrome-error:") ||
+          (message.type === "navigation" && message.url === "")
+        ) {
           if (lastAttempt.current) setPageUrl(lastAttempt.current);
         } else {
           setPageUrl(message.url === "about:blank" ? "" : message.url);

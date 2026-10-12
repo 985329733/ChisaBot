@@ -656,6 +656,24 @@ serve<StreamData>({
         const parsed: unknown = JSON.parse(String(raw));
         const validated = parseInputMessage(parsed);
         if (!validated.ok) {
+          // 地址栏里打不开的地址（file:///etc/…、javascript: 等）只是这一下没成功：回一个导航失败，
+          // 地址栏下面显示原因，而不是一个盖住整个画面的「看不到屏幕」。
+          if (
+            typeof parsed === "object" &&
+            parsed !== null &&
+            (parsed as { type?: unknown }).type === "navigate"
+          ) {
+            ws.send(
+              JSON.stringify({
+                type: "navigation",
+                ok: false,
+                url: "",
+                error:
+                  "只能打开网页（http/https）或工作区里的文件（https://workspace.local/…）。",
+              }),
+            );
+            return;
+          }
           ws.send(JSON.stringify({ type: "error", error: validated.error }));
           return;
         }
