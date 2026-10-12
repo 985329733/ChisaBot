@@ -1,8 +1,6 @@
 import {
   IconBrain,
-  IconBuildingBank,
   IconChevronRight,
-  IconCode,
   IconDeviceDesktop,
   IconDeviceLaptop,
   IconSchool,
@@ -14,7 +12,6 @@ import {
   IconNetwork,
   IconPuzzle,
   IconShieldCheck,
-  IconUsers,
 } from "@tabler/icons-react";
 import {
   createFileRoute,
@@ -125,41 +122,10 @@ const SECTIONS: {
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
-      {
-        title: "游乐场",
-        description: "编写组件并在输入时观看其渲染。",
-        icon: IconCode,
-        linkOptions: { to: "/admin/playground" },
-      },
+      // 「游乐场」先隐藏，见 admin-sidebar.tsx。
     ],
   },
-  {
-    title: "谁可以进入",
-    description: "",
-    items: [
-      {
-        title: "人员",
-        description:
-          "所有已签入、负责此部署的人员，以及已被移除访问权限的人员。",
-        icon: IconUsers,
-        linkOptions: { to: "/admin/people" },
-      },
-      {
-        title: "企业控制",
-        description:
-          "按角色和组的能力、强制 SSO、SCIM、网络策略、MCP 与模型白名单。",
-        icon: IconShieldCheck,
-        linkOptions: { to: "/admin/enterprise" },
-      },
-      {
-        title: "身份提供者",
-        description:
-          "公司的自有 SAML 或 OpenID Connect 提供程序，按电子邮件域路由。",
-        icon: IconBuildingBank,
-        linkOptions: { to: "/admin/identity-providers" },
-      },
-    ],
-  },
+  // 「谁可以进入」先隐藏，见 admin-sidebar.tsx。
   {
     title: "发生了什么",
     description: "",
