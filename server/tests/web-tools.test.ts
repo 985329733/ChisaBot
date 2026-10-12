@@ -27,3 +27,11 @@ describe("web tools", () => {
     expect(clampRefresh(1440)).toBe(1440);
   });
 });
+
+import { emptyMetrics } from "../src/live-panels/service";
+test("面板 Metric 没有数值会被拦下", () => {
+  const ok = JSON.stringify({ root: "c", elements: { c: { type: "Card", props: { title: "BTC" }, children: ["m"] }, m: { type: "Metric", props: { label: "现价", value: "$82,407" }, children: [] } } });
+  const bad = JSON.stringify({ root: "c", elements: { c: { type: "Card", props: { title: "BTC" }, children: ["m"] }, m: { type: "Metric", props: { label: "现价", value: { $state: "/btc/price" } }, children: [] } } });
+  expect(emptyMetrics(ok)).toEqual([]);
+  expect(emptyMetrics(bad)).toEqual(["现价"]);
+});
