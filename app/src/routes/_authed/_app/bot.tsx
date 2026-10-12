@@ -17,6 +17,18 @@ import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
+/** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
+const BOT_CHAT_LABELS = {
+  chatInputPlaceholder: "输入消息…（Shift+Enter 换行）",
+  chatInputToolbarAddButtonLabel: "添加附件",
+  assistantMessageToolbarCopyMessageLabel: "复制",
+  assistantMessageToolbarCopyCodeLabel: "复制",
+  assistantMessageToolbarCopyCodeCopiedLabel: "已复制",
+  assistantMessageToolbarRegenerateLabel: "重新生成",
+  userMessageToolbarCopyMessageLabel: "复制",
+  userMessageToolbarEditMessageLabel: "编辑",
+};
+
 export const Route = createFileRoute("/_authed/_app/bot")({
   component: RouteComponent,
   validateSearch: (
@@ -203,7 +215,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
             {stopped}
           </p>
         ) : null}
-        <div className="min-h-0 flex-1">
+        <div className="bot-chat-sky min-h-0 flex-1">
           {/*
            * Keyed on the thread as well as the agent. Switching agents was already handled by
            * `agentId`, but `startNew` changes only the thread while the agent stays put, and the
@@ -217,6 +229,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
             <CopilotChat
               input={BotModelInput}
               agentId={agentId}
+              labels={BOT_CHAT_LABELS}
               key={`${agentId}:${threadId}`}
               threadId={threadId}
             />
