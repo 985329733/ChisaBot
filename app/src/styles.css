@@ -1991,6 +1991,21 @@ body::before {
   display: none;
 }
 
+/* 会话顶部的历史提示（channel-chat.tsx HistoryNotice）：一行灰字 + 「重试」，不占输入框上方。 */
+.chat-history-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: var(--glass-1);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.5));
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
 /* 桌面宿主工具被拒绝时的一句提示（chat-transcript.tsx HostAccessHint）。 */
 .chat-host-hint {
   margin: 4px 0;

@@ -72,7 +72,7 @@ describe("channel history notice", () => {
       unreadable: 0,
     });
 
-    expect(notice).toContain("temporarily unavailable");
+    expect(notice).toContain("暂时无法加载");
     expect(notice).not.toContain("different CopilotKit project");
     expect(notice).not.toContain("fresh history");
   });
@@ -86,7 +86,7 @@ describe("channel history notice", () => {
       unreadable: 1,
     });
 
-    expect(notice).toContain("One earlier message could not be read");
+    expect(notice).toContain("有一条较早的消息无法读取");
     expect(notice).not.toContain("different CopilotKit project");
   });
 
@@ -101,7 +101,7 @@ describe("channel history notice", () => {
         );
 
         expect((await view.findByRole("status")).textContent).toContain(
-          "Earlier messages are temporarily unavailable",
+          "较早的消息暂时无法加载",
         );
         expect(view.queryByText(/different CopilotKit project/)).toBeNull();
       },
@@ -134,7 +134,7 @@ describe("channel history notice", () => {
       unreadable: 0,
     });
 
-    expect(notice).toContain("temporarily unavailable");
+    expect(notice).toContain("暂时无法加载");
     expect(notice).not.toContain("different CopilotKit project");
   });
 
@@ -149,16 +149,30 @@ describe("channel history notice", () => {
       }),
     ).toBeNull();
   });
-  test("a failed history read remains visible over an existing transcript", () => {
+  test("a failed history read over a transcript that already shows messages says nothing", () => {
+    // 只有什么都没恢复出来时才提示；已经有消息时后台继续重试，不打扰。
     expect(
       channelHistoryNotice({
         restoring: false,
         messageCount: 3,
         lastMessageAt: null,
         historyAvailability: "unavailable",
-        unreadable: 1,
+        unreadable: 0,
         historyReadFailed: true,
       }),
-    ).toContain("temporarily unavailable");
+    ).toBeNull();
+  });
+
+  test("no notice while the background retry is still running", () => {
+    expect(
+      channelHistoryNotice({
+        restoring: true,
+        messageCount: 0,
+        lastMessageAt: "Tue 2026-09-08 8:00 PM CST (UTC+08:00)",
+        historyAvailability: "unavailable",
+        unreadable: 0,
+        historyReadFailed: true,
+      }),
+    ).toBeNull();
   });
 });

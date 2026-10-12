@@ -25,6 +25,7 @@ export function ConversationView({
   messages,
   busy = false,
   notice,
+  transcriptNotice,
   agents = [],
   commands,
   channelId,
@@ -46,6 +47,8 @@ export function ConversationView({
   busy?: boolean;
   /** Shown above the composer. An error, or why this conversation is read-only. */
   notice?: ReactNode;
+  /** 显示在会话顶部（第一条消息之上），例如较早的消息读不到时的提示和「重试」。 */
+  transcriptNotice?: ReactNode;
   agents?: readonly AgentOption[];
   /**
    * The `/` menu for this Bot's granted skills, supplied by the route that owns grant loading.
@@ -458,6 +461,7 @@ export function ConversationView({
           }}
           queued={queued}
           restoring={restoring}
+          topNotice={transcriptNotice}
           {...(stopped ? { stopped, onRetry: retry } : {})}
         />
       </div>

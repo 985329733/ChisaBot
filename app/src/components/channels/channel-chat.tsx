@@ -39,7 +39,13 @@ import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
-import { readThreadMessages } from "@/lib/copilot/thread-messages";
+import {
+  HISTORY_RETRY_DELAYS_MS,
+  readThreadMessages,
+  THREAD_MESSAGES_RETRY_DEADLINE_MS,
+} from "@/lib/copilot/thread-messages";
+import { useAsyncAction } from "@/components/ui/async-action";
+import { Button } from "@/components/ui/button";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import { useReportBusy } from "@/lib/activity";
 import {
@@ -91,6 +97,8 @@ function sameActivity(
   );
 }
 
+export const HISTORY_UNAVAILABLE_NOTICE = "较早的消息暂时无法加载。";
+
 export function channelHistoryNotice({
   restoring,
   messageCount,
@@ -108,11 +116,16 @@ export function channelHistoryNotice({
 }): string | null {
   if (restoring) return null;
 
+  /*
+   * 只在「什么都没恢复出来」时才说。读取失败但会话里已经有消息（网关快照、刚发出的消息、后台重试
+   * 成功的部分）时，多一句「无法加载」只会让人以为丢了东西；后台还会继续重试。
+   */
   if (
     historyAvailability === "unavailable" &&
-    (historyReadFailed || (messageCount === 0 && lastMessageAt !== null))
+    messageCount === 0 &&
+    (historyReadFailed || lastMessageAt !== null)
   ) {
-    return "较早的消息暂时无法加载，你仍可继续使用此会话。";
+    return HISTORY_UNAVAILABLE_NOTICE;
   }
 
   if (unreadable > 0) {
@@ -340,6 +353,27 @@ export function ChannelChat({
   const [historyReadFailed, setHistoryReadFailed] = useState(false);
   // Mount reads and Bot refreshes share one ordering: only the newest read owns the notice.
   const historyReadVersion = useRef(0);
+  /** 首次读取失败后正在后台重试：这期间不提示，空会话继续显示骨架。 */
+  const [retryingHistory, setRetryingHistory] = useState(false);
+  /**
+   * 再读一次历史，读到就并进当前对话。后台重试和「重试」按钮共用。返回是否读到。
+   * 与刷新共用 historyReadVersion：更新的一次读取开始后，旧的结果直接作废。
+   */
+  const retryHistoryRead = useCallback(async (): Promise<boolean> => {
+    const version = ++historyReadVersion.current;
+    const stored = await readThreadMessages(channel.threadId, runtimeAgentId, {
+      deadlineMs: THREAD_MESSAGES_RETRY_DEADLINE_MS,
+    });
+    if (version !== historyReadVersion.current) return false;
+    if (stored.availability === "unavailable") return false;
+    const current = agentRef.current;
+    const messages = mergeStoredMessages(current.messages, stored.messages);
+    if (messages !== current.messages) current.setMessages(messages);
+    setUnreadable(stored.unreadable);
+    setHistoryAvailability("ready");
+    setHistoryReadFailed(false);
+    return true;
+  }, [channel.threadId, runtimeAgentId]);
   useEffect(() => {
     if (isReady) openReadyGate.current();
   }, [isReady]);
@@ -389,6 +423,24 @@ export function ChannelChat({
           setHistoryAvailability(stored.availability);
           // A gateway snapshot may be partial; neither it nor a later send proves this read succeeded.
           setHistoryReadFailed(stored.availability === "unavailable");
+          if (stored.availability === "unavailable") {
+            /*
+             * 不挡输入：下面的 finally 照常放行第一条消息，重试在后台进行。全部失败后才轮到
+             * channelHistoryNotice 判断要不要提示（只在什么都没恢复出来时）。
+             */
+            setRetryingHistory(true);
+            void (async () => {
+              try {
+                for (const delayMs of HISTORY_RETRY_DELAYS_MS) {
+                  await new Promise((resolve) => setTimeout(resolve, delayMs));
+                  if (!current) return;
+                  if (await retryHistoryRead()) return;
+                }
+              } finally {
+                if (current) setRetryingHistory(false);
+              }
+            })();
+          }
         }
       } finally {
         // Cleared on failure too: placeholders over an empty transcript promise messages that are
@@ -402,7 +454,7 @@ export function ChannelChat({
     return () => {
       current = false;
     };
-  }, [copilotkit, agent, isReady, channel.threadId, runtimeAgentId]);
+  }, [copilotkit, agent, isReady, channel.threadId, runtimeAgentId, retryHistoryRead]);
 
   /*
    * A turn nobody here streamed, surfaced while the channel is open.
@@ -454,7 +506,6 @@ export function ChannelChat({
       const isCurrent = () =>
         !cancelled && version === historyReadVersion.current;
       void (async () => {
-        let sawReady = false;
         for (const delayMs of [0, 750, 1500]) {
           if (delayMs > 0) {
             await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -466,15 +517,12 @@ export function ChannelChat({
           );
           if (!isCurrent()) return;
           if (stored.availability === "unavailable") {
-            // Only an exhausted refresh with no successful read is a failure to announce. Keep the
-            // last known ready notice when the store already answered this refresh cycle.
-            if (delayMs === 1500 && !sawReady) {
-              setHistoryAvailability("unavailable");
-              setHistoryReadFailed(true);
-            }
+            /*
+             * 刷新失败不提示：这只是「别处新到的一条回复」没拉下来，屏幕上的会话完好，下一次
+             * 活动还会再拉。以前这里会把「较早的消息暂时无法加载」挂到输入框上方。
+             */
             continue;
           }
-          sawReady = true;
           // A ready read owns the notice even when every readable id is already on screen.
           setUnreadable(stored.unreadable);
           setHistoryAvailability("ready");
@@ -520,7 +568,7 @@ export function ChannelChat({
 
   const skillCommands = useSkillCommands(runtimeAgentId);
   const historyNotice = channelHistoryNotice({
-    restoring,
+    restoring: restoring || retryingHistory,
     messageCount: agent.messages.length,
     lastMessageAt: channel.lastMessageAt,
     historyAvailability,
@@ -968,6 +1016,18 @@ export function ChannelChat({
               transcriptMessages(agent.messages, seed),
               voiceArchive.entries,
             )}
+            transcriptNotice={
+              historyNotice ? (
+                <HistoryNotice
+                  onRetry={
+                    historyNotice === HISTORY_UNAVAILABLE_NOTICE
+                      ? retryHistoryRead
+                      : undefined
+                  }
+                  text={historyNotice}
+                />
+              ) : null
+            }
             notice={
               /*
                * Two things can be worth saying at once — a deleted coworker and a history with holes in
@@ -1000,14 +1060,6 @@ export function ChannelChat({
                     {voiceContextNotice}
                   </p>
                 )}
-                {historyNotice ? (
-                  <p
-                    className="pb-2 text-sm text-muted-foreground"
-                    role="status"
-                  >
-                    {historyNotice}
-                  </p>
-                ) : null}
                 {channel.active ? null : (
                   <p
                     className="pb-2 text-sm text-muted-foreground"
@@ -1058,7 +1110,7 @@ export function ChannelChat({
              * above.
              */
             queueWhileBusy
-            restoring={restoring}
+            restoring={restoring || retryingHistory}
             /*
              * The run, not the turn. Stop reaches a run through the core's abort controller, and that
              * controller does not exist until `say` has finished waiting for the runtime agent — so
@@ -1103,5 +1155,39 @@ export function ChannelChat({
         </div>
       </ConversationProvider>
     </CopilotChatConfigurationProvider>
+  );
+}
+
+/**
+ * 会话顶部（不是输入框上方）的一句历史提示；读不到时带「重试」按钮。按钮走 DESIGN.md 的按钮状态机：
+ * 重试中… → 已加载 / 仍无法加载。
+ */
+function HistoryNotice({
+  text,
+  onRetry,
+}: {
+  text: string;
+  onRetry?: () => Promise<boolean>;
+}) {
+  const retry = useAsyncAction(async () => {
+    if (!onRetry) return;
+    if (!(await onRetry())) throw new Error("仍无法加载");
+  }, { errorToast: false });
+  return (
+    <div className="chat-history-notice" role="status">
+      <span>{text}</span>
+      {onRetry ? (
+        <Button
+          feedback={{ pending: "重试中…", success: "已加载", error: "仍无法加载" }}
+          onClick={() => void retry.run()}
+          size="sm"
+          state={retry.state}
+          type="button"
+          variant="outline"
+        >
+          {"重试"}
+        </Button>
+      ) : null}
+    </div>
   );
 }
