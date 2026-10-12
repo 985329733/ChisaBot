@@ -232,8 +232,10 @@ export function DownloadCard({ download }: { download: PcDownload | null | undef
         }
         description={
           download
-            ? `版本 ${download.version} · Windows 10 / 11（64 位）${installer ? ` · 安装包 ${bytesText(installer.bytes)}` : ""}`
-            : "安装包还没有发布到这台服务器。"
+            ? `版本 ${download.version} · Windows 10 / 11（64 位）${installer?.bytes ? ` · 安装包 ${bytesText(installer.bytes)}` : ""}${download.source === "GitHub Releases" ? " · 来自 GitHub Releases" : ""}`
+            : download === undefined
+              ? "正在查找安装包…"
+              : "暂时找不到安装包（本服务器和 GitHub Releases 都没有）。"
         }
         icon={<IconBrandWindows className="size-5" />}
         title="ChisaBot PC 客户端"
