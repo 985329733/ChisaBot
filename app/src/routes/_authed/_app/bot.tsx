@@ -5,8 +5,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { BotModelInput } from "@/components/agents/bot-model-input";
-import { ComputerViewPanel } from "@/components/computer/computer-panel";
-import { DetailPanel } from "@/components/layout/detail-panel";
 import { defaultAgentId } from "@/lib/agents/default-agent";
 import {
   type AgentProfile,
@@ -17,6 +15,7 @@ import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
+import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 export const Route = createFileRoute("/_authed/_app/bot")({
   component: RouteComponent,
@@ -160,14 +159,10 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
       }),
     [navigate],
   );
+  // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）：机器人开始用计算机时自动切过去，停手后切回。
+  useComputerAutoWatch(agentId, watch === true, showComputer);
 
   return (
-    <DetailPanel
-      title={"计算机"}
-      open={watch === true}
-      onClose={() => showComputer(false)}
-      detail={<ComputerViewPanel agentId={agentId} name={name} />}
-    >
       <div className="flex h-full min-h-0 flex-col">
         {/* DESIGN v4.1：聊天列没有头部；机器人「⋯」与计算机提示在左栏它那一行（新话题 Shift+T）。 */}
         <RegisterBotChat
@@ -228,6 +223,5 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           ) : null}
         </div>
       </div>
-    </DetailPanel>
   );
 }

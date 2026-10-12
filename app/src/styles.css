@@ -2995,7 +2995,7 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   .sky-slider { width: 100%; }
 }
 
-/* ---------- 模型平台 Magpie (admin/magpie) + model health (DESIGN.md §15) ---------- */
+/* ---------- 模型平台 Magpie (admin/magpie) + model health (DESIGN.md §23) ---------- */
 .magpie-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4239,3 +4239,35 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .profile-zoom input { flex: 1; accent-color: var(--accent-blue, #3b82f6); }
 .profile-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .profile-setup-overlay { backdrop-filter: blur(14px) saturate(1.1); background: rgba(40, 60, 100, 0.18); }
+
+/* ---------- 右栏「面板 | 计算机」(DESIGN.md §23) ---------- */
+.rail-tabs { position: relative; display: inline-flex; flex: none; width: max-content; padding: 3px; gap: 0; }
+.rail-tabs .rail-tabs-item { position: relative; z-index: 1; height: 28px; padding: 0 12px; gap: 5px; }
+.rail-tabs .rail-tabs-item[aria-checked] { background: transparent; box-shadow: none; }
+.rail-tabs .rail-tabs-item[aria-checked="true"] { color: var(--ink-1); }
+.rail-tabs .rail-tabs-item[aria-checked]:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus); }
+/* 选中底块在两个标签之间滑动，而不是一闪而过。 */
+.rail-tabs-thumb {
+  position: absolute; top: 3px; bottom: 3px; left: 3px; width: 74px;
+  border-radius: var(--r-pill); background: var(--glass-3); box-shadow: var(--shadow-1);
+  transition: translate var(--dur-2) var(--ease-out);
+}
+.dark .rail-tabs-thumb { background: rgba(255, 255, 255, 0.12); }
+.rail-tabs .rail-tabs-item { flex: none; width: 74px; padding: 0 6px; justify-content: center; }
+.rail-tabs[data-tab="computer"] .rail-tabs-thumb { translate: 100% 0; }
+.rail-tabs-dot { width: 7px; height: 7px; border-radius: 999px; background: #f59e0b; box-shadow: 0 0 0 2px var(--glass-3); }
+.rail-pane[data-active="true"] { animation: rail-pane-in var(--dur-2) var(--ease-out); }
+@keyframes rail-pane-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.computer-rail { padding: 0 2px; }
+.computer-rail figure { border-radius: var(--r-lg); border-color: var(--line-strong); background: var(--glass-1); }
+.dark .computer-rail figure { background: rgba(255, 255, 255, 0.035); }
+.computer-rail-activity h3 { padding: 0 4px; color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-tabs-thumb { transition: none; }
+  .rail-pane[data-active="true"] { animation: none; }
+}
+/* 有「面板 | 计算机」标签时头部放不下文字：面板库只留图标（悬停有提示），按钮都不换行。 */
+.rail-card .rail-head-btn { flex: none; white-space: nowrap; }
+.rail-card .rail-head-btn.is-compact { padding: 0 8px; }
+.rail-card .rail-head-btn.is-compact .rail-head-btn-t { display: none; }
