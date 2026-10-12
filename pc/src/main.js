@@ -37,6 +37,8 @@ const { createNodeAgent } = require("./agent/core");
 const { createOps } = require("./agent/ops");
 const auth = require("./agent/auth");
 const { createUpdater } = require("./updater");
+const buildConfig = require("./build-config");
+const BUILD = buildConfig.load();
 const pkg = require("../package.json");
 
 const PARTITION = "persist:chisabot";
@@ -557,6 +559,7 @@ function startUpdater() {
   }
   updater = createUpdater({
     autoUpdater,
+    feedUrl: buildConfig.resolveFeed(BUILD, config.get()),
     isPackaged: app.isPackaged,
     platform: process.platform,
     execPath: process.execPath,
@@ -627,6 +630,7 @@ function publicState() {
     platform: process.platform,
     hostname: os.hostname(),
     serverUrl: local.serverUrl,
+    defaultServerUrl: BUILD.serverUrl,
     username: local.username,
     loggedIn: !!(local.serverUrl && config.getToken()),
     tokenProtected: config.tokenProtected(),
@@ -691,7 +695,7 @@ function isTopFrame(event) {
 function fromLocalUi(event) {
   if (!isTopFrame(event)) return false;
   try {
-    // 比较解码后的路径，安装目录里有空格或中文（如 C:\Users\程天宇\…）时 URL 编码方式不影响判断。
+    // 比较解码后的路径，安装目录里有空格或中文（如 C:\Users\张三\…）时 URL 编码方式不影响判断。
     const file = path.resolve(fileURLToPath(event.senderFrame.url));
     const root = path.resolve(UI) + path.sep;
     return process.platform === "win32" ? file.toLowerCase().startsWith(root.toLowerCase()) : file.startsWith(root);

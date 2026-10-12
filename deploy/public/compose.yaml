@@ -42,7 +42,7 @@ services:
       - /tmp:size=64m,mode=1777
       - /var/cache/nginx:size=32m,mode=0755
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${CHISABOT_NGINX_CONF:-./nginx.conf}:/etc/nginx/nginx.conf:ro
       - .:/public:ro
       # Mount live and archive together so existing certificate symlinks resolve.
       - ${CHISABOT_CERT_DIRECTORY:-/etc/letsencrypt}:/etc/letsencrypt:ro

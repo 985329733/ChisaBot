@@ -2,7 +2,7 @@
 /**
  * 登录与设备登记（docs/pc-node.md §4）。
  *
- * 1. 账号密码登录：先试 ChisaBot 网关登录（POST /auth/login，ayase.cn 这种带登录网关的部署），
+ * 1. 账号密码登录：先试 ChisaBot 网关登录（POST /auth/login，deploy/public 这种带登录网关的部署），
  *    404 时退回 Better Auth（POST /api/auth/sign-in/email）。拿到会话 Cookie。
  * 2. 用会话 Cookie 调 POST /api/devices/enroll，拿到这台电脑专属、可撤销的设备令牌（只返回一次）。
  * 会话 Cookie 之后只用于聊天窗口；节点连接只用设备令牌。

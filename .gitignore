@@ -61,3 +61,4 @@ venv/
 /deploy/**/*.key
 /deploy/**/*.pem
 /deploy/**/*.sqlite*
+/deploy/public/nginx.generated.conf

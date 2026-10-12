@@ -7,7 +7,7 @@
 
 | 端 | 是什么 | 能做什么 |
 | --- | --- | --- |
-| **服务器** | 现有 ChisaBot（`openbot-zh` 容器，公网 `https://ayase.cn:8443`，前面是 nginx 登录网关） | 机器人运行处；设备登记表、WebSocket 中转、审批、审计都在这里 |
+| **服务器** | 现有 ChisaBot（`openbot-zh` 容器，公网 `https://<你的域名>:8443`，前面是 nginx 登录网关） | 机器人运行处；设备登记表、WebSocket 中转、审批、审计都在这里 |
 | **PC（Windows）** | `ChisaBot PC` Electron 客户端 | ① 聊天窗口直接载入该服务器的网页；② 节点：执行机器人发来的操作（PowerShell、文件、截图、鼠标键盘、打开应用/网址、剪贴板） |
 | **手机** | 现有网页（已适配 390px） | 聊天；在 设置 → 设备 管理所有 PC：开关能力、审批、紧急停止、撤销、看记录 |
 
@@ -29,7 +29,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 
 ## 3. 登录与配对
 
-1. PC 首次运行出现设置向导：**服务器地址**（默认 `https://ayase.cn:8443`）+ **账号密码** + 电脑名称。
+1. PC 首次运行出现设置向导：**服务器地址**（通用版留空由用户填写；自建版可在构建时预填）+ **账号密码** + 电脑名称。
 2. 客户端先 `POST /auth/login`（网关登录，`remember: true`）；该部署没有网关时退回 Better Auth `POST /api/auth/sign-in/email`。得到会话 Cookie。
 3. 用会话 Cookie 调 `POST /api/devices/enroll` → 服务器生成设备 `dev_…` 和令牌 `cbd_<32 字节 base64url>`，**令牌只返回这一次**，库里只存 SHA-256。
 4. 令牌在 PC 上用 Electron `safeStorage`（Windows DPAPI，绑定当前 Windows 用户）加密保存；会话 Cookie 注入聊天窗口的独立分区，聊天窗口因此免登录。
@@ -76,7 +76,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 - **偏好设置 → 设备**（`/settings/devices`，模板 B）：待审批卡片 → 我的电脑列表（在线点、系统、最后在线、已开能力数）→ 已撤销 → 添加一台电脑（下载卡片 + 三步说明 + 一键复制服务器地址）。
 - **设备详情**（`/settings/devices/$deviceId`，模板 C）：72px 设备图标页头 + 徽标 + 「测试连接」「紧急停止 / 解除」；标签 权限（能力三态分段、允许的文件夹、可用机器人、名称，改动后出现未保存栏）/ 操作记录 / 设备（ID、登记时间、危险区：撤销、删除）。
 - **管理后台 → 设备（PC）**（`/admin/devices`，模板 E）：统计磁贴（设备 / 在线 / 待审批 / 紧急停止中）+ 全部设备（含所有者）。
-- 下载：网关托管 `https://ayase.cn:8443/downloads/pc/`（需登录），清单 `latest.json`，设备页自动显示版本、大小、SHA-256。
+- 下载：网关托管 `https://<你的域名>:8443/downloads/pc/`（需登录），清单 `latest.json`，设备页自动显示版本、大小、SHA-256。
 
 ## 8. Windows 客户端（`pc/`，0.2.0，2026-10-11 起）
 

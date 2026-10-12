@@ -21,8 +21,10 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
 
 ## 2. PC 客户端（0.2.2 起）
 
-- `electron-updater`（6.8.9）generic provider，更新源是公开目录 **`https://ayase.cn/downloads/chisabot-pc/`**：
-  `latest.yml` + `ChisaBot-PC-<版本>-x64-setup.exe` + `.blockmap`（`pc/package.json` → `build.publish`）。
+- `electron-updater`（6.8.9）generic provider，更新源是一个公开目录：`latest.yml` + `ChisaBot-PC-<版本>-x64-setup.exe`
+  + `.blockmap`。目录按 `pc/src/build-config.js` 的顺序选：本机 `config.json` 的 `updateFeed` → 构建期 `updateFeed`
+  （CI 变量 `CHISABOT_UPDATE_FEED`）→ `https://github.com/<owner>/<repo>/releases/latest/download/`（GitHub Releases，仓库须公开）。
+  通用版（仓库 Releases 里的）就走最后一项；自建发布把自己的静态 HTTPS 目录写进 `CHISABOT_UPDATE_FEED`。
   `latest.yml` 里有安装包的 sha512，electron-updater 下载完会校验，不一致丢弃。
 - **安装包没有代码签名**：`build.win.verifyUpdateCodeSignature = false`（`app-update.yml` 里就不写 `publisherName`，
   NsisUpdater 不做 Authenticode 校验），`pc/src/updater.js` 里再把校验函数设成通过。完整性靠 HTTPS + sha512。
@@ -38,12 +40,23 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
 - 只有 NSIS 安装版会更新（安装目录里有 `Uninstall ChisaBot PC.exe`）；开发运行和免安装 zip 显示「只有安装版能自动更新」。
 - **0.2.1 及更早没有更新程序**：用户要手动装一次 0.2.2，之后就能自动更新。
 
-发布（服务器 `/opt/chisabot-pc-build/`）：`build-022.sh`（electronuserland/builder:wine，限内存，跑 `node --test`，
-`electron-builder --win nsis zip --x64 --publish never` 生成安装包、zip、`latest.yml`、`.blockmap`）→ `publish-pc.sh`：
-复制到登录后可下载的 `/downloads/pc/`（网页「下载 PC 客户端」读的 `latest.json`），并把安装包、`.blockmap`、`latest.yml`
-复制到公开更新源 `/opt/baiying-studio-site-20260714-1205/downloads/chisabot-pc/`（ayase.cn:443 的 newapi-proxy 提供，
-`/downloads/chisabot-pc/` 单独一段 nginx，`Cache-Control: no-cache`）。**先放安装包，最后放 latest.yml**，客户端永远不会
-看到指向不存在文件的 latest.yml。
+发布：推 `v*` 标签（或手动运行）触发 `.github/workflows/release.yml`：windows-latest 上 `npm ci`、`npm test`、
+`electron-builder --win nsis zip --x64 --publish never`，产物（安装包、zip、`latest.yml`、`.blockmap`）上传到该标签的
+GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `CHISABOT_UPDATE_FEED` 时还会多打一份「自建版」作为
+工作流产物，由发布者复制到自己的更新目录（任意静态 HTTPS 目录，例如 nginx 的 `location ^~ /downloads/chisabot-pc/`，
+`Cache-Control: no-cache`）。**先放安装包和 .blockmap，最后放 latest.yml**，客户端永远不会看到指向不存在文件的 latest.yml；
+保留上一版的安装包和 .blockmap（差分下载）。
+
+## 2b. Android 客户端（0.2.4 起，`android/`）
+
+- 原生 WebView 外壳（Kotlin，minSdk 24），载入同一个 ChisaBot 网页；登录 Cookie 由 WebView 保存。
+- 通用版首次运行弹「服务器地址」；以后长按桌面图标 →「服务器地址」修改。自建版可用 `CHISABOT_SERVER_URL` 预填。
+- 在线更新：启动时读 JSON 更新源（`CHISABOT_ANDROID_UPDATE_FEED`，否则
+  `https://github.com/<owner>/<repo>/releases/latest/download/chisabot-android.json`）：
+  `{"version","versionCode","url","sha256","notes"}`；`versionCode` 更大才提示，下载后校验 sha256，交给系统安装器
+  （需要「安装未知应用」权限，FileProvider 提供文件）。只有同一把签名密钥的 APK 能覆盖安装。
+- CI 签名用仓库 Secrets：`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；
+  没配置时产出未签名 APK（文件名带 `-unsigned`，不能直接安装，需要自己 `apksigner sign`）。
 
 ## 3. 服务器：管理后台 → 系统更新
 
@@ -78,7 +91,7 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
      `examples/zh-CN`、`agent-computer/src`（服务器直接 import 它的 `egress.ts`）、`build-info.json`，层数固定，不会碰到 127 层上限；标签 `auto-<UTC 时间>-<提交>`，标签
      `chisabot.commit` 记录提交；
   6. 切换：写回滚脚本 `/opt/openbot-zh/rollback-to-<旧标签>.sh`，`compose.yaml.before-<新标签>`，改镜像行，`docker compose up --wait`；
-  7. 健康检查（`health.sh`）：容器 healthy、20 秒内没有重启、本机 `/health` 200、`https://ayase.cn:8443/login` 200、
+  7. 健康检查（`health.sh`）：容器 healthy、20 秒内没有重启、本机 `/health` 200、`PUBLIC_HEALTH_URL`（公网登录页）200、
      `/api/version` 的构建号是新的；最后做一次模型往返自检（`POST /api/admin/smoke`，见 `docs/admin-smoke.md`，不写任何对话），
      结果只记进日志、不影响通过与否；**不通过就自动执行回滚脚本**，任务记为「已自动回滚」；
   8. 完成：只保留最近 3 个 `auto-*` 镜像，`docker image prune`。

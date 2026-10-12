@@ -37,7 +37,8 @@ bun run typecheck
 
 ## 给 AI 的部署引导
 
-> 写给代替人部署 / 维护 ChisaBot 的 AI 代理（以及照着做的人）。每一步都可以直接复制执行；方括号 `<...>` 是要替换的值。
+> 写给代替人部署 / 维护 ChisaBot 的 AI 代理（以及照着做的人）。适用于任意 Linux 服务器 / VPS 和任意域名，不依赖任何特定主机。
+> 每一步都可以直接复制执行；`<...>` 是要替换的值（`<域名>`、`<端口>` 与 `deploy/.env` 的 `CHISABOT_DOMAIN`、`CHISABOT_HTTPS_PORT` 一致）。
 > 规则：**不要打印、提交或回显任何密钥**（`.env`、`auth/config.json`、`private/`、证书、令牌）；**自检不要往真实对话里发消息**，一律用 `POST /api/admin/smoke`。
 > 细节以这些文件为准：[`deploy/README.zh-CN.md`](deploy/README.zh-CN.md)、[`deploy/public/README.zh-CN.md`](deploy/public/README.zh-CN.md)、[`docs/online-update.md`](docs/online-update.md)、[`docs/admin-smoke.md`](docs/admin-smoke.md)、[`docs/magpie.md`](docs/magpie.md)、[`pc/README.md`](pc/README.md)。
 
@@ -47,19 +48,28 @@ bun run typecheck
 | --- | --- | --- |
 | ChisaBot 应用（容器 `openbot-zh`，Compose 项目 `openbot-zh`） | `127.0.0.1:3001` | 只绑 loopback，单管理员后端，**绝不直接对外** |
 | 登录服务（容器 `openbot-web-auth`，host 网络） | `127.0.0.1:3002` | Argon2id 密码 + 会话，网关 `auth_request` 调它 |
-| 公网网关（容器 `openbot-public-gateway`，nginx，host 网络） | `:8443` TLS | ChisaBot 入口 `https://<域名>:8443` |
-| 同一网关的 Magpie 管理入口 | `:2053` TLS | 备用入口；日常用「管理后台 → 模型平台 Magpie」（同源 `/magpie-admin/`） |
+| 公网网关（容器 `openbot-public-gateway`，nginx，host 网络） | `CHISABOT_HTTPS_PORT`（默认 8443）TLS | ChisaBot 入口 `https://<域名>:<端口>`（端口为 443 时就是 `https://<域名>`） |
+| 同一网关的 Magpie 管理入口 | `CHISABOT_MAGPIE_PORT`（默认 2053）TLS | 备用入口；日常用「管理后台 → 模型平台 Magpie」（同源 `/magpie-admin/`） |
 | Magpie 模型网关（Compose 项目 `magpie`，可选） | `127.0.0.1:3425`（API）、`127.0.0.1:3430`（管理） | 应用经 Docker 网络 `http://magpie:3425/v1` 访问 |
 | 宿主机更新服务 `chisabot-updater`（systemd，python2） | 无端口 | 读 `/opt/chisabot-updater/spool/requests` 请求文件 |
-| PC 客户端更新源 | 任意静态 HTTPS 目录 | 本部署是 `https://ayase.cn/downloads/chisabot-pc/` |
+| 客户端（PC / Android）更新源 | 无（可选任意静态 HTTPS 目录） | 默认用本仓库的 GitHub Releases；自建见第 8 步 |
 
-8443 与 2053 都在 Cloudflare 允许代理的 HTTPS 端口里，所以可以开橙色云。
+两个公网端口都可以改。**用 Cloudflare 代理（橙色云）**时只能选它支持的 HTTPS 端口：443、2053、2083、2087、2096、8443；
+证书可以用 Let's Encrypt（DNS 验证最省事）或 Cloudflare Origin 证书（SSL 模式设「完全（严格）」）。**不用 Cloudflare**
+时任意端口都行，证书用 Let's Encrypt（`certbot certonly --standalone -d <域名>` 或 DNS 验证）。
 
 ### 1. 前置条件
 
-- Linux x86_64，root；内存 ≥ 4 GB（一键更新构建限 3500 MB），磁盘剩余 ≥ 2.5 GB（更新脚本会检查）。
-- Docker Engine + Docker Compose v2、git、curl、python2（`chisabot-updater` 用）、Bun 1.3.14（构建前端）。
-- 域名与证书：`/etc/letsencrypt/live/<域名>/{fullchain.pem,privkey.pem}`（目录不同就在 `deploy/.env` 设 `CHISABOT_CERT_DIRECTORY`）。
+- 任意 Linux 发行版（Debian / Ubuntu / CentOS / Rocky 等），root 或 sudo。
+- **架构**：x86_64（amd64）与 arm64（aarch64）都可以——`Dockerfile` 按 `TARGETARCH` 选 s6 包，底座镜像都是多架构的；
+  在哪台机器上 `docker build` 就得到哪种架构的镜像。Magpie 镜像是否有 arm64 以其发布页为准。
+- **内存**：运行约 1–1.5 GB；**构建**前端 + 镜像需要 3–4 GB。小内存机器（1–2 GB）：加 2–4 GB swap
+  （`fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`），把 `deploy/updater/config.env`
+  的 `BUILD_MEMORY` 调小，必要时在别的机器上构建镜像后 `docker save | ssh <主机> docker load`；不装 Magpie 也能省几百 MB。
+- 磁盘剩余 ≥ 2.5 GB（更新脚本会检查）。
+- Docker Engine + Docker Compose v2、git、curl、python2（只有第 7 步的 `chisabot-updater` 用）、Bun 1.3.14（构建前端）。
+- 域名（A / AAAA 记录指向服务器）与证书：默认在 `/etc/letsencrypt/live/<域名>/{fullchain.pem,privkey.pem}`；
+  别的位置就在 `deploy/.env` 设 `CHISABOT_CERT_DIRECTORY`（挂成容器里的 `/etc/letsencrypt`）和 `CHISABOT_CERT_NAME`。
 
 ```sh
 docker --version && docker compose version && git --version && python2 --version && bun --version
@@ -67,10 +77,10 @@ docker --version && docker compose version && git --version && python2 --version
 
 ### 2. 获取代码
 
-仓库是私有的，需要有读权限的账号或只读令牌。
+用本仓库或你自己的 fork（下文的 `<owner>/<repo>`）：
 
 ```sh
-git clone https://github.com/ChisaAlter/ChisaBot.git /opt/chisabot-src
+git clone https://github.com/<owner>/<repo>.git /opt/chisabot-src
 cd /opt/chisabot-src
 bun install --frozen-lockfile
 ```
@@ -128,15 +138,18 @@ docker compose --env-file .env -p magpie -f magpie.compose.yaml up -d --wait
 
 ```sh
 cd /opt/chisabot-src/deploy/public
-sed -i 's/chisabot\.example\.com/<域名>/g' nginx.conf          # Origin 白名单、Host 校验、证书路径都要换
+# deploy/.env 里先填 CHISABOT_DOMAIN（以及要改的 CHISABOT_HTTPS_PORT / CHISABOT_MAGPIE_PORT / CHISABOT_CERT_NAME）
+sh render-nginx.sh                     # 由模板 nginx.conf 生成 nginx.generated.conf（Origin 白名单、Host 校验、证书路径、端口）
+sed -i 's#^CHISABOT_NGINX_CONF=.*#CHISABOT_NGINX_CONF=./nginx.generated.conf#' ../.env
 umask 077; printf 'proxy_set_header Cookie "";\n' > magpie-private.conf   # 未启用 Magpie 时；启用后按文档生成
-# ……按文档生成 auth/config.json（publicOrigin 必须与 https://<域名>:8443 完全一致）……
+# ……按文档生成 auth/config.json（publicOrigin 必须与 https://<域名>:<端口> 完全一致；443 端口不写 :443）……
 docker compose --env-file ../.env -p openbot-public -f compose.yaml run --rm --no-deps gateway nginx -t
 docker compose --env-file ../.env -p openbot-public -f compose.yaml up -d --wait
-curl -s -o /dev/null -w '%{http_code}\n' https://<域名>:8443/login      # 期望 200
+curl -s -o /dev/null -w '%{http_code}\n' https://<域名>:<端口>/login      # 期望 200
 ```
 
-防火墙只开 8443、2053（以及你自己的 PC 更新源所在的 443）；3001 / 3002 / 3425 / 3430 保持 loopback。
+防火墙（云厂商安全组 + 本机 firewalld / ufw）只开你选的两个 HTTPS 端口（以及自建更新源所在的端口）；3001 / 3002 / 3425 / 3430 保持 loopback。
+同一台机器上已有别的 nginx / Caddy 占着 443 时：要么给 ChisaBot 换端口，要么让现有反代把某个域名转发到网关端口。
 登录后第一件事：「管理后台 → 模型设置」配置连接并点「测试」。首次打开时系统会自动建一个私有的默认「助手」机器人。
 
 ### 6. 自检（不碰任何对话）
@@ -158,7 +171,7 @@ cd /opt/chisabot-src/deploy/updater
 git init --bare -q /opt/chisabot-updater/mirror.git 2>/dev/null || true
 git -C /opt/chisabot-src push /opt/chisabot-updater/mirror.git HEAD:main           # 本机镜像仓库
 cp -al <与 bun.lock 一致的 node_modules> /opt/chisabot-updater/node_modules-base     # 硬链接复制
-vi config.env        # COMPOSE_DIR、BASE_IMAGE（压平的底座镜像）、PUBLIC_HEALTH_URL=https://<域名>:8443/login、BUILD_MEMORY 等
+vi config.env        # COMPOSE_DIR、BASE_IMAGE（压平的底座镜像）、PUBLIC_HEALTH_URL=https://<域名>:<端口>/login、GITHUB_REPO、BUILD_MEMORY 等
 bash install.sh <底座镜像对应的提交>                  # 写 base-deps.sha256，安装并启动 systemd 服务 chisabot-updater
 systemctl is-active chisabot-updater                   # active
 ```
@@ -176,32 +189,48 @@ systemctl is-active chisabot-updater                   # active
 新提交怎么到服务器：
 
 - 有 `/opt/chisabot-updater/github-token`（root 600，fine-grained，**只给 Contents: Read**）时，每 30 分钟和点「检查更新」时自动从 GitHub 拉 `main`；
-- 没有令牌时，发布者推 GitHub 的同时推一份到本机镜像：`git push root@<主机>:/opt/chisabot-updater/mirror.git main`（或用 `git bundle` 增量包 + `git fetch`）。
+- 公开仓库也可以不配令牌，直接匿名拉取；私有仓库又没有令牌时，发布者推 GitHub 的同时推一份到本机镜像：`git push root@<主机>:/opt/chisabot-updater/mirror.git main`（或用 `git bundle` 增量包 + `git fetch`）。
 
 一键更新只替换代码层：`bun.lock`、各 `package.json`、`Dockerfile`、`docker/` 的指纹必须等于 `base-deps.sha256`，否则会停在「需要完整构建」——这时按原方式完整构建并压平新底座，更新 `config.env` 的 `BASE_IMAGE`、`node_modules-base` 和 `base-deps.sha256`。
 手动演练（备份 + 构建，切换前停下）：`/opt/chisabot-updater/update.sh --job manual-test --target <40 位提交> --dry-run`。
 
-### 8. 网页与 PC 客户端的更新
+### 8. 网页与客户端（PC / Android）的更新
 
 - **网页**：无需配置。镜像构建号变了，`/api/version` 返回新 `buildId`，页面顶部出现「有新版本，点此刷新」（从不自动刷新）。
-- **PC 客户端**（Windows，Electron，`pc/`）：0.2.2 起用 electron-updater 的 generic 更新源（`pc/package.json` → `build.publish.url`）。发布新版：
+- **客户端安装包由 GitHub Actions 构建**（`.github/workflows/release.yml`）：推 `v*` 标签（或在 Actions 页手动运行并填标签），
+  windows-latest 打 PC（`pc/`，Electron：NSIS 安装包 + 免安装 zip + `latest.yml` + `.blockmap`），ubuntu-latest 打 Android
+  （`android/`，JDK 17 + Gradle `assembleRelease`），然后创建 / 更新该标签的 GitHub Release 并上传全部文件和
+  `chisabot-android.json`（含 sha256）。
+- **通用版**（Release 里的）：不内置任何服务器。PC 首次运行的设置向导、Android 首次运行的对话框都会要求填「服务器地址」
+  （就是浏览器里打开 ChisaBot 的 `https://<域名>:<端口>`），以后可以改（PC：本机设置里退出登录后重填；Android：长按桌面图标 →「服务器地址」）。
+  在线更新默认读本仓库 GitHub Releases 的 `latest/download/`（仓库须公开）。
+- **自建版**（可选）：在仓库 Settings → Secrets and variables → Actions → Variables 设
+  `CHISABOT_SERVER_URL`（预填服务器地址）、`CHISABOT_UPDATE_FEED`（PC 更新目录）、`CHISABOT_ANDROID_UPDATE_FEED`（Android 的 latest.json 地址），
+  工作流会多产出 `pc-custom`、`android-custom` 两个工作流产物；把它们放到自己的静态 HTTPS 目录（`Cache-Control: no-cache`），
+  **先放安装包 / APK 和 .blockmap，最后放 `latest.yml` / `latest.json`**，并保留上一版安装包（差分下载）。
+- **Android 签名**：仓库 Secrets `ANDROID_KEYSTORE_BASE64`（`base64 -w0 release.jks`）、`ANDROID_KEYSTORE_PASSWORD`、
+  `ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。生成：`keytool -genkeypair -keystore release.jks -storetype PKCS12 -alias chisabot -keyalg RSA -keysize 4096 -validity 36500`。
+  **密钥库丢了就再也不能给已安装的用户推更新**，离线备份；不要提交进仓库。没配 Secrets 时 CI 产出 `-unsigned.apk`。
+- 版本号：`pc/package.json` 的 `version` 和 `android/app/build.gradle.kts` 的 `versionName` / `versionCode` 必须同时变大，
+  否则客户端认为没有新版本。
+
+本地打包（不用 CI 时）：
 
 ```sh
-cd pc
-npm version <新版本> --no-git-tag-version     # 版本号必须变大，否则 0.2.x 客户端不会更新
-npm ci && npm test
-npx electron-builder --win nsis zip --x64 --publish never   # Linux 上需要 wine：用 electronuserland/builder:wine 容器（docker run --memory 3000m …）
-# 产物 dist/：ChisaBot-PC-<版本>-x64-setup.exe、.blockmap、-portable.zip、latest.yml
+cd pc && npm ci && npm test
+npx electron-builder --win nsis zip --x64 --publish never -c.publish.url=https://<你的更新目录>/   # Windows 本机，或 x86_64 Linux + wine
+cd ../android && gradle assembleRelease          # JDK 17 + Android SDK（compileSdk 34）；签名变量同上，ANDROID_KEYSTORE_FILE 指向 .jks
 ```
 
-发布到更新源目录（要求 `Cache-Control: no-cache`）：**先放安装包和 .blockmap，最后放 latest.yml**；保留上一版安装包和 .blockmap（差分下载）。然后核对：
+发布后核对：
 
 ```sh
 curl -s https://<更新源>/latest.yml                              # version 是新版本
-curl -s https://<更新源>/ChisaBot-PC-<版本>-x64-setup.exe | openssl dgst -sha512 -binary | base64 -w0   # 必须等于 latest.yml 的 sha512
+curl -sL https://<更新源>/ChisaBot-PC-<版本>-x64-setup.exe | openssl dgst -sha512 -binary | base64 -w0   # 必须等于 latest.yml 的 sha512
+curl -sL https://<更新源>/ChisaBot-Android-<版本>.apk | sha256sum                                       # 必须等于 latest.json 的 sha256
 ```
 
-安装包没有代码签名（完整性靠 HTTPS + sha512）；只有 NSIS 安装版会自动更新，0.2.1 及更早的用户要手动装一次新版。
+安装包没有代码签名（完整性靠 HTTPS + sha512 / sha256）；PC 只有 NSIS 安装版会自动更新。
 
 ### 9. 回滚
 
@@ -214,7 +243,7 @@ sh /opt/openbot-zh/rollback-to-<旧标签>.sh
 ```
 
 - 数据：一键更新前的 `pg_dump`、compose、profiles / workspace 卷在 `/opt/chisabot-updater/backups/<时间>-<任务>/`（保留 5 份）。
-- PC：把更新源里的 `latest.yml` 换回上一版的（`allowDowngrade` 关闭，已升级的客户端不会降级，只会停止再升级）。
+- 客户端：把更新源里的 `latest.yml` / `latest.json` 换回上一版的（不会降级已升级的客户端，只会停止再升级）。
 
 ### 10. 健康检查清单
 
@@ -222,7 +251,7 @@ sh /opt/openbot-zh/rollback-to-<旧标签>.sh
 docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'openbot|magpie'   # 都是 healthy
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/health               # 200
 curl -s http://127.0.0.1:3001/api/version                                           # buildId = 当前镜像标签
-curl -s -o /dev/null -w '%{http_code}\n' https://<域名>:8443/login                   # 200
+curl -s -o /dev/null -w '%{http_code}\n' https://<域名>:<端口>/login                 # 200
 docker exec openbot-public-gateway nginx -t
 systemctl is-active chisabot-updater
 git --git-dir=/opt/chisabot-updater/mirror.git log --oneline -1 main               # 系统更新页能看到的最新提交
@@ -233,16 +262,17 @@ sh /opt/chisabot-updater/smoke.sh                                               
 
 ### 11. 常见坑
 
-- **把 3001 直接暴露到公网**：后端是 `OPENBOT_SINGLE_USER=true`，谁能访问谁就是管理员。只能经 8443 网关。
+- **把 3001 直接暴露到公网**：后端是 `OPENBOT_SINGLE_USER=true`，谁能访问谁就是管理员。只能经 HTTPS 网关。
 - **重置了 `KEY_ENCRYPTION_KEY`**：已保存的模型密钥全部解不开。随数据库备份一起保存。
-- **`nginx.conf` 里还有 `chisabot.example.com`**，或 `auth/config.json` 的 `publicOrigin` 与实际入口（含 `:8443`）不一致：登录后跨站校验失败、Cookie 不共享。
+- **网关还在用模板 `nginx.conf`**（里面是 `chisabot.example.com`），或 `auth/config.json` 的 `publicOrigin` 与实际入口（含端口）不一致：登录后跨站校验失败、Cookie 不共享。改了域名或端口就重跑 `render-nginx.sh`。
 - **忘了先构建前端**：`start.sh` 直接报 `Build the frontend first`。
 - **镜像层数**：反复在旧镜像上叠层会撞到 127 层上限；一键更新基于压平的底座只加固定层，手动发布也应在压平底座上构建。
 - **改了依赖却点一键更新**：会停在「需要完整构建」，这是预期行为，不是故障。
 - **系统更新页看不到新提交**：仓库私有且宿主机没有令牌时，必须同步 `mirror.git`（第 7 步）。
-- **小内存机器构建 OOM**：保持 `BUILD_MEMORY`（默认 3500m）和 PC 构建的 `--memory 3000m`；构建期间更新脚本会暂停 `PROTO_CONTAINERS` 里的容器。
-- **PC 版本号没变**：客户端认为没有新版本；latest.yml 先于安装包上线：客户端会下载失败。
-- **Cloudflare 代理**：只能用它支持的端口（8443、2053 可以）；更新源和 `latest.yml` 不要被缓存（`no-cache`）。个别用户的本地 DNS 若被污染，表现为自签证书 / 403，属于客户端网络问题。
+- **小内存机器构建 OOM**：加 swap，调小 `BUILD_MEMORY`；构建期间更新脚本会暂停 `PROTO_CONTAINERS` 里列出的容器腾内存；客户端安装包交给 GitHub Actions 打，不要在服务器上打。
+- **客户端版本号没变**：客户端认为没有新版本；`latest.yml` / `latest.json` 先于安装包上线：客户端会下载失败。
+- **Cloudflare 代理**：只能用它支持的端口（443、2053、2083、2087、2096、8443）；更新源和 `latest.yml` 不要被缓存（`no-cache`）。个别用户的本地 DNS 若被污染，表现为自签证书 / 403，属于客户端网络问题。
+- **arm64 服务器**：直接在本机 `docker build` 即可；不要把 x86 机器上构建的镜像拿到 arm64 上跑（反之亦然），跨架构用 `docker buildx build --platform`。
 - **Magpie 升级**：模板固定已验证的镜像 digest，升级前先备份配置并单独验证；一键更新不管 Magpie 和登录网关，它们按各自文档手动更新。
 
 ## 目录
@@ -255,11 +285,13 @@ sh /opt/chisabot-updater/smoke.sh                                               
 | `examples/zh-CN/` | 中文品牌、BOT、频道和技能配置 |
 | `deploy/` | 自托管部署与认证网关 |
 | `pc/` | ChisaBot PC（Windows，Electron）客户端：设备节点 + 在线更新 |
+| `android/` | ChisaBot Android 客户端（Kotlin WebView 外壳，minSdk 24）：首次运行填服务器地址、文件上传下载、APK 在线更新 |
+| `.github/workflows/release.yml` | 推 `v*` 标签时用 GitHub Actions 构建 PC + Android 安装包并发布到 Releases |
 | `deploy/updater/` | 宿主机在线更新服务（管理后台 → 系统更新） |
 | `desktop/`、`mobile/` | 继承上游的桌面和移动客户端源码（未作为 ChisaBot 客户端发布，没有在线更新） |
 | `docs/` | 中文使用指南、模型集成与上游技术参考 |
 
-上游 Intelligence、第三方连接器与发布流程按需使用。桌面和移动源码保留上游的安装、OAuth 和发布集成，分发前需按自己的环境配置并构建；本仓库不提供 ChisaBot 公共镜像。Windows PC 客户端（`pc/`）的安装包由部署者自己构建并放到自己的更新源（见上文第 8 步）。
+上游 Intelligence、第三方连接器与发布流程按需使用。桌面和移动源码保留上游的安装、OAuth 和发布集成，分发前需按自己的环境配置并构建；本仓库不提供 ChisaBot 公共镜像。PC（`pc/`）和 Android（`android/`）客户端的通用安装包在本仓库的 GitHub Releases（CI 构建，首次运行填自己的服务器地址）；也可以自己构建并放到自己的更新源（见上文第 8 步）。
 
 ## 来源与许可证
 

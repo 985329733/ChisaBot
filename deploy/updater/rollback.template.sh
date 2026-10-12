@@ -13,6 +13,6 @@ fi
 grep -q "image: @PREV@" @COMPOSE_FILE@
 docker compose -p @PROJECT@ -f @COMPOSE_FILE@ up -d --no-deps --pull never --wait --wait-timeout 180 @SERVICE@
 docker inspect -f '{{.State.Health.Status}} restarts={{.RestartCount}} image={{.Config.Image}}' @CONTAINER@
-curl -fsS -o /dev/null -w 'local /health %{http_code}\n' http://127.0.0.1:3001/health || true
-curl -ksS -o /dev/null -w 'https://ayase.cn:8443/login %{http_code}\n' https://ayase.cn:8443/login || true
+curl -fsS -o /dev/null -w 'local /health %{http_code}\n' @LOCAL_URL@/health || true
+curl -ksS -o /dev/null -w '@PUBLIC_HEALTH_URL@ %{http_code}\n' '@PUBLIC_HEALTH_URL@' || true
 echo ROLLBACK_DONE

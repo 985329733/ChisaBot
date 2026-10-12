@@ -84,7 +84,7 @@ test("unsigned installer: Authenticode verification is a pass, sha512 stays elec
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
   assert.strictEqual(pkg.build.win.verifyUpdateCodeSignature, false);
   assert.deepStrictEqual(pkg.build.publish[0].provider, "generic");
-  assert.match(pkg.build.publish[0].url, /^https:\/\/ayase\.cn\/downloads\/chisabot-pc\/$/);
+  assert.doesNotMatch(JSON.stringify(pkg.build.publish), /ayase|whaleisle/, "仓库里不写死任何人的域名；CI 用 -c.publish.url 覆盖");
   assert.ok(pkg.dependencies["electron-updater"]);
 });
 

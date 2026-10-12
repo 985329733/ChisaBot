@@ -2,8 +2,8 @@
 /**
  * 在线更新（docs/online-update.md §PC，0.2.2 起）。
  *
- *  - 更新源：electron-updater 的 generic provider，指向服务器上公开的更新目录
- *    （package.json build.publish.url = https://ayase.cn/downloads/chisabot-pc/），里面是
+ *  - 更新源：electron-updater 的 generic provider，指向一个公开的更新目录（build-config.js 的
+ *    resolveFeed：本机覆盖 → 构建期 updateFeed → GitHub Releases 的 latest/download/），里面是
  *    latest.yml + 安装包 + .blockmap。latest.yml 里有安装包的 sha512，下载完 electron-updater 会校验，
  *    不一致就丢弃，不会安装。
  *  - 安装包没有代码签名：build.win.verifyUpdateCodeSignature = false（app-update.yml 里就没有
@@ -36,7 +36,7 @@ function isInstalledBuild({ execPath, productName, exists = fs.existsSync }) {
   return exists(path.join(dir, `Uninstall ${productName}.exe`));
 }
 
-function createUpdater({ autoUpdater, isPackaged, platform, execPath, productName, getAutoUpdate, onState, onDownloaded, logger, timers = { setTimeout, setInterval, clearTimeout, clearInterval }, now = () => new Date() }) {
+function createUpdater({ autoUpdater, feedUrl, isPackaged, platform, execPath, productName, getAutoUpdate, onState, onDownloaded, logger, timers = { setTimeout, setInterval, clearTimeout, clearInterval }, now = () => new Date() }) {
   const supported = Boolean(isPackaged && platform === "win32" && autoUpdater && isInstalledBuild({ execPath, productName }));
   const state = { supported, status: "idle" };
   let firstTimer = null;
@@ -56,6 +56,8 @@ function createUpdater({ autoUpdater, isPackaged, platform, execPath, productNam
     autoUpdater.allowPrerelease = false;
     autoUpdater.allowDowngrade = false;
     if (logger) autoUpdater.logger = logger;
+    // 运行时指定更新源（覆盖打包时的 app-update.yml）；不给就沿用 app-update.yml。
+    if (feedUrl) autoUpdater.setFeedURL({ provider: "generic", url: feedUrl });
     // 安装包不签名：见文件头。只影响 Authenticode；sha512 校验照常。
     try {
       autoUpdater.verifyUpdateCodeSignature = async () => null;
@@ -119,7 +121,7 @@ function createUpdater({ autoUpdater, isPackaged, platform, execPath, productNam
     return true;
   }
 
-  return { get state() { return { ...state }; }, supported, check, schedule, stop, install };
+  return { get state() { return { ...state }; }, supported, feedUrl: feedUrl || "", check, schedule, stop, install };
 }
 
 module.exports = { createUpdater, cleanMessage, isInstalledBuild, FIRST_CHECK_MS, INTERVAL_MS };

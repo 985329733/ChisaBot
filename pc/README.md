@@ -11,15 +11,20 @@
 npm ci                 # 依赖（electron、electron-builder、ws）
 npm test               # 节点核心与本机操作的单元测试（node:test，Linux 上也能跑）
 npm start              # 本机运行 Electron
-node src/cli.js run --server https://ayase.cn:8443 --token-file device.token   # 无界面节点
+node src/cli.js run --server https://chisabot.example.com:8443 --token-file device.token   # 无界面节点
 ```
 
-打包 Windows 安装包（NSIS 需要 x86_64 + wine，ARM 机器上用服务器的 electronuserland/builder:wine 容器，
-见服务器 `/opt/chisabot-pc-build/build.sh` 与 `publish-pc.sh`）：
+打包 Windows 安装包：推荐用 GitHub Actions（`.github/workflows/release.yml`，推 `v*` 标签即可，产物进 Releases）。
+本地打包需要 Windows，或 x86_64 Linux + wine（如 `electronuserland/builder:wine` 容器）：
 
 ```sh
 npx electron-builder --win nsis zip --x64 --publish never   # → dist/ChisaBot-PC-<版本>-x64-setup.exe / -portable.zip
 ```
 
-在线更新（0.2.2 起）：`src/updater.js`（electron-updater，更新源 `https://ayase.cn/downloads/chisabot-pc/`，安装包未签名、
+构建期默认值在 `src/build-config.json`（仓库里为空 = 通用版：首次运行在设置向导里填自己的服务器地址）。
+CI 从仓库变量 `CHISABOT_SERVER_URL`、`CHISABOT_UPDATE_FEED` 写入；自建打包可以手动改这个文件，或
+`npx electron-builder ... -c.publish.url=<你的更新目录>`。
+
+在线更新（0.2.2 起）：`src/updater.js`（electron-updater generic，更新源按 本机 config.json 的 `updateFeed` →
+构建期 `updateFeed` → `https://github.com/<owner>/<repo>/releases/latest/download/` 的顺序选；安装包未签名、
 校验 latest.yml 的 sha512），本机窗口 `src/ui/update.html`。详见 `../docs/online-update.md` §2。

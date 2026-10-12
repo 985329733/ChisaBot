@@ -164,7 +164,8 @@ step swap "切换到 $NEW_IMAGE"
 RB="$COMPOSE_DIR/rollback-to-$CUR_TAG.sh"
 sed -e "s#@NEW@#$NEW_IMAGE#g" -e "s#@NEW_TAG@#$TAG#g" -e "s#@PREV@#$CUR_IMAGE#g" -e "s#@JOB@#$JOB#g" \
   -e "s#@COMPOSE_DIR@#$COMPOSE_DIR#g" -e "s#@COMPOSE_FILE@#$COMPOSE_FILE#g" -e "s#@PROJECT@#$PROJECT#g" \
-  -e "s#@SERVICE@#$SERVICE#g" -e "s#@CONTAINER@#$CONTAINER#g" "$U/rollback.template.sh" > "$RB.tmp" && chmod 755 "$RB.tmp" && mv "$RB.tmp" "$RB" \
+  -e "s#@SERVICE@#$SERVICE#g" -e "s#@CONTAINER@#$CONTAINER#g" \
+  -e "s#@LOCAL_URL@#${LOCAL_URL:-http://127.0.0.1:3001}#g" -e "s#@PUBLIC_HEALTH_URL@#${PUBLIC_HEALTH_URL:-}#g" "$U/rollback.template.sh" > "$RB.tmp" && chmod 755 "$RB.tmp" && mv "$RB.tmp" "$RB" \
   || fail "写回滚脚本失败"
 echo "回滚脚本 $RB"
 echo "::rollback:: $RB"

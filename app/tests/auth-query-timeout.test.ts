@@ -110,7 +110,7 @@ test("canceling the query aborts the login request and clears its deadline", asy
 });
 
 test("a signed-in user is returned and releases the startup timer", async () => {
-  const user: AuthenticatedUser = { id: "user-1", email: "ayase@example.com", name: "Ayase", role: "admin", onboarding: null };
+  const user: AuthenticatedUser = { id: "user-1", email: "admin@example.com", name: "Admin", role: "admin", onboarding: null };
   globalThis.fetch = mock(() => Promise.resolve(Response.json({ user }))) as unknown as typeof fetch;
 
   expect(await queryClient().fetchQuery(currentUserQueryOptions())).toEqual(user);

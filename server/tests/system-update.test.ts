@@ -54,12 +54,12 @@ test("not configured without the shared directories", () => {
 test("requests are written atomically as whitelisted JSON and guarded by state", () => {
   const dir = spool(fresh);
   const service = createSystemUpdateService({ dir, running, now: () => NOW });
-  const result = service.request("update", { id: "user-1", name: "Ayase" }, "b".repeat(40));
+  const result = service.request("update", { id: "user-1", name: "Admin" }, "b".repeat(40));
   expect("id" in result).toBe(true);
   const files = readdirSync(path.join(dir, "requests"));
   expect(files).toHaveLength(1);
   const body = JSON.parse(readFileSync(path.join(dir, "requests", files[0] as string), "utf8"));
-  expect(body).toMatchObject({ action: "update", actor: "Ayase", actorId: "user-1", expectCommit: "b".repeat(40) });
+  expect(body).toMatchObject({ action: "update", actor: "Admin", actorId: "user-1", expectCommit: "b".repeat(40) });
   // A second update while one is queued is refused; a check is still fine.
   expect(service.request("update", { id: "user-1" })).toEqual({ error: "已经有一个更新或回滚在进行中。", status: 409 });
   expect(service.request("rollback", { id: "user-1" })).toMatchObject({ status: 409 });

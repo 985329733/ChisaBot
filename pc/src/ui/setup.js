@@ -2,7 +2,7 @@
 (async function () {
   const state = await window.chisa.invoke("state:get");
   const $ = (id) => document.getElementById(id);
-  $("server").value = state.serverUrl || "https://ayase.cn:8443";
+  $("server").value = state.serverUrl || state.defaultServerUrl || "";
   $("user").value = state.username || "";
   $("name").value = state.hostname || "";
   (state.username ? $("pass") : $("user")).focus();

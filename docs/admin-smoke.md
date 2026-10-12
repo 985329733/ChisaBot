@@ -34,7 +34,7 @@
    ```
 
    或者 `sh /opt/chisabot-updater/smoke.sh [机器人 id]`（`deploy/updater/smoke.sh`，打印结果，失败时退出码非 0）。
-3. **经公网**：带管理员会话的 `POST https://ayase.cn:8443/api/admin/smoke`（网关先认证会话）。
+3. **经公网**：带管理员会话的 `POST https://<你的域名>:<端口>/api/admin/smoke`（网关先认证会话）。
 
 ## 它不覆盖什么
 

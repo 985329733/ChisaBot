@@ -3,9 +3,9 @@
 /**
  * 无界面节点（Windows / Linux / macOS 都能跑），用于测试或服务器式部署。
  *
- *   node src/cli.js login  --server https://ayase.cn:8443 --user Ayase --token-file ./device.token
+ *   node src/cli.js login  --server https://chisabot.example.com:8443 --user admin --token-file ./device.token
  *        （密码从环境变量 CHISABOT_PASSWORD 读取）
- *   node src/cli.js run    --server https://ayase.cn:8443 --token-file ./device.token [--approve deny|approve|web]
+ *   node src/cli.js run    --server https://chisabot.example.com:8443 --token-file ./device.token [--approve deny|approve|web]
  *   node src/cli.js logout --server ... --token-file ...
  *
  * --approve：需要审批时的本机回答。web（默认）= 本机不回答，等网页 / 手机上审批。
