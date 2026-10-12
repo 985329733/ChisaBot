@@ -5,13 +5,12 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { z } from "zod";
 import { AgentProfile } from "@/components/agents/agent-profile";
 import { hasUnseenActivity } from "@/components/app-sidebar/app-sidebar";
 import { BotPausedBanner } from "@/components/bot-profile/pause-banner";
 import { ChannelChat } from "@/components/channels/channel-chat";
-import { ComputerViewPanel } from "@/components/computer/computer-panel";
 import { DetailPanel } from "@/components/layout/detail-panel";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { markChannelReadMutationOptions } from "@/lib/channels/mutations";
@@ -20,16 +19,13 @@ import {
   channelListQueryOptions,
   channelQueryOptions,
 } from "@/lib/channels/queries";
-import { onComputerActivity } from "@/lib/copilot/computer-activity";
+import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 const chatSearchSchema = z.object({
   settings: z.boolean().optional(),
-  /** Opens the Bot's screen in the shared detail pane. */
+  /** Opens the Bot's screen in the right column's 计算机 tab. */
   watch: z.boolean().optional(),
 });
-
-/** Shared detail pane width for the live screen view. */
-const SCREEN_PANEL_WIDTH = 400;
 
 export const Route = createFileRoute("/_authed/_app/channel/$channelId")({
   validateSearch: chatSearchSchema,
@@ -75,70 +71,40 @@ function RouteComponent() {
     }
   }, [channelId, unseen, markReadMutate]);
 
-  // Browser activity may auto-open the screen once per run unless this run was dismissed.
-  const dismissedEpoch = useRef<number | null>(null);
-  const runEpoch = useRef<number | null>(null);
-  useEffect(() => {
-    if (!agentId) return;
-    return onComputerActivity((activity) => {
-      if (activity.botId !== agentId) return;
-      runEpoch.current = activity.epoch;
-      if (dismissedEpoch.current === activity.epoch) return;
-      navigate({
-        search: (previous) =>
-          previous.watch === true || previous.settings === true
-            ? previous
-            : { ...previous, settings: undefined, watch: true },
-      });
-    });
-  }, [agentId, navigate]);
-
-  // Settings and watch share one pane; opening either clears the other URL flag.
-  const show = (next: "settings" | "watch" | null) => {
-    // Dismissal applies only to the current browser-activity run.
-    if (next !== "watch" && isWatching)
-      dismissedEpoch.current = runEpoch.current;
-    return navigate({
-      search: (previous) => ({
-        ...previous,
-        settings: next === "settings" ? true : undefined,
-        watch: next === "watch" ? true : undefined,
+  // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）；设置窗格仍是聊天旁的详情栏，两者互不挤占。
+  const setWatching = useCallback(
+    (open: boolean) =>
+      void navigate({
+        search: (previous) => ({ ...previous, watch: open ? true : undefined }),
       }),
-    });
-  };
-
-  const onComputerChange = useCallback(
-    (open: boolean) => void show(open ? "watch" : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isWatching, isSettingsOpen],
+    [navigate],
   );
+  // 机器人开始用计算机时自动切到「计算机」，停手后自动切回「面板」（用户没动手的话）。
+  useComputerAutoWatch(agentId, isWatching, setWatching);
 
   return (
     <DetailPanel
-      onClose={() => show(null)}
-      open={(isSettingsOpen || isWatching) && agentId !== undefined}
-      detailWidth={isWatching ? SCREEN_PANEL_WIDTH : undefined}
-      title={isWatching ? "计算机" : undefined}
-      detail={
-        agentId === undefined ? null : isWatching ? (
-          // Manual watch remains active even when there is no current browser action.
-          <ComputerViewPanel agentId={agentId} name={channel?.data?.name} />
-        ) : (
-          <AgentProfile agentId={agentId} />
-        )
+      onClose={() =>
+        void navigate({ search: (previous) => ({ ...previous, settings: undefined }) })
       }
+      open={isSettingsOpen && agentId !== undefined}
+      detail={agentId === undefined ? null : <AgentProfile agentId={agentId} />}
     >
       {/* DESIGN v4.1：聊天列没有头部；机器人「⋯」与计算机提示在左栏它那一行。 */}
       <RegisterBotChat
         agentId={agentId}
         computerOpen={isWatching}
-        onComputerChange={onComputerChange}
+        onComputerChange={setWatching}
         onNewTopic={() =>
           agentId
             ? void navigate({ to: "/channel/new", search: { agent: agentId, topic: "new" } })
             : undefined
         }
-        onSettingsChange={(open) => void show(open ? "settings" : null)}
+        onSettingsChange={(open) =>
+          void navigate({
+            search: (previous) => ({ ...previous, settings: open ? true : undefined }),
+          })
+        }
         settingsOpen={isSettingsOpen}
       />
       {agentId && channel.data?.agentIds.length === 1 ? (

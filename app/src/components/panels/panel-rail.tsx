@@ -3,7 +3,9 @@ import { AsyncContent } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   IconAdjustments,
+  IconBooks,
   IconCheck,
+  IconDeviceDesktop,
   IconChevronDown,
   IconChevronUp,
   IconDots,
@@ -45,6 +47,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { useCurrentBotChat } from "@/lib/agents/bot-chat-context";
+import { ComputerViewPanel } from "@/components/computer/computer-panel";
 import { usePanelBot } from "@/lib/panels/active-bot";
 import {
   type Json,
@@ -145,6 +149,33 @@ export function PanelRail({ className }: { className?: string }) {
     if (wide) setPanelSheetOpen(false);
   }, [wide]);
 
+  /*
+   * 右栏 = 「面板 | 计算机」两个标签（DESIGN.md §23）。计算机是否打开仍由聊天页的 `watch` 参数决定，
+   * 这里只负责：它一打开就把右栏亮出来（宽窗口展开面板卡，窄窗口拉出抽屉）；收起右栏时顺手关掉计算机，
+   * 免得地址栏说开着、屏幕上却看不见。
+   */
+  const chat = useCurrentBotChat();
+  const computerOn = Boolean(chat?.canComputer && chat.computerOpen);
+  useEffect(() => {
+    if (!computerOn) return;
+    if (wide) setPanelRailOpen(true);
+    else setPanelSheetOpen(true);
+  }, [computerOn, wide]);
+  const latestChat = useRef(chat);
+  latestChat.current = chat;
+  const closeComputer = useCallback(() => {
+    const current = latestChat.current;
+    if (current?.canComputer && current.computerOpen) current.toggleComputer();
+  }, []);
+  const collapseWide = useCallback(() => {
+    closeComputer();
+    setPanelRailOpen(false);
+  }, [closeComputer]);
+  const closeSheet = useCallback(() => {
+    closeComputer();
+    setPanelSheetOpen(false);
+  }, [closeComputer]);
+
   if (!wide) {
     // 窄窗口（< 1280px）：没有右侧栏的位置，面板改成右边缘把手 + 滑出的抽屉，入口一直在。
     return (
@@ -164,17 +195,20 @@ export function PanelRail({ className }: { className?: string }) {
             </button>
           </ToggleTip>
         )}
-        <Sheet onOpenChange={setPanelSheetOpen} open={sheetOpen}>
+        <Sheet
+          onOpenChange={(next) => (next ? setPanelSheetOpen(true) : closeSheet())}
+          open={sheetOpen}
+        >
           <SheetContent
             className="glass-drawer rail-sheet gap-0 p-3 data-[side=right]:sm:max-w-[420px] data-[side=right]:w-[min(420px,100vw)]"
             id="chisabot-panel-sheet"
             showCloseButton={false}
             side="right"
           >
-            <SheetTitle className="sr-only">{"自定义面板"}</SheetTitle>
-            <SheetDescription className="sr-only">{"当前机器人的自定义面板"}</SheetDescription>
+            <SheetTitle className="sr-only">{computerOn ? "计算机" : "自定义面板"}</SheetTitle>
+            <SheetDescription className="sr-only">{"当前机器人的自定义面板和计算机"}</SheetDescription>
             <section className="rail-card flex h-full min-h-0 flex-col">
-              <PanelRailBody onCollapse={() => setPanelSheetOpen(false)} />
+              <PanelRailBody onCollapse={closeSheet} />
             </section>
           </SheetContent>
         </Sheet>
@@ -232,7 +266,7 @@ export function PanelRail({ className }: { className?: string }) {
       {dragging ? <div className="fixed inset-0 z-40 cursor-col-resize" /> : null}
       {/* DESIGN-v4：面板栏是一张独立的玻璃卡；标题、面板库、新建、收起都在卡片自己的头部里。 */}
       <section className="glass-card glass-rail-inner rail-card flex h-full min-h-0 flex-col" style={{ width: width - 24 }}>
-        <PanelRailBody />
+        <PanelRailBody onCollapse={collapseWide} />
       </section>
     </aside>
     </>
@@ -264,6 +298,9 @@ function PanelRailHandle({ open }: { open: boolean }) {
 
 function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
   const { botId, routeBotId } = usePanelBot();
+  const chat = useCurrentBotChat();
+  const canComputer = Boolean(chat?.canComputer);
+  const tab: RailTab = canComputer && chat?.computerOpen ? "computer" : "panels";
   const agents = useQuery(agentListQueryOptions());
   const bot = agents.data?.find((a) => a.id === botId);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -351,20 +388,34 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
   return (
     <>
       <header className="rail-head">
-        <h2 className="rail-head-t">{"面板"}</h2>
+        {canComputer && chat ? (
+          <RailSwitch
+            needsYou={chat.needsYou && tab !== "computer"}
+            onChange={(next) => {
+              if (next !== tab) chat.toggleComputer();
+            }}
+            tab={tab}
+          />
+        ) : (
+          <h2 className="rail-head-t">{"面板"}</h2>
+        )}
         <span className="flex-1" />
+        {tab === "panels" ? (
+        <>
         <button
-          className="rail-head-btn"
+          aria-label={"面板库"}
+          className={cn("rail-head-btn", canComputer && "is-compact")}
           disabled={!botId}
           onClick={() => setLibraryOpen(true)}
+          title={"面板库"}
           type="button"
         >
-          <IconLayoutGrid className="size-4" />
-          {"面板库"}
+          <IconBooks className="size-4" />
+          <span className="rail-head-btn-t">{"面板库"}</span>
         </button>
         <button
           aria-busy={beginState === "pending" || undefined}
-          className="rail-head-btn async-raw"
+          className={cn("rail-head-btn async-raw", canComputer && "is-compact")}
           data-btn-state={beginState}
           disabled={!botId || !canManage || begin.isPending || Boolean(session.data)}
           onClick={() => begin.mutate(undefined)}
@@ -379,12 +430,14 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
             {"新建"}
           </AsyncContent>
         </button>
+        </>
+        ) : null}
         <span aria-hidden className="rail-head-div" />
-        <ToggleTip keys={PANEL_RAIL_HOTKEY_LABEL} label={"收起面板"} side="bottom">
+        <ToggleTip keys={PANEL_RAIL_HOTKEY_LABEL} label={"收起右栏"} side="bottom">
           <button
             aria-controls={"chisabot-panel-rail"}
             aria-expanded={true}
-            aria-label={"收起面板"}
+            aria-label={"收起右栏"}
             className="rail-head-icon"
             onClick={() => (onCollapse ? onCollapse() : setPanelRailOpen(false))}
             type="button"
@@ -394,6 +447,12 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
         </ToggleTip>
       </header>
 
+      <div
+        aria-hidden={tab !== "panels" || undefined}
+        className="rail-pane flex min-h-0 flex-1 flex-col gap-[10px]"
+        data-active={tab === "panels"}
+        hidden={tab !== "panels"}
+      >
       {error ? (
         <p className="px-2 text-destructive text-xs" role="alert">
           {error}
@@ -506,6 +565,11 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
           ))
         )}
       </div>
+      </div>
+
+      {canComputer && chat ? (
+        <RailComputerPane active={tab === "computer"} agentId={chat.agentId} fallbackName={chat.fallbackName} />
+      ) : null}
 
       {botId ? (
         <PanelLibrary
@@ -525,6 +589,82 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
         />
       ) : null}
     </>
+  );
+}
+
+type RailTab = "panels" | "computer";
+
+/** 右栏顶部的「面板 | 计算机」分段切换（sg-segmented，与设置页同一套）。 */
+function RailSwitch({
+  tab,
+  onChange,
+  needsYou,
+}: {
+  tab: RailTab;
+  onChange: (tab: RailTab) => void;
+  needsYou: boolean;
+}) {
+  const item = (value: RailTab, label: string, icon: React.ReactNode) => (
+    <button
+      aria-checked={tab === value}
+      className="sg-segmented-item rail-tabs-item"
+      onClick={() => onChange(value)}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          onChange(value === "panels" ? "computer" : "panels");
+        }
+      }}
+      role="radio"
+      tabIndex={tab === value ? 0 : -1}
+      type="button"
+    >
+      {icon}
+      {label}
+      {value === "computer" && needsYou ? (
+        <span aria-label={"需要你"} className="rail-tabs-dot" role="img" />
+      ) : null}
+    </button>
+  );
+  return (
+    <div aria-label={"右栏内容"} className="sg-segmented rail-tabs" data-tab={tab} role="radiogroup">
+      <span aria-hidden className="rail-tabs-thumb" />
+      {item("panels", "面板", <IconLayoutGrid className="size-[15px]" />)}
+      {item("computer", "计算机", <IconDeviceDesktop className="size-[15px]" />)}
+    </div>
+  );
+}
+
+/**
+ * 「计算机」标签的内容。第一次切过来才挂载，之后切回「面板」只是隐藏、不卸载：接管状态、
+ * 展开的大屏、活动列表都还在；隐藏时画面不可见，截图轮询会自己停（useElementVisible）。
+ * 换了机器人就换一份。
+ */
+function RailComputerPane({
+  active,
+  agentId,
+  fallbackName,
+}: {
+  active: boolean;
+  agentId: string;
+  fallbackName?: string;
+}) {
+  const agents = useQuery(agentListQueryOptions());
+  const name = agents.data?.find((a) => a.id === agentId)?.name ?? fallbackName;
+  const [mountedFor, setMountedFor] = useState<string | null>(active ? agentId : null);
+  useEffect(() => {
+    if (active) setMountedFor(agentId);
+  }, [active, agentId]);
+  if (mountedFor !== agentId) return null;
+  return (
+    <div
+      aria-hidden={!active || undefined}
+      className="rail-pane glass-rail-scroll flex min-h-0 flex-1 flex-col overflow-y-auto"
+      data-active={active}
+      hidden={!active}
+    >
+      <ComputerViewPanel agentId={agentId} name={name} variant="rail" />
+    </div>
   );
 }
 
