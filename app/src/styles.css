@@ -1982,6 +1982,14 @@ body::before {
  * ========================================================================================== */
 
 /* ---------- Chat: thinking, error card, copy, back-to-bottom ---------- */
+
+/*
+ * 过程行默认隐藏（lib/chat/tool-activity.ts）后，工具 / 浏览那一格里可能只剩空的包裹 div。
+ * 只有空 div、没有任何带 role 的元素（界面卡片、审批卡片都有）时整格不占位，免得 gap-6 留下空隙。
+ */
+[data-row="activity"]:not(:has(:not(div))):not(:has([role])) {
+  display: none;
+}
 .chat-thinking {
   display: inline-flex;
   align-items: center;

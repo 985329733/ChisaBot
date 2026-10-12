@@ -58,6 +58,7 @@ import { markdownComponents } from "@/lib/markdown";
 import { friendlyError } from "@/lib/chat/friendly-error";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
+import { useToolActivityVisible } from "@/lib/chat/tool-activity";
 import {
   asText,
   forDisplay,
@@ -1628,6 +1629,7 @@ export function ChatTranscript({
    * message. A tool call that is running shimmers on its own line and needs nothing from here.
    */
   const lastItem = items.at(-1);
+  const showToolActivity = useToolActivityVisible();
   const waitingOnFirstToken =
     busy &&
     ((lastItem?.kind === "text" && lastItem.role === "user") ||
@@ -1638,7 +1640,13 @@ export function ChatTranscript({
        * last means the person went last — without this an attachment-only turn silently swallowed
        * the Thinking indicator.
        */
-      lastItem?.kind === "attachments");
+      lastItem?.kind === "attachments" ||
+      /*
+       * 过程行默认隐藏（lib/chat/tool-activity.ts）：工具在跑时那一行不再闪烁，所以最后一项是工具 /
+       * 浏览步骤时也由这里显示「正在思考」，否则机器人干活的那几秒屏幕上什么都没有。
+       */
+      (!showToolActivity &&
+        (lastItem?.kind === "tool" || lastItem?.kind === "browser")));
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const newestUserMessageId =
@@ -1761,7 +1769,11 @@ export function ChatTranscript({
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
             {items.map((item, index) =>
               item.kind === "browser" ? (
-                <MessageScrollerItem key={item.id} messageId={item.id}>
+                <MessageScrollerItem
+                  data-row="activity"
+                  key={item.id}
+                  messageId={item.id}
+                >
                   <Arriving
                     delay={delays.delayFor(item.id, index, items.length)}
                   >
@@ -1772,7 +1784,11 @@ export function ChatTranscript({
                   </Arriving>
                 </MessageScrollerItem>
               ) : item.kind === "tool" ? (
-                <MessageScrollerItem key={item.id} messageId={item.id}>
+                <MessageScrollerItem
+                  data-row="activity"
+                  key={item.id}
+                  messageId={item.id}
+                >
                   <TranscriptToolCall
                     args={item.toolCall.function.arguments}
                     delay={delays.delayFor(item.id, index, items.length)}
