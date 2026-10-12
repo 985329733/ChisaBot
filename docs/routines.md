@@ -64,7 +64,7 @@ carry it out is skipped, not just the one that was in flight.
 
 ## The worker requirement
 
-> **ChisaBot（2026-10-13）：** 单机 Docker 部署不需要另起 worker——服务器每分钟自己跑一次 `server/scripts/fire-routines.ts`（子进程，同一份环境变量），只要容器里有 `WORKER_SHARED_SECRET` 和 `SERVER_INTERNAL_URL`（`deploy/compose.yaml` 已设）。重复触发按 key 去重，外面另有 CronJob / systemd timer 也只会触发一次。设 `CHISABOT_ROUTINES_WORKER=0` 关闭。
+> **ChisaBot（2026-10-13）：** 单机 Docker 部署不需要另起 worker——服务器进程每分钟自己做一次和 `server/scripts/fire-routines.ts` 相同的扫描，只要设了 `WORKER_SHARED_SECRET`（`SERVER_INTERNAL_URL` 默认 http://127.0.0.1:$PORT）。重复触发按 key 去重，外面另有 CronJob / systemd timer 也只会触发一次。设 `CHISABOT_ROUTINES_WORKER=0` 关闭。
 
 Nothing above happens without a second process. The API server answers `/internal/routines/run` when
 it is handed a run, but nothing hands it one on its own — that is a separate worker's whole job, and a

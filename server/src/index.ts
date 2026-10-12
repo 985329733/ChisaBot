@@ -1,3 +1,4 @@
+import { dispatchClaimedRoutines, offerDueRoutines, ROUTINE_FIRE_KIND } from "./routines/sweep";
 import { createHash, randomUUID } from "node:crypto";
 import { PanelError, type PanelCapability } from "../../shared/panels/types";
 import { createPanelServices } from "./panels/service";
@@ -2158,28 +2159,45 @@ startInProcessRoutineSweep();
  *
  * 上游把 fire-routines.ts 交给 Kubernetes CronJob；自建部署没有 CronJob，生产机以前靠宿主机的
  * systemd timer 每分钟 docker exec 一次，别人照 README 部署的就从来不触发。现在服务器每分钟自己跑一次
- * 同一个脚本（子进程，同一份环境变量、同一个用户）。重复跑无害：每次触发按 key 去重（work queue 的
+ * 同一套扫描（offerDueRoutines / dispatchClaimedRoutines，同 fire-routines.ts）。重复跑无害：每次触发按 key 去重（work queue 的
  * finished 行），所以宿主机 timer 还开着也只会触发一次。CHISABOT_ROUTINES_WORKER=0 关掉。
  */
 function startInProcessRoutineSweep() {
   if (process.env.NODE_ENV === "test" || process.env.CHISABOT_ROUTINES_WORKER === "0") return;
-  if (!process.env.WORKER_SHARED_SECRET || !process.env.SERVER_INTERNAL_URL) {
-    console.info(JSON.stringify({ type: "routine-worker-off", reason: "WORKER_SHARED_SECRET / SERVER_INTERNAL_URL not set" }));
+  const secret = config.workerSharedSecret;
+  const internalUrl = process.env.SERVER_INTERNAL_URL || `http://127.0.0.1:${process.env.PORT || 3001}`;
+  if (!secret) {
+    console.info(JSON.stringify({ type: "routine-worker-off", reason: "WORKER_SHARED_SECRET not set" }));
     return;
   }
-  const script = new URL("../scripts/fire-routines.ts", import.meta.url).pathname;
-  const cwd = new URL("..", import.meta.url).pathname;
+  // 同进程跑（不是子进程）：DATABASE_URL 读完就从环境里删了（db/client.ts），子进程拿不到。
+  const queue = createWorkQueue(database);
+  const owner = workOwner("routines-inproc");
+  const dispatch = async (routineRunId: string) => {
+    const response = await fetch(`${internalUrl}/internal/routines/run`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ routineRunId }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (response.status !== 202) throw new Error(`the server answered ${response.status} rather than 202 when handed a routine run`);
+  };
   let busy = false;
+  let lastPurge = 0;
   const tick = async () => {
     if (busy) return;
     busy = true;
     try {
-      const child = Bun.spawn([process.execPath, script], { cwd, env: process.env, stdout: "inherit", stderr: "inherit" });
-      const timer = setTimeout(() => child.kill(), 55_000);
-      await child.exited;
-      clearTimeout(timer);
+      const options = { routineStore, queue, dispatch, owner };
+      const { offered } = await offerDueRoutines(options);
+      const report = await dispatchClaimedRoutines(options);
+      if (Date.now() - lastPurge > 60 * 60_000) {
+        lastPurge = Date.now();
+        await queue.purge({ kind: ROUTINE_FIRE_KIND, olderThanMs: 24 * 60 * 60 * 1000 });
+      }
+      if (offered || report.fired) console.info(JSON.stringify({ type: "routine-sweep", inProcess: true, offered, fired: report.fired, skipped: report.skipped }));
     } catch (error) {
-      console.error(JSON.stringify({ type: "routine-worker-failed", reason: String(error) }));
+      console.error(JSON.stringify({ type: "routine-worker-failed", reason: error instanceof Error ? error.message : String(error) }));
     } finally {
       busy = false;
     }
