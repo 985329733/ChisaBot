@@ -15,6 +15,7 @@ import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
+import { ZH_MESSAGE_VIEW } from "@/lib/copilot/reasoning-zh";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 /** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
@@ -233,6 +234,8 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
               input={BotModelInput}
               agentId={agentId}
               labels={BOT_CHAT_LABELS}
+              // 「正在思考… / 思考了 3 秒」中文，流式时不展开英文推理（reasoning-zh.tsx）。
+              messageView={ZH_MESSAGE_VIEW as never}
               key={`${agentId}:${threadId}`}
               threadId={threadId}
             />

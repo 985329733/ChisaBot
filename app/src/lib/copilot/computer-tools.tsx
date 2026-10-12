@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ToolLine } from "@/components/channels/tool-line";
 import { CommandOutput } from "@/components/computer/command-output";
-import { ComputerView } from "@/components/computer/computer-view";
+import { BrowseChip } from "@/components/computer/browse-chip";
 import { tryClient } from "@/lib/client";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { callComputer, type ToolOutcome } from "@/lib/computers/call";
@@ -216,7 +216,7 @@ export function ComputerTools() {
       if (result.ok) noteBrowsed(computerId);
       return result;
     },
-    render: ({ result, status, toolCallId }) => {
+    render: ({ result, status, args }) => {
       /*
        * The page this turn left open, so reopening the conversation shows what it browsed rather
        * than what the Bot has open now. Only once the turn is finished: while it runs, the live
@@ -241,23 +241,17 @@ export function ComputerTools() {
                 : {}),
             }
           : undefined;
+      // 一行小条（BrowseChip），画面在右栏「计算机」里；失败 / 拒绝时说清楚。
       return (
-        <div className="my-2">
-          <ComputerView
-            computerId={bot.current}
-            active={!finished}
-            /*
-             * FINISHED, NOT "GOT SOMEWHERE". The tile used to count a turn as history only once it
-             * had a page, so a navigation that was refused, failed or stopped never settled: it kept
-             * polling the live screen under a turn that was over, and offered control of it. Those
-             * are the turns most worth freezing, because the thing on screen has nothing to do with
-             * what the person is reading.
-             */
-            finished={finished}
-            {...(page ? { page } : {})}
-            {...(toolCallId ? { toolCallId } : {})}
-          />
-        </div>
+        <BrowseChip
+          state={!finished ? "running" : outcome.ok === false ? "failed" : "done"}
+          {...(page?.title ? { title: page.title } : {})}
+          {...(page?.url
+            ? { url: page.url }
+            : typeof (args as { url?: unknown } | undefined)?.url === "string"
+              ? { url: (args as { url: string }).url }
+              : {})}
+        />
       );
     },
   });

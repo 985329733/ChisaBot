@@ -1,5 +1,5 @@
 import { tryClient } from "@/lib/client";
-import { reportComputerActivity } from "@/lib/copilot/computer-activity";
+import { describeComputerCall, reportComputerActivity, reportComputerStatus } from "@/lib/copilot/computer-activity";
 
 export type ToolOutcome = Record<string, unknown> & { ok: boolean };
 
@@ -22,6 +22,21 @@ export async function callComputer(
 ): Promise<ToolOutcome> {
   // Announce before the call so the screen can open while the action is running.
   reportComputerActivity(botId);
+  const label = describeComputerCall(path, init?.body);
+  if (label) reportComputerStatus(botId, label, true);
+  try {
+    return await callComputerInner(botId, path, init, signal);
+  } finally {
+    if (label) reportComputerStatus(botId, label, false);
+  }
+}
+
+async function callComputerInner(
+  botId: string,
+  path: string,
+  init?: { method?: string; body?: unknown },
+  signal?: AbortSignal,
+): Promise<ToolOutcome> {
   let response: Response;
   try {
     response = await tryClient(`/api/computers/${botId}${path}`, {

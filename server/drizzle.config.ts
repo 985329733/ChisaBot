@@ -41,6 +41,7 @@ export default defineConfig({
     "./src/db/schema/panels.ts",
     "./src/db/schema/devices.ts",
     "./src/db/schema/workflows.ts",
+    "./src/db/schema/live-panels.ts",
   ],
   out: "./drizzle",
   dbCredentials: {

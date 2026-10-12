@@ -23,3 +23,4 @@ export * from "./voice";
 export * from "./work";
 export * from "./devices";
 export * from "./workflows";
+export * from "./live-panels";

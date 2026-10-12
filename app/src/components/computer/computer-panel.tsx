@@ -1,4 +1,5 @@
 import { markComputerEngaged } from "@/lib/computers/auto-watch";
+import { useComputerStatus } from "@/lib/computers/use-status";
 import { ActivityLog } from "./activity-log";
 import { ComputerView } from "./computer-view";
 
@@ -18,6 +19,7 @@ export function ComputerViewPanel({
   variant?: "pane" | "rail";
 }) {
   const engaged = () => markComputerEngaged(agentId);
+  const status = useComputerStatus(agentId);
   return (
     <section
       aria-label={"计算机"}
@@ -25,6 +27,23 @@ export function ComputerViewPanel({
       onKeyDownCapture={engaged}
       onPointerDownCapture={engaged}
     >
+      {/* 状态行：机器人此刻在做什么（像 Hark 的浏览器卡片），动作结束后停留几秒再淡出。 */}
+      <div
+        aria-live="polite"
+        className="computer-status"
+        data-pending={status?.pending || undefined}
+        data-visible={status ? true : undefined}
+        role="status"
+      >
+        {status ? (
+          <>
+            <span aria-hidden className="computer-status-dot" />
+            <span className="computer-status-text">{status.pending ? `${status.label}…` : status.label.replace(/^正在/, "刚刚")}</span>
+          </>
+        ) : (
+          <span className="computer-status-text is-idle">{"机器人用浏览器时，这里会实时显示画面和它在做什么"}</span>
+        )}
+      </div>
       <ComputerView active computerId={agentId} name={name} minWidth={0} minHeight={0} />
       <div className={variant === "rail" ? "computer-rail-activity" : "mt-8"}>
         <h3 className="mb-2 font-medium text-sm">{"活动"}</h3>

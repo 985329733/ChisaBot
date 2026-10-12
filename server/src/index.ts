@@ -252,6 +252,9 @@ import { createTriggerStore } from "./responsibilities/triggers";
 import type { Responsibility } from "./responsibilities/types";
 import { createTurnRunner } from "./routines/run-turn";
 import { createWorkflowEngine, type WorkflowEngine } from "./workflows/engine";
+import { createLivePanelService } from "./live-panels/service";
+import { createLivePanelStore } from "./live-panels/store";
+import { webTools } from "./web/tools";
 import {
   restrictNamedToolsForWorkflow,
   restrictToolsForWorkflow,
@@ -1287,6 +1290,10 @@ const loadToolsForActor =
     ...(await deviceToolsFor(actorId, botId, initiator)),
     // 生成式界面（json-render，取代 A2UI）：与 /api/capabilities 的 generativeUi 同一个开关。
     ...(config.generativeUi ? renderUiTools() : []),
+    // 内置联网（web_search / web_fetch）：先搜、再读，浏览器留给需要点击 / 登录 / 给人看的时候。
+    ...webTools(),
+    // 实时面板（server/src/live-panels）：右栏会自己刷新的卡片，规范与 render_ui 同一套组件。
+    ...(config.generativeUi ? livePanelService.tools(actorId, botId) : []),
     // 工作流（docs/workflows.md）：在聊天和长期任务里运行工作流；工作流自己的步骤拿不到。
     ...workflowChatTools({
       store: workflowStore,
@@ -2117,6 +2124,33 @@ workflowEngineInstance = createWorkflowEngine({
     return session?.sessionId ?? null;
   },
 });
+/**
+ * 实时面板：store + 工具 + 每分钟一次的刷新循环。刷新 = 同一个机器人在一个用完即删的对话里跑一个
+ * 无头回合（与工作流同一条 governedTurnRunner），用 web_search / web_fetch 取数后 panel_update。
+ */
+const livePanelStore = createLivePanelStore(database);
+const livePanelService = createLivePanelService({
+  store: livePanelStore,
+  runHeadless: async ({ ownerUserId, botId, instruction, panelId, signal }) => {
+    const actor = await actorFor(ownerUserId);
+    const channel = await channelStore.create(actor, [botId]);
+    try {
+      await governedTurnRunner({
+        ownerUserId,
+        routineId: panelId,
+        agentId: botId,
+        threadId: channel.threadId,
+        instruction,
+        initiator: { kind: "routine", id: panelId },
+        signal,
+        userMessage: { id: `${panelId}:${Date.now()}`, role: "user", content: instruction },
+      });
+    } finally {
+      await channelStore.softDelete(actor, channel.id).catch(() => {});
+    }
+  },
+});
+livePanelService.start();
 void workflowEngineInstance.recover().catch((error) =>
   console.error(
     JSON.stringify({ type: "workflow-recover-failed", reason: String(error) }),
@@ -3543,6 +3577,7 @@ const app = createApp(
           auditStore: bootAuditStore,
         }),
       ],
+      ["/api/live-panels", livePanelService.routes(requireUser)],
       [
         "/api/workflows",
         createWorkflowRoutes({
@@ -3636,6 +3671,14 @@ serve<SocketData>({
     // 计算机工具（打开网页、执行命令、接管）常常超过 Bun 默认的 10 秒空闲超时，被切断后用户看到
     // “计算机无法访问”而浏览器其实还在工作。由 agent-computer 自己的超时兜底。
     if (url.pathname.startsWith("/api/computers/") && !request.headers.get("upgrade")) server.timeout(request, 0);
+    // 模型回合是流式的（SSE）：免费 / 慢模型首个 token 前常常要想十几秒，带很多工具时更久。Bun 默认
+    // 10 秒没有字节就切断连接，用户看到的就是「network error」、回合半途而废（2026-10-13 实测）。
+    // 流式接口不设空闲超时，由运行本身的超时 / 停止兜底。
+    if (
+      url.pathname.startsWith("/api/copilotkit/") ||
+      request.headers.get("accept")?.includes("text/event-stream")
+    )
+      server.timeout(request, 0);
     const streamBotId = streamPathBotId(url.pathname);
     if (
       streamBotId !== null &&
@@ -3820,6 +3863,7 @@ if (config.singleUser) {
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     responsibilitySweep.stop();
+    livePanelService.stop();
     wakeUpSweep.stop();
     wakeUpReaper.stop();
     memorySweep.stop();

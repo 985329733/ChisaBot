@@ -12,7 +12,9 @@ import { createCopilotHonoHandler } from "@copilotkit/runtime/v2/hono";
 import type { Observable } from "rxjs";
 import { defer, finalize, from, fromEvent, switchMap, takeUntil } from "rxjs";
 import { z } from "zod";
-import { PROVENANCE_GUIDANCE } from "../../shared/bot-prompt";
+import { PROVENANCE_GUIDANCE, WORK_STYLE_GUIDANCE } from "../../shared/bot-prompt";
+import { LIVE_PANEL_GUIDANCE } from "./live-panels/service";
+import { WEB_GUIDANCE } from "./web/tools";
 import {
   type ActorAgentResolver,
   CoworkerUnavailableError,
@@ -474,6 +476,10 @@ export function builtInAgentConfiguration(
       PROVENANCE_GUIDANCE,
       // How to read the untrusted-content envelope every outside result arrives in.
       UNTRUSTED_GUIDANCE,
+      // 说话方式：开工一句话、不念工具、结果先行、必要时卡片、一个下一步（向 Hark 看齐）。
+      WORK_STYLE_GUIDANCE,
+      ...(tools.some((tool) => tool.name === "web_search") ? [WEB_GUIDANCE] : []),
+      ...(tools.some((tool) => tool.name === "panel_create") ? [LIVE_PANEL_GUIDANCE] : []),
       ...(grantedToolGuidance(tools, connectedVendors)
         ? [grantedToolGuidance(tools, connectedVendors)]
         : []),
@@ -515,7 +521,7 @@ export function builtInAgentConfiguration(
  * Enough for a Bot to search, read what came back, search again on a better term, and answer.
  * Beyond that a model is not making progress, and every extra step is somebody's money.
  */
-const TOOL_STEPS = 8;
+const TOOL_STEPS = 12;
 
 /**
  * Build the built-in and remote AG-UI agent map the runtime serves.
