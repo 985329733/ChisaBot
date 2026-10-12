@@ -57,7 +57,16 @@ const UNAVAILABLE_THREAD: StoredThread = {
   availability: "unavailable",
 };
 
-const THREAD_MESSAGES_DEADLINE_MS = 1500;
+/*
+ * 首次读取的期限。以前是 1.5 秒：服务器稍慢（冷启动、长会话）就判定「无法加载」，于是聊天框上方出现
+ * 「较早的消息暂时无法加载」，可实际上再等一两秒就读到了。首次读取完成前，第一条消息会排队等它，
+ * 所以这里不能无限等：4 秒后先放行，读取失败再由 HISTORY_RETRY_DELAYS_MS 在后台继续重试。
+ */
+const THREAD_MESSAGES_DEADLINE_MS = 4000;
+/** 后台重试与「重试」按钮用的期限：不挡住任何操作，可以等久一点。 */
+export const THREAD_MESSAGES_RETRY_DEADLINE_MS = 15000;
+/** 首次读取失败后，后台再试的间隔（毫秒）。全部失败、且会话里什么也没恢复出来时才提示。 */
+export const HISTORY_RETRY_DELAYS_MS = [1500, 4000, 10000] as const;
 
 type ReadThreadMessagesOptions = {
   /** Shorter only in tests; production uses the mount/send ordering deadline. */

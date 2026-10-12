@@ -108,6 +108,8 @@ type ChatTranscriptProps = {
   stopped?: string;
   /** Re-run the turn that failed. Without it the error card has no retry button. */
   onRetry?: () => void;
+  /** 会话最上方的一句提示（例如较早的消息读不到），在第一条消息之前。 */
+  topNotice?: React.ReactNode;
 };
 
 /** One shared empty array, so a screen without a queue does not hand down a new one per render. */
@@ -1622,6 +1624,7 @@ export function ChatTranscript({
   restoring = false,
   stopped,
   onRetry,
+  topNotice,
 }: ChatTranscriptProps) {
   /*
    * NOT MEMOISED, AND THAT IS DELIBERATE. `useMemo` keyed on `messages` looks obviously right and
@@ -1781,6 +1784,9 @@ export function ChatTranscript({
                 />
               ))}
             </div>
+            {topNotice ? (
+              <div className="chat-top-notice">{topNotice}</div>
+            ) : null}
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
             {items.map((item, index) =>
               item.kind === "browser" ? (
