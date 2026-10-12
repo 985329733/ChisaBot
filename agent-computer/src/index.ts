@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { serve } from "bun";
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import { downloadHeaders } from "../../shared/file-download";
 import {
   cutAtCodeUnits,
@@ -53,6 +53,13 @@ import { ensureStartPage, whileNavigating } from "./start-page";
 import { createShell } from "./shell";
 import { fillSignIn, parseSignInFill } from "./sign-in";
 import { startVirtualDisplay } from "./virtual-display";
+import {
+  contentTypeFor,
+  workspacePathFromUrl,
+  workspaceProblemPage,
+  workspaceRequestAllowed,
+  WORKSPACE_ORIGIN,
+} from "./workspace-origin";
 import {
   createWorkspace,
   WorkspaceFileError,
@@ -291,12 +298,83 @@ const DEFAULT_BOT_ID = (() => {
   return configured;
 })();
 
+/**
+ * 工作区的虚拟网址 https://workspace.local/…，每个浏览器上下文装一次。见 workspace-origin.ts。
+ * 装在 currentPage 里，因为它是拿到页面的唯一入口：机器人的工具、截图、直播和接管都经过它。
+ */
+const workspaceOriginContexts = new WeakSet<BrowserContext>();
+async function installWorkspaceOrigin(context: BrowserContext): Promise<void> {
+  if (workspaceOriginContexts.has(context)) return;
+  workspaceOriginContexts.add(context);
+  try {
+    await context.route(`${WORKSPACE_ORIGIN}/**`, async (route) => {
+      const request = route.request();
+      let frameUrl: string | null = null;
+      let isMainFrame = false;
+      try {
+        const frame = request.frame();
+        frameUrl = frame.url();
+        isMainFrame = frame.parentFrame() === null;
+      } catch {
+        // Service worker 发的请求没有 frame：不给。
+      }
+      if (
+        !workspaceRequestAllowed({
+          isNavigationRequest: request.isNavigationRequest(),
+          isMainFrame,
+          frameUrl,
+        })
+      ) {
+        await route.fulfill({ status: 403, body: "" }).catch(() => undefined);
+        return;
+      }
+      const path = workspacePathFromUrl(request.url()) ?? "";
+      try {
+        const file = await workspace.download(path);
+        await route.fulfill({
+          status: 200,
+          headers: {
+            "content-type": contentTypeFor(path),
+            "cache-control": "no-store",
+          },
+          body: Buffer.from(await file.body.arrayBuffer()),
+        });
+      } catch (error) {
+        const notFound = error instanceof WorkspaceFileNotFoundError;
+        const problem = notFound
+          ? "工作区里没有这个文件。先用 computer_write_file 写好再打开。"
+          : error instanceof WorkspacePathError
+            ? "只能打开工作区里的文件。"
+            : error instanceof Error
+              ? error.message
+              : "读取失败。";
+        await route
+          .fulfill({
+            status: notFound ? 404 : error instanceof WorkspacePathError ? 403 : 500,
+            headers: { "content-type": "text/html; charset=utf-8" },
+            body: workspaceProblemPage(path, problem),
+          })
+          .catch(() => undefined);
+      }
+    });
+  } catch (error) {
+    workspaceOriginContexts.delete(context);
+    console.info(
+      JSON.stringify({
+        type: "computer-workspace-origin-not-installed",
+        reason: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
+}
+
 async function currentPage(
   botId: string,
   purpose: PagePurpose = "read",
 ): Promise<Page> {
   const session = sessions.for(botId);
   const page = await profiles.page(botId);
+  await installWorkspaceOrigin(page.context());
   sessions.observeBrowser(botId, page.context());
   assertPageAccess(RUNTIME.backend, page.url(), purpose);
   // A ref names an element on the page it was taken from, so moving to a window the site opened has

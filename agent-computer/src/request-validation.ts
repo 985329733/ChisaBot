@@ -6,6 +6,7 @@
  * naming the field rather than a 502 that reads as a broken computer.
  */
 import type { InputMessage } from "./screencast";
+import { workspaceUrlFor } from "./workspace-origin";
 
 /** Long enough for an install, short enough that a hung command is not a hung Bot. */
 export const EXEC_DEFAULT_TIMEOUT_MS = 120_000;
@@ -28,7 +29,8 @@ export function parseNavigateUrl(input: unknown): NavigateParseResult {
   if (typeof input !== "string" || !input.trim()) {
     return { ok: false, error: "A url is required." };
   }
-  const trimmed = input.trim();
+  // file:///workspace/… 指的是机器人自己的工作区，换成 https://workspace.local/…（见 workspace-origin.ts）。
+  const trimmed = workspaceUrlFor(input.trim());
   let parsed: URL;
   try {
     parsed = new URL(trimmed);

@@ -8,6 +8,9 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 计算机：机器人自己写的网页能在它的浏览器里打开了——工作区挂在 `https://workspace.local/<路径>`（浏览器内直接读工作区文件，不出网，只能读工作区）；`file:///workspace/…` 自动换成它。以前机器人说「我写个页面然后打开」，结果什么都打不开。
+- 计算机：接管大屏停在空白页、画面一片白时，显示和右栏一致的「浏览器空闲」卡，不再是一块白色矩形。
+
 ## 0.1.0（2026-10-12，ChisaBot 首个公开版本）
 
 ChisaBot 版本号从这一版重新计数（之前内部测试的 0.2.x 作废）：服务器 `package.json`、PC 客户端和 Android 客户端都是 0.1.0。

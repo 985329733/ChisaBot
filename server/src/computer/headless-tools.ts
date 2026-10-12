@@ -430,7 +430,8 @@ export function createHeadlessComputerTools(options: {
   const tools = [
     tool(
       "computer_navigate",
-      "Open a web page and return its title and readable text. Use the returned content to answer.",
+      "Open a web page and return its title and readable text. Use the returned content to answer. " +
+        "To open a page you wrote yourself, save it with computer_write_file (e.g. page.html) and open https://workspace.local/page.html (file:// does not work).",
       z.strictObject({ url: text }),
       async ({ url }, { toolCallId }) => {
         const result = await gateway.navigate(botId, actor, url, toolCallId);
