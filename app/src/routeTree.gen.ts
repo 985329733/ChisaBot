@@ -48,6 +48,8 @@ import { Route as AuthedAppChannelChannelIdRouteImport } from './routes/_authed/
 import { Route as AuthedAppChannelNewRouteImport } from './routes/_authed/_app/channel/new'
 import { Route as AuthedAppGroupChannelIdRouteImport } from './routes/_authed/_app/group/$channelId'
 import { Route as AuthedAppGroupNewRouteImport } from './routes/_authed/_app/group/new'
+import { Route as AuthedAppWorkflowsIndexRouteImport } from './routes/_authed/_app/workflows.index'
+import { Route as AuthedAppWorkflowsWorkflowIdRouteImport } from './routes/_authed/_app/workflows.$workflowId'
 import { Route as AuthedAdminComponentsIndexRouteImport } from './routes/_authed/admin/components/index'
 import { Route as AuthedAdminComponentsNameRouteImport } from './routes/_authed/admin/components/$name'
 import { Route as AuthedAdminMagpieIndexRouteImport } from './routes/_authed/admin/magpie/index'
@@ -61,6 +63,7 @@ import { Route as AuthedSettingsConnectedAccountsIndexRouteImport } from './rout
 import { Route as AuthedSettingsConnectedAccountsKeyRouteImport } from './routes/_authed/settings/connected-accounts/$key'
 import { Route as AuthedSettingsDevicesIndexRouteImport } from './routes/_authed/settings/devices/index'
 import { Route as AuthedSettingsDevicesDeviceIdRouteImport } from './routes/_authed/settings/devices/$deviceId'
+import { Route as AuthedAppWorkflowsRunsRunIdRouteImport } from './routes/_authed/_app/workflows.runs.$runId'
 import { Route as AuthedAdminPluginsKeyBotsAgentIdRouteImport } from './routes/_authed/admin/plugins/$key_.bots.$agentId'
 import { Route as AuthedAdminPluginsKeyToolsToolRouteImport } from './routes/_authed/admin/plugins/$key_.tools.$tool'
 
@@ -260,6 +263,17 @@ const AuthedAppGroupNewRoute = AuthedAppGroupNewRouteImport.update({
   path: '/group/new',
   getParentRoute: () => AuthedAppRoute,
 } as any)
+const AuthedAppWorkflowsIndexRoute = AuthedAppWorkflowsIndexRouteImport.update({
+  id: '/workflows/',
+  path: '/workflows/',
+  getParentRoute: () => AuthedAppRoute,
+} as any)
+const AuthedAppWorkflowsWorkflowIdRoute =
+  AuthedAppWorkflowsWorkflowIdRouteImport.update({
+    id: '/workflows/$workflowId',
+    path: '/workflows/$workflowId',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
 const AuthedAdminComponentsIndexRoute =
   AuthedAdminComponentsIndexRouteImport.update({
     id: '/components/',
@@ -335,6 +349,12 @@ const AuthedSettingsDevicesDeviceIdRoute =
     path: '/devices/$deviceId',
     getParentRoute: () => AuthedSettingsRouteRoute,
   } as any)
+const AuthedAppWorkflowsRunsRunIdRoute =
+  AuthedAppWorkflowsRunsRunIdRouteImport.update({
+    id: '/workflows/runs/$runId',
+    path: '/workflows/runs/$runId',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
 const AuthedAdminPluginsKeyBotsAgentIdRoute =
   AuthedAdminPluginsKeyBotsAgentIdRouteImport.update({
     id: '/plugins/$key_/bots/$agentId',
@@ -384,6 +404,7 @@ export interface FileRoutesByFullPath {
   '/channel/new': typeof AuthedAppChannelNewRoute
   '/group/$channelId': typeof AuthedAppGroupChannelIdRoute
   '/group/new': typeof AuthedAppGroupNewRoute
+  '/workflows/$workflowId': typeof AuthedAppWorkflowsWorkflowIdRoute
   '/admin/components/$name': typeof AuthedAdminComponentsNameRoute
   '/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
@@ -393,12 +414,14 @@ export interface FileRoutesByFullPath {
   '/settings/devices/$deviceId': typeof AuthedSettingsDevicesDeviceIdRoute
   '/agents/': typeof AuthedAppAgentsIndexRoute
   '/bots/': typeof AuthedAppBotsIndexRoute
+  '/workflows/': typeof AuthedAppWorkflowsIndexRoute
   '/admin/components/': typeof AuthedAdminComponentsIndexRoute
   '/admin/magpie/': typeof AuthedAdminMagpieIndexRoute
   '/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
   '/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
   '/settings/devices/': typeof AuthedSettingsDevicesIndexRoute
+  '/workflows/runs/$runId': typeof AuthedAppWorkflowsRunsRunIdRoute
   '/admin/plugins/$key/bots/$agentId': typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   '/admin/plugins/$key/tools/$tool': typeof AuthedAdminPluginsKeyToolsToolRoute
 }
@@ -436,6 +459,7 @@ export interface FileRoutesByTo {
   '/channel/new': typeof AuthedAppChannelNewRoute
   '/group/$channelId': typeof AuthedAppGroupChannelIdRoute
   '/group/new': typeof AuthedAppGroupNewRoute
+  '/workflows/$workflowId': typeof AuthedAppWorkflowsWorkflowIdRoute
   '/admin/components/$name': typeof AuthedAdminComponentsNameRoute
   '/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
@@ -445,12 +469,14 @@ export interface FileRoutesByTo {
   '/settings/devices/$deviceId': typeof AuthedSettingsDevicesDeviceIdRoute
   '/agents': typeof AuthedAppAgentsIndexRoute
   '/bots': typeof AuthedAppBotsIndexRoute
+  '/workflows': typeof AuthedAppWorkflowsIndexRoute
   '/admin/components': typeof AuthedAdminComponentsIndexRoute
   '/admin/magpie': typeof AuthedAdminMagpieIndexRoute
   '/admin/plugins': typeof AuthedAdminPluginsIndexRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts': typeof AuthedSettingsConnectedAccountsIndexRoute
   '/settings/devices': typeof AuthedSettingsDevicesIndexRoute
+  '/workflows/runs/$runId': typeof AuthedAppWorkflowsRunsRunIdRoute
   '/admin/plugins/$key/bots/$agentId': typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   '/admin/plugins/$key/tools/$tool': typeof AuthedAdminPluginsKeyToolsToolRoute
 }
@@ -493,6 +519,7 @@ export interface FileRoutesById {
   '/_authed/_app/channel/new': typeof AuthedAppChannelNewRoute
   '/_authed/_app/group/$channelId': typeof AuthedAppGroupChannelIdRoute
   '/_authed/_app/group/new': typeof AuthedAppGroupNewRoute
+  '/_authed/_app/workflows/$workflowId': typeof AuthedAppWorkflowsWorkflowIdRoute
   '/_authed/admin/components/$name': typeof AuthedAdminComponentsNameRoute
   '/_authed/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/_authed/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
@@ -502,12 +529,14 @@ export interface FileRoutesById {
   '/_authed/settings/devices/$deviceId': typeof AuthedSettingsDevicesDeviceIdRoute
   '/_authed/_app/agents/': typeof AuthedAppAgentsIndexRoute
   '/_authed/_app/bots/': typeof AuthedAppBotsIndexRoute
+  '/_authed/_app/workflows/': typeof AuthedAppWorkflowsIndexRoute
   '/_authed/admin/components/': typeof AuthedAdminComponentsIndexRoute
   '/_authed/admin/magpie/': typeof AuthedAdminMagpieIndexRoute
   '/_authed/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
   '/_authed/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/_authed/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
   '/_authed/settings/devices/': typeof AuthedSettingsDevicesIndexRoute
+  '/_authed/_app/workflows/runs/$runId': typeof AuthedAppWorkflowsRunsRunIdRoute
   '/_authed/admin/plugins/$key_/bots/$agentId': typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   '/_authed/admin/plugins/$key_/tools/$tool': typeof AuthedAdminPluginsKeyToolsToolRoute
 }
@@ -549,6 +578,7 @@ export interface FileRouteTypes {
     | '/channel/new'
     | '/group/$channelId'
     | '/group/new'
+    | '/workflows/$workflowId'
     | '/admin/components/$name'
     | '/admin/magpie/console'
     | '/admin/plugins/$key'
@@ -558,12 +588,14 @@ export interface FileRouteTypes {
     | '/settings/devices/$deviceId'
     | '/agents/'
     | '/bots/'
+    | '/workflows/'
     | '/admin/components/'
     | '/admin/magpie/'
     | '/admin/plugins/'
     | '/settings/components-gallery/'
     | '/settings/connected-accounts/'
     | '/settings/devices/'
+    | '/workflows/runs/$runId'
     | '/admin/plugins/$key/bots/$agentId'
     | '/admin/plugins/$key/tools/$tool'
   fileRoutesByTo: FileRoutesByTo
@@ -601,6 +633,7 @@ export interface FileRouteTypes {
     | '/channel/new'
     | '/group/$channelId'
     | '/group/new'
+    | '/workflows/$workflowId'
     | '/admin/components/$name'
     | '/admin/magpie/console'
     | '/admin/plugins/$key'
@@ -610,12 +643,14 @@ export interface FileRouteTypes {
     | '/settings/devices/$deviceId'
     | '/agents'
     | '/bots'
+    | '/workflows'
     | '/admin/components'
     | '/admin/magpie'
     | '/admin/plugins'
     | '/settings/components-gallery'
     | '/settings/connected-accounts'
     | '/settings/devices'
+    | '/workflows/runs/$runId'
     | '/admin/plugins/$key/bots/$agentId'
     | '/admin/plugins/$key/tools/$tool'
   id:
@@ -657,6 +692,7 @@ export interface FileRouteTypes {
     | '/_authed/_app/channel/new'
     | '/_authed/_app/group/$channelId'
     | '/_authed/_app/group/new'
+    | '/_authed/_app/workflows/$workflowId'
     | '/_authed/admin/components/$name'
     | '/_authed/admin/magpie/console'
     | '/_authed/admin/plugins/$key'
@@ -666,12 +702,14 @@ export interface FileRouteTypes {
     | '/_authed/settings/devices/$deviceId'
     | '/_authed/_app/agents/'
     | '/_authed/_app/bots/'
+    | '/_authed/_app/workflows/'
     | '/_authed/admin/components/'
     | '/_authed/admin/magpie/'
     | '/_authed/admin/plugins/'
     | '/_authed/settings/components-gallery/'
     | '/_authed/settings/connected-accounts/'
     | '/_authed/settings/devices/'
+    | '/_authed/_app/workflows/runs/$runId'
     | '/_authed/admin/plugins/$key_/bots/$agentId'
     | '/_authed/admin/plugins/$key_/tools/$tool'
   fileRoutesById: FileRoutesById
@@ -956,6 +994,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAppGroupNewRouteImport
       parentRoute: typeof AuthedAppRoute
     }
+    '/_authed/_app/workflows/': {
+      id: '/_authed/_app/workflows/'
+      path: '/workflows'
+      fullPath: '/workflows/'
+      preLoaderRoute: typeof AuthedAppWorkflowsIndexRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
+    '/_authed/_app/workflows/$workflowId': {
+      id: '/_authed/_app/workflows/$workflowId'
+      path: '/workflows/$workflowId'
+      fullPath: '/workflows/$workflowId'
+      preLoaderRoute: typeof AuthedAppWorkflowsWorkflowIdRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
     '/_authed/admin/components/': {
       id: '/_authed/admin/components/'
       path: '/components'
@@ -1046,6 +1098,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/devices/$deviceId'
       preLoaderRoute: typeof AuthedSettingsDevicesDeviceIdRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
+    }
+    '/_authed/_app/workflows/runs/$runId': {
+      id: '/_authed/_app/workflows/runs/$runId'
+      path: '/workflows/runs/$runId'
+      fullPath: '/workflows/runs/$runId'
+      preLoaderRoute: typeof AuthedAppWorkflowsRunsRunIdRouteImport
+      parentRoute: typeof AuthedAppRoute
     }
     '/_authed/admin/plugins/$key_/bots/$agentId': {
       id: '/_authed/admin/plugins/$key_/bots/$agentId'
@@ -1163,8 +1222,11 @@ interface AuthedAppRouteChildren {
   AuthedAppChannelNewRoute: typeof AuthedAppChannelNewRoute
   AuthedAppGroupChannelIdRoute: typeof AuthedAppGroupChannelIdRoute
   AuthedAppGroupNewRoute: typeof AuthedAppGroupNewRoute
+  AuthedAppWorkflowsWorkflowIdRoute: typeof AuthedAppWorkflowsWorkflowIdRoute
   AuthedAppAgentsIndexRoute: typeof AuthedAppAgentsIndexRoute
   AuthedAppBotsIndexRoute: typeof AuthedAppBotsIndexRoute
+  AuthedAppWorkflowsIndexRoute: typeof AuthedAppWorkflowsIndexRoute
+  AuthedAppWorkflowsRunsRunIdRoute: typeof AuthedAppWorkflowsRunsRunIdRoute
 }
 
 const AuthedAppRouteChildren: AuthedAppRouteChildren = {
@@ -1182,8 +1244,11 @@ const AuthedAppRouteChildren: AuthedAppRouteChildren = {
   AuthedAppChannelNewRoute: AuthedAppChannelNewRoute,
   AuthedAppGroupChannelIdRoute: AuthedAppGroupChannelIdRoute,
   AuthedAppGroupNewRoute: AuthedAppGroupNewRoute,
+  AuthedAppWorkflowsWorkflowIdRoute: AuthedAppWorkflowsWorkflowIdRoute,
   AuthedAppAgentsIndexRoute: AuthedAppAgentsIndexRoute,
   AuthedAppBotsIndexRoute: AuthedAppBotsIndexRoute,
+  AuthedAppWorkflowsIndexRoute: AuthedAppWorkflowsIndexRoute,
+  AuthedAppWorkflowsRunsRunIdRoute: AuthedAppWorkflowsRunsRunIdRoute,
 }
 
 const AuthedAppRouteWithChildren = AuthedAppRoute._addFileChildren(

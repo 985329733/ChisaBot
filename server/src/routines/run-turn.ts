@@ -75,6 +75,7 @@ import {
   type HeadlessWaiting,
 } from "../computer/headless-tools";
 import { historyOrEmpty } from "../copilot";
+import { filterHeadlessForWorkflow } from "../workflows/policy";
 import type { DrawnComponent, TurnRunner } from "./runner";
 
 /**
@@ -337,6 +338,7 @@ export function createTurnRunner(options: {
     runId: suppliedRunId,
     depth,
     onText,
+    forwardedProps: suppliedForwardedProps,
   }) => {
     if (signal?.aborted) throw new Error("The headless turn was cancelled.");
     // Paused Bots do not start; a pause while running aborts this signal. See agents/lifecycle.ts.
@@ -489,6 +491,9 @@ export function createTurnRunner(options: {
           })
         : []),
     ];
+    // 工作流步骤的工具约束（workflows/policy.ts）：被禁止的无头工具不给模型。
+    const allowedHeadless = filterHeadlessForWorkflow(initiator, headlessTools);
+    headlessTools.splice(0, headlessTools.length, ...allowedHeadless);
     if (headlessTools.length > 0)
       agent.use(new HeadlessToolsMiddleware(headlessTools, initiator));
     if (signal?.aborted) throw new Error("The headless turn was cancelled.");
@@ -502,7 +507,8 @@ export function createTurnRunner(options: {
         .filter((tool) => !tool.hidden)
         .map((tool) => tool.definition),
       context: continuation?.snapshot.context ?? [],
-      forwardedProps: continuation?.snapshot.forwardedProps,
+      forwardedProps:
+        continuation?.snapshot.forwardedProps ?? suppliedForwardedProps,
       ...(continuation
         ? {
             resume: [

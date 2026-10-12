@@ -52,6 +52,11 @@ export type TurnRunner = (input: {
   depth?: number;
   /** The reply so far, each time more of it arrives, for a surface that shows a turn in progress. */
   onText?: (text: string) => void;
+  /**
+   * forwardedProps for this run (工作流的面板步骤带 panelAuthoring 会话，handoffForActor 据此给面板工具)。
+   * A continuation's own snapshot wins.
+   */
+  forwardedProps?: Record<string, unknown>;
 }) => Promise<{ replyText: string; components?: DrawnComponent[] }>;
 
 /** A display component the Bot drew in a turn and the server allowed, with the props it drew. */

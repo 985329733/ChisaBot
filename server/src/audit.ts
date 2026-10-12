@@ -48,6 +48,11 @@ const sensitiveKeys = new Set([
 
 export const auditEventTypes = [
   "panel.action",
+  /** 工作流（docs/workflows.md）：开始、结束、审批决定、约束拦截。 */
+  "workflow.run_started",
+  "workflow.run_finished",
+  "workflow.approval_decided",
+  "workflow.constraint_blocked",
   "configuration.changed",
   "credential.created",
   "credential.rotated",
@@ -530,7 +535,9 @@ export type AuditInitiator =
   | { kind: "routine"; id: string }
   | { kind: "responsibility"; id: string }
   | { kind: "memory"; id: string }
-  | { kind: "handoff"; id: string };
+  | { kind: "handoff"; id: string }
+  /** 工作流的一次运行（id = 运行 id，步骤回合是「运行 id/步骤 id」）。docs/workflows.md */
+  | { kind: "workflow"; id: string };
 
 export const PERSON_INITIATOR: AuditInitiator = { kind: "person" };
 
@@ -551,6 +558,7 @@ export const auditInitiatorKinds = [
   "responsibility",
   "memory",
   "handoff",
+  "workflow",
 ] as const;
 
 export type AuditInitiatorKind = (typeof auditInitiatorKinds)[number];
