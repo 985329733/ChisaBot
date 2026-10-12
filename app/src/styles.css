@@ -4271,3 +4271,31 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .rail-card .rail-head-btn { flex: none; white-space: nowrap; }
 .rail-card .rail-head-btn.is-compact { padding: 0 8px; }
 .rail-card .rail-head-btn.is-compact .rail-head-btn-t { display: none; }
+
+/* 计算机画面：空闲 / 看不到时是浅色的「空闲」卡，不是一块黑。 */
+.computer-frame { background: linear-gradient(160deg, rgba(224, 240, 255, 0.9), rgba(246, 250, 255, 0.95)); }
+.dark .computer-frame { background: linear-gradient(160deg, rgba(56, 78, 110, 0.55), rgba(30, 41, 59, 0.6)); }
+.computer-idle { gap: 6px; }
+.computer-idle-ic { width: 28px; height: 28px; color: var(--accent-blue, #3b82f6); opacity: 0.8; }
+.computer-idle-ic.is-warn { color: #f59e0b; }
+.computer-idle-t { font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.computer-idle-s { max-width: 26em; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); }
+
+/* 接管：地址栏 + 屏幕。 */
+.computer-urlbar { display: flex; align-items: center; gap: 4px; }
+.computer-urlbar-btn { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: var(--r-pill); color: var(--ink-2); transition: background var(--dur-1), color var(--dur-1); }
+.computer-urlbar-btn:hover:not(:disabled) { background: var(--glass-hover); color: var(--ink-1); }
+.computer-urlbar-btn:disabled { opacity: 0.4; }
+.computer-urlbar-field { flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: var(--r-pill); background: var(--glass-hover); border: 1px solid var(--line); color: var(--ink-2); transition: box-shadow var(--dur-1), border-color var(--dur-1); }
+.computer-urlbar-field:focus-within { border-color: transparent; box-shadow: 0 0 0 2px var(--focus); }
+.computer-urlbar-field input { flex: 1; min-width: 0; height: 100%; background: transparent; outline: none; font-size: 13px; color: var(--ink-1); }
+.computer-urlbar-field input::placeholder { color: var(--ink-4, var(--ink-3)); }
+.computer-urlbar-problem { margin: 0 6px; font-size: 12.5px; color: var(--destructive, #dc2626); }
+.computer-screen { background: linear-gradient(160deg, rgba(224, 240, 255, 0.9), rgba(246, 250, 255, 0.95)); }
+.dark .computer-screen { background: linear-gradient(160deg, rgba(56, 78, 110, 0.55), rgba(30, 41, 59, 0.6)); }
+.computer-screen-wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--ink-3); animation: rail-pane-in var(--dur-2) var(--ease-out); }
+.computer-screen-wait.is-dim { background: rgba(255, 255, 255, 0.55); backdrop-filter: blur(2px); color: var(--ink-2); }
+.dark .computer-screen-wait.is-dim { background: rgba(15, 23, 42, 0.55); }
+@media (prefers-reduced-motion: reduce) {
+  .computer-screen-wait { animation: none; }
+}

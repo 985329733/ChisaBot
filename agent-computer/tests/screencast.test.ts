@@ -107,3 +107,78 @@ describe("a key a person presses while they hold the wheel", () => {
     expect(params.nativeVirtualKeyCode).toBe(13);
   });
 });
+
+describe("开场帧与地址栏", () => {
+  /** A CDP session that answers a screenshot, and a page that can navigate. */
+  function castable(options: { screenshot?: string; gotoFails?: string } = {}) {
+    const sent: string[] = [];
+    let handler: ((event: unknown) => void) | undefined;
+    const client = {
+      on(_event: string, listener: (event: unknown) => void) {
+        handler = listener;
+      },
+      async send(method: string) {
+        sent.push(method);
+        if (method === "Page.captureScreenshot")
+          return options.screenshot ? { data: options.screenshot } : {};
+        return {};
+      },
+      async detach() {},
+    };
+    let url = "about:blank";
+    const page = {
+      context: () => ({ newCDPSession: async () => client }),
+      url: () => url,
+      viewportSize: () => ({ width: 1280, height: 800 }),
+      goto: async (target: string) => {
+        if (options.gotoFails) throw new Error(options.gotoFails);
+        url = target;
+      },
+      goBack: async () => {},
+      goForward: async () => {},
+      reload: async () => {},
+    } as unknown as Page;
+    return { page, sent, emit: (event: unknown) => handler?.(event) };
+  }
+
+  test("开播后先发一张截图，静止的页面也有画面", async () => {
+    const { page } = castable({ screenshot: "SHOT" });
+    const frames: unknown[] = [];
+    await startScreencast(page, (frame) => frames.push(frame));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(frames).toEqual([
+      { type: "frame", data: "SHOT", width: 1280, height: 800, url: "about:blank" },
+    ]);
+  });
+
+  test("Chrome 自己的帧先到时，不再补开场帧", async () => {
+    const { page, emit } = castable({ screenshot: "SHOT" });
+    const frames: { data?: string }[] = [];
+    const cast = startScreencast(page, (frame) => frames.push(frame as { data?: string }));
+    await cast;
+    emit({ data: "CAST", sessionId: 1, metadata: { deviceWidth: 1280, deviceHeight: 800 } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(frames.map((f) => f.data)).toContain("CAST");
+  });
+
+  test("地址栏打开网址，结果发回去", async () => {
+    const { page } = castable();
+    const messages: unknown[] = [];
+    const cast = await startScreencast(page, (m) => messages.push(m));
+    await cast.send({ type: "navigate", url: "https://example.com/" });
+    expect(messages).toContainEqual({ type: "navigation", ok: true, url: "https://example.com/" });
+  });
+
+  test("打不开时是一句中文说明，不是断线", async () => {
+    const { page } = castable({ gotoFails: "net::ERR_TUNNEL_CONNECTION_FAILED at https://x.test/" });
+    const messages: unknown[] = [];
+    const cast = await startScreencast(page, (m) => messages.push(m));
+    await cast.send({ type: "navigate", url: "https://x.test/" });
+    expect(messages).toContainEqual({
+      type: "navigation",
+      ok: false,
+      url: "about:blank",
+      error: "网络策略不允许访问这个网址。",
+    });
+  });
+});

@@ -165,5 +165,20 @@ export function parseInputMessage(input: unknown): InputMessageParseResult {
     }
     return { ok: true, message: body as unknown as InputMessage };
   }
+  if (body.type === "navigate") {
+    const parsed = parseNavigateUrl(body.url);
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    return { ok: true, message: { type: "navigate", url: parsed.url } };
+  }
+  if (body.type === "history") {
+    if (
+      body.action !== "back" &&
+      body.action !== "forward" &&
+      body.action !== "reload"
+    ) {
+      return { ok: false, error: "A history message needs back, forward or reload." };
+    }
+    return { ok: true, message: { type: "history", action: body.action } };
+  }
   return { ok: false, error: "That input message has an unknown type." };
 }

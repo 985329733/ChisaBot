@@ -141,9 +141,28 @@ describe("a live-screen input message", () => {
     ["wheel without delta", { type: "wheel", x: 1, y: 2, deltaX: 0 }],
     ["key without code", { type: "key", event: "down", key: "a" }],
     ["text without text", { type: "text" }],
+    ["navigate without url", { type: "navigate" }],
+    ["navigate to a javascript: url", { type: "navigate", url: "javascript:alert(1)" }],
+    ["navigate to a file: url", { type: "navigate", url: "file:///etc/passwd" }],
+    ["history with an unknown action", { type: "history", action: "home" }],
   ])("rejects %s with a 400 message", (_name, input) => {
     const parsed = parseInputMessage(input);
     expect(parsed.ok).toBe(false);
     expect((parsed as { error: string }).error).toBeString();
+  });
+});
+
+describe("接管时的地址栏消息", () => {
+  test("navigate 只带检查过的 http(s) 网址", () => {
+    expect(
+      parseInputMessage({ type: "navigate", url: " https://example.com/a ", extra: 1 }),
+    ).toEqual({ ok: true, message: { type: "navigate", url: "https://example.com/a" } });
+  });
+
+  test.each(["back", "forward", "reload"] as const)("history %s 通过", (action) => {
+    expect(parseInputMessage({ type: "history", action })).toEqual({
+      ok: true,
+      message: { type: "history", action },
+    });
   });
 });

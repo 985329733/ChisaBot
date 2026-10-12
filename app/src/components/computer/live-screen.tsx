@@ -1,4 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconLoader2,
+  IconRefresh,
+  IconWorld,
+} from "@tabler/icons-react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { readControl } from "@/lib/computers/control";
 import {
   connectScreen,
@@ -93,6 +107,10 @@ type Props = {
   /** Called with a human-readable reason when the stream cannot be established. */
   onProblem?: (problem: string | null) => void;
   retryKey?: number;
+  /** Width divided by height of the screen box. */
+  aspectRatio?: number;
+  /** Drawn over the screen (for example the "disconnected, retry" sheet). */
+  children?: ReactNode;
 };
 
 type FrameMessage = {
@@ -101,11 +119,31 @@ type FrameMessage = {
   height: number;
 };
 
+/**
+ * 地址栏里输入的东西 → 要打开的网址。带协议的照用；像域名的补 https://；其余当作搜索词。
+ * 导出给测试用。
+ */
+export function addressToUrl(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+  if (/^https?:\/\//i.test(text)) return text;
+  if (
+    !/\s/.test(text) &&
+    (/^localhost(?::\d+)?(?:[/?#].*)?$/i.test(text) ||
+      /^[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+(?::\d+)?(?:[/?#].*)?$/u.test(text))
+  ) {
+    return `https://${text}`;
+  }
+  return `https://www.bing.com/search?q=${encodeURIComponent(text)}`;
+}
+
 export function LiveScreen({
   computerId,
   driving,
   onProblem,
   retryKey = 0,
+  aspectRatio = 1280 / 800,
+  children,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -118,13 +156,29 @@ export function LiveScreen({
   /** Monotonic guard so a slow older decode cannot replace a newer frame. */
   const latestFrameId = useRef(0);
   const [connected, setConnected] = useState(false);
+  /** 画布上是否已经画过至少一帧。没画过时显示「正在连接屏幕…」，而不是一块黑色画布。 */
+  const [hasFrame, setHasFrame] = useState(false);
+  const hasFrameRef = useRef(false);
+  /** 断线后保留最后一帧，蒙一层「正在重新连接…」，而不是清成黑屏。 */
+  const [reconnecting, setReconnecting] = useState(false);
+  const reconnectingRef = useRef(false);
+  /** 当前页面的网址（帧里带的），接管时的地址栏显示它。 */
+  const [pageUrl, setPageUrl] = useState("");
+  const [navBusy, setNavBusy] = useState(false);
+  const [navProblem, setNavProblem] = useState<string | null>(null);
   const inputReady = useRef(false);
+  /** 用户最后一次在地址栏里要打开的网址。 */
+  const lastAttempt = useRef("");
   const previouslyDriving = useRef(driving);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: explicit Retry restarts this connection.
   useEffect(() => {
     let closed = false;
     setConnected(false);
+    hasFrameRef.current = false;
+    setHasFrame(false);
+    reconnectingRef.current = false;
+    setReconnecting(false);
     inputReady.current = false;
     frameSize.current = null;
     latestFrame.current = null;
@@ -162,6 +216,14 @@ export function LiveScreen({
         canvas.height = bitmap.height;
         canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
         bitmap.close();
+        if (!hasFrameRef.current) {
+          hasFrameRef.current = true;
+          setHasFrame(true);
+        }
+        if (reconnectingRef.current) {
+          reconnectingRef.current = false;
+          setReconnecting(false);
+        }
       } catch {
         // Ignore a single corrupt frame; the next frame replaces it.
       }
@@ -197,8 +259,29 @@ export function LiveScreen({
         width?: number;
         height?: number;
         error?: string;
+        url?: unknown;
+        ok?: unknown;
       };
       if (typeof message.type !== "string") return;
+      if (typeof message.url === "string" && message.url.length < 4096) {
+        // 打不开时 Chrome 停在 chrome-error://，地址栏留着用户刚输入的网址，方便改了再试。
+        if (message.url.startsWith("chrome-error:")) {
+          if (lastAttempt.current) setPageUrl(lastAttempt.current);
+        } else {
+          setPageUrl(message.url === "about:blank" ? "" : message.url);
+        }
+      }
+      if (message.type === "navigation") {
+        setNavBusy(false);
+        setNavProblem(
+          message.ok === true
+            ? null
+            : typeof message.error === "string"
+              ? message.error
+              : "这个网址打不开。",
+        );
+        return;
+      }
       if (message.type === "error") {
         onProblem?.(message.error ?? "无法显示屏幕。");
         return;
@@ -283,9 +366,12 @@ export function LiveScreen({
         frameSize.current = null;
         latestFrame.current = null;
         latestFrameId.current++;
-        const canvas = canvasRef.current;
-        if (canvas)
-          canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+        setNavBusy(false);
+        // 不清空画布：清掉之后底色是黑的，看起来就是「黑屏」。保留最后一帧并蒙上「正在重新连接…」。
+        if (hasFrameRef.current) {
+          reconnectingRef.current = true;
+          setReconnecting(true);
+        }
       },
       onMessage,
     });
@@ -481,7 +567,96 @@ export function LiveScreen({
     return () => canvas.removeEventListener("wheel", onWheel);
   }, [driving, connected, at, send]);
 
+  const [draft, setDraft] = useState<string | null>(null);
+  const navigate = (message: Record<string, unknown>) => {
+    if (!driving || !inputReady.current) return;
+    setNavProblem(null);
+    setNavBusy(true);
+    send(message);
+  };
+  const submitAddress = (event: FormEvent) => {
+    event.preventDefault();
+    const url = addressToUrl(draft ?? pageUrl);
+    if (!url) return;
+    setDraft(null);
+    lastAttempt.current = url;
+    setPageUrl(url);
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    navigate({ type: "navigate", url });
+  };
+  const toolbarDisabled = !driving || !connected;
+
   return (
+    <div className="computer-live flex flex-col gap-2">
+      {driving ? (
+        <form
+          aria-label={"浏览器地址栏"}
+          className="computer-urlbar"
+          onSubmit={submitAddress}
+        >
+          <button
+            aria-label={"后退"}
+            className="computer-urlbar-btn"
+            disabled={toolbarDisabled}
+            onClick={() => navigate({ type: "history", action: "back" })}
+            title={"后退"}
+            type="button"
+          >
+            <IconArrowLeft className="size-4" />
+          </button>
+          <button
+            aria-label={"前进"}
+            className="computer-urlbar-btn"
+            disabled={toolbarDisabled}
+            onClick={() => navigate({ type: "history", action: "forward" })}
+            title={"前进"}
+            type="button"
+          >
+            <IconArrowRight className="size-4" />
+          </button>
+          <button
+            aria-label={"刷新"}
+            className="computer-urlbar-btn"
+            disabled={toolbarDisabled}
+            onClick={() => navigate({ type: "history", action: "reload" })}
+            title={"刷新"}
+            type="button"
+          >
+            {navBusy ? (
+              <IconLoader2 className="size-4 animate-spin" />
+            ) : (
+              <IconRefresh className="size-4" />
+            )}
+          </button>
+          <label className="computer-urlbar-field">
+            <IconWorld className="size-4 shrink-0 opacity-60" />
+            <input
+              aria-label={"网址"}
+              autoComplete="off"
+              autoCorrect="off"
+              disabled={toolbarDisabled}
+              onBlur={() => setDraft(null)}
+              onChange={(event) => setDraft(event.target.value)}
+              onFocus={(event) => {
+                setDraft(pageUrl);
+                event.currentTarget.select();
+              }}
+              placeholder={"输入网址或搜索内容，回车打开"}
+              spellCheck={false}
+              value={draft ?? pageUrl}
+            />
+          </label>
+        </form>
+      ) : null}
+      {driving && navProblem ? (
+        <p className="computer-urlbar-problem" role="alert">
+          {navProblem}
+        </p>
+      ) : null}
+      <div
+        className="computer-screen relative w-full overflow-hidden rounded-xl"
+        style={{ aspectRatio }}
+      >
     <canvas
       ref={canvasRef}
       className={`block h-auto w-full ${driving ? "cursor-crosshair" : ""}`}
@@ -500,6 +675,22 @@ export function LiveScreen({
           : "助理的屏幕，实时"
       }
       data-connected={connected}
+      data-has-frame={hasFrame}
     />
+        {hasFrame ? null : (
+          <div className="computer-screen-wait" role="status">
+            <IconLoader2 className="size-5 animate-spin" />
+            <span>{"正在连接屏幕…"}</span>
+          </div>
+        )}
+        {hasFrame && reconnecting ? (
+          <div className="computer-screen-wait is-dim" role="status">
+            <IconLoader2 className="size-5 animate-spin" />
+            <span>{"正在重新连接…"}</span>
+          </div>
+        ) : null}
+        {children}
+      </div>
+    </div>
   );
 }

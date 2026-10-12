@@ -49,7 +49,7 @@ export async function takeControl(computerId: string, requestId?: string) {
     requestId ??
     (
       await callControl(computerId, "/control/request", {
-        reason: "I want to take control of the browser.",
+        reason: "我来接管浏览器。",
       })
     )?.request?.id;
   return id

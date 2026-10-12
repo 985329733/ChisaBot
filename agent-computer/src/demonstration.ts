@@ -18,6 +18,8 @@ export function gestureForRecording(
       deltaY: Math.max(-2000, Math.min(2000, input.deltaY)),
     };
   if (input.type === "text") return { kind: "type" };
+  // 地址栏操作（navigate / history）不录成步骤：技能草稿只记点击、输入、按键和滚动。
+  if (input.type !== "key") return null;
   if (input.event !== "down") return null;
   if (input.key.length === 1 || (input.text && input.key !== "Enter"))
     return { kind: "type" };
