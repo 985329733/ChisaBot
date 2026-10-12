@@ -1,3 +1,4 @@
+import { IconAlertTriangle, IconWorld } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supplySecret } from "@/lib/computers/control";
@@ -116,7 +117,7 @@ function NothingToSee({
   page?: { url?: string; title?: string } | undefined;
 }) {
   return (
-    <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-4 text-center text-muted-foreground text-sm">
+    <span className="computer-idle absolute inset-0 flex flex-col items-center justify-center gap-1 p-4 text-center text-muted-foreground text-sm">
       {settled ? (
         <>
           {/*
@@ -148,14 +149,24 @@ function NothingToSee({
         </>
       ) : problem ? (
         <>
-          <span className="font-medium">{"您现在看不到屏幕"}</span>
-          <span>{problem}</span>
-          <span>{"助手可能仍在工作。管理员可以检查其计算机是否在运行。"}</span>
+          <IconAlertTriangle className="computer-idle-ic is-warn" />
+          <span className="computer-idle-t">{"暂时看不到屏幕"}</span>
+          <span className="computer-idle-s">{problem}</span>
         </>
       ) : blankBrowser ? (
-        <span>{"助手尚未打开页面。"}</span>
+        /*
+         * 空白浏览器是常态（每次服务更新后浏览器都会重开），以前这里只有一行灰字压在深色底上，
+         * 看起来就是「黑屏」。现在明确说这是「空闲」，并告诉人接管后可以自己打开网址。
+         */
+        <>
+          <IconWorld className="computer-idle-ic" />
+          <span className="computer-idle-t">{"浏览器空闲"}</span>
+          <span className="computer-idle-s">
+            {"机器人还没有打开网页。接管后可以在地址栏输入网址。"}
+          </span>
+        </>
       ) : (
-        <span>{"正在等待助手的屏幕…"}</span>
+        <span className="computer-idle-s">{"正在等待助手的屏幕…"}</span>
       )}
     </span>
   );
@@ -363,6 +374,16 @@ export function ComputerView({
     };
   }, [computerId, active, intervalMs, secretPending, settled, visualVisible]);
 
+  /*
+   * 交还之后收起大屏。交还就是「我弄完了」，留着一个只读的大屏还要再点一次关闭，
+   * 用户会以为交还没生效。
+   */
+  const wasDriving = useRef(false);
+  useEffect(() => {
+    if (wasDriving.current && !driving && !control?.transitioning) setExpanded(false);
+    wasDriving.current = driving;
+  }, [driving, control?.transitioning]);
+
   // Input forwarding lives in LiveScreen on the socket.
   // Escape is bound to the window so it works regardless of overlay focus.
   useEffect(() => {
@@ -443,7 +464,7 @@ export function ComputerView({
            * the states where they most want it. With nothing to draw the full-size view shows these
            * same words, and the wheel below them.
            */
-          className="relative block w-full cursor-pointer bg-muted"
+          className="computer-frame relative block w-full cursor-pointer"
           style={frameStyle}
           aria-label={"打开助手屏幕全尺寸"}
         >
@@ -590,7 +611,8 @@ export function ComputerView({
               role="dialog"
               aria-modal="true"
               aria-label={"助手的屏幕"}
-              className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-8"
+              // 高于抽屉（窄窗口时右栏是 z-50 的抽屉），接管的大屏永远在最上层、可以点。
+              className="computer-takeover fixed inset-0 z-[70] flex flex-col items-center justify-center p-4 sm:p-8"
             >
               {/*
                 Backdrop closes only while read-only; during driving, Escape remains the exit. A
@@ -605,15 +627,23 @@ export function ComputerView({
                 className={`absolute inset-0 bg-black/80 ${wheelHere ? "cursor-default" : "cursor-zoom-out"}`}
               />
               {/* A card holding the screen, with who and the wheel centered beneath it. */}
-              <div className="relative flex w-full max-w-[70vw] min-w-0 flex-col rounded-2xl bg-background p-4 shadow-2xl">
+              {/*
+                宽度按视口高度收：地址栏 + 屏幕 + 底部操作要一起放进一屏，不会顶出窗口上沿。
+                放不下时卡片自己滚动。
+              */}
+              <div
+                className="computer-takeover-card relative flex w-full min-w-0 flex-col overflow-y-auto rounded-2xl bg-background p-4 shadow-2xl"
+                style={{
+                  maxWidth: `min(80vw, calc((100vh - 300px) * ${aspectRatio} + 32px))`,
+                  maxHeight: "calc(100vh - 2rem)",
+                }}
+              >
                 {/*
                   Overlay uses the live socket; the inline card keeps low-cost polling. With no page
                   to draw it reserves the same frame and says the same thing the card does — the
                   wheel below is the reason this view opens at all in that state.
                 */}
-                <div
-                  className={`relative max-h-[75vh] min-h-0 overflow-auto rounded-xl ${showLiveScreen ? "bg-black" : "bg-muted"}`}
-                >
+                <div className="relative max-h-[80vh] min-h-0 overflow-auto rounded-xl">
                   {settled && drawn ? (
                     /*
                      * A record, opened larger. Not a window on the browser.
@@ -631,13 +661,13 @@ export function ComputerView({
                       />
                     </div>
                   ) : showLiveScreen ? (
-                    <div className="relative w-full" style={{ aspectRatio }}>
-                      <LiveScreen
-                        computerId={computerId}
-                        driving={driving}
-                        onProblem={setStreamProblem}
-                        retryKey={retryKey}
-                      />
+                    <LiveScreen
+                      aspectRatio={aspectRatio}
+                      computerId={computerId}
+                      driving={driving}
+                      onProblem={setStreamProblem}
+                      retryKey={retryKey}
+                    >
                       {/*
                         A live screen that ends reports why through `onProblem`, and this is the
                         branch that is mounted when it does. Without drawing it here the message
@@ -659,9 +689,9 @@ export function ComputerView({
                           </button>
                         </div>
                       ) : null}
-                    </div>
+                    </LiveScreen>
                   ) : (
-                    <div className="relative w-full" style={{ aspectRatio }}>
+                    <div className="computer-frame relative w-full rounded-xl" style={{ aspectRatio }}>
                       <NothingToSee
                         blankBrowser={blankBrowser}
                         page={knownPage}

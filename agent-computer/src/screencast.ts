@@ -43,7 +43,25 @@ export type InputMessage =
       windowsVirtualKeyCode?: number;
       modifiers?: number;
     }
-  | { type: "text"; text: string };
+  | { type: "text"; text: string }
+  /**
+   * 接管时的地址栏：在 Bot 的浏览器里打开一个网址。只收 http(s)（request-validation.ts 已检查）；
+   * 出站仍经过网络策略代理，和点链接一样受同一套限制。
+   */
+  | { type: "navigate"; url: string }
+  /** 接管时的后退 / 前进 / 刷新。 */
+  | { type: "history"; action: "back" | "forward" | "reload" };
+
+/**
+ * 地址栏操作的结果，发回给正在接管的人。不是 `error`：打不开一个网址只是这一下没成功，
+ * 屏幕本身还在，不应该像断线那样盖住整个画面。
+ */
+export type NavigationMessage = {
+  type: "navigation";
+  ok: boolean;
+  url: string;
+  error?: string;
+};
 
 /** What we send back. */
 export type FrameMessage = {
@@ -52,6 +70,8 @@ export type FrameMessage = {
   data: string;
   width: number;
   height: number;
+  /** 这一帧所在页面的网址，接管时的地址栏显示它。旧的计算机不带。 */
+  url?: string;
 };
 
 /**
@@ -140,11 +160,20 @@ export type Screencast = {
  */
 export async function startScreencast(
   page: Page,
-  onFrame: (frame: FrameMessage) => void,
+  onFrame: (frame: FrameMessage | NavigationMessage) => void,
   options: { maxWidth?: number; maxHeight?: number; quality?: number } = {},
 ): Promise<Screencast> {
   const client: CDPSession = await page.context().newCDPSession(page);
   let stopped = false;
+  /** Whether Chrome has sent a frame of its own yet; the opening frame below is skipped if so. */
+  let castFrameSeen = false;
+  const pageUrl = () => {
+    try {
+      return typeof page.url === "function" ? page.url() : undefined;
+    } catch {
+      return undefined;
+    }
+  };
 
   type ScreencastFrame = {
     data: string;
@@ -161,11 +190,14 @@ export async function startScreencast(
       .send("Page.screencastFrameAck", { sessionId })
       .catch(() => undefined);
     if (stopped) return;
+    castFrameSeen = true;
+    const url = pageUrl();
     onFrame({
       type: "frame",
       data,
       width: metadata.deviceWidth,
       height: metadata.deviceHeight,
+      ...(url ? { url } : {}),
     });
   });
 
@@ -177,6 +209,35 @@ export async function startScreencast(
     // One frame per change, not per interval. Chrome decides when something moved.
     everyNthFrame: 1,
   });
+
+  /*
+   * 开场帧：保证每次连上都先有一张画面。
+   *
+   * Chrome 的 screencast 只在合成器出新帧时才推送。一个已经静止的页面（空白页、加载完的文章、
+   * 重连之后的同一页）可能一帧都不发，查看的人就只看到一块黑色画布，以为屏幕坏了。所以开播后
+   * 主动截一张同尺寸的 JPEG 先发过去；Chrome 自己的帧一到就以它为准，这张若晚到则丢弃。
+   */
+  void (async () => {
+    try {
+      const shot = (await client.send("Page.captureScreenshot", {
+        format: "jpeg",
+        quality: options.quality ?? 70,
+      })) as { data?: string } | undefined;
+      if (stopped || castFrameSeen || !shot?.data) return;
+      const size =
+        typeof page.viewportSize === "function" ? page.viewportSize() : null;
+      const url = pageUrl();
+      onFrame({
+        type: "frame",
+        data: shot.data,
+        width: size?.width ?? options.maxWidth ?? 1280,
+        height: size?.height ?? options.maxHeight ?? 800,
+        ...(url ? { url } : {}),
+      });
+    } catch {
+      // 截不到就等 Chrome 自己的帧；这只是兜底。
+    }
+  })();
 
   return {
     async stop() {
@@ -254,10 +315,48 @@ export async function startScreencast(
         return;
       }
 
+      if (message.type === "navigate" || message.type === "history") {
+        const from = pageUrl() ?? "";
+        try {
+          if (message.type === "navigate") {
+            await page.goto(message.url, { waitUntil: "commit", timeout: 20_000 });
+          } else if (message.action === "back") {
+            await page.goBack({ waitUntil: "commit", timeout: 20_000 });
+          } else if (message.action === "forward") {
+            await page.goForward({ waitUntil: "commit", timeout: 20_000 });
+          } else {
+            await page.reload({ waitUntil: "commit", timeout: 20_000 });
+          }
+          if (!stopped)
+            onFrame({ type: "navigation", ok: true, url: pageUrl() ?? from });
+        } catch (error) {
+          if (!stopped)
+            onFrame({
+              type: "navigation",
+              ok: false,
+              url: pageUrl() ?? from,
+              error: navigationProblem(error),
+            });
+        }
+        return;
+      }
+
       // A block of text at once: a paste, or a one-time code the person did not type character by
       // character. `Input.insertText` bypasses key events entirely, which is correct here, it is not
       // pretending to be a keyboard.
       await client.send("Input.insertText", { text: message.text });
     },
   };
+}
+
+/** 打不开网址时给人看的一句话（中文），不带 Playwright 的调用日志。 */
+export function navigationProblem(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
+  if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY|ERR_BLOCKED/i.test(text))
+    return "网络策略不允许访问这个网址。";
+  if (/ERR_NAME_NOT_RESOLVED/i.test(text)) return "找不到这个网址。";
+  if (/ERR_CONNECTION|ERR_ADDRESS|ERR_TIMED_OUT|Timeout/i.test(text))
+    return "网站没有响应，请稍后再试。";
+  if (/ERR_CERT|SSL/i.test(text)) return "网站的安全证书有问题。";
+  return "这个网址打不开。";
 }
