@@ -32,7 +32,7 @@ function DevicesPage() {
         ) : undefined
       }
       description="装了 ChisaBot PC 客户端的电脑。你可以在任何一端（网页、手机、PC）管理它们；机器人只能在你开启的能力和允许的文件夹里操作，每一步都有记录。"
-      title="设备"
+      title="电脑操作"
     >
       {list.isPending ? (
         <PageSkeleton rows={3} />

@@ -3916,6 +3916,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 @keyframes rail-tab-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
 .rail-tab.hidden { display: none; }
 @media (min-width: 1280px) { .rail-tab.xl\:flex { display: flex; } }
+/* 窄窗口（< 1280px）：面板栏放不下，右边缘的「面板」把手打开抽屉（components/panels/panel-rail.tsx）。 */
+.rail-tab.is-narrow { display: flex; }
+.rail-sheet .rail-card { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   .rail-tab { animation: rail-tab-fade var(--dur-2) linear 120ms both; transition: background var(--dur-1), color var(--dur-1); }
@@ -4130,3 +4133,53 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   .sysupd-spin { animation-duration: 2.4s; }
 }
 @keyframes update-banner-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 机器人这一侧的「电脑操作」（components/devices/bot-computer-access.tsx）。 */
+.bca-list { display: flex; flex-direction: column; gap: 6px; }
+.bca-row, .bca-empty {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--stroke);
+  background: var(--glass-1);
+}
+.bca-empty { align-items: flex-start; padding: 12px; }
+.bca-ico {
+  display: grid; place-items: center; flex: none;
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--glass-2); color: var(--ink-2);
+  position: relative;
+}
+.bca-ico::after {
+  content: ""; position: absolute; right: -1px; bottom: -1px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ink-4); border: 2px solid var(--glass-2);
+}
+.bca-ico.is-online::after { background: #22c55e; }
+.bca-ico.is-paused::after { background: var(--destructive); }
+.bca-t { font-size: 14px; font-weight: 500; color: var(--ink-1); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bca-meta { font-weight: 400; color: var(--ink-3); font-size: 12px; }
+.bca-s { font-size: 12px; color: var(--ink-3); line-height: 1.4; margin-top: 1px; }
+.bca-s.is-warn { color: #b45309; }
+.dark .bca-s.is-warn { color: #fbbf24; }
+.bca-line { font-size: 13px; color: var(--ink-3); padding: 6px 2px; }
+.bca-line.is-error { color: var(--destructive); }
+.bca-fb { min-width: 3.5em; text-align: right; font-size: 12px; color: var(--ink-3); opacity: 0; transition: opacity var(--dur-2); }
+.bca-fb.is-pending, .bca-fb.is-success, .bca-fb.is-error { opacity: 1; }
+.bca-fb.is-success { color: #16a34a; }
+.bca-fb.is-error { color: var(--destructive); }
+.bca-go {
+  display: grid; place-items: center; flex: none;
+  width: 28px; height: 28px; border-radius: 8px; color: var(--ink-3);
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.bca-go:hover, .bca-go:focus-visible { background: var(--glass-3); color: var(--ink-1); outline: none; }
+.bca-list.is-compact .bca-row { padding: 8px 8px 8px 10px; }
+@media (prefers-reduced-motion: reduce) { .bca-fb { transition: none; } }
+/* 机器人设置窗格底部的危险区。 */
+.bot-danger { margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--line-strong, var(--stroke)); }
+.bca-list, .bca-row, .bca-empty { min-width: 0; }
+.bca-meta::before { content: " · "; }
+.bca-list.is-compact .bca-meta { display: block; }
+.bca-list.is-compact .bca-meta::before { content: none; }
+.bca-list.is-compact .bca-fb { min-width: 0; }

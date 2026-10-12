@@ -1,7 +1,9 @@
 import {
   IconBolt,
   IconBrain,
+  IconDeviceDesktop,
   IconDots,
+  IconLayoutDashboard,
   IconPlayerPause,
   IconPlus,
   IconRobot,
@@ -14,7 +16,7 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
 import { useRef, useState } from "react";
@@ -42,6 +44,8 @@ import { relativeTime } from "@/lib/relative-time";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
+import { BotComputerAccessDialog } from "@/components/devices/bot-computer-access";
+import { showPanels } from "@/lib/panels/rail-open";
 import { BotChatMenuItems, BotRowComputerChip } from "@/components/agents/bot-chat-actions";
 import { useBotChat, useCurrentBotChat } from "@/lib/agents/bot-chat-context";
 import {
@@ -216,7 +220,14 @@ type RosterBot = {
   name: string;
   title?: string | null;
   canManage?: boolean;
+  /** 部署包机器人不能改但管理员能删；旧服务器没有这个字段时按 canManage。 */
+  canDelete?: boolean;
 };
+
+/** 这个人能不能删除这个机器人（服务器 canDeleteAgent 的镜像）。 */
+function canDeleteBot(bot: RosterBot) {
+  return bot.canDelete ?? bot.canManage ?? false;
+}
 
 function BotRow({
   bot,
@@ -235,6 +246,7 @@ function BotRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [computerOpen, setComputerOpen] = useState(false);
   const resume = useMutation(setBotPausedMutationOptions(queryClient));
   const waiting = attention ? needsInput(attention) : 0;
   const unread = !selected && attention ? attention.unread > 0 : false;
@@ -316,13 +328,14 @@ function BotRow({
           chat={chat}
           latest={latest}
           main={main}
+          onComputer={() => setComputerOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onResume={() => resume.mutate({ agentId: bot.id, paused: false })}
           onToggleMain={onToggleMain}
           paused={paused}
         />
       </DropdownMenu>
-      {bot.canManage ? (
+      {canDeleteBot(bot) ? (
         <DeleteBotDialog
           bot={{ id: bot.id, name: bot.name }}
           onOpenChange={setDeleteOpen}
@@ -330,13 +343,19 @@ function BotRow({
           selectedBotId={selected ? bot.id : undefined}
         />
       ) : null}
+      <BotComputerAccessDialog
+        agentId={bot.id}
+        botName={bot.name}
+        onOpenChange={setComputerOpen}
+        open={computerOpen}
+      />
     </div>
   );
 }
 
 /**
  * 机器人「⋯」菜单（DESIGN v4.1 §W5，原来在聊天列头部，现在在左栏机器人行）：
- * 机器人设置 · 查看计算机 · 新话题 ‖ 设为主机器人 · 机器人资料页 · 恢复运行 ‖ 删除机器人…
+ * 机器人设置 · 查看计算机 · 新话题 · 自定义面板 · 电脑操作… ‖ 设为主机器人 · 机器人资料页 · 恢复运行 ‖ 删除机器人…
  */
 function BotMenuContent({
   bot,
@@ -347,6 +366,7 @@ function BotMenuContent({
   onToggleMain,
   onResume,
   onDelete,
+  onComputer,
 }: {
   bot: RosterBot;
   chat: ReturnType<typeof useBotChat>;
@@ -356,11 +376,39 @@ function BotMenuContent({
   onToggleMain: (() => void) | null;
   onResume: () => void;
   onDelete: () => void;
+  /** 「电脑操作…」：这个机器人能操作哪些 PC。null = 不显示（例如隐藏的浏览器机器人）。 */
+  onComputer: (() => void) | null;
 }) {
   const icon = "size-[18px] shrink-0 opacity-80";
+  const navigate = useNavigate();
+  const { botId: panelBotId } = usePanelBot();
+  // 面板跟着「当前机器人」走：不是当前的就先进入它的对话，再打开面板（宽窗口右栏，窄窗口抽屉）。
+  const openPanels = async () => {
+    if (panelBotId !== bot.id) {
+      if (latest) await navigate({ to: "/channel/$channelId", params: { channelId: latest.id } });
+      else await navigate({ to: "/channel/new", search: { agent: bot.id } });
+    }
+    showPanels();
+  };
   return (
     <DropdownMenuContent align="start" className="glass-pop w-[288px] p-1.5" side="right" sideOffset={10}>
       <BotChatMenuItems agentId={bot.id} chat={chat} latest={latest} />
+      <DropdownMenuItem className="glass-mi" onClick={() => void openPanels()}>
+        <IconLayoutDashboard className={icon} />
+        <span className="min-w-0 flex-1">
+          <span className="block">{"自定义面板"}</span>
+          <span className="glass-mi-sub">{"它做的仪表盘、列表和小工具"}</span>
+        </span>
+      </DropdownMenuItem>
+      {onComputer ? (
+        <DropdownMenuItem className="glass-mi" onClick={onComputer}>
+          <IconDeviceDesktop className={icon} />
+          <span className="min-w-0 flex-1">
+            <span className="block">{"电脑操作…"}</span>
+            <span className="glass-mi-sub">{"允许它操作你装了 PC 客户端的电脑"}</span>
+          </span>
+        </DropdownMenuItem>
+      ) : null}
       <DropdownMenuSeparator className="glass-sep" />
       {onToggleMain ? (
         <DropdownMenuItem className="glass-mi" onClick={onToggleMain}>
@@ -381,7 +429,7 @@ function BotMenuContent({
           <span className="min-w-0 flex-1">{"恢复运行"}</span>
         </DropdownMenuItem>
       ) : null}
-      {bot.canManage ? (
+      {canDeleteBot(bot) ? (
         <>
           <DropdownMenuSeparator className="glass-sep" />
           <DropdownMenuItem className="glass-mi text-destructive focus:text-destructive" onClick={onDelete}>
@@ -447,6 +495,7 @@ function HiddenBotRow({ bot, chat }: { bot: RosterBot; chat: NonNullable<ReturnT
           chat={chat}
           latest={undefined}
           main={null}
+          onComputer={null}
           onDelete={() => {}}
           onResume={() => {}}
           onToggleMain={null}
@@ -744,6 +793,7 @@ function MiniBot({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [computerOpen, setComputerOpen] = useState(false);
   const resume = useMutation(setBotPausedMutationOptions(queryClient));
   const chat = useBotChat(bot.id);
   const waiting = attention ? needsInput(attention) : 0;
@@ -824,13 +874,14 @@ function MiniBot({
           chat={chat}
           latest={latest}
           main={main}
+          onComputer={() => setComputerOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onResume={() => resume.mutate({ agentId: bot.id, paused: false })}
           onToggleMain={onToggleMain}
           paused={paused}
         />
       </DropdownMenu>
-      {bot.canManage ? (
+      {canDeleteBot(bot) ? (
         <DeleteBotDialog
           bot={{ id: bot.id, name: bot.name }}
           onOpenChange={setDeleteOpen}
@@ -838,6 +889,12 @@ function MiniBot({
           selectedBotId={selected ? bot.id : undefined}
         />
       ) : null}
+      <BotComputerAccessDialog
+        agentId={bot.id}
+        botName={bot.name}
+        onOpenChange={setComputerOpen}
+        open={computerOpen}
+      />
     </div>
   );
 }
@@ -906,6 +963,7 @@ function HiddenChatMiniBot({ known }: { known: Set<string> }) {
             chat={current}
             latest={undefined}
             main={null}
+            onComputer={null}
             onDelete={() => {}}
             onResume={() => {}}
             onToggleMain={null}

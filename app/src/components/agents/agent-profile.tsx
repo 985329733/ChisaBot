@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
+import { IconLayoutDashboard, IconTrash } from "@tabler/icons-react";
 import { AgentDialog } from "@/components/agents/agent-dialog";
+import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
+import { BotComputerAccess } from "@/components/devices/bot-computer-access";
+import { showPanels } from "@/lib/panels/rail-open";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agentQueryOptions } from "@/lib/agents/queries";
@@ -50,6 +54,7 @@ function ProfileSkeleton() {
 export function AgentProfile({ agentId }: { agentId: string }) {
   /** The full dialog, opened over the chat rather than navigating away from it. */
   const [managing, setManaging] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
   const agent = useQuery(agentQueryOptions(agentId));
 
@@ -115,6 +120,53 @@ export function AgentProfile({ agentId }: { agentId: string }) {
           {"管理AI同事"}
         </Button>
       </div>
+
+      {/* 自定义面板：面板跟着当前机器人；宽窗口在右栏，窄窗口在抽屉里。 */}
+      <section className="grid min-w-0 grid-cols-1 gap-2">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {"自定义面板"}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {"它为你做的仪表盘、列表和小工具；也可以让它新建一个，或从面板库安装。"}
+        </p>
+        <Button className="w-full text-sm!" onClick={() => showPanels()} variant="outline">
+          <IconLayoutDashboard />
+          {"打开面板"}
+        </Button>
+      </section>
+
+      <section className="grid min-w-0 grid-cols-1 gap-2">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {"电脑操作"}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {"打开开关，它就能在你装了 PC 客户端的电脑上工作（只限开启的能力和允许的文件夹，每一步都有记录）。"}
+        </p>
+        <BotComputerAccess agentId={agentId} botName={profile.name} compact />
+      </section>
+
+      {profile.canDelete ?? profile.canManage ? (
+        <section className="bot-danger grid min-w-0 grid-cols-1 gap-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-destructive">
+            {"删除机器人"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {profile.systemOwned
+              ? "彻底删除这个部署自带的机器人，以及你与它的私人会话、记忆、定时任务和面板。删除会被记住，更新后也不会回来。此操作无法撤消。"
+              : "彻底删除这个机器人，以及你与它的私人会话、记忆、定时任务和面板。此操作无法撤消。"}
+          </p>
+          <Button className="w-full text-sm!" onClick={() => setDeleting(true)} variant="destructive">
+            <IconTrash />
+            {"删除机器人…"}
+          </Button>
+          <DeleteBotDialog
+            bot={{ id: agentId, name: profile.name }}
+            onOpenChange={setDeleting}
+            open={deleting}
+            selectedBotId={agentId}
+          />
+        </section>
+      ) : null}
 
       <AgentDialog
         agentId={agentId}

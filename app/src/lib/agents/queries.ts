@@ -45,6 +45,8 @@ export type AgentProfile = {
   assignedToMe?: boolean;
   systemOwned: boolean;
   canManage: boolean;
+  /** 能否删除：部署包机器人不能改，但管理员可以删（服务器 canDeleteAgent）。旧服务器没有这个字段时按 canManage。 */
+  canDelete?: boolean;
   /**
    * Whether the signed-in person created this coworker.
    *

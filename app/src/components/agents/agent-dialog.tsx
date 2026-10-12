@@ -789,7 +789,7 @@ function ManageSection({
           </ItemActions>
         </Item>
 
-        {profile.canManage ? (
+        {(profile.canDelete ?? profile.canManage) ? (
           <Item variant="muted">
             <ItemContent>
               <ItemTitle>{"删除机器人"}</ItemTitle>

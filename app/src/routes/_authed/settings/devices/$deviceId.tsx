@@ -94,17 +94,17 @@ function DevicePage() {
     void navigate({ to: "/settings/devices" });
   });
 
-  const back = { linkProps: { to: "/settings/devices" as const }, label: "设备" };
+  const back = { linkProps: { to: "/settings/devices" as const }, label: "电脑操作" };
   if (device.isPending) {
     return (
-      <PageShell backButton={back} title="设备">
+      <PageShell backButton={back} title="电脑操作">
         <PageSkeleton rows={4} tall />
       </PageShell>
     );
   }
   if (device.isError || !device.data) {
     return (
-      <PageShell backButton={back} title="设备">
+      <PageShell backButton={back} title="电脑操作">
         <ErrorCard description={device.error?.message ?? "没有这台设备。"} title="无法读取这台设备" />
       </PageShell>
     );

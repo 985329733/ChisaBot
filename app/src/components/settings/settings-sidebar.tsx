@@ -40,8 +40,8 @@ const GROUPS: RailGroup[] = [
         linkOptions: { to: "/settings/connected-accounts" },
       },
       {
-        title: "设备",
-        sub: "PC 客户端与远程控制",
+        title: "电脑操作",
+        sub: "PC 客户端、能力与审批",
         icon: IconDeviceDesktop,
         linkOptions: { to: "/settings/devices" },
       },

@@ -447,7 +447,7 @@ export function BotProfile({ agent }: { agent: AgentProfile }) {
                 </ItemDescription>
               </ItemContent>
             </Item>
-            {agent.canManage ? (
+            {(agent.canDelete ?? agent.canManage) ? (
               <>
                 <Separator />
                 <Item

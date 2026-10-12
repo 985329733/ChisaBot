@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { forgetDeletedBot } from "@/lib/agents/mutations";
-import { agentApiPath } from "@/lib/agents/queries";
+import { agentApiPath, agentListQueryOptions } from "@/lib/agents/queries";
 import {
   botResetPlanQueryOptions,
   type ResetPlan,
@@ -81,6 +81,10 @@ export function DeleteBotDialog({
   const { mainBotId } = useMainBot();
   const showsBot = useShowsBot(bot.id, selectedBotId);
   const isMain = mainBotId === bot.id;
+  const roster = useQuery({ ...agentListQueryOptions(), enabled: open });
+  const profile = roster.data?.find((a) => a.id === bot.id);
+  const visible = (roster.data ?? []).filter((a) => !a.hidden);
+  const lastBot = roster.isSuccess && visible.length === 1 && visible[0]?.id === bot.id;
   const plan = useQuery({ ...botResetPlanQueryOptions(bot.id), enabled: open });
   const lines = plan.data ? deletionLines(plan.data) : [];
 
@@ -167,7 +171,17 @@ export function DeleteBotDialog({
           ) : null}
           {isMain ? (
             <p className="text-muted-foreground">
-              {"它是你的主机器人，删除后将取消主机器人设置。"}
+              {"它是你的主机器人，删除后将取消主机器人设置，可在左栏右键其他机器人「设为主机器人」。"}
+            </p>
+          ) : null}
+          {profile?.systemOwned ? (
+            <p className="text-muted-foreground">
+              {"它是部署自带的机器人。删除会被记住，重启或更新后也不会再出现。"}
+            </p>
+          ) : null}
+          {lastBot ? (
+            <p className="text-muted-foreground">
+              {"这是你唯一的机器人，删除后会自动新建一个默认的「助手」。"}
             </p>
           ) : null}
           <p className="flex items-center gap-1.5 font-medium text-destructive">

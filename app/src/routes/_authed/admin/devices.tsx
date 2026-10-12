@@ -24,7 +24,7 @@ function AdminDevicesPage() {
         </Button>
       }
       description="这个部署里所有装了 ChisaBot PC 客户端的电脑：在线状态、紧急停止和待审批。点进去可以改能力、文件夹、机器人权限并查看操作记录。"
-      title="设备"
+      title="电脑操作（PC）"
     >
       {list.isPending ? (
         <PageSkeleton rows={4} tall />

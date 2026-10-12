@@ -72,7 +72,7 @@ const GROUPS: RailGroup[] = [
         linkOptions: { to: "/admin/computers" },
       },
       {
-        title: "设备（PC）",
+        title: "电脑操作（PC）",
         icon: IconDeviceLaptop,
         linkOptions: { to: "/admin/devices" },
       },

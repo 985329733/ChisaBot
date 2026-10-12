@@ -65,8 +65,11 @@ import {
   PANEL_RAIL_HOTKEY,
   PANEL_RAIL_HOTKEY_LABEL,
   setPanelRailOpen,
+  setPanelSheetOpen,
   togglePanelRail,
   usePanelRailOpen,
+  usePanelSheetOpen,
+  useWideForRail,
 } from "@/lib/panels/rail-open";
 import { matchesHotkey } from "@/lib/hotkeys/hotkeys";
 import { ToggleTip } from "@/components/layout/glass-topbar";
@@ -133,6 +136,50 @@ export function PanelRail({ className }: { className?: string }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  const wide = useWideForRail();
+  const sheetOpen = usePanelSheetOpen();
+  // 关掉抽屉后窗口又变宽：抽屉的状态不带过去。
+  useEffect(() => {
+    if (wide) setPanelSheetOpen(false);
+  }, [wide]);
+
+  if (!wide) {
+    // 窄窗口（< 1280px）：没有右侧栏的位置，面板改成右边缘把手 + 滑出的抽屉，入口一直在。
+    return (
+      <>
+        {sheetOpen ? null : (
+          <ToggleTip label={"打开面板"} side="left">
+            <button
+              aria-controls={"chisabot-panel-sheet"}
+              aria-expanded={false}
+              aria-label={"打开面板"}
+              className="rail-tab is-narrow"
+              onClick={() => setPanelSheetOpen(true)}
+              type="button"
+            >
+              <IconLayoutSidebarRightExpand className="size-4" />
+              <span className="rail-tab-t">{"面板"}</span>
+            </button>
+          </ToggleTip>
+        )}
+        <Sheet onOpenChange={setPanelSheetOpen} open={sheetOpen}>
+          <SheetContent
+            className="glass-drawer rail-sheet gap-0 p-3 data-[side=right]:sm:max-w-[420px] data-[side=right]:w-[min(420px,100vw)]"
+            id="chisabot-panel-sheet"
+            showCloseButton={false}
+            side="right"
+          >
+            <SheetTitle className="sr-only">{"自定义面板"}</SheetTitle>
+            <SheetDescription className="sr-only">{"当前机器人的自定义面板"}</SheetDescription>
+            <section className="rail-card flex h-full min-h-0 flex-col">
+              <PanelRailBody onCollapse={() => setPanelSheetOpen(false)} />
+            </section>
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
 
   return (
     <>
@@ -214,7 +261,7 @@ function PanelRailHandle({ open }: { open: boolean }) {
   );
 }
 
-function PanelRailBody() {
+function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
   const { botId, routeBotId } = usePanelBot();
   const agents = useQuery(agentListQueryOptions());
   const bot = agents.data?.find((a) => a.id === botId);
@@ -292,7 +339,7 @@ function PanelRailBody() {
             aria-expanded={true}
             aria-label={"收起面板"}
             className="rail-head-icon"
-            onClick={() => setPanelRailOpen(false)}
+            onClick={() => (onCollapse ? onCollapse() : setPanelRailOpen(false))}
             type="button"
           >
             <IconLayoutSidebarRightCollapse className="size-[18px]" />
