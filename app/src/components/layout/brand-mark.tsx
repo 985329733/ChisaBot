@@ -16,10 +16,10 @@ import {
 import { DEFAULT_USER_PREFERENCES } from "../../../../shared/user-preferences";
 
 /**
- * 左上角的品牌名：前一段红字黑边（默认「Chisa」），后一段普通字（默认「Bot」）。
+ * 左上角的品牌名：前一段品牌红粗体（默认「Chisa」），后一段普通字（默认「Bot」）。
  *
  * 每个人可以自己改（点品牌名 → 修改名称），存在个人偏好里，换设备也跟着走。两段都留空时回到默认。
- * 字体是随应用打包的 Fredoka（圆润粗体，只含拉丁字母；中文自动落到系统黑体），不依赖外网字体。
+ * 字体是随应用打包的 Sora（几何无衬线，只含拉丁字母；中文自动落到系统黑体），不依赖外网字体。
  */
 export function useBrandName() {
   const { data } = useUserPreferences();
@@ -87,7 +87,7 @@ function BrandDialog({
       <DialogContent className="glass-modal brand-dialog max-w-[400px]">
         <DialogTitle className="font-semibold text-lg">{"修改名称"}</DialogTitle>
         <DialogDescription className="text-xs">
-          {"左上角显示的名字。前一段是红字黑边，后一段是普通字。只对你自己生效。"}
+          {"左上角显示的名字。前一段是品牌红粗体，后一段是细体。只对你自己生效。"}
         </DialogDescription>
         {open ? <BrandForm onSaved={() => onOpenChange(false)} /> : null}
       </DialogContent>
@@ -128,7 +128,7 @@ function BrandForm({ onSaved }: { onSaved: () => void }) {
       </div>
       <div className="brand-fields">
         <label className="profile-field">
-          <span>{"红字部分"}</span>
+          <span>{"红色部分"}</span>
           <Input
             autoFocus
             maxLength={24}
@@ -138,7 +138,7 @@ function BrandForm({ onSaved }: { onSaved: () => void }) {
           />
         </label>
         <label className="profile-field">
-          <span>{"普通部分"}</span>
+          <span>{"细体部分"}</span>
           <Input
             maxLength={24}
             onChange={(e) => setRest(e.target.value)}

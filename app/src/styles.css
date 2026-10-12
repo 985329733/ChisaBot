@@ -4302,11 +4302,18 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   .computer-screen-wait { animation: none; }
 }
 
-/* ── 品牌名（左上角）：Chisa 红字黑边 + Bot 普通字，用户可在点击后修改 ───────────── */
+/* ── 品牌名（左上角）：Sora 字体，「Chisa」品牌红粗体 + 「Bot」细体墨色；用户点击后可修改 ───── */
 @font-face {
   font-family: "ChisaBrand";
-  src: url("./assets/fonts/fredoka-latin-700.woff2") format("woff2");
+  src: url("./assets/fonts/sora-latin-700.woff2") format("woff2");
   font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "ChisaBrand";
+  src: url("./assets/fonts/sora-latin-400.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
@@ -4328,24 +4335,15 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .brand-mark {
   display: inline-flex;
   align-items: baseline;
-  gap: 1px;
   font-family: "ChisaBrand", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.1;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.015em;
   white-space: nowrap;
 }
-.brand-mark-accent {
-  color: #e8262f;
-  /* 黑边：8 个方向的描边阴影，兼容所有浏览器（不依赖 paint-order）。 */
-  text-shadow:
-    -1.2px -1.2px 0 #111, 0 -1.2px 0 #111, 1.2px -1.2px 0 #111,
-    -1.2px 0 0 #111, 1.2px 0 0 #111,
-    -1.2px 1.2px 0 #111, 0 1.2px 0 #111, 1.2px 1.2px 0 #111,
-    0 2px 3px rgba(0, 0, 0, 0.25);
-}
-.brand-mark-rest { color: var(--ink-1); }
+.brand-mark-accent { font-weight: 700; color: #df1f3a; }
+.brand-mark-rest { font-weight: 400; color: var(--ink-1); }
+.dark .brand-mark-accent { color: #ff4d63; }
 .brand-preview {
   display: flex;
   align-items: center;
@@ -4354,14 +4352,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   border-radius: 16px;
   background: var(--glass-2);
 }
-.brand-preview .brand-mark { font-size: 30px; }
-.brand-preview .brand-mark-accent {
-  text-shadow:
-    -1.8px -1.8px 0 #111, 0 -1.8px 0 #111, 1.8px -1.8px 0 #111,
-    -1.8px 0 0 #111, 1.8px 0 0 #111,
-    -1.8px 1.8px 0 #111, 0 1.8px 0 #111, 1.8px 1.8px 0 #111,
-    0 3px 5px rgba(0, 0, 0, 0.25);
-}
+.brand-preview .brand-mark { font-size: 32px; }
 .brand-form { display: flex; flex-direction: column; gap: 14px; }
 .brand-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .brand-actions { display: flex; justify-content: flex-end; gap: 8px; }
