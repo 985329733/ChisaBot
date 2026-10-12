@@ -90,131 +90,23 @@ export async function decideApproval(id: string, decision: "approve" | "deny") {
   });
 }
 
-/** PC 客户端安装包清单（统一成这个形状，不管来源是哪一种）。都找不到时为 null。 */
+/** 网关上托管的 PC 客户端安装包清单（/downloads/pc/latest.json）。不存在时为 null。 */
 export type PcDownload = {
   version: string;
   publishedAt?: string;
-  /** 从哪里找到的，排查用。 */
-  source?: string;
   files: Array<{ kind: "installer" | "portable"; name: string; url: string; bytes: number; sha256?: string }>;
 };
-
-/** 公开仓库：自建部署没有自己的下载目录时，回退到 GitHub Releases 的最新版本。 */
-const GITHUB_REPO = "ChisaAlter/ChisaBot";
-
-/*
- * 安装包可能放在几个地方，按顺序找，第一个找到的为准：
- *   1. 构建时配置的 VITE_CHISABOT_PC_FEED（latest.json 或 electron-updater 的 latest.yml 的地址）；
- *   2. 本服务器网关的 /downloads/pc/latest.json（登录后可下载）；
- *   3. PC 客户端自动更新用的 /downloads/chisabot-pc/（latest.json 或 latest.yml）；
- *   4. GitHub Releases 最新版本。
- * 以前只认第 2 个，而这台服务器的安装包发布在 /downloads/chisabot-pc/，于是「电脑操作 → 下载 PC 客户端」
- * 一直显示「安装包还没有发布到这台服务器」。
- */
-function feedCandidates(): string[] {
-  const configured = (import.meta.env.VITE_CHISABOT_PC_FEED as string | undefined)?.trim();
-  return [
-    ...(configured ? [configured] : []),
-    "/downloads/pc/latest.json",
-    "/downloads/chisabot-pc/latest.json",
-    "/downloads/chisabot-pc/latest.yml",
-  ];
-}
-
-function kindOf(name: string): "installer" | "portable" | null {
-  if (/setup.*\.exe$/i.test(name) || /\.exe$/i.test(name)) return "installer";
-  if (/portable.*\.zip$/i.test(name) || /\.zip$/i.test(name)) return "portable";
-  return null;
-}
-
-function fromJson(body: unknown, source: string): PcDownload | null {
-  if (!body || typeof body !== "object") return null;
-  const value = body as Partial<PcDownload>;
-  if (typeof value.version !== "string" || !Array.isArray(value.files)) return null;
-  const files = value.files.filter(
-    (file) => file && typeof file.url === "string" && (file.kind === "installer" || file.kind === "portable"),
-  );
-  return files.length ? { ...value, version: value.version, files, source } as PcDownload : null;
-}
-
-/** electron-updater 的 latest.yml：只读需要的几行（version、files[].url/size），不引入 YAML 解析库。 */
-export function parseLatestYml(text: string, feedUrl: string): PcDownload | null {
-  const version = /^version:\s*['"]?([^'"\s]+)/m.exec(text)?.[1];
-  if (!version) return null;
-  const base = new URL(feedUrl, window.location.origin);
-  const files: PcDownload["files"] = [];
-  const re = /-\s+url:\s*['"]?([^'"\n]+?)['"]?\s*\n(?:\s+[a-z0-9]+:.*\n)*?\s+size:\s*(\d+)/gi;
-  for (let match = re.exec(text); match; match = re.exec(text)) {
-    const name = match[1]?.trim() ?? "";
-    const kind = kindOf(name);
-    if (!kind || files.some((file) => file.kind === kind)) continue;
-    files.push({ kind, name, url: new URL(name, base).href, bytes: Number(match[2]) || 0 });
-  }
-  if (!files.length) {
-    const path = /^path:\s*['"]?([^'"\n]+?)['"]?\s*$/m.exec(text)?.[1];
-    if (path && kindOf(path)) files.push({ kind: kindOf(path)!, name: path, url: new URL(path, base).href, bytes: 0 });
-  }
-  const releaseDate = /^releaseDate:\s*['"]?([^'"\n]+)/m.exec(text)?.[1];
-  return files.length ? { version, files, source: feedUrl, ...(releaseDate ? { publishedAt: releaseDate } : {}) } : null;
-}
-
-async function fromFeed(url: string): Promise<PcDownload | null> {
-  try {
-    const response = await fetch(url, { credentials: "include" });
-    if (!response.ok) return null;
-    const type = response.headers.get("content-type") ?? "";
-    // 网关没登录时会把请求转到登录页（HTML），那不是清单。
-    if (type.includes("html")) return null;
-    const text = await response.text();
-    if (/\.ya?ml(\?|$)/i.test(url)) return parseLatestYml(text, url);
-    return fromJson(JSON.parse(text), url);
-  } catch {
-    return null;
-  }
-}
-
-async function fromGitHubRelease(): Promise<PcDownload | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
-    if (!response.ok) return null;
-    const release = (await response.json()) as {
-      tag_name?: string;
-      published_at?: string;
-      assets?: Array<{ name: string; size: number; browser_download_url: string }>;
-    };
-    const files: PcDownload["files"] = [];
-    for (const asset of release.assets ?? []) {
-      if (!/^ChisaBot-PC-/i.test(asset.name)) continue;
-      const kind = /\.exe$/i.test(asset.name) ? "installer" : /\.zip$/i.test(asset.name) ? "portable" : null;
-      if (!kind || files.some((file) => file.kind === kind)) continue;
-      files.push({ kind, name: asset.name, url: asset.browser_download_url, bytes: asset.size });
-    }
-    if (!files.length || !release.tag_name) return null;
-    return {
-      version: release.tag_name.replace(/^v/, ""),
-      files,
-      source: "GitHub Releases",
-      ...(release.published_at ? { publishedAt: release.published_at } : {}),
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function findPcDownload(): Promise<PcDownload | null> {
-  for (const url of feedCandidates()) {
-    const found = await fromFeed(url);
-    if (found) return found;
-  }
-  return fromGitHubRelease();
-}
 
 export function pcDownloadQueryOptions() {
   return queryOptions({
     queryKey: deviceKeys.download,
-    queryFn: findPcDownload,
+    queryFn: async (): Promise<PcDownload | null> => {
+      const response = await fetch("/downloads/pc/latest.json", { credentials: "include" });
+      if (!response.ok) return null;
+      const type = response.headers.get("content-type") ?? "";
+      if (!type.includes("json")) return null;
+      return response.json();
+    },
     staleTime: 10 * 60_000,
     retry: false,
   });
