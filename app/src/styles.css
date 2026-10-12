@@ -1567,14 +1567,14 @@ body::before {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  max-width: min(260px, 46vw);
-  height: 30px;
-  padding: 0 8px 0 4px;
+  max-width: 160px;
+  height: 28px;
+  padding: 0 7px 0 4px;
   border-radius: 999px;
   border: 1px solid rgba(22, 24, 29, 0.07);
   background: rgba(255, 255, 255, 0.55);
   color: var(--glass-ink-2);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -1600,8 +1600,8 @@ body::before {
   border-color: rgba(96, 155, 255, 0.35);
 }
 .model-pill-chevron {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
   opacity: 0.55;
   transition: transform 0.18s ease;
@@ -1671,6 +1671,11 @@ body::before {
 .dark .model-provider-mark {
   background: linear-gradient(135deg, hsl(var(--mark-hue) 45% 30%), hsl(calc(var(--mark-hue) + 30) 40% 24%));
   color: hsl(var(--mark-hue) 85% 82%);
+}
+.model-pill > .model-provider-mark {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
 }
 .model-provider-mark-sm {
   width: 16px;
@@ -4523,30 +4528,21 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .bot-composer-send-icon[data-shown="stop"] .is-send { opacity: 0; transform: scale(0.5); }
 .glass-composer-send[data-testid="composer-stop"]:hover { transform: translateY(-1px); }
 
-/* Shift+Enter 提示：聚焦或有草稿时才淡出来，窄卡片里不占地方。 */
-.bot-composer-hint {
-  color: var(--glass-ink-4);
-  font-size: 11.5px;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity var(--dur-2, 220ms) ease;
-  user-select: none;
-  pointer-events: none;
-}
-.glass-composer:focus-within .bot-composer-hint,
-.bot-composer-hint.is-shown { opacity: 1; }
-.glass-composer.is-running .bot-composer-hint { opacity: 0; }
 .glass-composer { container-type: inline-size; }
-@container (max-width: 600px) { .bot-composer-hint { display: none; } }
-@container (max-width: 430px) { .glass-composer .model-pill-tag { display: none; } .glass-composer .model-pill { max-width: 52cqw; } }
+/* 窄卡片：模型按钮只剩提供方标记 + 箭头（名字在悬停提示和下拉里）。 */
+@container (max-width: 420px) {
+  .glass-composer .model-pill { gap: 3px; padding: 0 5px 0 4px; }
+  .glass-composer .model-pill-name { display: none; }
+}
 
 /* ---------- 上下文读数 ---------- */
 .context-meter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
   height: 30px;
-  padding: 0 9px 0 7px;
+  padding: 0;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -4565,12 +4561,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .context-meter.is-loading { display: none; }
 .context-meter.is-warn { color: var(--warn); }
 .context-meter.is-full { color: var(--danger); }
-.context-meter-total { color: var(--glass-ink-4); }
-.context-meter.is-warn .context-meter-total,
-.context-meter.is-full .context-meter-total { color: inherit; opacity: 0.7; }
-@container (max-width: 640px) { .context-meter-word { display: none; } }
-@container (max-width: 470px) { .context-meter-total { display: none; } }
-@container (max-width: 360px) { .context-meter-text { display: none; } .context-meter { padding: 0 6px; } }
 
 .context-ring { flex-shrink: 0; }
 .context-ring-track { stroke: rgba(22, 36, 62, 0.13); }
@@ -4579,6 +4569,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .dark .context-ring-bar { stroke: rgba(235, 241, 255, 0.82); }
 .context-ring.is-warn .context-ring-bar { stroke: var(--warn); }
 .context-ring.is-full .context-ring-bar { stroke: var(--danger); }
+.context-ring.is-unknown .context-ring-track { stroke-dasharray: 2.2 2.2; }
+.context-meter { cursor: pointer; }
+.context-tip { padding: 3px 8px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .context-meter.is-running .context-ring-bar { animation: context-ring-breathe 1.6s ease-in-out infinite; }
 @keyframes context-ring-breathe { 50% { opacity: 0.45; } }
 

@@ -1,6 +1,8 @@
 import { Popover } from "@base-ui/react/popover";
 import { IconMessagePlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ModelCatalogEntry } from "../../../../shared/model-selection";
 import { contextLevel, formatTokens, type ThreadContextReading, useThreadContext } from "@/lib/copilot/thread-context";
 import { agentModelQueryOptions, modelCatalogQueryOptions } from "@/lib/model-selection/queries";
@@ -22,15 +24,15 @@ const SOURCE_TEXT: Record<ThreadContextReading["source"], string> = {
   estimate: "按消息文字估算（不含系统提示与工具定义，可能偏小）",
 };
 
-/** 小圆环：占用比例；未知窗口时不画（只显示数字）。 */
-function Ring({ ratio, level }: { ratio: number; level: "ok" | "warn" | "full" }) {
+/** 小圆环：占用比例；窗口未知时只画一圈虚线轨道（没有比例可画，不编一个）。 */
+function Ring({ ratio, level, unknown = false }: { ratio: number; level: "ok" | "warn" | "full"; unknown?: boolean }) {
   const r = 7;
   const c = 2 * Math.PI * r;
   const shown = Math.max(0, Math.min(1, ratio));
   return (
-    <svg aria-hidden className={cn("context-ring", `is-${level}`)} height="18" viewBox="0 0 18 18" width="18">
+    <svg aria-hidden className={cn("context-ring", `is-${level}`, unknown && "is-unknown")} height="18" viewBox="0 0 18 18" width="18">
       <circle className="context-ring-track" cx="9" cy="9" fill="none" r={r} strokeWidth="2.25" />
-      <circle
+      {unknown ? null : <circle
         className="context-ring-bar"
         cx="9"
         cy="9"
@@ -41,13 +43,14 @@ function Ring({ ratio, level }: { ratio: number; level: "ok" | "warn" | "full" }
         strokeLinecap="round"
         strokeWidth="2.25"
         transform="rotate(-90 9 9)"
-      />
+      />}
     </svg>
   );
 }
 
 /**
  * 输入框工具栏里的「上下文」：当前对话已占用多少 token / 所选模型的上下文窗口（DESIGN.md §25）。
+ * 平时只是一个小圆环；悬停给一句百分比，点开才是详情。
  *
  * 数字只有两个来源：服务器记下的实测用量，或服务器按消息文字做的估算（标「约」）。窗口大小只来自模型
  * 目录；目录里没有这个模型的窗口时不画圆环、不写分母，绝不拿一个猜的数字充数。
@@ -64,6 +67,8 @@ export function ContextMeter({
   /** 「开始新话题」：快满时在详情里给出；没有就只提示。 */
   onNewTopic?: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [tip, setTip] = useState(false);
   const state = useQuery(agentModelQueryOptions(agentId));
   const catalog = useQuery(modelCatalogQueryOptions());
   const context = useThreadContext(agentId, threadId, running);
@@ -87,22 +92,33 @@ export function ContextMeter({
     : `上下文 已用 ${used}（模型窗口未知）`;
   const otherModel = reading?.model && modelId && tailOf(reading.model) !== tailOf(modelId) ? reading.model : undefined;
 
+  const tipText = size ? `上下文 ${percent}%` : `上下文 ${used}`;
+
   return (
-    <Popover.Root>
-      <Popover.Trigger
-        aria-label={label}
-        className={cn("context-meter", `is-${level}`, running && "is-running")}
-        delay={250}
-        openOnHover
-        type="button"
-      >
-        {size ? <Ring level={level} ratio={ratio} /> : null}
-        <span className="context-meter-text">
-          <span className="context-meter-word">上下文 </span>
-          {used}
-          {size ? <span className="context-meter-total"> / {formatTokens(size)}</span> : null}
-        </span>
-      </Popover.Trigger>
+    <Popover.Root
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setTip(false);
+      }}
+      open={open}
+    >
+      <Tooltip onOpenChange={(next) => setTip(next && !open)} open={tip && !open}>
+        <TooltipTrigger
+          delay={300}
+          render={
+            <Popover.Trigger
+              aria-label={label}
+              className={cn("context-meter", `is-${level}`, running && "is-running")}
+              type="button"
+            />
+          }
+        >
+          <Ring level={level} ratio={ratio} unknown={!size} />
+        </TooltipTrigger>
+        <TooltipContent className="context-tip" side="top" sideOffset={8}>
+          {tipText}
+        </TooltipContent>
+      </Tooltip>
       <Popover.Portal>
         <Popover.Positioner align="end" className="isolate z-50" side="top" sideOffset={10}>
           <Popover.Popup className="context-popover">

@@ -1535,7 +1535,7 @@ export function Composer({
               triggers={triggers}
               value={value}
             />
-            {/* One toolbar inside the frame: attach and the model pill on the left, voice and send on the right. */}
+            {/* One toolbar inside the frame: only attach on the left; model pill, context ring, voice and send on the right (DESIGN.md §25). */}
             <div className="glass-composer-toolbar">
               <div className="flex min-w-0 items-center gap-1.5">
                 {attachmentsEnabled ? (
@@ -1563,10 +1563,9 @@ export function Composer({
                     <IconPlus className="size-[18px]" />
                   </Button>
                 )}
-                {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span className="bot-composer-hint" aria-hidden>Shift + Enter 换行</span>
+              <div className="flex min-w-0 items-center gap-1.5">
+                {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
                 {contextControl}
                 <DictationButton
                   dictation={dictation}
