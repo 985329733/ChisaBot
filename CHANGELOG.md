@@ -8,6 +8,9 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 系统更新：依赖（`bun.lock` / `package.json`）、`Dockerfile` 或 `docker/` 变了时不再停在「需要完整构建」，页面直接给出「一键完整更新」：宿主机从 GitHub 拉最新代码，用仓库 `Dockerfile` 在限内存的 buildx 构建器里从头构建（装依赖、构建前端、构建镜像），照旧先备份数据库、健康检查、失败自动回滚；成功后新镜像就是之后快速更新的底座。「检查更新」真的从 GitHub 拉取（公开仓库不需要令牌），「上次检查」显示拉取时间。升级已有部署：把 `deploy/updater/` 的脚本装到 `/opt/chisabot-updater/`（`config.env` 补 `FULL_BUILD_MEMORY`、`GITHUB_FETCH`）并重启 `chisabot-updater`，见 `docs/online-update.md`。
+- 镜像：`docker build .` 现在产出完整的 ChisaBot 镜像（hoisted 依赖树、前端带构建号、`/app/build-info.json`、`chisabot.commit` 标签、迁移等内嵌数据库就绪）。
+
 - 计算机：机器人自己写的网页能在它的浏览器里打开了——工作区挂在 `https://workspace.local/<路径>`（浏览器内直接读工作区文件，不出网，只能读工作区）；`file:///workspace/…` 自动换成它。以前机器人说「我写个页面然后打开」，结果什么都打不开。
 - 计算机：接管大屏停在空白页、画面一片白时，显示和右栏一致的「浏览器空闲」卡，不再是一块白色矩形。
 
