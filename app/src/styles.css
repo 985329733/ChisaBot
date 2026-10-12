@@ -4282,6 +4282,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .computer-idle-s { max-width: 26em; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); }
 /* 接管大屏上的「浏览器空闲」：盖在画布上，不挡点击（空白页上点了也没事）。 */
 .computer-screen-idle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; text-align: center; pointer-events: none; }
+/* 盖在白色画布上，底必须不透明：.computer-frame 的暗色渐变是半透明的，叠在白帧上会发灰、副标题看不清。 */
+.computer-screen-idle { background: linear-gradient(160deg, #e0f0ff, #f6faff); }
+.dark .computer-screen-idle { background: linear-gradient(160deg, #2b3b54, #1a2333); }
 
 /* 接管：地址栏 + 屏幕。 */
 .computer-urlbar { display: flex; align-items: center; gap: 4px; }
