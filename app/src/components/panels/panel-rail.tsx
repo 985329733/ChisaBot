@@ -1,5 +1,6 @@
 import { FEEDBACK_PRESETS, useMutationFeedback } from "@/components/ui/async-action";
 import { AsyncContent } from "@/components/ui/button";
+import { LivePanelList, useLivePanels } from "./live-panels";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   IconAdjustments,
@@ -338,6 +339,7 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
   useEffect(() => setError(null), [botId]);
 
   const items = list.data?.items ?? [];
+  const liveList = useLivePanels(botId);
 
   // 用户明确要的面板由 BOT 直接保存进面板栏，创作会话随之结束。会话结束时刷新列表，并给刚放进来的
   // 新面板一个「撤销」（删除它）。编辑已有面板不提供撤销，卡片菜单里仍可删除。
@@ -549,10 +551,16 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
               {"重试"}
             </button>
           </div>
-        ) : items.length === 0 ? (
+        ) : (
+          <>
+          {/* 实时面板（机器人在对话里做的、会自己刷新的卡片）排在最前。 */}
+          <LivePanelList botId={botId} />
+          {items.length === 0 ? (
+          (liveList.data?.length ?? 0) === 0 ? (
           <p className="rail-empty">
-            {"还没有面板。点「新建」让 BOT 做一个仪表盘、列表或小工具，或从面板库安装。"}
+            {"还没有面板。在对话里说一句，比如「帮我做一个比特币价格面板」，机器人会做好放在这里并按时刷新；也可以点「新建」或从面板库安装。"}
           </p>
+          ) : null
         ) : (
           items.map((instance) => (
             <PanelCard
@@ -563,6 +571,8 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
               onError={setError}
             />
           ))
+        )}
+          </>
         )}
       </div>
       </div>

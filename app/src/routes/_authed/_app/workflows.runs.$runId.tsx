@@ -198,16 +198,19 @@ function RunPage() {
           </div>
         </div>
         <div className="wf-meters">
-          <Meter icon={<IconCoins className="size-3.5" />} label="Token（估算）" pct={tokenPct} value={`${tokensText(run.usage.tokens)} / ${tokensText(run.limits.maxTokens)}`} />
+          <Meter done={run.status === "succeeded"} icon={<IconCoins className="size-3.5" />} label="Token（估算）" pct={tokenPct} value={`${tokensText(run.usage.tokens)} / ${tokensText(run.limits.maxTokens)}`} />
           <Meter
             icon={<IconListNumbers className="size-3.5" />}
             label="步骤"
+            done={run.status === "succeeded"}
+            progress
             pct={Math.round((run.usage.steps / run.limits.maxSteps) * 100)}
             value={`${run.usage.steps} / ${run.limits.maxSteps}`}
           />
           <Meter
             icon={<IconClock className="size-3.5" />}
             label="用时"
+            done={run.status === "succeeded"}
             pct={timePct}
             value={`${durationText(run.usage.elapsedMs)} / ${run.limits.timeLimitMinutes} 分钟`}
           />
@@ -298,7 +301,11 @@ function stageTone(stage: WorkflowStepState[]) {
   return "";
 }
 
-function Meter({ icon, label, value, pct }: { icon: React.ReactNode; label: string; value: string; pct: number }) {
+/**
+ * 计量条。`done`：运行已经成功结束——用满预算不是错误，不画红（2026-10-13 实测：3/3 步完成时步骤条
+ * 变红，看起来像出错）。`progress`：这条是进度（步骤），成功结束时画成完成色。
+ */
+function Meter({ icon, label, value, pct, done = false, progress = false }: { icon: React.ReactNode; label: string; value: string; pct: number; done?: boolean; progress?: boolean }) {
   return (
     <div className="wf-meter">
       <div className="wf-meter-k">
@@ -308,7 +315,14 @@ function Meter({ icon, label, value, pct }: { icon: React.ReactNode; label: stri
         <span className="wf-meter-v">{value}</span>
       </div>
       <div className="wf-meter-bar" role="progressbar" aria-label={label} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <span className={cn(pct >= 90 && "is-danger", pct >= 70 && pct < 90 && "is-warn")} style={{ width: `${Math.max(2, pct)}%` }} />
+        <span
+          className={cn(
+            done && progress && "is-done",
+            !done && pct >= 90 && "is-danger",
+            !(done && progress) && pct >= 70 && (done || pct < 90) && "is-warn",
+          )}
+          style={{ width: `${Math.max(2, pct)}%` }}
+        />
       </div>
     </div>
   );

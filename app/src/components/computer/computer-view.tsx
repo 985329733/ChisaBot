@@ -593,8 +593,8 @@ export function ComputerView({
                 : control.transitioning
                   ? "正在完成当前操作…"
                   : driving
-                    ? "您拥有控制权。打开屏幕以点击和输入。"
-                    : "助手已获得控制权。"}
+                    ? "你在控制浏览器，打开大屏点击和输入，用完点「交还」。"
+                    : "机器人在用浏览器，你可以随时接管。"}
             </span>
             <ComputerControlButton
               computerId={computerId}
