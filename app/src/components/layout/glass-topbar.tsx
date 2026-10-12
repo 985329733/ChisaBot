@@ -6,11 +6,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactElement } from "react";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { type DesktopWindowBridge, useDesktopWindow } from "@/lib/desktop-window";
-import { appConfig } from "@/lib/generated/application-config";
 import { PROTO_PREVIEW } from "@/lib/proto-preview";
 import { cn } from "@/lib/utils";
 
@@ -91,7 +91,7 @@ export function GlassTopBar({ scope = "app" }: { scope?: ShellScope }) {
           </button>
         ) : (
           <span className="glass-brand">
-            {appConfig.brand.productName}
+            <BrandMark />
             {PROTO_PREVIEW ? (
               <span className="proto-badge" title={"这是独立的原型沙箱，使用线上数据的副本；改动不会影响线上。"}>
                 {"原型预览"}
