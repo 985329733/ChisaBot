@@ -108,6 +108,8 @@ export type ScreenshotResult = {
    * failure that matters is a real screenshot being hidden behind a placeholder.
    */
   url?: string;
+  /** about:blank 上已经画了本地起始页（新标签页），画面可以直接显示。 */
+  startPage?: boolean;
 };
 
 /** The current page as text, without opening anything. Same shape as a navigation, minus the trip. */

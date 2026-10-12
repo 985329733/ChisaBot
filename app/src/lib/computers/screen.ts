@@ -14,6 +14,8 @@ export type Screenshot = {
   capturedAt: string;
   /** `about:blank` when the browser has not been sent anywhere yet. Absent on older computers. */
   url?: string;
+  /** 空白页上已经画了本地起始页（新标签页），这张图可以直接显示，不是一片白。 */
+  startPage?: boolean;
 };
 
 /**

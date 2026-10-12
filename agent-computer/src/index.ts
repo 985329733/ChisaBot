@@ -49,6 +49,7 @@ import {
   sensitiveRefs,
 } from "./secret-masking";
 import { type BotSession, createSessions } from "./sessions";
+import { ensureStartPage, whileNavigating } from "./start-page";
 import { createShell } from "./shell";
 import { fillSignIn, parseSignInFill } from "./sign-in";
 import { startVirtualDisplay } from "./virtual-display";
@@ -514,6 +515,8 @@ serve<StreamData>({
         let casting: Page | undefined;
         const attach = async () => {
           const target = await currentPage(ws.data.botId);
+          // 接管时看到的也是起始页，而不是一片白。
+          void ensureStartPage(target);
           if (target === casting) return;
           const cast = await startScreencast(target, send);
           // The claim stops a cast it refuses, so a launch that lost the screen leaks nothing.
@@ -1005,11 +1008,13 @@ serve<StreamData>({
         try {
           const target = await currentPage(botId, "navigate");
           session.control.assertBotMayAct(true);
-          const response = await navigateWebPage(
-            target,
-            parsed.url,
-            RUNTIME.backend,
-            NAVIGATION_TIMEOUT_MS,
+          const response = await whileNavigating(target, () =>
+            navigateWebPage(
+              target,
+              parsed.url,
+              RUNTIME.backend,
+              NAVIGATION_TIMEOUT_MS,
+            ),
           );
           // A new document wipes every stamp, so every ref handed out before now is meaningless.
           // Bumping the generation makes an action carrying one fail with "take a new snapshot" rather
@@ -1053,6 +1058,8 @@ serve<StreamData>({
       if (url.pathname === "/screenshot" && request.method === "GET") {
         try {
           const target = await currentPage(botId);
+          // 空白页先画上起始页，截图才不是一张纯白图。
+          await ensureStartPage(target);
           // Sensitive fields are masked in the picture the Bot is handed. See secret-masking.ts.
           const buffer = await target.screenshot({
             type: "png",
@@ -1069,6 +1076,8 @@ serve<StreamData>({
             // from a real page to anything looking only at the bytes. The transcript needs to tell
             // those apart to avoid presenting a blank browser as though it were a loaded page.
             url: target.url(),
+            // about:blank 上画的是本地起始页，而不是真的一片白。网页端据此直接显示画面。
+            startPage: target.url() === "about:blank",
           });
         } catch (error) {
           return json(

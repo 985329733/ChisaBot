@@ -17,6 +17,8 @@ import { useElementVisible, usePageVisible } from "./preview-visibility";
 /** Explicit blank-browser URLs use placeholder artwork; missing URL fields are treated as real pages. */
 function isBlankBrowser(shot: Screenshot): boolean {
   if (shot.url === undefined) return false;
+  // 服务端在空白页上画了起始页：那就是一张有内容的画面，直接显示，不再盖「浏览器空闲」卡片。
+  if (shot.startPage) return false;
   const url = shot.url.trim();
   return url === "" || url === "about:blank";
 }
