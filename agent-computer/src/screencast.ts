@@ -13,6 +13,7 @@
  * Protocol.
  */
 import type { CDPSession, Page } from "playwright";
+import { whileNavigating } from "./start-page";
 
 /** What the surface sends us. */
 export type InputMessage =
@@ -318,15 +319,18 @@ export async function startScreencast(
       if (message.type === "navigate" || message.type === "history") {
         const from = pageUrl() ?? "";
         try {
-          if (message.type === "navigate") {
-            await page.goto(message.url, { waitUntil: "commit", timeout: 20_000 });
-          } else if (message.action === "back") {
-            await page.goBack({ waitUntil: "commit", timeout: 20_000 });
-          } else if (message.action === "forward") {
-            await page.goForward({ waitUntil: "commit", timeout: 20_000 });
-          } else {
-            await page.reload({ waitUntil: "commit", timeout: 20_000 });
-          }
+          // 导航途中网址还是 about:blank，标记一下，别让起始页和这次导航抢文档。
+          await whileNavigating(page, async () => {
+            if (message.type === "navigate") {
+              await page.goto(message.url, { waitUntil: "commit", timeout: 20_000 });
+            } else if (message.action === "back") {
+              await page.goBack({ waitUntil: "commit", timeout: 20_000 });
+            } else if (message.action === "forward") {
+              await page.goForward({ waitUntil: "commit", timeout: 20_000 });
+            } else {
+              await page.reload({ waitUntil: "commit", timeout: 20_000 });
+            }
+          });
           if (!stopped)
             onFrame({ type: "navigation", ok: true, url: pageUrl() ?? from });
         } catch (error) {
