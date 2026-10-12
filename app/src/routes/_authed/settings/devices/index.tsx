@@ -12,7 +12,10 @@ export const Route = createFileRoute("/_authed/settings/devices/")({
   component: DevicesPage,
 });
 
-/** 偏好设置 → 设备（模板 B）：待审批 → 设备列表 → 添加一台电脑 / 下载 PC 客户端。docs/pc-node.md */
+/**
+ * 设置 → 设备（模板 B）：待审批 → 设备列表（账号下关联的全部设备）→ 添加一台电脑 / 下载 PC 客户端。
+ * 设备属于账号，所有机器人共用（docs/pc-node.md §7）。机器人「⋯ → 电脑操作…」也指向这里。
+ */
 function DevicesPage() {
   const list = useQuery(deviceListQueryOptions());
   const [local] = usePcLocal();
@@ -21,6 +24,7 @@ function DevicesPage() {
   const devices = list.data?.devices ?? [];
   const active = devices.filter((device) => !device.revoked);
   const revoked = devices.filter((device) => device.revoked);
+  const online = active.filter((device) => device.online).length;
   return (
     <PageShell
       action={
@@ -31,8 +35,8 @@ function DevicesPage() {
           </Button>
         ) : undefined
       }
-      description="装了 ChisaBot PC 客户端的电脑。你可以在任何一端（网页、手机、PC）管理它们；机器人只能在你开启的能力和允许的文件夹里操作，每一步都有记录。"
-      title="电脑操作"
+      description="关联到你账号的全部设备，由你的所有机器人共用：机器人只能在每台设备开启的能力和允许的文件夹里操作在线设备，「询问」的操作先问你，每一步都有记录，随时可以紧急停止。"
+      title="设备"
     >
       {list.isPending ? (
         <PageSkeleton rows={3} />
@@ -49,7 +53,10 @@ function DevicesPage() {
       ) : (
         <>
           <ApprovalsCard approvals={list.data.approvals} />
-          <PageSection title={`我的电脑${active.length ? `（${active.length}）` : ""}`}>
+          <PageSection
+            description={active.length ? `共 ${active.length} 台，${online ? `${online} 台在线` : "都不在线"}。点一行查看详情、改能力和看操作记录；右侧 ⋯ 可以重命名、撤销或删除。` : undefined}
+            title="设备列表"
+          >
             {active.length ? (
               <Card>
                 {active.map((device) => (

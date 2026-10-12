@@ -10,13 +10,19 @@ import { DeviceRefusedError, type DeviceHub } from "./hub";
 import type { DeviceRecord, DeviceStore } from "./store";
 
 /**
- * 把 PC 节点的能力变成机器人工具（docs/pc-node.md §7）。
+ * 把设备节点的能力变成机器人工具（docs/pc-node.md §7）。
  *
- * 只给「这个机器人被允许使用、并属于这次运行的人」的设备；一台都没有就一个工具都不给。
- * 每次执行都重新读设备（开关可能刚被改过），再交给 hub：撤销 / 紧急停止 / 能力 / 审批 / 审计都在那里。
+ * 设备属于账号，不属于某个机器人：这次运行的人名下的每台在线设备，这个人的任何机器人都能用
+ * （调用方 index.ts 只在至少一台在线时才给工具）。不再有「按机器人勾选」这一层；安全边界仍是每台设备
+ * 自己的能力开关（默认全关）、允许的文件夹、审批、紧急停止和审计，全部在 hub 里。
+ * 每次执行都重新读设备（开关可能刚被改过）。多台在线时用 deviceId 选（id 或名称）；只有一台在线时可省略。
  */
 
-const deviceId = z.string().min(1).describe("目标设备 id（见工具说明里的可用设备列表或 device_list）");
+const deviceId = z
+  .string()
+  .min(1)
+  .optional()
+  .describe("目标设备：设备 id 或设备名称（见 device_list）。只有一台在线设备时可以省略；多台在线时必须指定。");
 
 const schemas = {
   list: z.object({}),
@@ -69,6 +75,38 @@ const schemas = {
   }),
 };
 
+/**
+ * 把模型给的设备选择（id / 名称 / 主机名，或省略）解析成这个人名下的一台未撤销设备。
+ * 返回字符串 = 拒绝原因（给模型看）。
+ */
+export async function resolveDevice(
+  store: Pick<DeviceStore, "forOwner">,
+  ownerUserId: string,
+  selector: string | undefined,
+  isOnline: (id: string) => boolean,
+): Promise<DeviceRecord | string> {
+  const owned = await store.forOwner(ownerUserId);
+  const wanted = selector?.trim();
+  if (wanted) {
+    const byId = owned.find((device) => device.id === wanted);
+    if (byId) return byId;
+    const key = wanted.toLowerCase();
+    const byName = owned.filter((device) => device.name.toLowerCase() === key);
+    const matches = byName.length ? byName : owned.filter((device) => device.hostname?.toLowerCase() === key);
+    if (matches.length === 1) return matches[0] as DeviceRecord;
+    if (matches.length > 1) {
+      const online = matches.filter((device) => isOnline(device.id));
+      if (online.length === 1) return online[0] as DeviceRecord;
+      return `有 ${matches.length} 台设备都叫「${wanted}」，请改用设备 id。`;
+    }
+    return `用户名下没有「${wanted}」这台设备（或它已被撤销）。`;
+  }
+  const online = owned.filter((device) => isOnline(device.id));
+  if (online.length === 1) return online[0] as DeviceRecord;
+  if (online.length === 0) return "用户名下现在没有在线的设备。";
+  return `现在有 ${online.length} 台设备在线，请用 deviceId 指定是哪一台。`;
+}
+
 function clip(text: string, max: number) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
@@ -98,14 +136,14 @@ export function deviceTools(options: {
 
   async function run(
     operation: DeviceOperation,
-    id: string,
+    selector: string | undefined,
     args: Record<string, unknown>,
     summary: string,
     timeoutMs?: number,
   ): Promise<string> {
-    const device = await store.get(id);
-    if (!device || device.ownerUserId !== actorId || !device.botIds.includes(botId))
-      return `${REFUSAL_MARKER} 没有这台设备，或这个机器人没有被允许使用它。可用设备：${roster}`;
+    const picked = await resolveDevice(store, actorId, selector, (id) => hub.isOnline(id));
+    if (typeof picked === "string") return `${REFUSAL_MARKER} ${picked} 可用设备：${roster}`;
+    const device = picked;
     try {
       const result = await hub.invoke({
         device,
@@ -140,15 +178,16 @@ export function deviceTools(options: {
     {
       name: "device_list",
       ref: "devices/list",
-      description: `列出你可以操作的用户电脑（ChisaBot PC 客户端）及其在线状态和已开启的能力。当前：${roster}`,
+      description: `列出用户账号下关联的全部设备（ChisaBot PC / 手机客户端）及其在线状态和已开启的能力。这些设备由用户的所有机器人共用。当前在线：${roster}`,
       parameters: schemas.list,
       execute: async () => {
-        const fresh = await store.forBot(actorId, botId);
+        const fresh = await store.forOwner(actorId);
         return JSON.stringify({
           devices: fresh.map((device) => ({
             deviceId: device.id,
             name: device.name,
             platform: device.platform,
+            clientVersion: device.clientVersion,
             hostname: device.hostname,
             online: hub.isOnline(device.id),
             paused: device.paused,

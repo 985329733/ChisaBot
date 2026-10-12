@@ -45,8 +45,8 @@ const PERSONAL: RailGroup[] = [
         linkOptions: { to: "/settings/connected-accounts" },
       },
       {
-        title: "电脑操作",
-        sub: "PC 客户端、能力与审批",
+        title: "设备",
+        sub: "已关联的设备、能力与审批",
         icon: IconDeviceDesktop,
         linkOptions: { to: "/settings/devices" },
       },

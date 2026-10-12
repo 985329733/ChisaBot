@@ -23,6 +23,7 @@ import {
   deviceKeys,
   deviceListQueryOptions,
   deviceQueryOptions,
+  lastUsedText,
   patchDevice,
   platformLabel,
   revokeDevice,
@@ -94,17 +95,17 @@ function DevicePage() {
     void navigate({ to: "/settings/devices" });
   });
 
-  const back = { linkProps: { to: "/settings/devices" as const }, label: "电脑操作" };
+  const back = { linkProps: { to: "/settings/devices" as const }, label: "设备" };
   if (device.isPending) {
     return (
-      <PageShell backButton={back} title="电脑操作">
+      <PageShell backButton={back} title="设备">
         <PageSkeleton rows={4} tall />
       </PageShell>
     );
   }
   if (device.isError || !device.data) {
     return (
-      <PageShell backButton={back} title="电脑操作">
+      <PageShell backButton={back} title="设备">
         <ErrorCard description={device.error?.message ?? "没有这台设备。"} title="无法读取这台设备" />
       </PageShell>
     );
@@ -126,7 +127,9 @@ function DevicePage() {
             {d.clientVersion ? <span className="device-badge">{`客户端 ${d.clientVersion}`}</span> : null}
           </div>
           <p className="device-hero-s">
-            {[d.osVersion, d.hostname, seenText(d.lastSeenAt, d.online), d.lastIp ? `IP ${d.lastIp}` : null].filter(Boolean).join(" · ")}
+            {[d.osVersion, d.hostname, seenText(d.lastSeenAt, d.online), d.lastIp ? `IP ${d.lastIp}` : null, d.lastUsedBy ? `最近使用：${lastUsedText(d.lastUsedBy)}` : null]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         {!d.revoked ? (
@@ -195,19 +198,24 @@ function DevicePage() {
             <SettingRow description="登记时生成，用来区分同名电脑。" title="设备 ID">
               <code className="device-code">{d.id}</code>
             </SettingRow>
-            <SettingRow description={new Date(d.createdAt).toLocaleString("zh-CN")} title="登记时间" />
+            <SettingRow description={new Date(d.createdAt).toLocaleString("zh-CN")} title="关联时间" />
+            <SettingRow description={d.clientVersion ?? "未知"} title="客户端版本" />
+            <SettingRow
+              description={d.lastUsedBy ? `${lastUsedText(d.lastUsedBy)}（${new Date(d.lastUsedBy.at).toLocaleString("zh-CN")}）` : "还没有机器人使用过这台设备。"}
+              title="最近使用的机器人"
+            />
           </Card>
           <section className="device-section">
             <h2 className="device-section-t is-danger">{"危险区"}</h2>
             <Card className="device-danger">
               {!d.revoked ? (
-                <SettingRow description="立即作废这台电脑的令牌并断开连接。之后它需要重新登录才能再次连接。" title="撤销设备">
+                <SettingRow description="立即作废这台设备的令牌并断开连接，所有机器人都不能再使用它。之后它需要重新登录才能再次关联。" title="撤销关联">
                   <Button
                     feedback="revoke"
                     onClick={async () => {
                       const ok = await confirmDialog({
                         title: `撤销「${d.name}」？`,
-                        description: "这台电脑会立即断开，机器人不能再操作它。PC 客户端需要重新登录才能再次连接。",
+                        description: "这台设备会立即断开，所有机器人都不能再使用它。客户端需要重新登录才能再次关联。",
                         confirmLabel: "撤销",
                         destructive: true,
                       });

@@ -3103,6 +3103,30 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .device-row-link { display: block; color: inherit; text-decoration: none; }
 .device-row-link + .device-row-link .sg-lrow { border-top: 1px solid var(--line); }
 .device-row-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-blue); border-radius: 14px; }
+/* 设备列表行（2026-10-12「设备列表」）：主体是链接，右侧 ⋯ 菜单在链接外面（不嵌套交互元素）。 */
+.device-row { display: flex; align-items: center; transition: background var(--dur-1), opacity var(--dur-2); }
+.device-row + .device-row { border-top: 1px solid var(--line); }
+.device-row:hover { background: var(--glass-hover); }
+.device-row.is-busy { opacity: .72; }
+.device-row > .device-row-link { flex: 1; min-width: 0; }
+.device-row > .device-row-link .sg-lrow { padding-right: 8px; }
+.device-row > .device-row-link .sg-lrow:hover { background: transparent; }
+.device-row-facts { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
+.device-cap-chip {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 500; white-space: nowrap; color: var(--accent-blue-ink); background: var(--accent-blue-soft);
+}
+.device-cap-chip.is-ask { color: var(--warn); background: var(--warn-soft); }
+.device-cap-chip.is-off { color: var(--ink-3); background: var(--glass-2); border: 1px solid var(--line); }
+.device-row-used { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-3); margin-left: 2px; }
+.device-row-more {
+  flex: none; width: 32px; height: 32px; margin-right: 14px; border-radius: 10px; display: grid; place-items: center;
+  color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1);
+}
+.device-row-more:hover, .device-row-more[data-popup-open] { background: var(--glass-2); color: var(--ink-1); }
+.device-row-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-blue); }
+@media (max-width: 640px) { .device-row-facts { white-space: normal; } .device-row-more { margin-right: 8px; } }
 .device-row-actions { display: inline-flex; align-items: center; gap: 8px; }
 .device-icon {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
@@ -4179,6 +4203,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   background: var(--glass-1);
 }
 .bca-empty { align-items: flex-start; padding: 12px; }
+.bca-row-link { color: inherit; text-decoration: none; transition: background var(--dur-1), border-color var(--dur-1); }
+.bca-row-link:hover { background: var(--glass-hover); }
+.bca-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-blue); }
 .bca-ico {
   display: grid; place-items: center; flex: none;
   width: 34px; height: 34px; border-radius: 10px;

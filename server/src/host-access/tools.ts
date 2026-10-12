@@ -130,9 +130,8 @@ export function hostAccessTools(options: {
 }): GrantedTool[] {
   const { broker, botId, actorId } = options;
   const status = broker.statusFor(actorId);
-  const grants = status.grants.filter(
-    (grant) => grant.botId === botId && !grant.revoked,
-  );
+  // 授权属于这个人：任何机器人都能用这个人授权过的文件夹（审批、审计、紧急停止不变）。
+  const grants = status.grants.filter((grant) => !grant.revoked);
   const audit = (operation: string, grantId?: string) => ({
     auditStore: options.auditStore,
     initiator: options.initiator,
@@ -143,7 +142,7 @@ export function hostAccessTools(options: {
   });
 
   /*
-   * 只有这台桌面宿主（上游 Tauri 客户端）此刻连着、并且给这个机器人授权过文件夹时才提供 host_* 工具。
+   * 只有这台桌面宿主（上游 Tauri 客户端）此刻连着、并且这个人授权过文件夹时才提供 host_* 工具。
    * 以前 host_list_folders 无条件提供给每个机器人，而 ChisaBot 不发布这个桌面宿主，于是模型一调用就
    * 被拒绝，聊天里出现「已阻止：host_list_folders」。没有能用的宿主时一个都不给，模型也就不会去试。
    * 电脑上的文件 / 命令走「电脑操作」（device_* 工具，server/src/devices）。

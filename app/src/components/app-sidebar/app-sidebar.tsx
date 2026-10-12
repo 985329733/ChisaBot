@@ -376,7 +376,7 @@ function BotMenuContent({
   onToggleMain: (() => void) | null;
   onResume: () => void;
   onDelete: () => void;
-  /** 「电脑操作…」：这个机器人能操作哪些 PC。null = 不显示（例如隐藏的浏览器机器人）。 */
+  /** 「电脑操作…」：账号下关联的设备（所有机器人共用）。null = 不显示（例如隐藏的浏览器机器人）。 */
   onComputer: (() => void) | null;
 }) {
   const icon = "size-[18px] shrink-0 opacity-80";
@@ -405,7 +405,7 @@ function BotMenuContent({
           <IconDeviceDesktop className={icon} />
           <span className="min-w-0 flex-1">
             <span className="block">{"电脑操作…"}</span>
-            <span className="glass-mi-sub">{"允许它操作你装了 PC 客户端的电脑"}</span>
+            <span className="glass-mi-sub">{"你关联的设备，所有机器人共用"}</span>
           </span>
         </DropdownMenuItem>
       ) : null}

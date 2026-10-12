@@ -137,8 +137,13 @@ export type DeviceView = {
   lastSeenAt: string | null;
   lastIp: string | null;
   createdAt: string;
-  /** 允许使用这台设备的机器人 id。 */
+  /**
+   * 旧版「按机器人授权」留下的列表，已不再起作用：从 2026-10 起设备属于账号，用户的每个机器人都能使用
+   * 在线设备（仍受能力开关、允许的文件夹、审批、紧急停止限制）。保留字段只为兼容旧客户端。
+   */
   botIds: string[];
+  /** 最近一次由机器人发起的操作（来自设备审计记录）；从未被机器人用过为 null。 */
+  lastUsedBy: { botId: string | null; botName: string | null; at: string } | null;
 };
 
 export type DeviceAuditEntry = {

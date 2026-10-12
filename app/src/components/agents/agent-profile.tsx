@@ -140,7 +140,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
           {"电脑操作"}
         </h2>
         <p className="text-sm text-muted-foreground">
-          {"打开开关，它就能在你装了 PC 客户端的电脑上工作（只限开启的能力和允许的文件夹，每一步都有记录）。"}
+          {"你关联的设备由所有机器人共用：它可以使用在线设备，只限每台设备开启的能力和允许的文件夹，每一步都有记录。"}
         </p>
         <BotComputerAccess agentId={agentId} botName={profile.name} compact />
       </section>

@@ -20,11 +20,11 @@ function AdminDevicesPage() {
     <PageShell
       action={
         <Button nativeButton={false} render={<Link to="/settings/devices" />} size="sm" variant="outline">
-          {"添加电脑"}
+          {"我的设备"}
         </Button>
       }
-      description="这个部署里所有装了 ChisaBot PC 客户端的电脑：在线状态、紧急停止和待审批。点进去可以改能力、文件夹、机器人权限并查看操作记录。"
-      title="电脑操作（PC）"
+      description="这个部署里所有用户关联的设备：在线状态、紧急停止和待审批。每台设备由它的主人的所有机器人共用；点进去可以改能力、文件夹并查看操作记录。"
+      title="全部设备（管理）"
     >
       {list.isPending ? (
         <PageSkeleton rows={4} tall />
@@ -47,7 +47,7 @@ function AdminDevicesPage() {
                 ))}
               </Card>
             ) : (
-              <EmptyState description="还没有任何电脑登记。在 设置 → 电脑操作 下载 PC 客户端。" icon={<IconDeviceDesktop className="size-6" />} title="还没有设备" />
+              <EmptyState description="还没有任何电脑登记。在 设置 → 设备 下载 PC 客户端。" icon={<IconDeviceDesktop className="size-6" />} title="还没有设备" />
             )}
           </PageSection>
         </>

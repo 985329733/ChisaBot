@@ -57,7 +57,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 
 每项三态：**关闭 / 询问（每次审批）/ 允许（直接执行，仍审计）**。文件类能力还受**允许的文件夹**约束：相对路径相对第一个文件夹；解析符号链接后比较前缀（Windows 不区分大小写），防止 `..` 和链接逃逸；没有文件夹时一律拒绝。
 
-机器人工具（`server/src/devices/tools.ts`）：`device_list`、`device_system_info`、`device_run_shell`、`device_list_files`、`device_read_file`、`device_write_file`、`device_screenshot`、`device_input`、`device_open`、`device_clipboard`。只给「这个机器人被勾选、且属于这次运行的人」的设备；某能力在所有设备上都关闭时对应工具不出现。每个工具的说明里带当前可用设备列表（id、名称、在线、已开能力），机器人每次调用都要指定 `deviceId`。截图原图留在服务器内存 30 分钟，工具返回 `/api/devices/<id>/screenshots/<sid>`，机器人可以在回复里用 Markdown 展示。
+机器人工具（`server/src/devices/tools.ts`）：`device_list`、`device_system_info`、`device_run_shell`、`device_list_files`、`device_read_file`、`device_write_file`、`device_screenshot`、`device_input`、`device_open`、`device_clipboard`。**设备属于账号，不属于某个机器人**（2026-10-12 起）：这次运行的人名下的每台在线设备，他的任何机器人都能用；只有别人发布的团队机器人（`agent_profiles` 的主人是另一个人）拿不到。至少一台在线时才给工具；某能力在所有在线设备上都关闭时对应工具不出现。安全边界不变：每台设备的能力默认全关、允许的文件夹、审批、紧急停止、审计都在 hub 里逐台生效。`deviceId` 可以是设备 id、设备名称或主机名；只有一台在线时可以省略，多台在线时必须指定（`resolveDevice`）。旧的 `device_bot_access` 表和 `botIds` 字段保留但不再参与授权（便于回滚）。上游桌面宿主的文件夹授权（host_* 工具）同样改为按人共用：发给桌面的操作仍带授权时的机器人 id（桌面端按它校验），真正发起的机器人在审批与审计里。截图原图留在服务器内存 30 分钟，工具返回 `/api/devices/<id>/screenshots/<sid>`，机器人可以在回复里用 Markdown 展示。
 
 ## 6. 安全
 
@@ -73,8 +73,8 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 
 ## 7. 网页（设计见 DESIGN.md §16）
 
-- **偏好设置 → 设备**（`/settings/devices`，模板 B）：待审批卡片 → 我的电脑列表（在线点、系统、最后在线、已开能力数）→ 已撤销 → 添加一台电脑（下载卡片 + 三步说明 + 一键复制服务器地址）。
-- **设备详情**（`/settings/devices/$deviceId`，模板 C）：72px 设备图标页头 + 徽标 + 「测试连接」「紧急停止 / 解除」；标签 权限（能力三态分段、允许的文件夹、可用机器人、名称，改动后出现未保存栏）/ 操作记录 / 设备（ID、登记时间、危险区：撤销、删除）。
+- **设置 → 设备**（`/settings/devices`，模板 B；机器人「⋯ → 电脑操作…」弹窗和机器人资料页也列出同一批设备并链接到这里）：待审批卡片 → 设备列表（名称、系统与版本、客户端版本、在线 / 最后在线、关联时间、已开能力小标签、最近使用的机器人；右侧 ⋯ = 查看详情 / 能力与权限 / 重命名… / 撤销关联… / 删除…）→ 已撤销 → 添加一台电脑（下载卡片 + 三步说明 + 一键复制服务器地址）。
+- **设备详情**（`/settings/devices/$deviceId`，模板 C）：72px 设备图标页头 + 徽标 + 「测试连接」「紧急停止 / 解除」；标签 权限（能力三态分段、允许的文件夹、谁可以使用 = 你的所有机器人 + 最近使用、名称，改动后出现未保存栏）/ 操作记录 / 设备（ID、关联时间、客户端版本、最近使用的机器人、危险区：撤销、删除）。
 - **管理后台 → 设备（PC）**（`/admin/devices`，模板 E）：统计磁贴（设备 / 在线 / 待审批 / 紧急停止中）+ 全部设备（含所有者）。
 - 下载：网关托管 `https://<你的域名>:8443/downloads/pc/`（需登录），清单 `latest.json`，设备页自动显示版本、大小、SHA-256。
 
