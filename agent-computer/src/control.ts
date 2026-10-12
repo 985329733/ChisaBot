@@ -185,10 +185,8 @@ export function createControl(
     interrupt(
       "The computer process restarted; the previous page was interrupted. Request help again to continue.",
     );
-  if (restored && !active(current()) && data.holder === "bot") {
-    data.resumeSnapshotRequired = true;
-    persist();
-  }
+  // 进程重启（部署、浏览器回收）而没有人接管过时，页面没有被人动过，不要求 BOT 先拍快照；旧的元素编号
+  // 已经随会话一起作废，点击/输入仍会因为编号过期而要求重新拍快照。
   syncAdmission();
 
   function rememberAlias(toolCallId: string, requestId: string) {

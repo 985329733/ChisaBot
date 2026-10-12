@@ -1103,7 +1103,10 @@ serve<StreamData>({
         const startedAt = Date.now();
         try {
           const target = await currentPage(botId, "navigate");
-          session.control.assertBotMayAct(true);
+          // 打开网址不依赖旧快照里的元素编号，整页会被替换，所以不要求先拍快照（只要求人没有在操作）。
+          // 以前这里传 true：浏览器重启/部署后 BOT 的第一次打开网页必定失败（"Take a fresh browser
+          // snapshot after handback"），用户看到的就是计算机一直停在起始页。
+          session.control.assertBotMayAct(false);
           const response = await whileNavigating(target, () =>
             navigateWebPage(
               target,
