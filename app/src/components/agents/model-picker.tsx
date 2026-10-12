@@ -69,7 +69,8 @@ export function ProviderMark({ provider, className }: { provider: string; classN
 }
 
 /**
- * The composer's model control: one compact pill that opens a frosted popover listing the BOT's
+ * The composer's model control (right side of the toolbar, next to the context ring; DESIGN.md §25):
+ * one short pill — provider mark, truncated name, chevron; no 「默认」 badge on the trigger — that opens a frosted popover listing the BOT's
  * models grouped by provider, with search, the deployment default, and the catalog refresh. It
  * edits the same per-BOT saved model as the full `BotModelSelector` used in settings.
  */
@@ -158,13 +159,12 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
         type="button"
       >
         <ProviderMark provider={effectiveProvider} />
-        <span className="truncate">{shortName(effective, models)}</span>
+        <span className="model-pill-name truncate">{shortName(effective, models)}</span>
         {healthOf(effectiveProvider, catalog.data) === "bad" ? <HealthDot health="bad" /> : null}
-        {!state.data.overrideModel ? <span className="model-pill-tag">默认</span> : null}
         {saving ? <IconRefresh className="size-3 shrink-0 animate-spin opacity-60" /> : <IconChevronDown className="model-pill-chevron" />}
       </ComboboxPrimitive.Trigger>
       <ComboboxPrimitive.Portal>
-        <ComboboxPrimitive.Positioner align="start" className="isolate z-50" side="top" sideOffset={10}>
+        <ComboboxPrimitive.Positioner align="end" className="isolate z-50" side="top" sideOffset={10}>
           <ComboboxPrimitive.Popup className="model-popover">
             <div className="model-popover-search">
               <IconSearch className="size-4 shrink-0 opacity-50" />
@@ -181,7 +181,11 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
                     {(item: Option) => (
                       <ComboboxPrimitive.Item className="model-popover-item" disabled={item.missing} key={item.id || "__inherit"} value={item}>
                         <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate">{item.inherited ? "部署默认" : item.missing ? tailOf(item.id) : item.label || tailOf(item.id)}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate">{item.inherited ? "部署默认" : item.missing ? tailOf(item.id) : item.label || tailOf(item.id)}</span>
+                            {/* 「默认」标签从输入框的按钮挪到这里：标出部署默认指向的那个模型。 */}
+                            {!item.inherited && !item.missing && item.id && item.id === state.data?.defaultModel ? <span className="model-pill-tag">默认</span> : null}
+                          </span>
                           <span className="model-popover-sub truncate">
                             {item.inherited ? state.data?.defaultModel : item.missing ? "已不在模型列表中" : item.id}
                           </span>

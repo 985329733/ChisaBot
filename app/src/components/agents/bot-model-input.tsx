@@ -49,7 +49,7 @@ function ComposerSendButton({ children: _children, className, ...props }: Button
         }
         props.onClick?.(event);
       }}
-      title={running ? "停止（Enter）" : "发送（Enter）"}
+      title={running ? "停止（Enter）" : "发送（Enter）· Shift + Enter 换行"}
       type="button"
     >
       <span className="bot-composer-send-icon" data-shown={running ? "stop" : "send"}>
@@ -111,7 +111,7 @@ const AutoGrowTextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<
 
 /**
  * 机器人聊天的输入框（DESIGN.md §25）：一张玻璃卡，上面是输入区，下面一行工具栏——
- * 左：＋ 附件、模型选择；右：Shift+Enter 提示、上下文、发送 / 停止。
+ * 左：只有 ＋ 附件；右：模型选择（短按钮）、上下文小圆环、发送 / 停止。
  *
  * 仍然是 SDK 的 CopilotChatInput：用它的 children 渲染函数只换布局，回车发送、停止、草稿、
  * 转写这些行为都还是 SDK 绑好的那一套。
@@ -124,7 +124,6 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
   const queryClient = useQueryClient();
   const running = props.isRunning ?? false;
   const [focused, setFocused] = useState(false);
-  const typed = typeof props.value === "string" && props.value.length > 0;
   return (
     <InputModelContext.Provider value={{ agentId, running }}>
       <CopilotChatInput
@@ -165,10 +164,9 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
                       <IconPlus className="size-[18px]" />
                     </span>
                   )}
-                  {agentId ? <BotModelSelector agentId={agentId} compact /> : null}
                 </div>
                 <div className="bot-composer-right">
-                  <span className={cn("bot-composer-hint", (focused || typed) && !running && "is-shown")}>Shift + Enter 换行</span>
+                  {agentId ? <BotModelSelector agentId={agentId} compact /> : null}
                   {agentId ? <ContextMeter agentId={agentId} onNewTopic={onNewTopic} running={running} threadId={threadId} /> : null}
                   {mode === "transcribe" ? (
                     <>
