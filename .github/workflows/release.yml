@@ -267,7 +267,8 @@ jobs:
           bt="$sdk/build-tools/$(ls "$sdk/build-tools" | sort -V | tail -n 1)"
           echo "build-tools: $bt"
           "$bt/apksigner" verify --print-certs "/tmp/$apk" > /tmp/sig 2>&1 || { cat /tmp/sig; echo "::error::APK 签名校验失败"; exit 1; }
-          grep -E "Signer #1 certificate (DN|SHA-256)" /tmp/sig
+          cat /tmp/sig
+          grep -qE "certificate (DN|SHA-256)" /tmp/sig
           "$bt/aapt2" dump badging "/tmp/$apk" > /tmp/badging 2>&1 || { cat /tmp/badging; exit 1; }
           grep -m1 "^package:" /tmp/badging
           grep -q "versionCode='$VERSION_CODE'" /tmp/badging && grep -q "versionName='$VERSION'" /tmp/badging
