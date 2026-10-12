@@ -2,9 +2,9 @@ import { RouteSkeleton } from "@/components/startup-status";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
-import { BotModelInput } from "@/components/agents/bot-model-input";
+import { BotComposerContext, BotModelInput } from "@/components/agents/bot-model-input";
 import { defaultAgentId } from "@/lib/agents/default-agent";
 import {
   type AgentProfile,
@@ -19,7 +19,8 @@ import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 /** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
 const BOT_CHAT_LABELS = {
-  chatInputPlaceholder: "输入消息…（Shift+Enter 换行）",
+  // 输入框自己写占位文字（「给『机器人』发消息…」）和 Shift+Enter 提示（DESIGN.md §25）。
+  chatInputPlaceholder: "输入消息…",
   chatInputToolbarAddButtonLabel: "添加附件",
   assistantMessageToolbarCopyMessageLabel: "复制",
   assistantMessageToolbarCopyCodeLabel: "复制",
@@ -173,6 +174,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   );
   // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）：机器人开始用计算机时自动切过去，停手后切回。
   useComputerAutoWatch(agentId, watch === true, showComputer);
+  const composer = useMemo(() => ({ name, onNewTopic: startNew }), [name, startNew]);
 
   return (
       <div className="flex h-full min-h-0 flex-col">
@@ -226,6 +228,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
            * under a composer that silently posts to the new one.
            */}
           {threadId ? (
+            <BotComposerContext.Provider value={composer}>
             <CopilotChat
               input={BotModelInput}
               agentId={agentId}
@@ -233,6 +236,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
               key={`${agentId}:${threadId}`}
               threadId={threadId}
             />
+            </BotComposerContext.Provider>
           ) : null}
         </div>
       </div>

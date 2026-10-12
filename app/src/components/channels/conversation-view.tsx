@@ -30,6 +30,7 @@ export function ConversationView({
   commands,
   channelId,
   modelControl,
+  contextControl,
   sendBlocked = false,
   disabled = false,
   pending = false,
@@ -61,6 +62,8 @@ export function ConversationView({
    */
   channelId?: string;
   modelControl?: ReactNode;
+  /** 输入框里的「上下文」读数（DESIGN.md §25）。 */
+  contextControl?: ReactNode;
   sendBlocked?: boolean;
   disabled?: boolean;
   /**
@@ -469,6 +472,7 @@ export function ConversationView({
         {notice}
         <Composer
           modelControl={modelControl}
+          contextControl={contextControl}
           sendBlocked={sendBlocked}
           agents={agents}
           autoFocus={autoFocus}

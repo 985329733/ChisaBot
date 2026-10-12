@@ -1,6 +1,7 @@
 import { compactEvents, EventType, type AbstractAgent, type BaseEvent, type Message } from "@ag-ui/client";
 import { AgentRunner, createRunEventFinalizer, type AgentRunnerConnectRequest, type AgentRunnerRunRequest, type AgentRunnerStopRequest } from "@copilotkit/runtime/v2";
 import { Observable, ReplaySubject, Subject } from "rxjs";
+import { estimateTokens, readingFromRunFinished, type ThreadContextReading } from "./context-usage";
 import type { Database } from "./db/client";
 
 /** Errors also satisfy the existing history reader's platform-error contract. */
@@ -445,6 +446,22 @@ export async function createLocalConversations(database: Database): Promise<Loca
   await database.$client.unsafe("CREATE INDEX IF NOT EXISTS openbot_local_threads_owner_updated ON openbot_local_threads(owner_user_id, updated_at DESC)");
   const store = new ConversationStore(database);
   const client = new LocalConversationClient(store);
+  /*
+   * 输入框「上下文」读数（DESIGN.md §25）：最近一次带用量的 RUN_FINISHED；一条都没有就按消息文字粗估。
+   * 只读一行（按 thread_id + sequence 索引倒序），不扫整张事件表。
+   */
+  const contextReading = async (threadId: string, messages: readonly unknown[]): Promise<ThreadContextReading | null> => {
+    const rows = await database.$client.unsafe<{ event: Record<string, unknown>; created_at: Date }[]>(
+      `SELECT event, created_at FROM openbot_local_events
+       WHERE thread_id = $1 AND event->>'type' = 'RUN_FINISHED'
+       AND (event ? 'usage' OR event->'metadata' ? 'contextUsage')
+       ORDER BY sequence DESC LIMIT 1`, [threadId],
+    );
+    const measured = rows[0] ? readingFromRunFinished(rows[0]) : undefined;
+    if (measured) return measured;
+    if (!messages.length) return null;
+    return { tokens: estimateTokens(messages), source: "estimate" };
+  };
   const runner = new PostgresAgentRunner(store, client);
 
   const handle = async (request: Request, actorId: string): Promise<Response | undefined> => {
@@ -482,6 +499,7 @@ export async function createLocalConversations(database: Database): Promise<Loca
       if (request.method === "GET") {
         if (operation === "messages") return Response.json({ messages: row.messages });
         if (operation === "state") return Response.json({ state: row.state });
+        if (operation === "context") return Response.json({ context: await contextReading(threadId, row.messages) });
         if (operation === "events") return Response.json({ events: compactEvents((await store.events(threadId)).map((event) => event.event)) });
         if (!operation) return Response.json({ thread: record(row) });
       }

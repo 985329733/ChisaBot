@@ -124,6 +124,8 @@ const COMPACT_MAX_HEIGHT_PX = 200;
 export type ComposerProps = {
   className?: string;
   modelControl?: ReactNode;
+  /** 输入框工具栏右侧、发送键前的「上下文」读数（DESIGN.md §25）。 */
+  contextControl?: ReactNode;
   /** A model write blocks sending and parking without disabling draft editing. */
   sendBlocked?: boolean;
   /** A homepage composer can expose a model only after its draft explicitly names one BOT. */
@@ -322,6 +324,7 @@ const UNACCEPTED_DROP_REASON = {
 export function Composer({
   className,
   modelControl,
+  contextControl,
   sendBlocked = false,
   onAgentChange,
   editorClassName,
@@ -1527,7 +1530,7 @@ export function Composer({
               onChange={handleChange}
               onImagePaste={canAttach ? stagePastedImage : undefined}
               onSubmit={submitDraft}
-              placeholder={"输入消息…（Shift+Enter 换行）"}
+              placeholder={"输入消息…"}
               ref={promptAreaRef}
               triggers={triggers}
               value={value}
@@ -1563,6 +1566,8 @@ export function Composer({
                 {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
+                <span className="bot-composer-hint" aria-hidden>Shift + Enter 换行</span>
+                {contextControl}
                 <DictationButton
                   dictation={dictation}
                   disabled={disabled || voiceCall?.active === true}

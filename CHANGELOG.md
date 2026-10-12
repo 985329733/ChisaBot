@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 聊天输入框重做：一张玻璃卡，上面输入区（自动长高到 8 行），下面一行工具栏——＋ 附件、模型选择（从输入框下面挪进卡里）、上下文读数、发送键；回复中发送键原地变成停止键。机器人聊天和频道聊天一致。
+- 输入框新增「上下文 12.3k / 200k」读数和小圆环：当前对话占用的 token / 所选模型的上下文窗口，悬停看已用、剩余、输入 / 输出、缓存命中；≥70% 琥珀、≥90% 红并提示开新话题。用量是服务器在每次模型调用上实测的（最后一步的输入 + 输出，写在 RUN_FINISHED 的 `metadata.contextUsage`，`GET /api/copilotkit/threads/:id/context` 读取）；窗口来自模型目录的 `context_window`，目录里没有就不显示分母；没有实测用量时按文字估算并标「约」。
 - 系统更新：依赖（`bun.lock` / `package.json`）、`Dockerfile` 或 `docker/` 变了时不再停在「需要完整构建」，页面直接给出「一键完整更新」：宿主机从 GitHub 拉最新代码，用仓库 `Dockerfile` 在限内存的 buildx 构建器里从头构建（装依赖、构建前端、构建镜像），照旧先备份数据库、健康检查、失败自动回滚；成功后新镜像就是之后快速更新的底座。「检查更新」真的从 GitHub 拉取（公开仓库不需要令牌），「上次检查」显示拉取时间。升级已有部署：把 `deploy/updater/` 的脚本装到 `/opt/chisabot-updater/`（`config.env` 补 `FULL_BUILD_MEMORY`、`GITHUB_FETCH`）并重启 `chisabot-updater`，见 `docs/online-update.md`。
 - 镜像：`docker build .` 现在产出完整的 ChisaBot 镜像（hoisted 依赖树、前端带构建号、`/app/build-info.json`、`chisabot.commit` 标签、迁移等内嵌数据库就绪）。
 
