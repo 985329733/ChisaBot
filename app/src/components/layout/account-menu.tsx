@@ -29,10 +29,11 @@ import { approvalInboxOptions } from "@/lib/approvals";
 import { signOutMutationOptions } from "@/lib/auth/mutations";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { PROTO_PREVIEW } from "@/lib/proto-preview";
+import { fetchServedVersion } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
 /**
- * 账号（DESIGN-v4）：左栏最底下一张小玻璃卡 —— 头像 + 名字 + 身份，点开账号菜单（向上弹出）。
+ * 账号（DESIGN-v4）：左栏最底下一张小玻璃卡 —— 头像 + 名字 + 版本号，点开账号菜单（向上弹出）。
  * 聊天、偏好设置、管理后台三个区域都在同一个位置。左栏收起后只剩头像，菜单向右弹出。
  *
  * 菜单只放「我」的事：偏好设置 · 审批 · 通知 ‖ 管理后台（管理员）‖ 暗色外观 ‖ 退出登录。
@@ -52,6 +53,13 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
     (approvals.data?.requests.filter((r) => r.status === "pending").length ?? 0) +
     (approvals.data?.questions.length ?? 0);
   const [open, setOpen] = useState(false);
+  // 当前应用版本（/api/version 的 version，例如 0.1.0）。
+  const served = useQuery({
+    queryKey: ["app-version"],
+    queryFn: () => fetchServedVersion(),
+    staleTime: 5 * 60_000,
+  });
+  const version = served.data?.version ? `v${served.data.version}` : "";
 
   // 菜单先关、目标路由的代码块加载好再切页，当前屏幕不会闪成占位。
   const go = (to: string) => {
@@ -74,8 +82,9 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
     await navigate({ to: "/sign" });
   };
 
+  // 只显示头像 + 名称 + 版本号；不显示邮箱和身份。
   const name = user?.name || user?.email || "";
-  const sub = isAdmin ? "管理员" : user?.email;
+  const sub = version;
   const icon = "size-[18px] shrink-0 opacity-80";
 
   const trigger = compact ? (
@@ -125,10 +134,9 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
             <GlassAvatar ring={false} size={36} />
             <span className="min-w-0">
               <b className="block truncate font-medium text-foreground text-sm">{name}</b>
-              <span className="block truncate text-muted-foreground text-xs">
-                {user?.email}
-                {isAdmin ? " · 管理员" : ""}
-              </span>
+              {version ? (
+                <span className="block truncate text-muted-foreground text-xs">{version}</span>
+              ) : null}
             </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
