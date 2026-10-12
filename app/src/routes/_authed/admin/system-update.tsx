@@ -35,6 +35,8 @@ import {
 } from "@/lib/system-update";
 import { type AdminSmokeResult, runAdminSmoke } from "@/lib/admin-smoke";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { setToolActivityVisible, useToolActivityVisible } from "@/lib/chat/tool-activity";
 
 export const Route = createFileRoute("/_authed/admin/system-update")({
   component: SystemUpdatePage,
@@ -117,6 +119,7 @@ function SystemUpdatePage() {
       ) : (
         <Overview data={data} />
       )}
+      <DebugSection />
     </PageShell>
   );
 }
@@ -415,6 +418,27 @@ function JobCard({ job, pending }: { job: SystemUpdateJob | null; pending: Syste
             {job.log.join("\n")}
           </pre>
         ) : null}
+      </Card>
+    </PageSection>
+  );
+}
+
+/** 只影响这台浏览器：聊天里默认隐藏工具调用 / 浏览步骤，排查问题时在这里临时打开。 */
+function DebugSection() {
+  const visible = useToolActivityVisible();
+  return (
+    <PageSection title="调试">
+      <Card>
+        <SettingRow
+          description="默认关闭：聊天里只显示结果，不显示机器人调用了哪些工具、浏览了哪些页面。打开后仅对当前浏览器生效，审批与授权卡片始终显示。"
+          title="调试：显示工具调用"
+        >
+          <Switch
+            aria-label="调试：显示工具调用"
+            checked={visible}
+            onCheckedChange={(next) => setToolActivityVisible(next === true)}
+          />
+        </SettingRow>
       </Card>
     </PageSection>
   );
