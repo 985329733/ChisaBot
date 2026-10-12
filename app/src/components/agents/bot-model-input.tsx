@@ -35,6 +35,8 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
     <div className="min-w-0">
       <CopilotChatInput
         {...props}
+        // 聊天列直接坐在天空上（DESIGN.md §24）：和频道聊天一样不放免责声明，模型选择紧贴在输入框下面。
+        showDisclaimer={false}
         sendButton={ModelSendButton}
         onKeyDownCapture={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && queryClient.isMutating({ mutationKey: modelSelectionKeys.save(agentId) }) > 0) {
@@ -45,7 +47,7 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
           props.onKeyDownCapture?.(event);
         }}
       />
-      {agentId ? <div className="px-3 pb-2"><BotModelSelector agentId={agentId} compact /></div> : null}
+      {agentId ? <div className="bot-input-row px-3 pb-2"><BotModelSelector agentId={agentId} compact /></div> : null}
     </div>
   </InputModelContext.Provider>;
 }
