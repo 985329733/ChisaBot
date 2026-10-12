@@ -8,8 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
-## 0.2.5（客户端）
+## 0.1.0（2026-10-12，ChisaBot 首个公开版本）
 
+ChisaBot 版本号从这一版重新计数（之前内部测试的 0.2.x 作废）：服务器 `package.json`、PC 客户端和 Android 客户端都是 0.1.0。
+Android 的 `versionCode` 为 206（高于内部测试版的 205），已安装的 Android 会正常提示更新；装过 0.2.x 的 Windows 电脑
+不会自动“更新”到更低的 0.1.0，需要卸载后手动装一次。
+
+包含目前的全部功能：中文 Skyglass 界面、登录网关、本地 PostgreSQL 持久化、Magpie 模型目录与每 BOT 选模型、`render_ui`
+生成式界面、管理后台一键在线更新与自检、PC 设备节点与在线更新、Android 客户端，以及 PC / Android 共用的本机登录页：
 PC 和 Android 客户端打开后不再显示服务器的网页登录页，而是客户端自带的「登录 ChisaBot」页：服务器地址（保存在本机、
 带最近用过的下拉，可省略 `https://`）、账号、密码（显示开关）、记住登录。客户端先检查地址能否连上，再直接请求登录网关，
 错误分为「地址无法连接」「证书错误」「账号或密码错误」。密码不保存：记住登录时网关发 30 天的会话 Cookie，期间打开直接进入；
@@ -17,7 +23,13 @@ PC 和 Android 客户端打开后不再显示服务器的网页登录页，而�
 （`deploy/public/auth-web/login.html`）改为 ChisaBot 品牌和蓝天玻璃风格，接口不变；Magpie 登录页不变。
 PC 修复：连不上服务器时设备连接的 `error` 事件没有监听，主进程可能报未捕获异常。
 
-## 0.1.2
+---
+
+# 上游 OpenBot 版本记录
+
+下面是 ChisaBot 分叉前 CopilotKit/OpenBot 的版本记录，版本号属于上游，不是 ChisaBot 的版本。
+
+## OpenBot 0.1.2
 
 ### CopilotKit 1.77 and AG-UI 1.0
 
@@ -35,8 +47,7 @@ A tool result's `error` field is gone from the `TOOL_CALL_RESULT` event, because
 define one. The refusal is still in the result's text and on the tool message, which is where a
 Bot's next turn reads it.
 
-## 0.1.1
-
+## OpenBot 0.1.1
 - A password given to `curl` as `-uuser:password`, `--user=user:password` or `-u "user:pass word"` is
   now redacted in a Bot's recorded shell command. Only `-u user:password` with a space and no quotes
   was recognised, so the other spellings kept the password in the command that was stored or exported.
@@ -128,8 +139,7 @@ coordinate work in this conversation" and an `mcp.callback_refused` row nobody h
 now offered these tools only when a call from it would be allowed, so that turn is offered neither.
 A call that is refused anyway, from a schema offered earlier, is still refused and audited.
 
-## 0.1.0
-
+## OpenBot 0.1.0
 **Before upgrading.** Six things change for an existing deployment:
 - Automatic Learning is on unless an administrator saved it off. It does nothing until a Learning
   container is assigned; see below.
@@ -677,8 +687,7 @@ the agent or thread name in the database, with a preview. Agent directory cards 
 connected accounts use individual entries with stored app logos, and browser steps appear in a compact
 expandable group instead of filling the conversation with screenshots.
 
-## 0.0.15
-
+## OpenBot 0.0.15
 ### A model provider's own sign-in can stand in for an API key
 
 `OPENBOT_MODEL_OAUTH_FILE` names a credential file holding a Google or xAI OAuth grant. Set it and
@@ -751,8 +760,7 @@ The separator between Compose files fell back to `:` everywhere, which is right 
 and wrong on Windows, where a drive letter contains one. It now follows the platform. This is
 reachable on every platform now that a port overlay is passed, where before it was macOS only.
 
-## 0.0.14
-
+## OpenBot 0.0.14
 ### A tool cannot be granted for an app this deployment has not added
 
 Granting a Bot a connector's tool checked only that the person asking was an administrator, so a
@@ -1037,8 +1045,7 @@ an OpenAI key, because Compose writes that one empty when the choice was Anthrop
 Anthropic through Agent Framework's own Anthropic client when that is the provider chosen, and
 OpenAI or an OpenAI-compatible endpoint as before otherwise.
 
-## 0.0.13
-
+## OpenBot 0.0.13
 ### Fresh desktop setup installs its runtime before sign-in
 
 Desktop setup installs local software before asking for an AI connection. Fresh Mac Podman
@@ -1270,8 +1277,7 @@ Plane, the text handed to the model ended on half of it: a lone surrogate that J
 the way the MCP and built-in transports' cuts already do. Anything that fits is untouched, and the
 note saying the answer was cut reads as before.
 
-## 0.0.12
-
+## OpenBot 0.0.12
 ### A deployment can broker its Bots into a few hundred apps through Composio
 
 Composio holds a person's connections to a few hundred SaaS apps behind one account. A deployment
@@ -1350,8 +1356,7 @@ the variables it needs, so its own environment carries none of those keys; and t
 `/run/s6/container_environment` are closed to the shell. A deployment that runs each Bot in its own
 sandboxed computer, as the documentation asks for, was never exposed to this.
 
-## 0.0.11
-
+## OpenBot 0.0.11
 ### The LlamaIndex Bot answers with the model the setup screen chose
 
 The LlamaIndex Bot built an OpenAI client from `BOT_MODEL` and ignored `BOT_PROVIDER`, so it only
@@ -1443,8 +1448,7 @@ punctuation or mixed case after `Bearer`. A shorter bearer token, or a Basic val
 decode to `user:password`, is no longer caught by this pattern; the same value under an
 `authorization` field is still refused by name.
 
-## 0.0.10
-
+## OpenBot 0.0.10
 ### The LangGraph Bot says a refused tool call was refused, not that it found nothing
 
 When the deployment would not run a tool call from the LangGraph Bot — a token it no longer accepts,
@@ -1541,8 +1545,7 @@ already replaces one built from an older image, keeping the profile and workspac
 comes back with its logins and its files. A deployment that sets no token is left alone, because a
 computer with no door on it is a choice the environment made rather than a mismatch to act on.
 
-## 0.0.9
-
+## OpenBot 0.0.9
 ### The People screen keeps a person's last sign-in when their sessions go away
 
 `Last signed in` was `max(sessions.created_at)`, so it disappeared whenever the session rows behind
@@ -2092,8 +2095,7 @@ through the proxy and the proxy no longer offers to carry one. In production the
 app itself and answers the upgrade on the same origin, so the sockets stay on the browser's own
 host, which is what an ingress terminating TLS on 443 requires and a fixed server port would break.
 
-## 0.0.8
-
+## OpenBot 0.0.8
 ### A desktop shell that installs OpenBot and then becomes it
 
 One window, on macOS, Windows and Linux. From a machine with nothing on it, one click fetches the
@@ -2315,8 +2317,7 @@ arrived at a port nothing was listening on and came back as a computer that is n
 supervisor now states the healthcheck when it creates a computer instead of inheriting it, so
 readiness no longer depends on how the image was built. On Docker the behaviour is unchanged.
 
-## 0.0.7
-
+## OpenBot 0.0.7
 ### The published service images are zstd rather than gzip
 
 An image pull was already a compressed transfer, so this is not compression where there was none; it
@@ -2514,8 +2515,7 @@ tool failed. Such a part is now named `[unknown]`, which is the same naming-rath
 surrounding code already does for parts it does not recognise, so the rest of the result still
 reaches the Bot.
 
-## 0.0.6
-
+## OpenBot 0.0.6
 ### Setting up needs one Intelligence credential, not two
 
 `COPILOTKIT_LICENSE_TOKEN` is no longer required. Managed Intelligence derives entitlement from the
@@ -2955,8 +2955,7 @@ not yet show that message**: it arrives at the browser and is held in state the 
 read, so a person still sees the last frame until they reopen the screen. That half is tracked
 separately in #287.
 
-## 0.0.5
-
+## OpenBot 0.0.5
 ### One Bot can hand work to another, and reach a person when no Bot will do
 
 A Bot asked something it is not the right Bot for can now put the question to one that is. The
@@ -3813,8 +3812,7 @@ and every call between them was refused at the door.
 Both now carry the same defaults `start.sh` applies, as `COMPUTER_IMAGE` already did two lines down.
 A value set in `.env` still wins, and a deployment should set one.
 
-## 0.0.4
-
+## OpenBot 0.0.4
 ### A click citing a ref this deployment cannot resolve is refused
 
 A Bot acts on a page by citing a ref from a snapshot, and the server turns that ref back into the
@@ -3881,8 +3879,7 @@ than left out. A package ships skills declaring tools for connectors nobody has 
 skill outlives the server it was written against, so a screen that drew only what matched was
 stating part of the declaration as though it were all of it.
 
-## 0.0.3
-
+## OpenBot 0.0.3
 ### A Bot is offered the tools its message needs, not every tool it holds
 
 A model chooses the right tool reliably out of about ten and unreliably out of thirty, and it fails
@@ -3912,8 +3909,7 @@ gateway, a proxy, a self-hosted model, which is the only reason to set it — un
 silently stopped being routed and nothing said why. The version segment is now added only when the
 configured URL does not already carry one.
 
-## 0.0.2
-
+## OpenBot 0.0.2
 ### Upgrading
 
 `AGENT_TOOL_TOKEN` is generated for you on a laptop. `scripts/start.sh` mints one and writes it to
@@ -4511,6 +4507,5 @@ Sessions survive and nobody signs in again.
   addresses are refused whatever a provider says.
 - The container image runs as an unprivileged user rather than root.
 
-## 0.0.1
-
+## OpenBot 0.0.1
 First tag.

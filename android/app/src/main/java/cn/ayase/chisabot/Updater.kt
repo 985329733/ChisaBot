@@ -23,7 +23,7 @@ import kotlin.concurrent.thread
 /**
  * APK 在线更新。更新源是一个 JSON（BuildConfig.UPDATE_FEED：构建期 CHISABOT_ANDROID_UPDATE_FEED，
  * 否则 GitHub Releases 的 latest/download/chisabot-android.json；都没有就不检查）：
- * {"version":"0.2.4","versionCode":204,"url":"ChisaBot-Android-0.2.4.apk","sha256":"…","notes":"…"}
+ * {"version":"0.1.0","versionCode":206,"url":"ChisaBot-Android-0.1.0.apk","sha256":"…","notes":"…"}
  * url 可以是相对地址（相对 latest.json）。versionCode 比本机大才提示；下载后校验 sha256 再交给系统安装器
  * （同一把签名密钥才能覆盖安装）。
  */

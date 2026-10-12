@@ -615,7 +615,7 @@ const PC_UPDATE_TEXT: Record<PcUpdateState["status"], string> = {
   error: "检查更新失败",
 };
 
-/** 「本机」标签里的客户端更新（0.2.2 起，docs/online-update.md）：自动更新开关 + 当前状态 + 检查 / 重启安装。 */
+/** 「本机」标签里的客户端更新（docs/online-update.md）：自动更新开关 + 当前状态 + 检查 / 重启安装。 */
 function PcUpdateRows({ local, onLocal }: { local: PcLocalState; onLocal: (next: PcLocalState) => void }) {
   const bridge = pcBridge();
   const update = local.update as PcUpdateState;

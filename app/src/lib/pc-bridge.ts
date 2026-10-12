@@ -23,7 +23,7 @@ export type PcLocalState = {
   forceLocalApproval: boolean;
   autoStart: boolean;
   startHidden: boolean;
-  /** 0.2.2 起：自动更新（docs/online-update.md §PC）。旧客户端没有这个字段，网页就不显示更新设置。 */
+  /** 自动更新（docs/online-update.md §PC）。旧客户端没有这个字段，网页就不显示更新设置。 */
   autoUpdate?: boolean;
   update?: PcUpdateState;
 };
@@ -52,9 +52,9 @@ export type PcBridge = {
   pickFolders(): Promise<string[]>;
   /** 退出登录并作废这台电脑的设备令牌（本机确认后），回到设置向导。 */
   logout(): Promise<boolean>;
-  /** 0.2.2 起：立即检查更新（返回最新的更新状态）。 */
+  /** 立即检查更新（返回最新的更新状态）。 */
   checkUpdate?(): Promise<PcUpdateState>;
-  /** 0.2.2 起：新版本已下载时，退出并安装（会先在本机弹确认窗）。 */
+  /** 新版本已下载时，退出并安装（会先在本机弹确认窗）。 */
   installUpdate?(): Promise<boolean>;
   onChange(callback: () => void): () => void;
 };

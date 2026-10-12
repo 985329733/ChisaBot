@@ -37,7 +37,7 @@ import java.io.File
 /**
  * ChisaBot Android：服务器上 ChisaBot 网页的原生外壳（与 PC 客户端同一套网页、同一个登录网关）。
  *
- * 登录（0.2.5 起）：本机的「登录 ChisaBot」页（assets/login/，和 PC 的 pc/src/ui/login.html 是同一份文件），
+ * 登录：本机的「登录 ChisaBot」页（assets/login/，和 PC 的 pc/src/ui/login.html 是同一份文件），
  * 在单独的 loginWeb 里打开，只有它能用 window.ChisaLogin。填服务器地址（保存在本机、带历史）、账号、密码、记住登录；
  * 先探测地址，再由本壳直接请求服务器登录网关（GatewayAuth），会话 Cookie 写进 CookieManager，然后载入网页。
  * 密码从不保存：记住登录 = 服务器发 30 天的会话 Cookie；不勾就是会话 Cookie，下次冷启动清掉。

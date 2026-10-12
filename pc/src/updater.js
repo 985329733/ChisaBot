@@ -1,6 +1,6 @@
 "use strict";
 /**
- * 在线更新（docs/online-update.md §PC，0.2.2 起）。
+ * 在线更新（docs/online-update.md §PC）。
  *
  *  - 更新源：electron-updater 的 generic provider，指向一个公开的更新目录（build-config.js 的
  *    resolveFeed：本机覆盖 → 构建期 updateFeed → GitHub Releases 的 latest/download/），里面是

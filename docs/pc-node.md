@@ -29,7 +29,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 
 ## 3. 登录与配对
 
-1. PC 首次运行出现本机登录页（0.2.5 起，`pc/src/ui/login.html`，不是服务器的网页）：**服务器地址**（保存在本机，带最近用过的下拉；通用版留空由用户填写，自建版构建时预填）+ **账号** + **密码** + **记住登录**。先探测 `/auth/session`（→ `/health` → `/api/version`），再直接 `POST /auth/login`（和网关网页表单同一个请求，带 `Origin`），会话 Cookie 写进主窗口会话；密码从不保存（记住登录 = 网关发 30 天 Cookie）。启动时会话有效就直接进入，主窗口被跳到 `/login` 时换回本机登录页。电脑名称默认取主机名，可在网页 偏好设置 → 设备 里改。
+1. PC 首次运行出现本机登录页（`pc/src/ui/login.html`，不是服务器的网页）：**服务器地址**（保存在本机，带最近用过的下拉；通用版留空由用户填写，自建版构建时预填）+ **账号** + **密码** + **记住登录**。先探测 `/auth/session`（→ `/health` → `/api/version`），再直接 `POST /auth/login`（和网关网页表单同一个请求，带 `Origin`），会话 Cookie 写进主窗口会话；密码从不保存（记住登录 = 网关发 30 天 Cookie）。启动时会话有效就直接进入，主窗口被跳到 `/login` 时换回本机登录页。电脑名称默认取主机名，可在网页 偏好设置 → 设备 里改。
 2. 客户端先 `POST /auth/login`（网关登录，`remember: true`）；该部署没有网关时退回 Better Auth `POST /api/auth/sign-in/email`。得到会话 Cookie。
 3. 用会话 Cookie 调 `POST /api/devices/enroll` → 服务器生成设备 `dev_…` 和令牌 `cbd_<32 字节 base64url>`，**令牌只返回这一次**，库里只存 SHA-256。
 4. 令牌在 PC 上用 Electron `safeStorage`（Windows DPAPI，绑定当前 Windows 用户）加密保存；会话 Cookie 注入聊天窗口的独立分区，聊天窗口因此免登录。
@@ -78,9 +78,9 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 - **管理后台 → 设备（PC）**（`/admin/devices`，模板 E）：统计磁贴（设备 / 在线 / 待审批 / 紧急停止中）+ 全部设备（含所有者）。
 - 下载：网关托管 `https://<你的域名>:8443/downloads/pc/`（需登录），清单 `latest.json`，设备页自动显示版本、大小、SHA-256。
 
-## 8. Windows 客户端（`pc/`，0.2.0，2026-10-11 起）
+## 8. Windows 客户端（`pc/`，2026-10-11 起）
 
-- 技术栈：Electron 44 + `ws`；无原生模块（输入/截图兜底都走 PowerShell），所以能在 Linux 上交叉打包。安装包用 electron-builder（NSIS，中文界面，可选安装目录，桌面 / 开始菜单快捷方式）+ 免安装 zip；只保留 zh-CN / en-US 两个 Chromium 语言包；exe 图标和版本信息（ChisaBot PC / ChisaBot / 0.2.0）在打包时写入，未签名。
+- 技术栈：Electron 44 + `ws`；无原生模块（输入/截图兜底都走 PowerShell），所以能在 Linux 上交叉打包。安装包用 electron-builder（NSIS，中文界面，可选安装目录，桌面 / 开始菜单快捷方式）+ 免安装 zip；只保留 zh-CN / en-US 两个 Chromium 语言包；exe 图标和版本信息（ChisaBot PC / ChisaBot / `pc/package.json` 的版本号）在打包时写入，未签名。
 
 ### 8.1 界面：和网页是同一个应用
 

@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 const NOW = Date.parse("2026-10-12T02:00:00Z");
-const running = { version: "0.1.2", buildId: "glass-20261012a", commit: "a".repeat(40) };
+const running = { version: "0.1.0", buildId: "glass-20261012a", commit: "a".repeat(40) };
 
 function spool(state?: unknown) {
   const dir = mkdtempSync(path.join(tmpdir(), "sysupd-"));
@@ -35,11 +35,11 @@ const fresh = {
 
 test("build info: parsed strictly, dev fallback, version payload has no image", () => {
   const info = parseBuildInfo(
-    { version: "0.1.2", commit: "a".repeat(40), buildId: "glass-20261012a", builtAt: "2026-10-12T01:00:00Z", image: "local/chisabot:glass-20261012a" },
+    { version: "0.1.0", commit: "a".repeat(40), buildId: "glass-20261012a", builtAt: "2026-10-12T01:00:00Z", image: "local/chisabot:glass-20261012a" },
     "0.0.0",
   );
   expect(info.image).toBe("local/chisabot:glass-20261012a");
-  expect(versionPayload(info)).toEqual({ version: "0.1.2", buildId: "glass-20261012a", commit: "a".repeat(40), builtAt: "2026-10-12T01:00:00Z" });
+  expect(versionPayload(info)).toEqual({ version: "0.1.0", buildId: "glass-20261012a", commit: "a".repeat(40), builtAt: "2026-10-12T01:00:00Z" });
   expect(parseBuildInfo(null, "9.9.9")).toEqual({ version: "9.9.9", buildId: "dev" });
   expect(parseBuildInfo({ buildId: "../../etc", commit: "zz" }, "1").buildId).toBe("dev");
 });

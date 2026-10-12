@@ -19,7 +19,7 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
   `Cache-Control: private, max-age=31536000, immutable`（浏览器长期缓存，`CDN-Cache-Control: no-store` 让 Cloudflare 不缓存），
   非 200 是 `no-store`。以前所有资源都是 `no-store`，每次打开都要重新下载约 1 MB（gzip 后）的脚本。没有 service worker。
 
-## 2. PC 客户端（0.2.2 起）
+## 2. PC 客户端
 
 - `electron-updater`（6.8.9）generic provider，更新源是一个公开目录：`latest.yml` + `ChisaBot-PC-<版本>-x64-setup.exe`
   + `.blockmap`。目录按 `pc/src/build-config.js` 的顺序选：本机 `config.json` 的 `updateFeed` → 构建期 `updateFeed`
@@ -38,7 +38,7 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
   `update:current`、`update:answer` 走 `handleLocal`（`src/ui/` 下的本机页面）。网页只能把「新版本已下载」窗口叫出来，
   立即重启要在本机窗口里由本人点。
 - 只有 NSIS 安装版会更新（安装目录里有 `Uninstall ChisaBot PC.exe`）；开发运行和免安装 zip 显示「只有安装版能自动更新」。
-- **0.2.1 及更早没有更新程序**：用户要手动装一次 0.2.2，之后就能自动更新。
+- **版本号重置（2026-10-12）**：首个公开版本定为 0.1.0。之前内部测试过的 0.2.x 安装版不会自动“更新”到更低的 0.1.0（不允许降级），要卸载后手动装一次 0.1.0，之后正常自动更新。
 
 发布：推 `v*` 标签（或手动运行）触发 `.github/workflows/release.yml`：windows-latest 上 `npm ci`、`npm test`、
 `electron-builder --win nsis zip --x64 --publish never`，产物（安装包、zip、`latest.yml`、`.blockmap`）上传到该标签的
@@ -47,13 +47,13 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
 `Cache-Control: no-cache`）。**先放安装包和 .blockmap，最后放 latest.yml**，客户端永远不会看到指向不存在文件的 latest.yml；
 保留上一版的安装包和 .blockmap（差分下载）。
 
-## 2b. Android 客户端（0.2.4 起，`android/`）
+## 2b. Android 客户端（`android/`）
 
 - 原生 WebView 外壳（Kotlin，minSdk 24），载入同一个 ChisaBot 网页；登录 Cookie 由 WebView 保存。
 - 通用版首次运行弹「服务器地址」；以后长按桌面图标 →「服务器地址」修改。自建版可用 `CHISABOT_SERVER_URL` 预填。
 - 在线更新：启动时读 JSON 更新源（`CHISABOT_ANDROID_UPDATE_FEED`，否则
   `https://github.com/<owner>/<repo>/releases/latest/download/chisabot-android.json`）：
-  `{"version","versionCode","url","sha256","notes"}`；`versionCode` 更大才提示，下载后校验 sha256，交给系统安装器
+  `{"version","versionCode","url","sha256","notes"}`；`versionCode` 更大才提示（比较的是 versionCode，不是 versionName；0.1.0 的 versionCode 是 206，高于内部测试版 0.2.x 的 205，所以已装的能正常更新），下载后校验 sha256，交给系统安装器
   （需要「安装未知应用」权限，FileProvider 提供文件）。只有同一把签名密钥的 APK 能覆盖安装。
 - CI 签名用仓库 Secrets：`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；
   没配置时产出未签名 APK（文件名带 `-unsigned`，不能直接安装，需要自己 `apksigner sign`）。
@@ -82,7 +82,7 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
   - 没有令牌时读本机镜像本身，由发布者在推 GitHub 的同时推一份：`git push root@<host>:/opt/chisabot-updater/mirror.git main`。
 - **update.sh** 步骤（与 `shared/system-update.ts` 的 `UPDATE_STEPS` 一致）：
   1. 准备：目标提交在 `main` 上，磁盘剩余 ≥ 2.5 GB；
-  2. 检查依赖：`bun.lock`、各 `package.json`（含 `agent-computer/` 的 `package.json` 和 `bun.lock`）、`Dockerfile`、`docker/` 的指纹必须等于 `base-deps.sha256`（底座构建时的指纹），
+  2. 检查依赖：`bun.lock`、各 `package.json`（含 `agent-computer/` 的 `package.json` 和 `bun.lock`）、`Dockerfile`、`docker/` 的指纹（根 `package.json` 去掉顶层 `version` 行再算，改版本号不影响）必须等于 `base-deps.sha256`（底座构建时的指纹），
      否则停下：「需要完整构建」（一键更新只替换代码层）；
   3. 备份：`pg_dump`、compose、profiles / workspace 卷 → `/opt/chisabot-updater/backups/<时间>-<任务>/`（保留 5 份）；
   4. 构建前端：`git archive` 导出源码，`node_modules` 硬链接自 `node_modules-base`，暂停原型沙箱，在限内存

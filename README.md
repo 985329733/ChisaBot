@@ -213,7 +213,7 @@ systemctl is-active chisabot-updater                   # active
   `ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。生成：`keytool -genkeypair -keystore release.jks -storetype PKCS12 -alias chisabot -keyalg RSA -keysize 4096 -validity 36500`。
   **密钥库丢了就再也不能给已安装的用户推更新**，离线备份；不要提交进仓库。没配 Secrets 时 CI 产出 `-unsigned.apk`。
 - 版本号：`pc/package.json` 的 `version` 和 `android/app/build.gradle.kts` 的 `versionName` / `versionCode` 必须同时变大，
-  否则客户端认为没有新版本。
+  否则客户端认为没有新版本（Android 只比较 `versionCode`；2026-10-12 版本号重置为 0.1.0 时 `versionCode` 从 206 继续，以后只增不减）。
 
 本地打包（不用 CI 时）：
 

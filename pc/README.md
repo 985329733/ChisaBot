@@ -25,6 +25,6 @@ npx electron-builder --win nsis zip --x64 --publish never   # → dist/ChisaBot-
 CI 从仓库变量 `CHISABOT_SERVER_URL`、`CHISABOT_UPDATE_FEED` 写入；自建打包可以手动改这个文件，或
 `npx electron-builder ... -c.publish.url=<你的更新目录>`。
 
-在线更新（0.2.2 起）：`src/updater.js`（electron-updater generic，更新源按 本机 config.json 的 `updateFeed` →
+在线更新：`src/updater.js`（electron-updater generic，更新源按 本机 config.json 的 `updateFeed` →
 构建期 `updateFeed` → `https://github.com/<owner>/<repo>/releases/latest/download/` 的顺序选；安装包未签名、
 校验 latest.yml 的 sha512），本机窗口 `src/ui/update.html`。详见 `../docs/online-update.md` §2。

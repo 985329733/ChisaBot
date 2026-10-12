@@ -1,5 +1,5 @@
 "use strict";
-/* 本机登录页（0.2.5）：地址规范化、探测、直接请求登录网关、错误分类；Android 用的是同一份登录页。 */
+/* 本机登录页：地址规范化、探测、直接请求登录网关、错误分类；Android 用的是同一份登录页。 */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

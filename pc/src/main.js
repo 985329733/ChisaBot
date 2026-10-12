@@ -2,7 +2,7 @@
 /**
  * ChisaBot PC 客户端（Electron 主进程）。docs/pc-node.md §8。
  *
- *  - 登录（0.2.5 起，ui/login.html）：本机的「登录 ChisaBot」页 —— 服务器地址（记住、带历史）+ 账号 + 密码
+ *  - 登录（ui/login.html）：本机的「登录 ChisaBot」页 —— 服务器地址（记住、带历史）+ 账号 + 密码
  *    + 记住登录。先探测地址，再直接请求服务器登录网关（和网页登录表单同一个 POST /auth/login），会话 Cookie
  *    写进主窗口的会话，再登记设备拿到令牌（DPAPI 加密保存）。密码从不保存。启动时会话仍有效就直接进入；
  *    主窗口被服务器跳到 /login（会话过期）时换回本机登录页，不再显示服务器的网页登录页。
@@ -12,7 +12,7 @@
  *  - 本机窗口（设置向导、审批弹窗、本机确认、离线页）用网页同一套 Skyglass 令牌（ui/skyglass-tokens.css）
  *  - 托盘：在线 / 离线 / 紧急停止三种图标；菜单含紧急停止
  *  - 节点：agent/core.js 出站 WebSocket；审批弹窗；本机审计日志
- *  - 在线更新（0.2.2 起，updater.js）：后台下载，下载好后本机窗口「新版本已下载，重启以安装」
+ *  - 在线更新（updater.js）：后台下载，下载好后本机窗口「新版本已下载，重启以安装」
  */
 const path = require("node:path");
 const os = require("node:os");

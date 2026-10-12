@@ -89,13 +89,13 @@ test("unsigned installer: Authenticode verification is a pass, sha512 stays elec
 });
 
 test("found → downloading → downloaded calls onDownloaded once and install quits silently", async () => {
-  const { updater, autoUpdater, states, downloaded } = make({ behavior: { version: "0.2.3" } });
+  const { updater, autoUpdater, states, downloaded } = make({ behavior: { version: "0.1.1" } });
   assert.strictEqual(updater.install(), false, "没下载好不能装");
   const result = await updater.check();
   assert.strictEqual(result.status, "downloaded");
-  assert.strictEqual(result.version, "0.2.3");
+  assert.strictEqual(result.version, "0.1.1");
   assert.ok(states.some((s) => s.status === "downloading" && s.percent === 42.4));
-  assert.deepStrictEqual(downloaded, ["0.2.3"]);
+  assert.deepStrictEqual(downloaded, ["0.1.1"]);
   assert.strictEqual(updater.install(), true);
   assert.deepStrictEqual(autoUpdater.installs, [[true, true]]);
   await updater.check();
