@@ -25,18 +25,19 @@ describe("host access tools", () => {
       displayName: "Project",
       revoked: false,
     });
+    broker.nextDesktopOperation();
 
     const tools = hostAccessTools({
       broker,
       botId: "bot-a",
       actorId: "user-a",
     });
-    expect(tools.map((tool) => tool.name)).toEqual(["host_list_folders"]);
+    expect(tools[0]!.name).toBe("host_list_folders");
     expect(await tools[0]!.execute({})).toContain("Project");
     expect(await tools[0]!.execute({})).toContain("grant-1");
   });
 
-  test("hides file and command operations while desktop is offline", () => {
+  test("offers no host tools at all while desktop is offline", () => {
     const broker = createHostAccessBroker();
     broker.rememberGrant({
       id: "grant-1",
@@ -50,7 +51,7 @@ describe("host access tools", () => {
       hostAccessTools({ broker, botId: "bot-a", actorId: "user-a" }).map(
         (tool) => tool.name,
       ),
-    ).toEqual(["host_list_folders"]);
+    ).toEqual([]);
   });
 
   test("server-side tools are bound to one selected Bot and actor once desktop is connected", async () => {
@@ -94,15 +95,33 @@ describe("host access tools", () => {
     });
     expect(await answer).toContain("notes.txt");
 
+    // 授权属于这个人：同一个人的另一个机器人也能用；发给桌面的仍是授权时的机器人。
     const otherBotTools = hostAccessTools({
       broker,
       botId: "bot-b",
       actorId: "user-a",
     });
-    expect(otherBotTools.map((tool) => tool.name)).toEqual([
-      "host_list_folders",
-    ]);
-    expect(await otherBotTools[0]!.execute({})).not.toContain("grant-1");
+    expect(otherBotTools.map((tool) => tool.name)).toContain("host_read_file");
+    expect(await otherBotTools[0]!.execute({})).toContain("grant-1");
+    const shared = otherBotTools[1]!.execute({ grantId: "grant-1", path: "." });
+    await Promise.resolve();
+    const sharedLease = broker.nextDesktopOperation();
+    expect(sharedLease?.operations[0]).toMatchObject({
+      kind: "list_files",
+      botId: "bot-a",
+      actorId: "user-a",
+    });
+    broker.resolveDesktopOperation({
+      operationId: sharedLease!.operations[0]!.operationId,
+      ok: true,
+      result: { entries: [] },
+    });
+    await shared;
+
+    // 别人看不到。
+    expect(
+      hostAccessTools({ broker, botId: "bot-a", actorId: "user-b" }),
+    ).toEqual([]);
   });
 
   test("run commands carry working folder and writable intent to native and still require native approval", async () => {
@@ -201,7 +220,7 @@ describe("host access tools", () => {
     });
   });
 
-  test("denied host operations are audited as refusals", async () => {
+  test("another person cannot use someone else's folder grant", async () => {
     const broker = createHostAccessBroker();
     broker.rememberGrant({
       id: "grant-1",
@@ -211,26 +230,18 @@ describe("host access tools", () => {
       revoked: false,
     });
     broker.nextDesktopOperation();
-    const { auditStore, events } = auditRecorder();
-    const tool = hostAccessTools({
-      broker,
-      botId: "bot-b",
-      actorId: "user-a",
-      auditStore,
-    }).find((candidate) => candidate.name === "host_read_file");
-
-    expect(tool).toBeUndefined();
-    const list = hostAccessTools({
-      broker,
-      botId: "bot-b",
-      actorId: "user-a",
-      auditStore,
-    })[0]!;
-    const text = await list.execute({});
-    expect(text).toContain("No host folders");
-    expect(events.at(-1)?.payload).toMatchObject({
-      operation: "list_folders",
-      outcome: "refused",
-    });
+    const { auditStore } = auditRecorder();
+    expect(
+      hostAccessTools({ broker, botId: "bot-b", actorId: "user-b", auditStore }),
+    ).toEqual([]);
+    await expect(
+      broker.callHost({
+        kind: "read_file",
+        botId: "bot-b",
+        actorId: "user-b",
+        grantId: "grant-1",
+        relativePath: "a.txt",
+      }),
+    ).rejects.toThrow("not granted to this person");
   });
 });

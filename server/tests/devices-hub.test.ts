@@ -21,7 +21,8 @@ function record(overrides: Partial<DeviceRecord> = {}): DeviceRecord {
     lastSeenAt: null,
     lastIp: null,
     createdAt: new Date().toISOString(),
-    botIds: ["bot1"],
+    botIds: [],
+    lastUsedBy: null,
     tokenHash: "x",
     ...overrides,
   };

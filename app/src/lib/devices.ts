@@ -55,6 +55,7 @@ export type DevicePatch = {
   capabilities?: Partial<DeviceCapabilities>;
   allowedRoots?: string[];
   paused?: boolean;
+  /** 已不起作用（设备由账号下所有机器人共用），只为兼容旧接口保留。 */
   botIds?: string[];
 };
 
@@ -116,6 +117,8 @@ export function platformLabel(platform: string) {
   if (platform === "win32") return "Windows";
   if (platform === "darwin") return "macOS";
   if (platform === "linux") return "Linux";
+  if (platform === "android") return "Android";
+  if (platform === "ios") return "iOS";
   return platform || "未知系统";
 }
 
@@ -136,6 +139,28 @@ export function seenText(at: string | null, online: boolean) {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} 小时前在线`;
   return `${new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} 在线`;
+}
+
+function relative(at: string) {
+  const ms = Date.now() - Date.parse(at);
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  return new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+}
+
+/** 「关联于 10月12日」（跨年时带年份）。 */
+export function linkedText(at: string) {
+  const date = new Date(at);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return `关联于 ${date.toLocaleDateString("zh-CN", sameYear ? { month: "long", day: "numeric" } : { year: "numeric", month: "long", day: "numeric" })}`;
+}
+
+/** 「助手 · 3 分钟前」：最近一次使用这台设备的机器人。 */
+export function lastUsedText(use: { botName: string | null; at: string }) {
+  return `${use.botName ?? "机器人"} · ${relative(use.at)}`;
 }
 
 export const OUTCOME_LABEL: Record<string, { text: string; tone: "ok" | "warn" | "danger" | "muted" }> = {

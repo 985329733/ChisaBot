@@ -67,7 +67,9 @@ type Row = typeof devices.$inferSelect;
 
 export type DeviceRecord = Omit<DeviceView, "online"> & { tokenHash: string };
 
-function toRecord(row: Row, botIds: string[]): DeviceRecord {
+type LastUse = DeviceView["lastUsedBy"];
+
+function toRecord(row: Row, botIds: string[], lastUsedBy: LastUse = null): DeviceRecord {
   return {
     id: row.id,
     ownerUserId: row.ownerUserId,
@@ -85,6 +87,7 @@ function toRecord(row: Row, botIds: string[]): DeviceRecord {
     lastIp: row.lastIp,
     createdAt: row.createdAt.toISOString(),
     botIds,
+    lastUsedBy,
     tokenHash: row.tokenHash,
   };
 }
@@ -117,9 +120,33 @@ export function createDeviceStore(database: Database) {
     return map;
   }
 
+  /** 每台设备最近一次由机器人发起的操作（审计表上 (device_id, at) 有索引）。 */
+  async function lastBotUseFor(ids: string[]): Promise<Map<string, NonNullable<LastUse>>> {
+    const map = new Map<string, NonNullable<LastUse>>();
+    if (!ids.length) return map;
+    try {
+      const rows = await database
+        .selectDistinctOn([deviceAuditEvents.deviceId], {
+          deviceId: deviceAuditEvents.deviceId,
+          actorId: deviceAuditEvents.actorId,
+          actorName: deviceAuditEvents.actorName,
+          at: deviceAuditEvents.at,
+        })
+        .from(deviceAuditEvents)
+        .where(and(inArray(deviceAuditEvents.deviceId, ids), eq(deviceAuditEvents.actorType, "bot")))
+        .orderBy(deviceAuditEvents.deviceId, desc(deviceAuditEvents.at));
+      for (const row of rows)
+        map.set(row.deviceId, { botId: row.actorId, botName: row.actorName, at: row.at.toISOString() });
+    } catch {
+      /* 只是展示用的附加信息，读不到就不显示。 */
+    }
+    return map;
+  }
+
   async function hydrate(rows: Row[]): Promise<DeviceRecord[]> {
-    const bots = await botIdsFor(rows.map((row) => row.id));
-    return rows.map((row) => toRecord(row, bots.get(row.id) ?? []));
+    const ids = rows.map((row) => row.id);
+    const [bots, lastUse] = await Promise.all([botIdsFor(ids), lastBotUseFor(ids)]);
+    return rows.map((row) => toRecord(row, bots.get(row.id) ?? [], lastUse.get(row.id) ?? null));
   }
 
   async function get(id: string): Promise<DeviceRecord | null> {
@@ -253,7 +280,20 @@ export function createDeviceStore(database: Database) {
       await database.delete(deviceAuditEvents).where(eq(deviceAuditEvents.deviceId, id));
     },
 
-    /** 某个机器人能用的、属于 owner 的未撤销设备。 */
+    /**
+     * 属于 owner 的全部未撤销设备。设备属于账号而不是某个机器人：用户的每个机器人都能使用它们
+     * （能力开关、允许的文件夹、审批、紧急停止照常生效）。
+     */
+    async forOwner(ownerUserId: string): Promise<DeviceRecord[]> {
+      const rows = await database
+        .select()
+        .from(devices)
+        .where(and(eq(devices.ownerUserId, ownerUserId), isNull(devices.revokedAt)))
+        .orderBy(desc(devices.createdAt));
+      return hydrate(rows);
+    },
+
+    /** 旧版：某个机器人被单独勾选过的设备。已不用于授权，只留给迁移 / 旧测试。 */
     async forBot(ownerUserId: string, botId: string): Promise<DeviceRecord[]> {
       const rows = await database
         .select({ device: devices })

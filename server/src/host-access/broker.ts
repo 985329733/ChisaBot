@@ -230,9 +230,10 @@ export function createHostAccessBroker(
         "That folder grant is no longer available.",
       );
     }
-    if (grant.botId !== input.botId || grant.actorId !== input.actorId) {
+    // 文件夹授权属于这个人，不属于某个机器人：他的任何机器人都能用（ChisaBot 2026-10「设备共用」）。
+    if (grant.actorId !== input.actorId) {
       throw new HostAccessRefusedError(
-        "That folder was not granted to this Bot and person.",
+        "That folder was not granted to this person.",
       );
     }
     return grant;
@@ -320,7 +321,9 @@ export function createHostAccessBroker(
       const result = await enqueue<unknown>({
         operationId: randomUUID(),
         kind: input.kind,
-        botId: input.botId,
+        // 桌面宿主按 grant.bot_id == operation.bot_id 校验，所以发给它的是授权时的机器人；
+        // 真正发起的机器人在审批与审计里（input.botId）。
+        botId: grant.botId,
         actorId: input.actorId,
         grantId: input.grantId,
         ...(input.relativePath ? { relativePath: input.relativePath } : {}),

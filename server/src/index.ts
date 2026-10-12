@@ -1150,7 +1150,13 @@ const deviceToolsFor = async (
   initiator?: AuditInitiator,
 ) => {
   try {
-    const devices = await deviceStore.forBot(actorId, botId);
+    // 设备属于账号：这个人的任何机器人都能用他名下的在线设备（能力 / 文件夹 / 审批 / 紧急停止仍逐台生效）。
+    // 例外：别人发布的团队机器人（agent_profiles 的主人是另一个人）不能碰这个人的电脑。
+    const owner = await pluginStore.agentOwner(botId).catch(() => undefined);
+    if (typeof owner === "string" && owner !== actorId) return [];
+    const devices = (await deviceStore.forOwner(actorId)).filter((device) =>
+      deviceHub.isOnline(device.id),
+    );
     if (!devices.length) return [];
     const botName = await agentProfileStore
       .get(await actorFor(actorId), botId)
@@ -3460,6 +3466,7 @@ const app = createApp(
           hub: deviceHub,
           requireUser,
           auditStore: bootAuditStore,
+          toolsFor: (actorId, botId) => deviceToolsFor(actorId, botId),
         }),
       ],
     ],

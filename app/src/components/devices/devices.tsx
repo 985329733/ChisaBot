@@ -1,9 +1,13 @@
 import {
+  IconBrandAndroid,
+  IconBrandApple,
   IconBrandWindows,
   IconCheck,
   IconChevronRight,
   IconClipboard,
   IconDeviceDesktop,
+  IconDeviceMobile,
+  IconDots,
   IconDownload,
   IconExternalLink,
   IconFileText,
@@ -13,13 +17,14 @@ import {
   IconPencil,
   IconPhoto,
   IconPlayerStopFilled,
+  IconRobot,
   IconShieldCheck,
   IconTerminal2,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   CAPABILITY_INFO,
@@ -34,23 +39,41 @@ import {
 } from "../../../../shared/devices";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { Card, CardHeader, EmptyState, ListRow, SaveBar, SettingRow } from "@/components/ui/skyglass";
-import { agentListQueryOptions } from "@/lib/agents/queries";
 import {
   ACTION_LABEL,
   bytesText,
   decideApproval,
+  deleteDevice,
   deviceKeys,
+  lastUsedText,
+  linkedText,
   OUTCOME_LABEL,
   type PcDownload,
   patchDevice,
   pcDownloadQueryOptions,
   platformLabel,
+  revokeDevice,
   seenText,
 } from "@/lib/devices";
 import { type PcLocalPatch, type PcLocalState, type PcUpdateState, pcBridge } from "@/lib/pc-bridge";
@@ -66,8 +89,16 @@ const CAP_ICON: Record<DeviceCapability, typeof IconTerminal2> = {
   clipboard: IconClipboard,
 };
 
+export function platformIcon(platform: string) {
+  if (platform === "win32") return IconBrandWindows;
+  if (platform === "android") return IconBrandAndroid;
+  if (platform === "darwin") return IconBrandApple;
+  if (platform === "ios") return IconDeviceMobile;
+  return IconDeviceDesktop;
+}
+
 export function DeviceIcon({ device, size = "md" }: { device: Pick<DeviceView, "platform" | "online" | "paused" | "revoked">; size?: "md" | "lg" }) {
-  const Icon = device.platform === "win32" ? IconBrandWindows : IconDeviceDesktop;
+  const Icon = platformIcon(device.platform);
   const status = device.revoked ? "is-revoked" : device.paused ? "is-paused" : device.online ? "is-online" : "is-offline";
   return (
     <span className={cn("device-icon", size === "lg" && "is-lg", status)}>
@@ -108,35 +139,207 @@ export function ThisPcBadge() {
   );
 }
 
-function enabledCount(capabilities: DeviceCapabilities) {
-  return DEVICE_CAPABILITIES.filter((cap) => capabilities[cap] !== "off").length;
+function enabledCaps(capabilities: DeviceCapabilities) {
+  return DEVICE_CAPABILITIES.filter((cap) => capabilities[cap] !== "off");
 }
 
+/** 设备列表的一行：点主体进详情；右侧 ⋯ 菜单 = 查看详情 / 能力与权限 / 重命名… / 撤销… / 删除…。 */
 export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView; showOwner?: boolean; isThisPc?: boolean }) {
-  const caps = enabledCount(device.capabilities);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [renaming, setRenaming] = useState(false);
+  const caps = enabledCaps(device.capabilities);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: deviceKeys.all });
+  const revoke = useAsyncAction(
+    async () => {
+      await revokeDevice(device.id);
+      await refresh();
+    },
+    { errorToast: (error) => `撤销失败：${error.message}` },
+  );
+  const remove = useAsyncAction(
+    async () => {
+      await deleteDevice(device.id);
+      await refresh();
+    },
+    { errorToast: (error) => `删除失败：${error.message}` },
+  );
+  const busy =
+    revoke.state === "pending" ? "撤销中…" : remove.state === "pending" ? "删除中…" : revoke.state === "success" ? "已撤销" : remove.state === "success" ? "已删除" : null;
+  const facts = [
+    [platformLabel(device.platform), device.osVersion].filter(Boolean).join(" "),
+    device.clientVersion ? `客户端 ${device.clientVersion}` : null,
+    seenText(device.lastSeenAt, device.online),
+    linkedText(device.createdAt),
+    showOwner ? `所有者 ${device.ownerUserId.slice(0, 8)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <Link className="device-row-link" params={{ deviceId: device.id }} to="/settings/devices/$deviceId">
-      <ListRow
-        actions={
-          <span className="device-row-actions">
-            {isThisPc ? <ThisPcBadge /> : null}
-            <StatusBadge device={device} />
-            <IconChevronRight aria-hidden className="size-4 text-[var(--ink-3)]" />
-          </span>
-        }
-        icon={<DeviceIcon device={device} />}
-        sub={[
-          platformLabel(device.platform),
-          device.hostname,
-          seenText(device.lastSeenAt, device.online),
-          caps ? `已开启 ${caps} 项能力` : "未开启能力",
-          showOwner ? `所有者 ${device.ownerUserId.slice(0, 8)}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-        title={device.name}
-      />
-    </Link>
+    <div className={cn("device-row", busy && "is-busy")}>
+      <Link className="device-row-link" params={{ deviceId: device.id }} to="/settings/devices/$deviceId">
+        <ListRow
+          actions={
+            <span className="device-row-actions">
+              {isThisPc ? <ThisPcBadge /> : null}
+              {busy ? (
+                <span aria-live="polite" className={cn("device-badge", busy.startsWith("已") ? "is-muted" : "is-warn")}>
+                  {busy}
+                </span>
+              ) : (
+                <StatusBadge device={device} />
+              )}
+            </span>
+          }
+          icon={<DeviceIcon device={device} />}
+          sub={
+            <>
+              <span className="device-row-facts">{facts}</span>
+              <span className="device-row-meta">
+                {device.revoked ? (
+                  <span className="device-cap-chip is-off">{"令牌已作废"}</span>
+                ) : caps.length ? (
+                  caps.map((cap) => (
+                    <span className={cn("device-cap-chip", device.capabilities[cap] === "ask" && "is-ask")} key={cap}>
+                      {CAPABILITY_INFO[cap].label}
+                      {device.capabilities[cap] === "ask" ? "·询问" : ""}
+                    </span>
+                  ))
+                ) : (
+                  <span className="device-cap-chip is-off">{"能力全部关闭"}</span>
+                )}
+                {device.lastUsedBy ? (
+                  <span className="device-row-used">
+                    <IconRobot aria-hidden className="size-3.5" />
+                    {lastUsedText(device.lastUsedBy)}
+                  </span>
+                ) : null}
+              </span>
+            </>
+          }
+          title={device.name}
+        />
+      </Link>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button aria-label={`「${device.name}」的更多操作`} className="device-row-more" title={"更多操作"} type="button" />
+          }
+        >
+          <IconDots className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="glass-pop w-[220px] p-1.5">
+          <DropdownMenuItem
+            className="glass-mi"
+            onClick={() => void navigate({ to: "/settings/devices/$deviceId", params: { deviceId: device.id } })}
+          >
+            <IconChevronRight className="size-[18px] shrink-0 opacity-80" />
+            <span className="min-w-0 flex-1">{"查看详情"}</span>
+          </DropdownMenuItem>
+          {!device.revoked ? (
+            <>
+              <DropdownMenuItem
+                className="glass-mi"
+                onClick={() =>
+                  void navigate({ to: "/settings/devices/$deviceId", params: { deviceId: device.id }, search: { tab: "permissions" } })
+                }
+              >
+                <IconShieldCheck className="size-[18px] shrink-0 opacity-80" />
+                <span className="min-w-0 flex-1">{"能力与权限"}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="glass-mi" onClick={() => setRenaming(true)}>
+                <IconPencil className="size-[18px] shrink-0 opacity-80" />
+                <span className="min-w-0 flex-1">{"重命名…"}</span>
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          <DropdownMenuSeparator className="glass-sep" />
+          {!device.revoked ? (
+            <DropdownMenuItem
+              className="glass-mi is-danger"
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: `撤销「${device.name}」？`,
+                  description: "这台设备会立即断开，所有机器人都不能再使用它。客户端需要重新登录才能再次关联。",
+                  confirmLabel: "撤销",
+                  destructive: true,
+                });
+                if (ok) void revoke.run();
+              }}
+            >
+              <IconPlayerStopFilled className="size-[18px] shrink-0 opacity-80" />
+              <span className="min-w-0 flex-1">{"撤销关联…"}</span>
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            className="glass-mi is-danger"
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: `删除「${device.name}」？`,
+                description: "会同时删除这台设备的权限设置和全部操作记录，无法恢复。",
+                confirmLabel: "删除",
+                destructive: true,
+              });
+              if (ok) void remove.run();
+            }}
+          >
+            <IconTrash className="size-[18px] shrink-0 opacity-80" />
+            <span className="min-w-0 flex-1">{"删除…"}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <RenameDeviceDialog device={device} onOpenChange={setRenaming} open={renaming} />
+    </div>
+  );
+}
+
+/** 重命名设备的玻璃弹窗（异步保存按钮：保存中… → ✓ 已保存，然后自动关闭）。 */
+export function RenameDeviceDialog({
+  device,
+  open,
+  onOpenChange,
+}: {
+  device: Pick<DeviceView, "id" | "name">;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(device.name);
+  useEffect(() => {
+    if (open) setName(device.name);
+  }, [open, device.name]);
+  const trimmed = name.trim();
+  const save = useAsyncAction(async () => {
+    const next = await patchDevice(device.id, { name: trimmed });
+    queryClient.setQueryData(deviceKeys.detail(device.id), next);
+    await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
+    setTimeout(() => onOpenChange(false), 600);
+  });
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{"重命名设备"}</DialogTitle>
+          <DialogDescription>{"名字会显示在设备列表、审批弹窗和机器人看到的设备列表里。"}</DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (trimmed && trimmed !== device.name && save.state !== "pending") void save.run();
+          }}
+        >
+          <Input aria-label="设备名称" autoFocus maxLength={64} onChange={(event) => setName(event.target.value)} value={name} />
+          <DialogFooter className="mt-4">
+            <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
+              {"取消"}
+            </Button>
+            <Button disabled={!trimmed || trimmed === device.name} feedback="save" state={save.state} type="submit">
+              {"保存"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -285,9 +488,9 @@ export function AddDeviceCard() {
 export function NoDevices() {
   return (
     <EmptyState
-      description="安装 ChisaBot PC 客户端并登录后，机器人就能在你授权的范围内帮你操作这台电脑。"
+      description="在电脑上安装 ChisaBot PC 客户端，用这个账号登录，它就会出现在这里。关联后你的每个机器人都能在你开启的能力范围内使用它；能力默认全部关闭。（安卓客户端目前只是聊天窗口，还不能作为设备关联。）"
       icon={<IconDeviceDesktop className="size-6" />}
-      title="还没有设备"
+      title="还没有关联的设备"
     />
   );
 }
@@ -331,7 +534,6 @@ function PolicySegmented({
 type Draft = {
   capabilities: DeviceCapabilities;
   allowedRoots: string[];
-  botIds: string[];
   name: string;
 };
 
@@ -339,23 +541,21 @@ function draftOf(device: DeviceView): Draft {
   return {
     capabilities: { ...device.capabilities },
     allowedRoots: [...device.allowedRoots],
-    botIds: [...device.botIds],
     name: device.name,
   };
 }
 
 function sameDraft(a: Draft, b: Draft) {
-  return JSON.stringify({ ...a, botIds: [...a.botIds].sort() }) === JSON.stringify({ ...b, botIds: [...b.botIds].sort() });
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** 权限页：能力、允许的文件夹、可用机器人、名称；改动后出现未保存栏。 */
+/** 权限页：能力、允许的文件夹、谁可以使用（说明 + 最近使用）、名称；改动后出现未保存栏。 */
 export function DevicePermissions({ device, isThisPc = false }: { device: DeviceView; isThisPc?: boolean }) {
   const queryClient = useQueryClient();
   const base = useMemo(() => draftOf(device), [device]);
   const [draft, setDraft] = useState<Draft>(base);
   const [touched, setTouched] = useState(false);
   const [newRoot, setNewRoot] = useState("");
-  const agents = useQuery(agentListQueryOptions());
   // 服务器（或 PC 上）改了配置而本页没有未保存的改动时，跟上最新值。
   useEffect(() => {
     if (!touched) setDraft(base);
@@ -367,7 +567,6 @@ export function DevicePermissions({ device, isThisPc = false }: { device: Device
     const next = await patchDevice(device.id, {
       capabilities: draft.capabilities,
       allowedRoots: draft.allowedRoots,
-      botIds: draft.botIds,
       name: draft.name.trim() || device.name,
     });
     queryClient.setQueryData(deviceKeys.detail(device.id), next);
@@ -495,43 +694,27 @@ export function DevicePermissions({ device, isThisPc = false }: { device: Device
       </section>
 
       <section className="device-section">
-        <h2 className="device-section-t">{"可以使用这台电脑的机器人"}</h2>
-        <p className="device-section-s">{"没有勾选的机器人看不到这台电脑。"}</p>
+        <h2 className="device-section-t">{"谁可以使用"}</h2>
+        <p className="device-section-s">{"设备属于你的账号，不再按机器人单独授权：你的每个机器人都能在上面开启的能力和允许的文件夹范围内使用它（只在它在线时），「询问」的操作每次先问你，紧急停止对所有机器人立即生效。"}</p>
         <Card>
-          {agents.isPending ? (
-            <div className="device-empty-line">{"正在加载机器人…"}</div>
-          ) : (agents.data ?? []).length === 0 ? (
-            <div className="device-empty-line">{"还没有机器人。"}</div>
-          ) : (
-            (agents.data ?? []).map((agent) => {
-              const checked = draft.botIds.includes(agent.id);
-              return (
-                <label className="device-bot-row" key={agent.id}>
-                  <Checkbox
-                    checked={checked}
-                    disabled={locked}
-                    onCheckedChange={(value) =>
-                      update((current) => ({
-                        ...current,
-                        botIds: value ? [...current.botIds, agent.id] : current.botIds.filter((id) => id !== agent.id),
-                      }))
-                    }
-                  />
-                  <span className="device-bot-av" aria-hidden>
-                    {(agent.name || "?").slice(0, 1)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{agent.name}</span>
-                </label>
-              );
-            })
-          )}
+          <SettingRow
+            description={device.lastUsedBy ? `最近使用：${lastUsedText(device.lastUsedBy)}` : "还没有机器人使用过这台设备。"}
+            title={
+              <span className="device-cap-t">
+                <IconRobot className="size-4" />
+                {"你的所有机器人"}
+              </span>
+            }
+          >
+            <span className="device-badge is-accent">{"共用"}</span>
+          </SettingRow>
         </Card>
       </section>
 
       <section className="device-section">
         <h2 className="device-section-t">{"名称"}</h2>
         <Card>
-          <SettingRow description="在设备列表和机器人工具里显示的名字。" title="设备名称">
+          <SettingRow description="在设备列表、审批弹窗和机器人看到的设备列表里显示的名字。" title="设备名称">
             <Input
               className="device-name-input"
               disabled={locked}

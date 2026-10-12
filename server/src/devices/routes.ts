@@ -8,6 +8,7 @@ import { type AuditStore, recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import { upgradeWebSocket } from "../channels/socket";
 import { DeviceRefusedError, type DeviceHub, describeChange } from "./hub";
+import { type GrantedTool, REFUSAL_MARKER } from "../plugins/tools";
 import type { DevicePatch, DeviceRecord, DeviceStore } from "./store";
 
 /**
@@ -83,8 +84,10 @@ export function createDeviceRoutes(options: {
   hub: DeviceHub;
   requireUser: MiddlewareHandler<{ Variables: AppVariables }>;
   auditStore?: AuditStore;
+  /** 这个人跑某个机器人时会拿到的设备工具（与聊天里完全同一条路径，index.ts 的 deviceToolsFor）。 */
+  toolsFor?: (actorId: string, botId: string) => Promise<GrantedTool[]>;
 }) {
-  const { store, hub, requireUser, auditStore } = options;
+  const { store, hub, requireUser, auditStore, toolsFor } = options;
   const routes = new Hono<{ Variables: Variables }>();
   const userGuard = requireUser as unknown as MiddlewareHandler<{ Variables: Variables }>;
 
@@ -237,6 +240,36 @@ export function createDeviceRoutes(options: {
     const done = hub.decide(id, decision === "approve", "web");
     if (!done) return context.json({ error: "这个审批已经处理过或已过期。" }, 404);
     return context.json({ ok: true });
+  });
+
+  /**
+   * 无对话自检（docs/pc-node.md §7）：某个机器人此刻会拿到哪些设备工具、看到哪些设备。只读，不写任何会话。
+   * POST 版（仅管理员）再用这个机器人的 device_system_info 读一次系统信息，走与聊天完全相同的工具、
+   * 能力、审批与审计（审计里记为这个机器人），用来验证「设备由所有机器人共用」。
+   */
+  routes.get("/bot-tools/:botId", userGuard, async (context) => {
+    if (!toolsFor) return context.json({ error: "不可用。" }, 404);
+    const actor = context.var.actor;
+    const botId = context.req.param("botId");
+    const tools = await toolsFor(actor.id, botId);
+    const list = tools.find((tool) => tool.name === "device_list");
+    const devices = list ? JSON.parse(String(await list.execute({}))).devices : [];
+    return context.json({ botId, tools: tools.map((tool) => tool.name), devices });
+  });
+
+  routes.post("/bot-tools/:botId/probe", userGuard, async (context) => {
+    if (!toolsFor) return context.json({ error: "不可用。" }, 404);
+    const actor = context.var.actor;
+    if (actor.role !== "admin") return context.json({ error: "只有管理员可以运行自检。" }, 403);
+    const body = (await context.req.json().catch(() => null)) as { deviceId?: unknown } | null;
+    const tools = await toolsFor(actor.id, context.req.param("botId"));
+    const info = tools.find((tool) => tool.name === "device_system_info");
+    if (!info) return context.json({ ok: false, error: "这个机器人现在没有设备工具（没有在线设备？）。" }, 409);
+    const result = String(
+      await info.execute(typeof body?.deviceId === "string" ? { deviceId: body.deviceId } : {}),
+    );
+    const failed = result.startsWith(REFUSAL_MARKER) || result.startsWith("设备操作失败");
+    return context.json({ ok: !failed, result }, failed ? 409 : 200);
   });
 
   routes.get("/:id", userGuard, async (context) => {
