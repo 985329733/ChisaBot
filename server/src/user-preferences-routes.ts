@@ -13,6 +13,8 @@ const preferencesPatch = z
     messageListEmphasis: z.enum(["agent", "thread"]).optional(),
     selfHostBannerDismissed: z.boolean().optional(),
     mainBotId: z.string().min(1).max(200).nullable().optional(),
+    brandAccent: z.string().trim().max(24).optional(),
+    brandRest: z.string().trim().max(24).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0);
 
@@ -45,7 +47,7 @@ export function userPreferencesRoutes(
       return context.json(
         {
           error:
-            "Choose agent or thread for message list emphasis, true or false for the self-host banner, or a Bot id (or null) for the main Bot.",
+            "Choose agent or thread for message list emphasis, true or false for the self-host banner, a Bot id (or null) for the main Bot, or a brand name of at most 24 characters per part.",
         },
         400,
       );

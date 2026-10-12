@@ -4299,3 +4299,67 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 @media (prefers-reduced-motion: reduce) {
   .computer-screen-wait { animation: none; }
 }
+
+/* ── 品牌名（左上角）：Chisa 红字黑边 + Bot 普通字，用户可在点击后修改 ───────────── */
+@font-face {
+  font-family: "ChisaBrand";
+  src: url("./assets/fonts/fredoka-latin-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+.brand-mark-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 180ms ease;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.brand-mark-btn:hover { background: var(--glass-2); }
+.brand-mark-btn:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.brand-mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-family: "ChisaBrand", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.brand-mark-accent {
+  color: #e8262f;
+  /* 黑边：8 个方向的描边阴影，兼容所有浏览器（不依赖 paint-order）。 */
+  text-shadow:
+    -1.2px -1.2px 0 #111, 0 -1.2px 0 #111, 1.2px -1.2px 0 #111,
+    -1.2px 0 0 #111, 1.2px 0 0 #111,
+    -1.2px 1.2px 0 #111, 0 1.2px 0 #111, 1.2px 1.2px 0 #111,
+    0 2px 3px rgba(0, 0, 0, 0.25);
+}
+.brand-mark-rest { color: var(--ink-1); }
+.brand-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  border-radius: 16px;
+  background: var(--glass-2);
+}
+.brand-preview .brand-mark { font-size: 30px; }
+.brand-preview .brand-mark-accent {
+  text-shadow:
+    -1.8px -1.8px 0 #111, 0 -1.8px 0 #111, 1.8px -1.8px 0 #111,
+    -1.8px 0 0 #111, 1.8px 0 0 #111,
+    -1.8px 1.8px 0 #111, 0 1.8px 0 #111, 1.8px 1.8px 0 #111,
+    0 3px 5px rgba(0, 0, 0, 0.25);
+}
+.brand-form { display: flex; flex-direction: column; gap: 14px; }
+.brand-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.brand-actions { display: flex; justify-content: flex-end; gap: 8px; }
