@@ -117,7 +117,41 @@ type FrameMessage = {
   data: string;
   width: number;
   height: number;
+  /** 这一帧所在页面的网址（旧的计算机不带）。 */
+  url?: string;
 };
+
+/** 浏览器还没打开任何网页：about:blank 或空网址。没带网址的帧当作真页面。 */
+export function isBlankPageUrl(url: string | undefined): boolean {
+  if (url === undefined) return false;
+  const text = url.trim();
+  return text === "" || text === "about:blank";
+}
+
+/**
+ * 这一帧是不是一张纯白（或几乎纯白）的图。缩成 32×20 再看，每个像素都接近白色才算。
+ * 只在空白网址上调用，所以不会每帧都做。导出给测试用（传入 RGBA 数据）。
+ */
+export function isPlainWhitePixels(data: ArrayLike<number>): boolean {
+  for (let i = 0; i + 2 < data.length; i += 4) {
+    if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return false;
+  }
+  return data.length > 0;
+}
+
+function bitmapIsPlainWhite(bitmap: ImageBitmap): boolean {
+  try {
+    const probe = document.createElement("canvas");
+    probe.width = 32;
+    probe.height = 20;
+    const context = probe.getContext("2d", { willReadFrequently: true });
+    if (!context) return false;
+    context.drawImage(bitmap, 0, 0, probe.width, probe.height);
+    return isPlainWhitePixels(context.getImageData(0, 0, probe.width, probe.height).data);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 地址栏里输入的东西 → 要打开的网址。带协议的照用；像域名的补 https://；其余当作搜索词。
@@ -156,6 +190,12 @@ export function LiveScreen({
   /** Monotonic guard so a slow older decode cannot replace a newer frame. */
   const latestFrameId = useRef(0);
   const [connected, setConnected] = useState(false);
+  /**
+   * 浏览器停在空白页、画面是一片白：盖上和右栏一样的「浏览器空闲」卡片，而不是给人看一块白色矩形。
+   * 服务端通常会在空白页上画起始页（那就是有内容的画面，不盖）；这里兜住它还没画上或画不上的时候。
+   */
+  const [blankPage, setBlankPage] = useState(false);
+  const blankPageRef = useRef(false);
   /** 画布上是否已经画过至少一帧。没画过时显示「正在连接屏幕…」，而不是一块黑色画布。 */
   const [hasFrame, setHasFrame] = useState(false);
   const hasFrameRef = useRef(false);
@@ -215,7 +255,12 @@ export function LiveScreen({
         canvas.width = bitmap.width;
         canvas.height = bitmap.height;
         canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+        const blank = isBlankPageUrl(frame.url) && bitmapIsPlainWhite(bitmap);
         bitmap.close();
+        if (blank !== blankPageRef.current) {
+          blankPageRef.current = blank;
+          setBlankPage(blank);
+        }
         if (!hasFrameRef.current) {
           hasFrameRef.current = true;
           setHasFrame(true);
@@ -318,7 +363,12 @@ export function LiveScreen({
         width: message.width ?? 1280,
         height: message.height ?? 800,
       };
-      const frame = { data: message.data, width, height };
+      const frame: FrameMessage = {
+        data: message.data,
+        width,
+        height,
+        ...(typeof message.url === "string" ? { url: message.url } : {}),
+      };
       latestFrame.current = frame;
       const frameId = ++latestFrameId.current;
 
@@ -677,6 +727,21 @@ export function LiveScreen({
       data-connected={connected}
       data-has-frame={hasFrame}
     />
+        {hasFrame && blankPage && !reconnecting ? (
+          <div
+            className="computer-frame computer-idle computer-screen-idle"
+            data-blank-page="true"
+            role="status"
+          >
+            <IconWorld className="computer-idle-ic" />
+            <span className="computer-idle-t">{"浏览器空闲"}</span>
+            <span className="computer-idle-s">
+              {driving
+                ? "还没有打开网页。在上方地址栏输入网址，回车打开。"
+                : "机器人还没有打开网页。接管后可以在地址栏输入网址。"}
+            </span>
+          </div>
+        ) : null}
         {hasFrame ? null : (
           <div className="computer-screen-wait" role="status">
             <IconLoader2 className="size-5 animate-spin" />

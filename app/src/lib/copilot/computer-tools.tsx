@@ -193,9 +193,15 @@ export function ComputerTools() {
     description:
       "Open a web page on your own computer so the person can watch. Use this when asked to look " +
       "at, visit, open or check a website. Returns the page title and its readable text, so answer " +
-      "from what comes back rather than telling the person to go and look.",
+      "from what comes back rather than telling the person to go and look. To show a page you wrote " +
+      "yourself, save it with computer_write_file (e.g. page.html) and open " +
+      "https://workspace.local/page.html — file:// addresses do not work.",
     parameters: z.object({
-      url: z.string().describe("Full web address to open, including https://"),
+      url: z
+        .string()
+        .describe(
+          "Full web address to open, including https://. Your own workspace files are at https://workspace.local/<path>.",
+        ),
     }),
     handler: async (
       { url }: { url: string },

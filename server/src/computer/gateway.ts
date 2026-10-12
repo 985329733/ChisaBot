@@ -33,6 +33,7 @@ import {
 } from "./client";
 import { HeadlessToolSuspension } from "./headless-tools";
 import { checkComputerAddress } from "./target";
+import { workspaceUrlFor } from "./workspace-url";
 
 export {
   ComputerUnavailableError,
@@ -996,6 +997,8 @@ export function createComputerGateway(
       url: string,
       toolCallId?: string,
     ) {
+      // file:///workspace/… → https://workspace.local/…：机器人自己写的网页（见 workspace-url.ts）。
+      url = workspaceUrlFor(url);
       return govern(
         "computer_navigate",
         botId,
