@@ -40,6 +40,7 @@ import {
 import type { AgentFetch, StallGuard } from "./channels/stall-guard";
 import { HeadlessToolsMiddleware } from "./computer/headless-tools";
 import type { DeploymentConfig } from "./config";
+import { meterLanguageModel, meterRun } from "./context-usage";
 import { observeModelConnection } from "./desktop-connection-failure";
 import { desktopTelemetryProperties } from "./desktop-telemetry";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
@@ -445,7 +446,8 @@ export function builtInAgentConfiguration(
     model:
       planModel ??
       (model.baseUrl || model.useApiKey === false
-        ? connectionLanguageModel(model, apiKey)
+        ? // 每一步的用量记到当前运行的计量器（输入框的「上下文」读数，context-usage.ts）。
+          meterLanguageModel(connectionLanguageModel(model, apiKey))
         : `${model.provider}/${model.defaultModel}`),
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
@@ -1708,27 +1710,31 @@ class BuiltInAgentWithSaneHistory extends BuiltInAgent {
      * this existed.
      */
     if (!load)
-      return nativeApprovalRun({ ...input, messages: history }, () =>
-        observeModelConnection(super.run({ ...input, messages: history })),
+      return meterRun(() =>
+        nativeApprovalRun({ ...input, messages: history }, () =>
+          observeModelConnection(super.run({ ...input, messages: history })),
+        ),
       );
     /*
      * Deferred, because `run` has to answer with a stream straight away and reading the bytes is a
      * database round trip. `defer` puts that read on the subscription, which is where the run
      * actually begins, so nothing is fetched until somebody is listening.
      */
-    return defer(() =>
-      from(
-        inlineAttachments(
-          history,
-          load,
-          // As above: the run's own conversation, not the actor's channels at large.
-          input.threadId,
-          this.markAttachmentsSent,
-        ),
-      ).pipe(
-        switchMap((messages) =>
-          nativeApprovalRun({ ...input, messages }, () =>
-            observeModelConnection(super.run({ ...input, messages })),
+    return meterRun(() =>
+      defer(() =>
+        from(
+          inlineAttachments(
+            history,
+            load,
+            // As above: the run's own conversation, not the actor's channels at large.
+            input.threadId,
+            this.markAttachmentsSent,
+          ),
+        ).pipe(
+          switchMap((messages) =>
+            nativeApprovalRun({ ...input, messages }, () =>
+              observeModelConnection(super.run({ ...input, messages })),
+            ),
           ),
         ),
       ),

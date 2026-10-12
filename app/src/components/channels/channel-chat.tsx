@@ -15,6 +15,7 @@ import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
 import { ConversationView } from "@/components/channels/conversation-view";
 import { VoiceCallWidget } from "@/components/channels/voice-call-widget";
+import { ContextMeter } from "@/components/agents/context-meter";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
 import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
@@ -994,6 +995,7 @@ export function ChannelChat({
           />
           <ConversationView
             modelControl={<BotModelSelector agentId={runtimeAgentId} compact disabled={!channel.active} />}
+            contextControl={<ContextMeter agentId={runtimeAgentId} running={agent.isRunning || turnsInFlight > 0} threadId={channel.threadId} />}
             sendBlocked={modelSaving}
             voiceCall={
               call.available

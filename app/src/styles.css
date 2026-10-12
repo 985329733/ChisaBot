@@ -4418,30 +4418,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] {
   padding-bottom: 16px;
 }
-/* 输入框：与频道聊天同一个玻璃胶囊。 */
-.bot-chat-sky .copilotKitInput {
-  border: 1px solid var(--stroke);
-  border-radius: var(--r-xl);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.7));
-  backdrop-filter: var(--glass-blur);
-  box-shadow: 0 12px 34px rgba(40, 70, 110, 0.14), 0 1px 2px rgba(40, 70, 110, 0.06), var(--inset-hl);
-  transition: box-shadow 0.2s ease, background 0.2s ease;
-}
-.dark .bot-chat-sky .copilotKitInput {
-  background: linear-gradient(180deg, rgba(34, 46, 66, 0.88), rgba(26, 36, 54, 0.82));
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38), var(--inset-hl);
-}
-.bot-chat-sky .copilotKitInput:focus-within {
-  background: var(--glass-3);
-  box-shadow: var(--shadow-2), var(--inset-hl);
-}
-.bot-chat-sky .copilotKitInput textarea { color: var(--ink-1, inherit); }
-.bot-chat-sky .copilotKitInput textarea::placeholder { color: var(--glass-ink-4) !important; }
-/* 发送键：墨色（DESIGN.md §11）。 */
-.bot-chat-sky .copilotKitInput button[aria-label="发送消息"]:not(:disabled) {
-  background: var(--ink-primary);
-  color: var(--on-primary);
-}
 /* 用户消息：墨色气泡；机器人文字：L1 玻璃气泡（与频道聊天一致，任何天色下都看得清）。 */
 .bot-chat-sky .copilotKitUserMessage .cpk\:bg-muted {
   background: var(--ink-primary);
@@ -4471,9 +4447,218 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   border-color: var(--stroke);
   backdrop-filter: var(--glass-blur);
 }
-/* 模型选择行与输入框同宽同列。 */
-.bot-chat-sky .bot-input-row {
+
+/* ==========================================================================================
+ * 输入框重做 + 上下文读数（DESIGN.md §25，2026-10-12）。
+ * 一张玻璃卡：上面输入区（自动长高到 8 行）；下面一行工具栏，左「＋ · 模型」，右「Shift+Enter 提示 · 上下文 · 发送/停止」。
+ * 机器人聊天（/bot，CopilotChat 的 children 布局）和频道聊天（composer.tsx compact）用同一套样式。
+ * ========================================================================================== */
+.bot-chat-sky .bot-composer-wrap {
+  width: 100%;
   max-width: min(42rem, calc(100% - 32px));
   margin-inline: auto;
-  padding: 8px 4px 0;
+  pointer-events: auto;
+}
+.bot-composer {
+  container-type: inline-size;
+  gap: 4px;
+  padding: 12px 10px 8px 14px;
+  cursor: text;
+}
+.bot-composer-field { position: relative; min-width: 0; padding: 2px 4px 2px 2px; }
+.bot-composer-textarea {
+  display: block;
+  width: 100%;
+  min-height: calc(1.6em + 2px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--ink-1);
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.6;
+  caret-color: var(--composer-accent, var(--accent-blue));
+  transition: height var(--dur-1, 150ms) var(--ease-out, ease);
+  scrollbar-width: thin;
+}
+.bot-composer-textarea::placeholder { color: var(--glass-ink-4); }
+.bot-composer-mirror {
+  position: absolute !important;
+  inset: 0 auto auto 0;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+.bot-composer-toolbar { gap: 6px; padding-top: 4px; }
+.bot-composer-left { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.bot-composer-right { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
+.bot-composer-add-off {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--glass-ink-4);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* SDK 的 ＋ 按钮自带 cpk 外边距：在卡片里与左边对齐。 */
+.bot-composer .bot-composer-add { margin-left: 0 !important; }
+
+/* 发送 ↔ 停止：同一个圆键，图标交叉淡入；停止时是深色键（与频道聊天一致）。 */
+.bot-composer-send { display: inline-grid; place-items: center; flex-shrink: 0; cursor: pointer; }
+.bot-composer-send-icon { display: grid; place-items: center; }
+.bot-composer-send-icon > svg {
+  grid-area: 1 / 1;
+  transition: opacity var(--dur-1, 150ms) ease, transform var(--dur-2, 220ms) var(--ease-out, ease);
+}
+.bot-composer-send-icon[data-shown="send"] .is-stop,
+.bot-composer-send-icon[data-shown="stop"] .is-send { opacity: 0; transform: scale(0.5); }
+.glass-composer-send[data-testid="composer-stop"]:hover { transform: translateY(-1px); }
+
+/* Shift+Enter 提示：聚焦或有草稿时才淡出来，窄卡片里不占地方。 */
+.bot-composer-hint {
+  color: var(--glass-ink-4);
+  font-size: 11.5px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--dur-2, 220ms) ease;
+  user-select: none;
+  pointer-events: none;
+}
+.glass-composer:focus-within .bot-composer-hint,
+.bot-composer-hint.is-shown { opacity: 1; }
+.glass-composer.is-running .bot-composer-hint { opacity: 0; }
+.glass-composer { container-type: inline-size; }
+@container (max-width: 600px) { .bot-composer-hint { display: none; } }
+@container (max-width: 430px) { .glass-composer .model-pill-tag { display: none; } .glass-composer .model-pill { max-width: 52cqw; } }
+
+/* ---------- 上下文读数 ---------- */
+.context-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 9px 0 7px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glass-ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+  transition: background var(--dur-1, 150ms) ease, color var(--dur-1, 150ms) ease;
+}
+.context-meter:hover,
+.context-meter[data-popup-open] { background: rgba(22, 24, 29, 0.06); color: var(--ink-1); }
+.dark .context-meter:hover,
+.dark .context-meter[data-popup-open] { background: rgba(255, 255, 255, 0.08); }
+.context-meter:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.context-meter.is-loading { display: none; }
+.context-meter.is-warn { color: var(--warn); }
+.context-meter.is-full { color: var(--danger); }
+.context-meter-total { color: var(--glass-ink-4); }
+.context-meter.is-warn .context-meter-total,
+.context-meter.is-full .context-meter-total { color: inherit; opacity: 0.7; }
+@container (max-width: 640px) { .context-meter-word { display: none; } }
+@container (max-width: 470px) { .context-meter-total { display: none; } }
+@container (max-width: 360px) { .context-meter-text { display: none; } .context-meter { padding: 0 6px; } }
+
+.context-ring { flex-shrink: 0; }
+.context-ring-track { stroke: rgba(22, 36, 62, 0.13); }
+.dark .context-ring-track { stroke: rgba(255, 255, 255, 0.15); }
+.context-ring-bar { stroke: var(--ink-2); transition: stroke-dashoffset var(--dur-3, 300ms) var(--ease-out, ease), stroke var(--dur-2, 220ms) ease; }
+.dark .context-ring-bar { stroke: rgba(235, 241, 255, 0.82); }
+.context-ring.is-warn .context-ring-bar { stroke: var(--warn); }
+.context-ring.is-full .context-ring-bar { stroke: var(--danger); }
+.context-meter.is-running .context-ring-bar { animation: context-ring-breathe 1.6s ease-in-out infinite; }
+@keyframes context-ring-breathe { 50% { opacity: 0.45; } }
+
+.context-popover {
+  width: min(280px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  background: var(--glass-3);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-2), var(--inset-hl);
+  color: var(--ink-1);
+  font-size: 12.5px;
+  transform-origin: var(--transform-origin);
+  transition: opacity var(--dur-1, 150ms) ease, transform var(--dur-1, 150ms) ease;
+}
+.context-popover[data-starting-style],
+.context-popover[data-ending-style] { opacity: 0; transform: translateY(4px) scale(0.98); }
+.context-popover-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.context-popover-title { font-weight: 600; font-size: 13px; }
+.context-popover-pct { font-variant-numeric: tabular-nums; color: var(--ink-2); font-weight: 600; }
+.context-popover-pct.is-warn { color: var(--warn); }
+.context-popover-pct.is-full { color: var(--danger); }
+.context-popover-bar {
+  height: 6px;
+  margin: 8px 0 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(22, 36, 62, 0.09);
+}
+.dark .context-popover-bar { background: rgba(255, 255, 255, 0.1); }
+.context-popover-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: var(--ink-2);
+  transition: width var(--dur-3, 300ms) var(--ease-out, ease);
+}
+.dark .context-popover-fill { background: rgba(235, 241, 255, 0.82); }
+.context-popover-fill.is-warn { background: var(--warn); }
+.context-popover-fill.is-full { background: var(--danger); }
+.context-popover-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 14px;
+  margin: 0;
+}
+.context-popover-grid dt { color: var(--ink-3); }
+.context-popover-grid dd { margin: 0; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.context-popover-grid .text-muted { color: var(--ink-3); }
+.context-popover-note { margin: 10px 0 0; color: var(--ink-3); font-size: 11.5px; line-height: 1.5; }
+.context-popover-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.context-popover-warn.is-full { background: var(--danger-soft); color: var(--danger); }
+.context-popover-action {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink-primary);
+  color: var(--on-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.context-popover-action:hover { background: var(--ink-primary-hover); }
+@media (prefers-reduced-motion: reduce) {
+  .bot-composer-textarea, .context-ring-bar, .context-popover-fill, .bot-composer-send-icon > svg { transition: none; }
+  .context-meter.is-running .context-ring-bar { animation: none; }
 }
