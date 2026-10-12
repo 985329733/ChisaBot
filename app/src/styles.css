@@ -1990,6 +1990,18 @@ body::before {
 [data-row="activity"]:not(:has(:not(div))):not(:has([role])) {
   display: none;
 }
+
+/* 桌面宿主工具被拒绝时的一句提示（chat-transcript.tsx HostAccessHint）。 */
+.chat-host-hint {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.chat-host-hint strong {
+  font-weight: 600;
+  color: var(--ink-2);
+}
 .chat-thinking {
   display: inline-flex;
   align-items: center;

@@ -183,7 +183,7 @@ import {
   createHostAccessBroker,
   HostAccessRefusedError,
 } from "./host-access/broker";
-import { hostAccessTools } from "./host-access/tools";
+import { HOST_UNAVAILABLE_HINT, hostAccessTools } from "./host-access/tools";
 import { createDeviceHub } from "./devices/hub";
 import { createDeviceRoutes } from "./devices/routes";
 import { createDeviceStore } from "./devices/store";
@@ -3341,7 +3341,7 @@ const app = createApp(
     }).find((candidate) => candidate.name === name);
     if (!tool) {
       return {
-        text: `${REFUSAL_MARKER} That host tool is not available for this Bot right now.`,
+        text: `${REFUSAL_MARKER} ${HOST_UNAVAILABLE_HINT}`,
         isError: true,
       };
     }

@@ -117,6 +117,10 @@ async function answer(
   }
 }
 
+/** 给模型也给人看的拒绝说明：指向「电脑操作」，而不是一句英文的 not available。 */
+export const HOST_UNAVAILABLE_HINT =
+  "这台电脑还没有连接到这个机器人，或者没有授权任何文件夹。需要操作电脑上的文件或命令时，请让用户在机器人「⋯」菜单 → 电脑操作 里连接电脑并授权。";
+
 export function hostAccessTools(options: {
   broker: HostAccessBroker;
   botId: string;
@@ -138,6 +142,14 @@ export function hostAccessTools(options: {
     ...(grantId ? { grantId } : {}),
   });
 
+  /*
+   * 只有这台桌面宿主（上游 Tauri 客户端）此刻连着、并且给这个机器人授权过文件夹时才提供 host_* 工具。
+   * 以前 host_list_folders 无条件提供给每个机器人，而 ChisaBot 不发布这个桌面宿主，于是模型一调用就
+   * 被拒绝，聊天里出现「已阻止：host_list_folders」。没有能用的宿主时一个都不给，模型也就不会去试。
+   * 电脑上的文件 / 命令走「电脑操作」（device_* 工具，server/src/devices）。
+   */
+  if (!status.connected || grants.length === 0) return [];
+
   const tools: GrantedTool[] = [
     {
       name: "host_list_folders",
@@ -152,7 +164,7 @@ export function hostAccessTools(options: {
             outcome: "refused",
             reason: "No host folders are granted to this Bot.",
           });
-          return `${REFUSAL_MARKER} No host folders are granted to this Bot.`;
+          return `${REFUSAL_MARKER} ${HOST_UNAVAILABLE_HINT}`;
         }
         await auditHostAccess(audit("list_folders"), {
           operation: "list_folders",
@@ -168,8 +180,6 @@ export function hostAccessTools(options: {
       },
     },
   ];
-
-  if (!status.connected || grants.length === 0) return tools;
 
   tools.push(
     {
