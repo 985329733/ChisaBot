@@ -2,6 +2,9 @@ import { z } from "zod";
 import { ToolLine } from "@/components/channels/tool-line";
 import { CommandOutput } from "@/components/computer/command-output";
 import { BrowseChip } from "@/components/computer/browse-chip";
+import { keepShot, ScreenshotCard, shrinkPng } from "@/components/computer/screenshot-card";
+import { readScreenshot } from "@/lib/computers/screen";
+import { reportComputerActivity } from "@/lib/copilot/computer-activity";
 import { tryClient } from "@/lib/client";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { callComputer, type ToolOutcome } from "@/lib/computers/call";
@@ -272,6 +275,39 @@ export function ComputerTools() {
     ) => runBrowserRead(bot.current, "/read", toolCall?.id, signal),
     render: () => null,
   });
+
+  // 用户要「截个图」：截当前画面，对话里放缩略图（图片只存本机，不进模型上下文）。
+  useFrontendTool({
+    available,
+    name: "computer_screenshot",
+    description:
+      "Take a screenshot of the page currently open on your computer and show it to the person in the chat. " +
+      "Use it only when they ask for a screenshot / 截图 / 截个图 (open the page first with computer_navigate). " +
+      "You do not see the image; answer from computer_navigate / computer_read text.",
+    parameters: z.object({}),
+    handler: async (_input: Record<string, never>, { toolCall }: { toolCall?: { id?: string } } = {}) => {
+      const computerId = bot.current;
+      reportComputerActivity(computerId);
+      const { frame, error } = await readScreenshot(computerId);
+      if (!frame) return { ok: false, reason: error ?? "没截到图" };
+      try {
+        if (toolCall?.id) keepShot(toolCall.id, await shrinkPng(frame.base64), frame.url);
+      } catch {}
+      return { ok: true, shown: true, url: frame.url ?? null, note: "截图已显示在对话里，不要再描述截图本身，直接回答用户。" };
+    },
+    render: ({ result, status, toolCallId }: { result?: string; status: string; toolCallId?: string }) => {
+      const finished = status === "complete" || result !== undefined;
+      const outcome = finished ? outcomeOf(result) : {};
+      return (
+        <ScreenshotCard
+          id={toolCallId}
+          running={!finished}
+          {...(outcome.ok === false ? { failed: outcome.reason ?? "没截到图" } : {})}
+          {...(typeof outcome.url === "string" ? { url: outcome.url } : {})}
+        />
+      );
+    },
+  } as never);
 
   useFrontendTool({
     available,

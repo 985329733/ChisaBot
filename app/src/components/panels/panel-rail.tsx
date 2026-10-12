@@ -164,6 +164,29 @@ export function PanelRail({ className }: { className?: string }) {
   }, [computerOn, wide]);
   const latestChat = useRef(chat);
   latestChat.current = chat;
+  /*
+   * 机器人刚建了一张面板（新 id、正在搭建）：右栏切到「面板」并亮出来，像 Hark 一样让人看着它搭起来。
+   * 第一次加载时已有的卡片不算。
+   */
+  const { botId: railBotId } = usePanelBot();
+  const live = useLivePanels(railBotId);
+  const seenPanels = useRef<{ bot?: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const items = live.data;
+    if (!items || !railBotId) return;
+    const seen = seenPanels.current;
+    if (!seen || seen.bot !== railBotId) {
+      seenPanels.current = { bot: railBotId, ids: new Set(items.map((p) => p.id)) };
+      return;
+    }
+    const fresh = items.filter((p) => !seen.ids.has(p.id));
+    for (const p of items) seen.ids.add(p.id);
+    if (!fresh.some((p) => p.status === "building")) return;
+    const current = latestChat.current;
+    if (current?.canComputer && current.computerOpen) current.toggleComputer();
+    if (wide) setPanelRailOpen(true);
+    else setPanelSheetOpen(true);
+  }, [live.data, railBotId, wide]);
   const closeComputer = useCallback(() => {
     const current = latestChat.current;
     if (current?.canComputer && current.computerOpen) current.toggleComputer();

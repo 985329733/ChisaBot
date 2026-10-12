@@ -2,7 +2,7 @@ import { RouteSkeleton } from "@/components/startup-status";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { BotComposerContext, BotModelInput } from "@/components/agents/bot-model-input";
 import { defaultAgentId } from "@/lib/agents/default-agent";
@@ -16,6 +16,7 @@ import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { ZH_MESSAGE_VIEW } from "@/lib/copilot/reasoning-zh";
+import { useTurnCompaction } from "@/lib/copilot/turn-compaction";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 /** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
@@ -164,6 +165,9 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
    * a provider this app does not mount.
    */
   const stopped = useStoppedTurn(agentId);
+  // 一轮收成「一句话 → 结果」：中间过程话变淡色小字，网页小条 / 思考只留最后一个（turn-compaction.ts）。
+  const skyRef = useRef<HTMLDivElement | null>(null);
+  useTurnCompaction(skyRef, `${agentId}:${threadId ?? ""}`);
   const { watch } = Route.useSearch();
   const navigate = Route.useNavigate();
   const showComputer = useCallback(
@@ -218,7 +222,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
             {stopped}
           </p>
         ) : null}
-        <div className="bot-chat-sky min-h-0 flex-1">
+        <div className="bot-chat-sky min-h-0 flex-1" ref={skyRef}>
           {/*
            * Keyed on the thread as well as the agent. Switching agents was already handled by
            * `agentId`, but `startNew` changes only the thread while the agent stays put, and the
