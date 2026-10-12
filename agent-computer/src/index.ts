@@ -744,6 +744,8 @@ serve<StreamData>({
   },
   async fetch(request, server) {
     const url = new URL(request.url);
+    // /exec 最长可运行 600 秒，超过全局 idleTimeout(120)；为它单独关闭空闲超时（命令自身有超时）。
+    if (url.pathname === "/exec") server.timeout(request, 0);
 
     /*
      * Nothing below this line happens for an untrusted caller.
