@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:" />
+<title>登录 ChisaBot</title>
+<link rel="stylesheet" href="skyglass-tokens.css" />
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="login.css" />
+</head>
+<body class="login-page">
+<!--
+  本机登录页（PC：src/ui/login.html；Android：同一份文件复制到 android/app/src/main/assets/login/）。
+  不是服务器发来的网页：服务器地址在这里填写并保存在本机。模板 F（DESIGN.md §12）：天空上居中一张 L1 玻璃卡片。
+-->
+<main class="login">
+  <form id="form" class="auth-card login-card" autocomplete="on" novalidate>
+    <div class="mark enter" aria-hidden="true">
+      <svg viewBox="0 0 48 48" fill="none">
+        <path d="M24 8v5M20 8h8M13 17h22a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5H13a5 5 0 0 1-5-5V22a5 5 0 0 1 5-5Z" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18" cy="27.5" r="2.4" fill="currentColor"/><circle cx="30" cy="27.5" r="2.4" fill="currentColor"/>
+        <path d="M19.5 33.5h9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1 class="t-h1 center enter enter-2">登录 ChisaBot</h1>
+    <p class="t-sub center enter enter-2" id="sub">连接到你的 ChisaBot 服务器</p>
+
+    <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+
+    <div class="fields enter enter-3">
+      <div class="field" id="serverField">
+        <label for="server">服务器地址</label>
+        <div class="combo" id="combo">
+          <input id="server" class="input" placeholder="chisabot.example.com:8443" required inputmode="url" autocomplete="url" spellcheck="false" autocapitalize="none" aria-describedby="serverHint" aria-autocomplete="list" aria-controls="history" />
+          <button id="historyBtn" class="combo-btn hidden" type="button" aria-label="最近用过的服务器" aria-haspopup="listbox" aria-expanded="false" title="最近用过的服务器">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5.5 8 4.5 4.5L14.5 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <ul id="history" class="history" role="listbox" aria-label="最近用过的服务器" hidden></ul>
+        </div>
+        <span class="hint" id="serverHint">你在浏览器里打开 ChisaBot 的地址，会保存在这台设备上。</span>
+        <span class="field-error hidden" id="serverError" role="alert"></span>
+      </div>
+
+      <div class="field">
+        <label for="user">账号</label>
+        <input id="user" class="input" autocomplete="username" required spellcheck="false" autocapitalize="none" maxlength="64" />
+      </div>
+
+      <div class="field">
+        <label for="pass">密码</label>
+        <div class="pw">
+          <input id="pass" class="input" type="password" autocomplete="current-password" required maxlength="1024" />
+          <button id="toggle" class="pw-toggle" type="button" aria-label="显示密码" aria-pressed="false">显示</button>
+        </div>
+        <span class="field-error hidden" id="passError" role="alert"></span>
+      </div>
+
+      <label class="check" for="remember">
+        <input id="remember" type="checkbox" checked />
+        <span class="box" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m3.5 8.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="check-text">记住登录<small>30 天内打开直接进入；不保存密码</small></span>
+      </label>
+
+      <div id="err" class="alert hidden" role="alert"></div>
+
+      <button id="submit" class="btn lg block" type="submit">登录</button>
+      <p class="step hint center" id="step" aria-live="polite">&nbsp;</p>
+    </div>
+  </form>
+  <p class="foot hint center" id="foot"></p>
+</main>
+<script src="sky.js"></script>
+<script src="ui.js"></script>
+<script src="login.js"></script>
+</body>
+</html>

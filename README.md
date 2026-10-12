@@ -201,8 +201,9 @@ systemctl is-active chisabot-updater                   # active
   windows-latest 打 PC（`pc/`，Electron：NSIS 安装包 + 免安装 zip + `latest.yml` + `.blockmap`），ubuntu-latest 打 Android
   （`android/`，JDK 17 + Gradle `assembleRelease`），然后创建 / 更新该标签的 GitHub Release 并上传全部文件和
   `chisabot-android.json`（含 sha256）。
-- **通用版**（Release 里的）：不内置任何服务器。PC 首次运行的设置向导、Android 首次运行的对话框都会要求填「服务器地址」
-  （就是浏览器里打开 ChisaBot 的 `https://<域名>:<端口>`），以后可以改（PC：本机设置里退出登录后重填；Android：长按桌面图标 →「服务器地址」）。
+- **通用版**（Release 里的）：不内置任何服务器。PC 和 Android 打开后是客户端自带的「登录 ChisaBot」页：服务器地址
+  （就是浏览器里打开 ChisaBot 的 `https://<域名>:<端口>`，可以省略 `https://`）+ 账号 + 密码 + 记住登录。地址保存在本机，
+  有最近用过的下拉；以后可以改（PC：托盘菜单「切换服务器…」；Android：长按桌面图标 →「切换服务器」）。密码不保存。
   在线更新默认读本仓库 GitHub Releases 的 `latest/download/`（仓库须公开）。
 - **自建版**（可选）：在仓库 Settings → Secrets and variables → Actions → Variables 设
   `CHISABOT_SERVER_URL`（预填服务器地址）、`CHISABOT_UPDATE_FEED`（PC 更新目录）、`CHISABOT_ANDROID_UPDATE_FEED`（Android 的 latest.json 地址），
@@ -285,7 +286,7 @@ sh /opt/chisabot-updater/smoke.sh                                               
 | `examples/zh-CN/` | 中文品牌、BOT、频道和技能配置 |
 | `deploy/` | 自托管部署与认证网关 |
 | `pc/` | ChisaBot PC（Windows，Electron）客户端：设备节点 + 在线更新 |
-| `android/` | ChisaBot Android 客户端（Kotlin WebView 外壳，minSdk 24）：首次运行填服务器地址、文件上传下载、APK 在线更新 |
+| `android/` | ChisaBot Android 客户端（Kotlin WebView 外壳，minSdk 24）：本机登录页（服务器地址 + 账号密码）、文件上传下载、APK 在线更新 |
 | `.github/workflows/release.yml` | 推 `v*` 标签时用 GitHub Actions 构建 PC + Android 安装包并发布到 Releases |
 | `deploy/updater/` | 宿主机在线更新服务（管理后台 → 系统更新） |
 | `desktop/`、`mobile/` | 继承上游的桌面和移动客户端源码（未作为 ChisaBot 客户端发布，没有在线更新） |

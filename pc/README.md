@@ -4,7 +4,7 @@
 
 - 主窗口就是服务器上的 ChisaBot 网页本身（同一套聊天 / 偏好设置 / 管理后台布局）；本机设置是网页的
   偏好设置 → 设备 → 这台电脑（「本机」标签），通过 `src/web-preload.js` 的本机桥做网页做不到的事。
-- 原生窗口（设置向导、审批弹窗、本机确认、离线页）在 `src/ui/`，令牌和天空由
+- 原生窗口（登录页、审批弹窗、本机确认、离线页）在 `src/ui/`，令牌和天空由
   `node scripts/sync-skyglass.mjs` 从 `../app/src/styles.css`、`../app/src/lib/sky.ts` 生成（网页改了令牌就重跑）。
 
 ```sh
@@ -21,7 +21,7 @@ node src/cli.js run --server https://chisabot.example.com:8443 --token-file devi
 npx electron-builder --win nsis zip --x64 --publish never   # → dist/ChisaBot-PC-<版本>-x64-setup.exe / -portable.zip
 ```
 
-构建期默认值在 `src/build-config.json`（仓库里为空 = 通用版：首次运行在设置向导里填自己的服务器地址）。
+构建期默认值在 `src/build-config.json`（仓库里为空 = 通用版：首次运行在本机登录页里填自己的服务器地址）。登录页 `src/ui/login.*` 和 Android 共用，改完运行 `node scripts/sync-login-android.mjs`。
 CI 从仓库变量 `CHISABOT_SERVER_URL`、`CHISABOT_UPDATE_FEED` 写入；自建打包可以手动改这个文件，或
 `npx electron-builder ... -c.publish.url=<你的更新目录>`。
 

@@ -10,4 +10,14 @@
             android:targetPackage="cn.ayase.chisabot"
             android:targetClass="cn.ayase.chisabot.MainActivity" />
     </shortcut>
+    <shortcut
+        android:shortcutId="logout"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_logout">
+        <intent
+            android:action="cn.ayase.chisabot.LOGOUT"
+            android:targetPackage="cn.ayase.chisabot"
+            android:targetClass="cn.ayase.chisabot.MainActivity" />
+    </shortcut>
 </shortcuts>

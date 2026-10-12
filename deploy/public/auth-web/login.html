@@ -3,13 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#f6f7f2">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#9dbddc" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c1730" media="(prefers-color-scheme: dark)">
     <title>登录 · ChisaBot</title>
     <link rel="stylesheet" href="/auth/login.css">
     <script src="/auth/login.js" defer></script>
   </head>
-  <body>
+  <body class="chisabot">
     <main class="login-page">
       <section class="brand" aria-label="ChisaBot">
         <a class="brand-mark" href="/login" aria-label="ChisaBot 登录首页">
@@ -72,7 +73,7 @@
             </button>
           </form>
           <noscript><p class="noscript-message">请启用浏览器的 JavaScript 后登录。</p></noscript>
-          <p class="login-note">登录后可继续查看和管理你的对话。</p>
+          <p class="login-note">使用 ChisaBot 客户端（PC / Android）时，在客户端的登录页填写这个服务器地址即可。</p>
         </div>
         <p class="login-footer">ChisaBot 工作空间</p>
       </section>

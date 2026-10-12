@@ -28,25 +28,33 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.Toast
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 /**
  * ChisaBot Android：服务器上 ChisaBot 网页的原生外壳（与 PC 客户端同一套网页、同一个登录网关）。
- * 登录由网页自己完成（网关 Cookie 存在 WebView 的 CookieManager 里）；本壳只补网页做不到的事：
- * 文件上传 / 下载、返回键、外链交给浏览器、APK 在线更新（见 Updater）。网页本身的更新由网页横幅处理。
+ *
+ * 登录（0.2.5 起）：本机的「登录 ChisaBot」页（assets/login/，和 PC 的 pc/src/ui/login.html 是同一份文件），
+ * 在单独的 loginWeb 里打开，只有它能用 window.ChisaLogin。填服务器地址（保存在本机、带历史）、账号、密码、记住登录；
+ * 先探测地址，再由本壳直接请求服务器登录网关（GatewayAuth），会话 Cookie 写进 CookieManager，然后载入网页。
+ * 密码从不保存：记住登录 = 服务器发 30 天的会话 Cookie；不勾就是会话 Cookie，下次冷启动清掉。
+ * 启动时会话仍有效就直接进入；网页被服务器跳到 /login（会话过期）时换回本机登录页。
+ * 其余：文件上传 / 下载、返回键、外链交给浏览器、APK 在线更新（见 Updater）。网页本身的更新由网页横幅处理。
  */
 class MainActivity : Activity() {
 
     private lateinit var web: WebView
+    private var loginWeb: WebView? = null
+    private lateinit var root: FrameLayout
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var pendingDownload: (() -> Unit)? = null
     private lateinit var updater: Updater
 
     private val prefs by lazy { getSharedPreferences("chisabot", Context.MODE_PRIVATE) }
-    /** 用户填过的地址 → 构建期默认值 → 空（通用版首次运行，弹出「服务器地址」）。 */
+    /** 用户登录过的地址 → 构建期默认值 → 空（通用版首次运行，登录页里填写）。 */
     private val server: String
         get() = prefs.getString("server", null)?.takeIf { it.isNotBlank() } ?: BuildConfig.DEFAULT_SERVER
     private val serverHost: String?
@@ -56,9 +64,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         web = WebView(this)
-        setContentView(FrameLayout(this).apply {
+        root = FrameLayout(this).apply {
             addView(web, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        })
+        }
+        setContentView(root)
 
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
@@ -81,8 +90,9 @@ class MainActivity : Activity() {
 
         updater = Updater(this)
         when {
-            server.isBlank() -> askServer(firstRun = true)
-            savedInstanceState == null || web.restoreState(savedInstanceState) == null -> web.loadUrl(server)
+            prefs.getString("server", null).isNullOrBlank() -> showLogin()
+            savedInstanceState != null && web.restoreState(savedInstanceState) != null -> Unit
+            else -> enterApp(coldStart = true)
         }
         if (savedInstanceState == null) {
             updater.check(silent = true)
@@ -95,9 +105,12 @@ class MainActivity : Activity() {
         handleIntent(intent)
     }
 
-    /** 桌面图标长按 →「服务器地址」快捷方式。 */
+    /** 桌面图标长按 →「切换服务器」/「退出登录」快捷方式。 */
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == ACTION_SERVER) askServer()
+        when (intent?.action) {
+            ACTION_SERVER -> showLogin("switch")
+            ACTION_LOGOUT -> confirmLogout()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -124,7 +137,219 @@ class MainActivity : Activity() {
 
     @Deprecated("Activity.onBackPressed is still the simplest path on minSdk 24")
     override fun onBackPressed() {
-        if (web.canGoBack()) web.goBack() else @Suppress("DEPRECATION") super.onBackPressed()
+        when {
+            // 从网页里「切换服务器」打开的登录页：返回键回到网页
+            loginWeb != null && web.url != null && hasSession -> hideLogin()
+            loginWeb != null -> @Suppress("DEPRECATION") super.onBackPressed()
+            web.canGoBack() -> web.goBack()
+            else -> @Suppress("DEPRECATION") super.onBackPressed()
+        }
+    }
+
+    // ---------- 本机登录页 ----------
+
+    private var hasSession = false
+
+    private fun origin(): String? = runCatching { GatewayAuth.normalize(server) }.getOrNull()
+
+    private fun cookieFor(origin: String): String? = CookieManager.getInstance().getCookie("$origin/")
+
+    /** 启动：会话还有效就直接进入；没有 / 过期去登录页；连不上就照常载入（显示「连不上」对话框）。 */
+    private fun enterApp(coldStart: Boolean) {
+        val o = origin() ?: return showLogin()
+        val cookies = CookieManager.getInstance()
+        val proceed = {
+            Thread {
+                val status = runCatching { GatewayAuth.probe(o, cookieFor(o)) }
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    val session = status.getOrNull()
+                    when {
+                        session == null -> web.loadUrl(o)
+                        session.gateway && session.authenticated != true ->
+                            showLogin(if (prefs.getBoolean("loggedIn", false)) "expired" else "")
+                        else -> {
+                            hasSession = true
+                            web.loadUrl(o)
+                        }
+                    }
+                }
+            }.start()
+        }
+        // 没勾「记住登录」：会话 Cookie 只活到这次进程结束
+        if (coldStart && !prefs.getBoolean("remember", true)) cookies.removeSessionCookies { proceed() } else proceed()
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
+    private fun showLogin(notice: String = "") {
+        pendingNotice = notice
+        loginWeb?.let { view ->
+            if (notice.isNotEmpty()) view.evaluateJavascript("window.__chisaLoginNotice&&window.__chisaLoginNotice(${JSONObject.quote(notice)})", null)
+            return
+        }
+        val view = WebView(this)
+        view.settings.apply {
+            javaScriptEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            domStorageEnabled = false
+            setSupportMultipleWindows(false)
+        }
+        view.addJavascriptInterface(LoginBridge(), "ChisaLogin")
+        view.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean =
+                !request.url.toString().startsWith(LOGIN_URL_PREFIX)
+        }
+        view.setBackgroundColor(getColor(R.color.splash_bg))
+        view.alpha = 0f
+        root.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        view.loadUrl(LOGIN_URL) // 提示文字由 ChisaLogin.state() 的 notice 带过去（asset 地址不带查询串）
+        view.animate().alpha(1f).setDuration(220).start()
+        loginWeb = view
+    }
+
+    private var pendingNotice = ""
+
+    private fun hideLogin() {
+        val view = loginWeb ?: return
+        loginWeb = null
+        view.animate().alpha(0f).setDuration(200).withEndAction {
+            root.removeView(view)
+            view.destroy()
+        }.start()
+    }
+
+    private fun recentServers(): MutableList<String> {
+        val list = mutableListOf<String>()
+        runCatching { JSONArray(prefs.getString("recent", "[]")) }.getOrNull()?.let { arr ->
+            for (i in 0 until arr.length()) arr.optString(i).takeIf { it.isNotBlank() }?.let(list::add)
+        }
+        return list
+    }
+
+    private fun saveRecent(list: List<String>) {
+        prefs.edit().putString("recent", JSONArray(list.take(6)).toString()).apply()
+    }
+
+    /** 只挂在 loginWeb 上（只载入 file:///android_asset/login/），网页拿不到。 */
+    inner class LoginBridge {
+        private fun reply(id: Int, ok: Boolean, payload: String) = runOnUiThread {
+            loginWeb?.evaluateJavascript("window.__chisaLoginReply($id,$ok,${JSONObject.quote(payload)})", null)
+        }
+
+        private fun async(id: Int, block: () -> JSONObject) {
+            Thread {
+                try {
+                    reply(id, true, block().toString())
+                } catch (e: GatewayAuth.LoginError) {
+                    reply(id, false, "[${e.kind}] ${e.message}")
+                } catch (e: Exception) {
+                    reply(id, false, "[invalid] ${e.message ?: e.javaClass.simpleName}")
+                }
+            }.start()
+        }
+
+        @JavascriptInterface
+        fun state(): String {
+            val saved = prefs.getString("server", null)?.takeIf { it.isNotBlank() }
+            return JSONObject()
+                .put("server", saved ?: BuildConfig.DEFAULT_SERVER)
+                .put("recent", JSONArray(recentServers()))
+                .put("username", prefs.getString("username", "") ?: "")
+                .put("remember", prefs.getBoolean("remember", true))
+                .put("version", BuildConfig.VERSION_NAME)
+                .put("notice", pendingNotice)
+                .toString()
+        }
+
+        @JavascriptInterface
+        fun forget(url: String): String {
+            val list = recentServers().filter { it != url }
+            saveRecent(list)
+            return JSONArray(list).toString()
+        }
+
+        @JavascriptInterface
+        fun probe(id: Int, json: String) = async(id) {
+            val o = GatewayAuth.normalize(JSONObject(json).optString("serverUrl"))
+            val session = GatewayAuth.probe(o, null)
+            JSONObject().put("origin", o).put("gateway", session.gateway)
+        }
+
+        @JavascriptInterface
+        fun login(id: Int, json: String) = async(id) {
+            val input = JSONObject(json)
+            val o = GatewayAuth.normalize(input.optString("serverUrl"))
+            val username = input.optString("username").trim()
+            val remember = input.optBoolean("remember", true)
+            val setCookies = GatewayAuth.login(o, username, input.optString("password"), remember)
+            val cm = CookieManager.getInstance()
+            val previous = origin()
+            if (previous != null && previous != o) {
+                // 换服务器：清掉旧服务器的登录
+                val latch = java.util.concurrent.CountDownLatch(1)
+                runOnUiThread { cm.removeAllCookies { latch.countDown() } }
+                latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+            }
+            for (line in setCookies) cm.setCookie("$o/", line)
+            cm.flush()
+            prefs.edit()
+                .putString("server", o)
+                .putString("username", username)
+                .putBoolean("remember", remember)
+                .putBoolean("loggedIn", true)
+                .apply()
+            saveRecent(listOf(o) + recentServers().filter { it != o })
+            JSONObject().put("warning", "")
+        }
+
+        @JavascriptInterface
+        fun open() = runOnUiThread {
+            hasSession = true
+            offlineShown = false
+            web.clearHistory()
+            web.loadUrl(server)
+            hideLogin()
+        }
+    }
+
+    private fun isLoginPage(uri: Uri): Boolean =
+        isServer(uri) && (uri.path ?: "").trimEnd('/').let { it == "/login" || it == "/sign" }
+
+    /** 网页被服务器带到它自己的登录页（会话过期 / 被退出）：换成本机登录页。 */
+    private fun sessionExpired() {
+        if (loginWeb != null) return
+        hasSession = false
+        web.stopLoading()
+        web.loadUrl("about:blank")
+        showLogin("expired")
+    }
+
+    private fun confirmLogout() {
+        if (origin() == null) return showLogin()
+        AlertDialog.Builder(this)
+            .setTitle("退出登录？")
+            .setMessage("会清除这台设备上的登录状态。服务器地址和账号会保留，方便下次登录。")
+            .setPositiveButton("退出登录") { _, _ -> logout() }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun logout() {
+        val o = origin() ?: return showLogin()
+        val cookie = cookieFor(o)
+        Thread {
+            GatewayAuth.logout(o, cookie)
+            runOnUiThread {
+                CookieManager.getInstance().removeAllCookies(null)
+                CookieManager.getInstance().flush()
+                prefs.edit().putBoolean("loggedIn", false).apply()
+                hasSession = false
+                web.loadUrl("about:blank")
+                web.clearHistory()
+                showLogin("logout")
+            }
+        }.start()
     }
 
     private fun isServer(uri: Uri): Boolean =
@@ -142,6 +367,10 @@ class MainActivity : Activity() {
     private inner class Client : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val uri = request.url
+            if (request.isForMainFrame && isLoginPage(uri)) {
+                sessionExpired()
+                return true
+            }
             if (isServer(uri)) return false
             when (uri.scheme?.lowercase()) {
                 "http", "https" -> openExternal(uri)
@@ -152,8 +381,12 @@ class MainActivity : Activity() {
             return true
         }
 
+        override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+            if (url != null && isLoginPage(Uri.parse(url))) sessionExpired()
+        }
+
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-            if (request.isForMainFrame) offline(error.description?.toString())
+            if (request.isForMainFrame && loginWeb == null) offline(error.description?.toString())
         }
     }
 
@@ -284,7 +517,14 @@ class MainActivity : Activity() {
         fun checkUpdate() = runOnUiThread { updater.check(silent = false) }
 
         @JavascriptInterface
-        fun changeServer() = runOnUiThread { askServer() }
+        fun changeServer() = runOnUiThread {
+            if (web.url?.let { isServer(Uri.parse(it)) } == true) showLogin("switch")
+        }
+
+        @JavascriptInterface
+        fun logout() = runOnUiThread {
+            if (web.url?.let { isServer(Uri.parse(it)) } == true) confirmLogout()
+        }
     }
 
     private var offlineShown = false
@@ -296,50 +536,18 @@ class MainActivity : Activity() {
             .setTitle("连不上 ChisaBot")
             .setMessage("$server\n${reason ?: ""}".trim())
             .setCancelable(false)
-            .setPositiveButton("重试") { _, _ -> offlineShown = false; web.loadUrl(server) }
-            .setNeutralButton("更改服务器") { _, _ -> offlineShown = false; askServer() }
+            .setPositiveButton("重试") { _, _ -> offlineShown = false; enterApp(coldStart = false) }
+            .setNeutralButton("切换服务器") { _, _ -> offlineShown = false; showLogin("switch") }
             .setNegativeButton("退出") { _, _ -> finish() }
             .show()
-    }
-
-    private fun askServer(firstRun: Boolean = false) {
-        val pad = (20 * resources.displayMetrics.density).toInt()
-        val input = EditText(this).apply {
-            setText(server)
-            setSingleLine()
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-            hint = "https://chisabot.example.com:8443"
-        }
-        val box = FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("服务器地址")
-            .setMessage("就是你在浏览器里打开 ChisaBot 的地址（你自己或管理员部署的服务器）。以后可以长按桌面图标 →「服务器地址」修改。")
-            .setView(box)
-            .setCancelable(!firstRun)
-            .setPositiveButton("连接", null)
-            .apply { if (firstRun) setNegativeButton("退出") { _, _ -> finish() } else setNegativeButton("取消", null) }
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                var v = input.text.toString().trim().trimEnd('/')
-                if (v.isNotEmpty() && !v.contains("://")) v = "https://$v"
-                val uri = Uri.parse(v)
-                if (!uri.scheme.equals("https", true) || uri.host.isNullOrBlank()) {
-                    input.error = "请输入 https:// 开头的地址"
-                    return@setOnClickListener
-                }
-                prefs.edit().putString("server", v).apply()
-                dialog.dismiss()
-                web.clearHistory()
-                web.loadUrl(v)
-            }
-        }
-        dialog.show()
     }
 
     companion object {
         private const val REQ_FILE = 41
         private const val REQ_STORAGE = 42
         const val ACTION_SERVER = "cn.ayase.chisabot.SERVER"
+        const val ACTION_LOGOUT = "cn.ayase.chisabot.LOGOUT"
+        private const val LOGIN_URL_PREFIX = "file:///android_asset/login/"
+        private const val LOGIN_URL = LOGIN_URL_PREFIX + "login.html"
     }
 }

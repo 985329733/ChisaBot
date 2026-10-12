@@ -2,7 +2,10 @@
 /**
  * ChisaBot PC 客户端（Electron 主进程）。docs/pc-node.md §8。
  *
- *  - 首次运行：设置向导（服务器地址 + 账号密码）→ 登录网关 → 登记设备拿到令牌（DPAPI 加密保存）
+ *  - 登录（0.2.5 起，ui/login.html）：本机的「登录 ChisaBot」页 —— 服务器地址（记住、带历史）+ 账号 + 密码
+ *    + 记住登录。先探测地址，再直接请求服务器登录网关（和网页登录表单同一个 POST /auth/login），会话 Cookie
+ *    写进主窗口的会话，再登记设备拿到令牌（DPAPI 加密保存）。密码从不保存。启动时会话仍有效就直接进入；
+ *    主窗口被服务器跳到 /login（会话过期）时换回本机登录页，不再显示服务器的网页登录页。
  *  - 主窗口：直接载入该服务器的 ChisaBot 网页（登录 Cookie 已注入）——聊天、偏好设置、管理后台和网页完全同一套
  *    界面；本机设置就是网页的 偏好设置 → 设备 → 这台电脑（「本机」标签），通过 web-preload.js 的本机桥读写
  *    只能在本机做的事（紧急停止、本机确认、开机自启、文件夹选择器、退出登录）。关闭时缩到托盘。
@@ -52,7 +55,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let config;
 let agent = null;
 let tray = null;
-const windows = { setup: null, chat: null };
+const windows = { login: null, chat: null };
 const UI_URL = pathToFileURL(UI).href; // 只用于 will-navigate 放行本机离线页
 let quitting = false;
 const approvalQueue = [];
@@ -73,7 +76,7 @@ function clientInfo() {
 
 // ---------- 窗口 ----------
 
-function localWindow(name, file, options = {}) {
+function localWindow(name, file, { query, ...options } = {}) {
   if (windows[name] && !windows[name].isDestroyed()) {
     windows[name].show();
     windows[name].focus();
@@ -98,7 +101,7 @@ function localWindow(name, file, options = {}) {
     ...options,
   });
   win.setMenu(null);
-  win.loadFile(path.join(UI, file));
+  win.loadFile(path.join(UI, file), query ? { query } : undefined);
   win.once("ready-to-show", () => win.show());
   win.on("closed", () => {
     windows[name] = null;
@@ -115,15 +118,73 @@ function windowBackground() {
   return nativeTheme.shouldUseDarkColors ? "#12203a" : "#9dbddc";
 }
 
-function openSetup() {
-  return localWindow("setup", "setup.html", { width: 480, height: 760, minWidth: 400, minHeight: 600, maximizable: false });
+/** 本机登录页。notice：expired（会话过期）| logout（已退出）| switch（切换服务器）。 */
+function openLogin(notice = "") {
+  const existing = windows.login && !windows.login.isDestroyed();
+  const win = localWindow("login", "login.html", {
+    width: 460,
+    height: 760,
+    minWidth: 400,
+    minHeight: 620,
+    maximizable: false,
+    title: "登录 ChisaBot",
+    query: notice ? { notice } : undefined,
+  });
+  if (existing && notice) win.webContents.send("state:changed", `notice:${notice}`);
+  return win;
+}
+
+function loginUrl(url) {
+  try {
+    return isServerUrl(url) && /^\/(?:login|sign)\/?$/.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** 主窗口被服务器带到网页登录页（会话过期 / 被退出）：关掉主窗口，换本机登录页。 */
+function sessionExpired() {
+  if (windows.chat && !windows.chat.isDestroyed()) windows.chat.destroy();
+  windows.chat = null;
+  openLogin("expired");
+}
+
+async function cookieHeaderFor(origin) {
+  const cookies = await session.fromPartition(PARTITION).cookies.get({ url: `${origin}/` });
+  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+}
+
+/** 启动 / 托盘打开时：会话还有效就直接进入，过期了去本机登录页；连不上时照常打开主窗口（会显示离线页）。 */
+async function sessionStatus() {
+  const origin = serverOrigin();
+  if (!origin) return "login";
+  try {
+    const result = await auth.probe({ serverUrl: origin, cookieHeader: await cookieHeaderFor(origin), timeoutMs: 6000 });
+    if (result.gateway) return result.authenticated ? "ok" : "login";
+    return "ok";
+  } catch {
+    return "offline";
+  }
+}
+
+let entering = null;
+function openApp(pathname) {
+  if (windows.chat && !windows.chat.isDestroyed()) return openChat(pathname);
+  if (!config.get().serverUrl) return openLogin();
+  if (!entering)
+    entering = sessionStatus()
+      .then((status) => (status === "login" ? openLogin("expired") : openChat(pathname)))
+      .finally(() => {
+        entering = null;
+      });
+  return entering;
 }
 
 /** 本机设置 = 网页 偏好设置 → 设备 → 这台电脑。tab：permissions | local | audit | settings。 */
 function openDeviceSettings(tab) {
   const { deviceId } = config.get();
   const query = tab ? `?tab=${encodeURIComponent(tab)}` : "";
-  return openChat(deviceId ? `/settings/devices/${encodeURIComponent(deviceId)}${query}` : "/settings/devices");
+  return openApp(deviceId ? `/settings/devices/${encodeURIComponent(deviceId)}${query}` : "/settings/devices");
 }
 
 let chatOffline = false;
@@ -148,7 +209,7 @@ function isServerUrl(url) {
 
 function openChat(pathname) {
   const { serverUrl } = config.get();
-  if (!serverUrl) return openSetup();
+  if (!serverUrl) return openLogin();
   const target = pathname ? `${serverOrigin()}${pathname}` : null;
   if (windows.chat && !windows.chat.isDestroyed()) {
     if (target && !chatOffline) windows.chat.loadURL(target);
@@ -191,12 +252,24 @@ function openChat(pathname) {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
+  // 服务器的网页登录页不在客户端里出现：会话过期时服务器会 302 到 /login，这里换成本机登录页。
+  win.webContents.on("will-redirect", (event, url) => {
+    if (!loginUrl(url)) return;
+    event.preventDefault();
+    setImmediate(sessionExpired);
+  });
   win.webContents.on("will-navigate", (event, url) => {
+    if (loginUrl(url)) {
+      event.preventDefault();
+      setImmediate(sessionExpired);
+      return;
+    }
     if (isServerUrl(url) || url.startsWith(UI_URL)) return;
     event.preventDefault();
     if (/^https?:/i.test(url)) shell.openExternal(url);
   });
   win.webContents.on("did-navigate", (_event, url) => {
+    if (loginUrl(url)) return setImmediate(sessionExpired);
     if (isServerUrl(url)) {
       chatOffline = false;
       clearInterval(chatRetryTimer);
@@ -295,9 +368,13 @@ function refreshTray() {
     Menu.buildFromTemplate([
       { label: `状态：${statusText()}`, enabled: false },
       { type: "separator" },
-      { label: "打开 ChisaBot", click: () => openChat() },
-      { label: "这台电脑的权限…", click: () => openDeviceSettings() },
-      { label: "本机设置…", click: () => openDeviceSettings("local") },
+      { label: "打开 ChisaBot", click: () => void openApp() },
+      ...(config.get().serverUrl
+        ? [
+            { label: "这台电脑的权限…", click: () => void openDeviceSettings() },
+            { label: "本机设置…", click: () => void openDeviceSettings("local") },
+          ]
+        : []),
       ...(updater?.state.status === "downloaded"
         ? [{ label: `重启以安装 ${updater.state.version || "新版本"}…`, click: () => openUpdateWindow() }]
         : []),
@@ -306,6 +383,9 @@ function refreshTray() {
         label: paused ? "解除紧急停止…" : "紧急停止（拒绝一切远程操作）",
         click: () => void requestPaused(!paused),
       },
+      { type: "separator" },
+      { label: "切换服务器…", click: () => openLogin("switch") },
+      ...(config.get().serverUrl ? [{ label: "退出登录…", click: () => void confirmLogout() }] : []),
       { type: "separator" },
       {
         label: "退出 ChisaBot PC",
@@ -377,6 +457,8 @@ function startAgent() {
     local: () => ({ paused: config.get().localPaused, forceLocalApproval: config.get().forceLocalApproval }),
   });
   agent.events.on("state", () => refreshTray());
+  // 连接失败（断网、DNS、证书）由 core 自己重连；没有监听时 EventEmitter 的 "error" 会让主进程崩溃。
+  agent.events.on("error", () => {});
   agent.events.on("config", (device) => {
     if (device && typeof device.paused === "boolean" && device.paused !== config.get().localPaused)
       config.set({ localPaused: device.paused });
@@ -631,6 +713,8 @@ function publicState() {
     hostname: os.hostname(),
     serverUrl: local.serverUrl,
     defaultServerUrl: BUILD.serverUrl,
+    recentServers: Array.isArray(local.recentServers) ? local.recentServers.slice(0, 6) : [],
+    remember: local.remember !== false,
     username: local.username,
     loggedIn: !!(local.serverUrl && config.getToken()),
     tokenProtected: config.tokenProtected(),
@@ -665,7 +749,7 @@ function webLocalState() {
 }
 
 function broadcast(kind = "state") {
-  for (const win of [windows.setup, windows.chat, approvalWindow, confirmWindow, updateWindow]) {
+  for (const win of [windows.login, windows.chat, approvalWindow, confirmWindow, updateWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send("state:changed", kind);
   }
 }
@@ -673,7 +757,11 @@ function broadcast(kind = "state") {
 async function injectCookies(origin, cookies) {
   const ses = session.fromPartition(PARTITION);
   for (const cookie of cookies) {
-    const lifetime = cookie.maxAge ? cookie.maxAge : 30 * 24 * 3600;
+    // 跟服务器给的寿命走：有 Max-Age / Expires 就是持久 Cookie（记住登录 = 30 天），没有就是会话 Cookie
+    // （没勾记住登录：退出客户端后失效，下次启动回到本机登录页）。
+    let expirationDate;
+    if (cookie.maxAge > 0) expirationDate = Math.floor(Date.now() / 1000) + cookie.maxAge;
+    else if (cookie.expires > Date.now()) expirationDate = Math.floor(cookie.expires / 1000);
     await ses.cookies.set({
       url: `${origin}/`,
       name: cookie.name,
@@ -682,9 +770,10 @@ async function injectCookies(origin, cookies) {
       secure: origin.startsWith("https:"),
       httpOnly: cookie.httpOnly !== false,
       sameSite: "lax",
-      expirationDate: Math.floor(Date.now() / 1000) + lifetime,
+      ...(expirationDate ? { expirationDate } : {}),
     });
   }
+  await ses.cookies.flushStore();
 }
 
 /** 本机页面（file://…/src/ui/）发来的调用。 */
@@ -740,19 +829,90 @@ function handleChatWindow(channel, fn) {
   });
 }
 
-async function logout() {
-  const local = config.get();
+/** 作废这台电脑在 serverUrl 上的设备令牌并清掉本机记录（退出登录、换服务器时用）。 */
+async function dropDevice(serverUrl) {
   const token = config.getToken();
   agent?.stop();
   agent = null;
-  if (token && local.serverUrl) await auth.unenroll({ serverUrl: local.serverUrl, token }).catch(() => false);
+  if (token && serverUrl) await auth.unenroll({ serverUrl, token }).catch(() => false);
   config.setToken(null);
   config.set({ deviceId: "", deviceName: "", localPaused: false });
-  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "logout", outcome: "succeeded", summary: "退出登录（令牌已作废）" });
+}
+
+/** 退出登录：网页会话作废 + 设备令牌作废 + 清 Cookie。保留服务器地址和账号，登录页直接预填。 */
+async function logout() {
+  const local = config.get();
+  if (local.serverUrl) {
+    const origin = serverOrigin();
+    await auth.logoutSession({ serverUrl: origin, cookieHeader: await cookieHeaderFor(origin).catch(() => "") }).catch(() => false);
+  }
+  await dropDevice(local.serverUrl);
+  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "logout", outcome: "succeeded", summary: "退出登录（会话和设备令牌已作废）" });
   await session.fromPartition(PARTITION).clearStorageData({ storages: ["cookies"] });
-  windows.chat?.destroy();
+  if (windows.chat && !windows.chat.isDestroyed()) windows.chat.destroy();
+  windows.chat = null;
   refreshTray();
-  openSetup();
+  openLogin("logout");
+}
+
+async function confirmLogout() {
+  const ok = await confirmLocal({
+    title: "退出登录？",
+    description: "会作废这台电脑的设备令牌并清除登录状态，机器人不能再操作它。之后可以重新登录或换一台服务器。",
+    confirmLabel: "退出登录",
+  });
+  if (ok) setTimeout(() => void logout(), 50);
+  return ok;
+}
+
+/**
+ * 本机登录页的「登录」：先 probe（login:probe）再调这里。
+ * 换了服务器时先作废旧服务器上的设备令牌；同一台服务器且令牌仍有效时不重复登记。
+ * 设备登记失败（例如服务器还不支持 PC 设备）不挡登录，只在结果里带上 warning。
+ */
+async function submitLogin(input) {
+  const serverUrl = auth.normalizeServerUrl(input.serverUrl);
+  const username = String(input.username || "").trim();
+  const remember = input.remember === true;
+  const sessionInfo = await auth.login({ serverUrl, username, password: String(input.password || ""), remember });
+  const prev = config.get();
+  const ses = session.fromPartition(PARTITION);
+  if (prev.serverUrl && prev.serverUrl !== serverUrl) {
+    await dropDevice(prev.serverUrl);
+    if (windows.chat && !windows.chat.isDestroyed()) windows.chat.destroy();
+    windows.chat = null;
+    await ses.clearStorageData({ storages: ["cookies"] });
+  }
+  await injectCookies(serverUrl, sessionInfo.cookies);
+  const recent = [serverUrl, ...(Array.isArray(prev.recentServers) ? prev.recentServers : []).filter((s) => s !== serverUrl)].slice(0, 6);
+  config.set({ serverUrl, username, remember, recentServers: recent });
+
+  let device = null;
+  let warning = "";
+  const token = config.getToken();
+  if (token) {
+    const check = await auth.checkToken({ serverUrl, token }).catch(() => ({ ok: false }));
+    if (check.ok) device = check.device;
+    else if (check.revoked || check.invalid) config.setToken(null);
+  }
+  if (!config.getToken()) {
+    try {
+      const result = await auth.enroll({
+        serverUrl,
+        cookieHeader: sessionInfo.cookieHeader,
+        info: { ...clientInfo(), name: config.get().deviceName || os.hostname() },
+      });
+      config.set({ deviceId: result.device.id, deviceName: result.device.name, localPaused: false });
+      config.setToken(result.token);
+      device = result.device;
+    } catch (error) {
+      warning = `已登录，但这台电脑没能登记为设备：${error.message}`;
+      config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "enroll", outcome: "failed", summary: warning.slice(0, 300) });
+    }
+  }
+  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "login", outcome: "succeeded", summary: `登录 ${serverUrl}（${remember ? "记住登录" : "本次会话"}）` });
+  startAgent();
+  return { device, warning };
 }
 
 async function setLocal(patch) {
@@ -788,23 +948,28 @@ async function setLocal(patch) {
 function registerIpc() {
   // 本机页面（设置向导 / 审批 / 本机确认 / 离线页）
   handleLocal("state:get", () => publicState());
-  handleLocal("setup:login", async (input) => {
-    const serverUrl = auth.normalizeServerUrl(input.serverUrl);
-    const sessionInfo = await auth.login({ serverUrl, username: input.username, password: input.password });
-    await injectCookies(serverUrl, sessionInfo.cookies);
-    const result = await auth.enroll({
-      serverUrl,
-      cookieHeader: sessionInfo.cookieHeader,
-      info: { ...clientInfo(), name: (input.deviceName || "").trim() || os.hostname() },
-    });
-    config.set({ serverUrl, username: input.username, deviceId: result.device.id, deviceName: result.device.name, localPaused: false });
-    config.setToken(result.token);
-    startAgent();
-    return { device: result.device };
+  // 本机登录页（ui/login.html）。错误带 kind，登录页据此把提示放到对应输入框旁；
+  // ipc 只能传 message，所以把 kind 编进 message 前缀「[kind] 」，页面再拆开。
+  const tagged = (fn) => async (payload) => {
+    try {
+      return await fn(payload || {});
+    } catch (error) {
+      throw new Error(`[${error.kind || "invalid"}] ${error.message}`);
+    }
+  };
+  handleLocal("login:probe", tagged(async ({ serverUrl }) => {
+    const result = await auth.probe({ serverUrl });
+    return { origin: result.origin, gateway: result.gateway };
+  }));
+  handleLocal("login:submit", tagged((input) => submitLogin(input)));
+  handleLocal("login:forget", (serverUrl) => {
+    const recent = (config.get().recentServers || []).filter((s) => s !== serverUrl);
+    config.set({ recentServers: recent });
+    return recent;
   });
-  handleLocal("setup:done", () => {
-    windows.setup?.close();
-    openDeviceSettings();
+  handleLocal("login:open", () => {
+    if (windows.login && !windows.login.isDestroyed()) windows.login.close();
+    openChat();
   });
   handleLocal("paused:set", async (paused) => {
     await requestPaused(!!paused);
@@ -860,15 +1025,7 @@ function registerIpc() {
     });
     return result.canceled ? [] : result.filePaths;
   });
-  handleWeb("pc:logout", async () => {
-    const ok = await confirmLocal({
-      title: "退出登录？",
-      description: "会作废这台电脑的设备令牌并清除登录状态，机器人不能再操作它。之后可以重新登录或换一台服务器。",
-      confirmLabel: "退出登录",
-    });
-    if (ok) setTimeout(() => void logout(), 50);
-    return ok;
-  });
+  handleWeb("pc:logout", () => confirmLogout());
   handleWeb("pc:check-update", async () => (updater ? updater.check() : { supported: false, status: "idle" }));
   // 网页只能把「新版本已下载」的本机窗口叫出来；立即重启要在那个窗口里由本人点。
   handleWeb("pc:install-update", () => openUpdateWindow());
@@ -886,7 +1043,7 @@ function registerIpc() {
 
 // ---------- 生命周期 ----------
 
-app.on("second-instance", () => (config.get().serverUrl && config.getToken() ? openChat() : openSetup()));
+app.on("second-instance", () => void openApp());
 app.on("window-all-closed", () => {
   /* 常驻托盘 */
 });
@@ -902,13 +1059,13 @@ app.whenReady().then(() => {
   registerIpc();
   startUpdater();
   tray = new Tray(trayIcon("offline"));
-  tray.on("click", () => openChat());
-  tray.on("double-click", () => openChat());
+  tray.on("click", () => void openApp());
+  tray.on("double-click", () => void openApp());
   refreshTray();
-  if (config.get().serverUrl && config.getToken()) {
-    startAgent();
-    if (!HIDDEN && !config.get().startHidden) openChat();
+  if (config.get().serverUrl) {
+    if (config.getToken()) startAgent();
+    if (!HIDDEN && !config.get().startHidden) void openApp();
   } else {
-    openSetup();
+    openLogin();
   }
 });

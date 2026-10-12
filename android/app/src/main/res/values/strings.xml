@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ChisaBot</string>
-    <string name="shortcut_server">服务器地址</string>
+    <string name="shortcut_server">切换服务器</string>
+    <string name="shortcut_logout">退出登录</string>
 </resources>

@@ -8,6 +8,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.2.5（客户端）
+
+PC 和 Android 客户端打开后不再显示服务器的网页登录页，而是客户端自带的「登录 ChisaBot」页：服务器地址（保存在本机、
+带最近用过的下拉，可省略 `https://`）、账号、密码（显示开关）、记住登录。客户端先检查地址能否连上，再直接请求登录网关，
+错误分为「地址无法连接」「证书错误」「账号或密码错误」。密码不保存：记住登录时网关发 30 天的会话 Cookie，期间打开直接进入；
+会话过期时回到这个登录页。PC 托盘菜单和 Android 长按图标新增「切换服务器」「退出登录」。登录网关的网页登录页
+（`deploy/public/auth-web/login.html`）改为 ChisaBot 品牌和蓝天玻璃风格，接口不变；Magpie 登录页不变。
+PC 修复：连不上服务器时设备连接的 `error` 事件没有监听，主进程可能报未捕获异常。
+
 ## 0.1.2
 
 ### CopilotKit 1.77 and AG-UI 1.0

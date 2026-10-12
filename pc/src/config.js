@@ -9,6 +9,10 @@ const path = require("node:path");
 const DEFAULTS = {
   serverUrl: "",
   username: "",
+  /** 登录页「服务器地址」的历史（最近用过的在前，最多 6 个）。 */
+  recentServers: [],
+  /** 登录页「记住登录」上次的选择。密码从不保存：记住登录 = 服务器发 30 天的会话 Cookie。 */
+  remember: true,
   deviceId: "",
   deviceName: "",
   tokenEnc: "",

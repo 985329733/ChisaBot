@@ -9,10 +9,15 @@
  */
 
 function normalizeServerUrl(input) {
-  let text = String(input || "").trim();
+  let text = String(input || "").trim().replace(/\/+$/, "");
   if (!text) throw new Error("请填写服务器地址。");
   if (!/^https?:\/\//i.test(text)) text = `https://${text}`;
-  const url = new URL(text);
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error("服务器地址格式不对，例如 https://chisabot.example.com:8443");
+  }
   if (url.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(url.hostname))
     throw new Error("服务器地址必须是 https（本机测试可以用 http://localhost）。");
   if (url.username || url.password) throw new Error("服务器地址里不能包含账号密码。");
@@ -53,20 +58,71 @@ async function readError(response, fallback) {
   }
 }
 
-async function login({ serverUrl, username, password, fetchImpl = fetch }) {
+/** 带错误码的错误：kind = unreachable | cert | auth | rate | invalid | server。登录页按它把提示放到对应输入框旁。 */
+function loginError(kind, message) {
+  const error = new Error(message);
+  error.kind = kind;
+  return error;
+}
+
+const CERT_CODES = /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|UNABLE_TO_GET_ISSUER|ERR_TLS|SSL|HOSTNAME_MISMATCH|ALTNAME/i;
+
+/** fetch 抛出的网络错误 → 中文：证书错误 / 地址无法连接。 */
+function networkError(error) {
+  const code = String(error?.cause?.code || error?.code || error?.cause?.message || error?.message || "");
+  if (CERT_CODES.test(code)) return loginError("cert", `证书错误：服务器的 HTTPS 证书无效或不受信任（${code}）。`);
+  if (error?.name === "TimeoutError" || error?.name === "AbortError" || /TIMEOUT/i.test(code))
+    return loginError("unreachable", "地址无法连接：服务器没有响应（超时）。");
+  if (/ENOTFOUND|EAI_AGAIN/i.test(code)) return loginError("unreachable", "地址无法连接：找不到这个域名，请检查拼写。");
+  if (/ECONNREFUSED/i.test(code)) return loginError("unreachable", "地址无法连接：服务器拒绝连接，请检查端口。");
+  return loginError("unreachable", `地址无法连接${code ? `（${code}）` : ""}，请检查地址和网络。`);
+}
+
+/**
+ * 登录前先看地址通不通：登录网关的 /auth/session（不需要登录）→ /health → /api/version。
+ * 只要服务器有 HTTP 回应（含 401）就算连得上。返回 { origin, gateway, authenticated }。
+ */
+async function probe({ serverUrl, cookieHeader = "", fetchImpl = fetch, timeoutMs = 8000 }) {
   const origin = normalizeServerUrl(serverUrl);
-  if (!username || !password) throw new Error("请填写账号和密码。");
+  let lastError = null;
+  for (const pathname of ["/auth/session", "/health", "/api/version"]) {
+    let response;
+    try {
+      response = await fetchImpl(`${origin}${pathname}`, {
+        headers: { Accept: "application/json", ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
+        redirect: "manual",
+        cache: "no-store",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      lastError = networkError(error);
+      if (lastError.kind === "cert" || lastError.kind === "unreachable") throw lastError;
+      continue;
+    }
+    if (pathname === "/auth/session" && response.ok) {
+      const body = await response.json().catch(() => null);
+      if (body && typeof body.authenticated === "boolean") return { origin, gateway: true, authenticated: body.authenticated };
+    }
+    if (response.status < 500 && response.status !== 404) return { origin, gateway: false, authenticated: null };
+    if (response.status >= 500) lastError = loginError("server", `服务器暂时不可用（${response.status}），请稍后再试。`);
+  }
+  throw lastError || loginError("invalid", "这个地址能打开，但不像 ChisaBot 服务器，请检查地址。");
+}
+
+async function login({ serverUrl, username, password, remember = true, fetchImpl = fetch }) {
+  const origin = normalizeServerUrl(serverUrl);
+  if (!username || !password) throw loginError("auth", "请填写账号和密码。");
   const headers = { "Content-Type": "application/json", Origin: origin, Accept: "application/json" };
   let response;
   try {
     response = await fetchImpl(`${origin}/auth/login`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ username, password, remember: true }),
+      body: JSON.stringify({ username, password, remember: remember === true }),
       redirect: "manual",
     });
   } catch (error) {
-    throw new Error(`无法连接服务器：${error.cause?.code || error.message}`);
+    throw networkError(error);
   }
   let mode = "gateway";
   if (response.status === 404 || response.status === 405) {
@@ -74,15 +130,29 @@ async function login({ serverUrl, username, password, fetchImpl = fetch }) {
     response = await fetchImpl(`${origin}/api/auth/sign-in/email`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ email: username, password, rememberMe: true }),
+      body: JSON.stringify({ email: username, password, rememberMe: remember === true }),
       redirect: "manual",
     });
   }
-  if (response.status === 429) throw new Error(await readError(response, "尝试次数过多，请稍后再试。"));
-  if (!response.ok) throw new Error(await readError(response, "账号或密码不正确。"));
+  if (response.status === 429) throw loginError("rate", "尝试次数过多，请稍后再试。");
+  if (response.status === 401 || response.status === 400) throw loginError("auth", "账号或密码错误。");
+  if (response.status === 403) throw loginError("invalid", await readError(response, "服务器拒绝了这次登录（来源不匹配），请确认地址和浏览器里打开的完全一致。"));
+  if (response.status >= 500) throw loginError("server", `服务器暂时不可用（${response.status}），请稍后再试。`);
+  if (!response.ok) throw loginError("invalid", await readError(response, `登录失败（${response.status}）。`));
   const cookies = parseSetCookies(response.headers);
-  if (!cookies.length) throw new Error("登录成功但服务器没有返回会话，请检查服务器地址。");
+  if (!cookies.length) throw loginError("invalid", "登录成功但服务器没有返回会话，请检查服务器地址。");
   return { origin, mode, cookies, cookieHeader: cookies.map((c) => `${c.name}=${c.value}`).join("; ") };
+}
+
+/** 退出网页登录（网关会话作废）。失败不影响本机清除。 */
+async function logoutSession({ serverUrl, cookieHeader, fetchImpl = fetch }) {
+  const origin = normalizeServerUrl(serverUrl);
+  const response = await fetchImpl(`${origin}/auth/logout`, {
+    method: "POST",
+    headers: { Origin: origin, Accept: "application/json", ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
+    redirect: "manual",
+  });
+  return response.ok;
 }
 
 async function enroll({ serverUrl, cookieHeader, info, fetchImpl = fetch }) {
@@ -128,4 +198,4 @@ async function unenroll({ serverUrl, token, fetchImpl = fetch }) {
   return response.ok;
 }
 
-module.exports = { normalizeServerUrl, parseSetCookies, login, enroll, checkToken, unenroll };
+module.exports = { normalizeServerUrl, parseSetCookies, networkError, probe, login, logoutSession, enroll, checkToken, unenroll };

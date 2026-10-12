@@ -1,0 +1,116 @@
+/*
+ * ChisaBot PC 本机窗口（设置向导、审批弹窗、本机确认、离线页）的组件层。
+ * 令牌、天空、深色模式逐字来自网页（skyglass-tokens.css，由 scripts/sync-skyglass.mjs 生成）；这里只把网页
+ * 组件（Button / Input / auth-card 模板 F / sg-card / sg-srow / 徽标 / 分段）按同样的尺寸和类名重写一遍，
+ * 所以这几个原生窗口和 PC 主窗口里的网页看起来是同一个应用（DESIGN.md §16.5）。
+ */
+*, *::before, *::after { box-sizing: border-box; }
+html { font-size: 16px; }
+html, body { height: 100%; }
+body { overflow: hidden; transition: none !important; } /* 本机窗口一打开就是最终天空，不从默认色渐变过来 */
+button, input { font: inherit; color: inherit; }
+::selection { background: var(--accent-blue-soft); }
+
+/* ---------- 版式 ---------- */
+.t-eyebrow { font-size: var(--fs-12); color: var(--ink-3); letter-spacing: .02em; }
+.t-h1 { margin: 0; font-size: var(--fs-24); line-height: var(--lh-tight); font-weight: 600; letter-spacing: -.01em; color: var(--ink-1); }
+.t-h2 { margin: 0; font-size: var(--fs-16); line-height: 1.4; font-weight: 600; color: var(--ink-1); }
+.t-sub { margin: 0; font-size: var(--fs-13); line-height: 1.55; color: var(--ink-3); text-wrap: pretty; }
+.mono { font-family: var(--font-code); font-size: var(--fs-12); word-break: break-all; }
+.center { text-align: center; }
+.hidden { display: none !important; }
+
+/* ---------- 玻璃面（与网页 .auth-card / .sg-card 同值）---------- */
+.auth-card {
+  border-radius: var(--r-xl); border: 1px solid var(--stroke); background: var(--glass-1);
+  backdrop-filter: saturate(150%) blur(var(--blur-2));
+  box-shadow: var(--shadow-2), var(--inset-hl);
+}
+.sg-card {
+  border-radius: var(--r-lg); border: 1px solid var(--stroke); background: var(--glass-1);
+  backdrop-filter: saturate(140%) blur(var(--blur-2));
+  box-shadow: var(--shadow-1), var(--inset-hl);
+}
+.sg-srow { display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 14px 20px; }
+.sg-srow + .sg-srow { border-top: 1px solid var(--line); }
+.sg-srow-t { font-weight: 500; color: var(--ink-1); }
+.sg-srow-s { margin-top: 2px; font-size: var(--fs-13); color: var(--ink-3); }
+.sg-ico {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: var(--glass-2); border: 1px solid var(--stroke); color: var(--ink-2);
+}
+.sg-ico.is-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+.sg-ico.is-danger { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.sg-ico.is-ok { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.sg-ico.is-accent { color: var(--accent-blue); background: var(--accent-blue-soft); border-color: transparent; }
+.sg-ico svg { width: 20px; height: 20px; }
+
+/* ---------- 按钮（网页 Button：药丸、40px，sm 32px，lg 48px；default = 墨色）---------- */
+.btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none;
+  height: var(--ctl-md); padding: 0 16px; border-radius: var(--r-pill); border: 1px solid transparent;
+  font-size: var(--fs-14); font-weight: 500; white-space: nowrap; cursor: pointer; user-select: none;
+  color: var(--on-primary); background: var(--ink-primary); box-shadow: var(--shadow-1);
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), border-color var(--dur-1), box-shadow var(--dur-1), translate var(--dur-1), opacity var(--dur-1);
+}
+.btn:hover { background: var(--ink-primary-hover); }
+.btn:active { translate: 0 1px; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+.btn:disabled { opacity: .5; pointer-events: none; }
+.btn.outline { color: var(--ink-1); background: var(--glass-2); border-color: var(--line-strong); box-shadow: none; }
+.btn.outline:hover { background: var(--glass-3); }
+.dark .btn.outline { background: rgba(255, 255, 255, .05); border-color: var(--line-strong); }
+.btn.ghost { color: var(--ink-2); background: transparent; box-shadow: none; }
+.btn.ghost:hover { background: var(--glass-hover); color: var(--ink-1); }
+.btn.destructive { color: var(--danger); background: var(--danger-soft); box-shadow: none; }
+.btn.destructive:hover { background: color-mix(in oklch, var(--danger) 20%, transparent); }
+.btn.sm { height: var(--ctl-sm); padding: 0 12px; font-size: var(--fs-13); }
+.btn.lg { height: var(--ctl-lg); padding: 0 20px; font-size: 15px; }
+.btn.block { width: 100%; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+/* 异步按钮状态机（DESIGN.md §2）：四种文案叠放，宽度取最长者，不跳动 */
+.btn[data-async] { display: inline-grid; }
+.btn.block[data-async] { display: grid; }
+.btn[data-async] > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; opacity: 0; transition: opacity var(--dur-2) var(--ease-out); }
+.btn[data-async][data-state="idle"] > .s-idle, .btn[data-async][data-state="pending"] > .s-pending,
+.btn[data-async][data-state="success"] > .s-success, .btn[data-async][data-state="error"] > .s-error { opacity: 1; }
+.btn[data-state="pending"] { opacity: 1; pointer-events: none; }
+.btn[data-state="success"] { background: var(--success); color: #fff; border-color: transparent; }
+.btn[data-state="error"] { background: var(--danger); color: #fff; border-color: transparent; }
+.spin { width: 14px; height: 14px; border-radius: 99px; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 输入框（网页 Input：40px、r-md）---------- */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field + .field { margin-top: 12px; }
+.field label { font-size: var(--fs-13); font-weight: 500; color: var(--ink-2); }
+.input {
+  height: var(--ctl-md); width: 100%; padding: 0 12px; border-radius: var(--r-md); outline: none;
+  border: 1px solid var(--line-strong); background: var(--glass-2); font-size: var(--fs-14); color: var(--ink-1);
+  transition: border-color var(--dur-1), box-shadow var(--dur-1), background var(--dur-1);
+}
+.dark .input { background: rgba(255, 255, 255, .05); }
+.input::placeholder { color: var(--ink-4); }
+.input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--focus); background: var(--glass-3); }
+.hint { font-size: var(--fs-12); color: var(--ink-3); }
+.alert { padding: 10px 14px; border-radius: var(--r-md); font-size: var(--fs-13); color: var(--danger); background: var(--danger-soft); }
+
+/* ---------- 徽标 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill);
+  font-size: var(--fs-12); font-weight: 500; white-space: nowrap; color: var(--ink-2); background: var(--glass-2); border: 1px solid var(--line);
+}
+.badge.is-ok { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.badge.is-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+.badge.is-danger { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.dot { width: 7px; height: 7px; border-radius: 99px; background: currentColor; }
+
+/* ---------- 进出场（150–300ms，尊重减少动态效果）---------- */
+.enter { animation: enter var(--dur-3) var(--ease-out) both; }
+.enter-2 { animation-delay: 60ms; }
+.enter-3 { animation-delay: 120ms; }
+@keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-delay: 0s !important; }
+}
+.grow { flex: 1; min-width: 0; }

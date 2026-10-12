@@ -23,8 +23,8 @@ android {
         applicationId = "cn.ayase.chisabot"
         minSdk = 24
         targetSdk = 34
-        versionCode = 204        // major*10000 + minor*100 + patch
-        versionName = "0.2.4"
+        versionCode = 205        // major*10000 + minor*100 + patch
+        versionName = "0.2.5"
         buildConfigField("String", "DEFAULT_SERVER", quoted(defaultServer))
         buildConfigField("String", "UPDATE_FEED", quoted(updateFeed))
     }

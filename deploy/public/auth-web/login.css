@@ -205,3 +205,101 @@ button:focus-visible, a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ===================================================================
+ * ChisaBot 登录页（login.html 的 <body class="chisabot">）：DESIGN.md 的蓝天 + 磨砂玻璃，亮色 / 暗色。
+ * 只作用于 body.chisabot，Magpie 登录页（magpie-login.html，同一个样式表）保持原样；结构和 login.js 不变。
+ * =================================================================== */
+body.chisabot {
+  --ink-1: #16181d; --ink-2: #3b3f48; --ink-3: #5f6673; --ink-4: #9aa1ad;
+  --glass-1: rgba(255, 255, 255, .5); --glass-2: rgba(255, 255, 255, .62); --glass-3: rgba(255, 255, 255, .82);
+  --stroke: rgba(255, 255, 255, .62); --line: rgba(22, 24, 29, .09); --line-strong: rgba(22, 24, 29, .14);
+  --primary: #16181d; --primary-hover: #2a2e36; --on-primary: #fff;
+  --accent: #3b82f6; --focus: rgba(59, 130, 246, .32); --danger: #d64545; --danger-soft: rgba(214, 69, 69, .12);
+  --shadow: 0 20px 50px rgba(30, 50, 80, .18), 0 1px 2px rgba(40, 70, 110, .08);
+  --sky: linear-gradient(180deg, #6f9bc7 0%, #9dbddc 38%, #c9dbeb 72%, #e4ecf3 100%);
+  --glow: radial-gradient(640px 520px at 18% 12%, rgba(255, 255, 240, .5), transparent 62%);
+  min-height: 100svh; color: var(--ink-1); background: var(--glow), var(--sky); background-attachment: fixed;
+  font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  body.chisabot {
+    --ink-1: #e8ecf3; --ink-2: #c7cedb; --ink-3: #97a1b2; --ink-4: #6f7a8c;
+    --glass-1: rgba(16, 25, 44, .55); --glass-2: rgba(255, 255, 255, .06); --glass-3: rgba(255, 255, 255, .1);
+    --stroke: rgba(255, 255, 255, .09); --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .14);
+    --primary: #e8ecf3; --primary-hover: #ffffff; --on-primary: #10161f;
+    --accent: #60a5fa; --focus: rgba(96, 165, 250, .35); --danger: #f07070; --danger-soft: rgba(240, 112, 112, .14);
+    --shadow: 0 20px 50px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .25);
+    --sky: linear-gradient(180deg, #070d1c 0%, #0c1730 38%, #13213f 72%, #1a2a4a 100%);
+    --glow: radial-gradient(560px 480px at 80% 10%, rgba(170, 190, 240, .16), transparent 62%);
+  }
+}
+body.chisabot :focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+body.chisabot .login-page { max-width: 1440px; border: 0 !important; }
+
+/* 左：品牌，直接放在天空上 */
+body.chisabot .brand { background: transparent; border: 0; color: var(--ink-1); }
+body.chisabot .brand-mark { gap: 12px; color: var(--ink-1); }
+body.chisabot .brand-mark svg {
+  width: 40px; height: 40px; padding: 7px; border-radius: 13px; color: #fff;
+  background: linear-gradient(145deg, #5b9bf0, #2f6fd6 60%, #2457b8); box-shadow: 0 6px 18px rgba(36, 87, 184, .35);
+}
+body.chisabot .eyebrow { color: var(--ink-2); }
+body.chisabot .brand h1 { color: var(--ink-1); letter-spacing: -.05em; text-shadow: 0 1px 24px rgba(255, 255, 255, .25); }
+body.chisabot .brand-dot { color: #2f6fd6; }
+body.chisabot .brand-description, body.chisabot .brand-footer { color: var(--ink-2); }
+body.chisabot .orbit { color: rgba(255, 255, 255, .55); }
+body.chisabot .orbit-center { fill: rgba(255, 255, 255, .35); stroke: rgba(255, 255, 255, .8); }
+body.chisabot .orbit-glyph { stroke: #2f6fd6; }
+body.chisabot .orbit-node { fill: #ffffff; stroke: rgba(47, 111, 214, .45); stroke-width: 3; }
+@media (prefers-color-scheme: dark) {
+  body.chisabot .brand h1 { text-shadow: none; }
+  body.chisabot .brand-dot, body.chisabot .orbit-glyph { color: #60a5fa; stroke: #60a5fa; }
+  body.chisabot .brand-dot { color: #60a5fa; }
+  body.chisabot .orbit { color: rgba(140, 170, 230, .28); }
+  body.chisabot .orbit-center { fill: rgba(255, 255, 255, .05); stroke: rgba(140, 170, 230, .5); }
+  body.chisabot .orbit-node { fill: #93b4e8; stroke: rgba(7, 13, 28, .8); }
+}
+
+/* 右：L1 玻璃卡片 */
+body.chisabot .login-section { padding: 48px 40px 96px; }
+body.chisabot .login-content {
+  max-width: 420px; padding: 36px 36px 30px; border-radius: 28px;
+  background: var(--glass-1); border: 1px solid var(--stroke); box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .45);
+  -webkit-backdrop-filter: saturate(150%) blur(24px); backdrop-filter: saturate(150%) blur(24px);
+  animation: enter .28s ease-out both;
+}
+@media (prefers-color-scheme: dark) { body.chisabot .login-content { box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .06); } }
+body.chisabot .section-label { color: var(--accent); letter-spacing: .04em; }
+body.chisabot .login-content h2 { margin: 10px 0 8px; font-size: 26px; color: var(--ink-1); }
+body.chisabot .login-description { margin-bottom: 28px; color: var(--ink-3); }
+body.chisabot .field { margin-bottom: 18px; }
+body.chisabot .field > label { margin-bottom: 8px; color: var(--ink-2); font-weight: 500; }
+body.chisabot .field input {
+  height: 46px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--glass-2); color: var(--ink-1);
+  transition: border-color .18s ease-out, box-shadow .18s ease-out, background .18s ease-out;
+}
+body.chisabot .field input:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); }
+body.chisabot .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); background: var(--glass-3); }
+body.chisabot .field input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+body.chisabot .password-toggle { top: 5px; height: 36px; border-radius: 999px; color: var(--ink-3); font-size: 13px; transition: background .15s, color .15s; }
+body.chisabot .password-toggle:hover { background: var(--glass-3); color: var(--ink-1); }
+body.chisabot .remember { color: var(--ink-2); font-size: 14px; }
+body.chisabot .remember input { width: 18px; height: 18px; accent-color: var(--accent); }
+body.chisabot .login-error { color: var(--danger); padding: 9px 12px; border-radius: 10px; background: var(--danger-soft); animation: enter .2s ease-out both; }
+body.chisabot .login-submit {
+  height: 48px; margin-top: 22px; border: 0; border-radius: 999px; background: var(--primary); color: var(--on-primary);
+  box-shadow: 0 6px 18px rgba(22, 24, 29, .18); transition: background .18s ease-out, transform .15s ease-out, opacity .18s;
+}
+body.chisabot .login-submit:hover { background: var(--primary-hover); }
+body.chisabot .login-submit:disabled { background: var(--primary); opacity: .72; }
+body.chisabot .submit-spinner { border-color: color-mix(in srgb, var(--on-primary) 35%, transparent); border-top-color: var(--on-primary); }
+body.chisabot .login-note { color: var(--ink-3); }
+body.chisabot .login-footer { color: var(--ink-3); }
+body.chisabot .noscript-message { color: var(--danger); }
+@media (max-width: 680px) {
+  body.chisabot .brand { border: 0; padding-bottom: 8px; }
+  body.chisabot .orbit { opacity: .5; }
+  body.chisabot .login-section { padding: 16px 16px 72px; }
+  body.chisabot .login-content { padding: 28px 22px 24px; border-radius: 24px; }
+}
