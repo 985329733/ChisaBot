@@ -468,14 +468,14 @@ export async function createLocalConversations(database: Database): Promise<Loca
    * 结果，所以往回找它前面最近的一条用户消息。只读，不改历史；标记本身不进对话（不会发给模型）。
    */
   const stoppedTurns = async (threadId: string, messages: readonly Message[]): Promise<string[]> => {
-    const runs = await database.$client.unsafe<{ run_id: string }[]>(
-      "SELECT run_id FROM openbot_local_runs WHERE thread_id = $1 AND status = 'stopped' ORDER BY created_at DESC LIMIT 50", [threadId],
-    );
-    if (!runs.length) return [];
+    // 一条 SQL 连表（Bun SQL 的 unsafe 不会把 JS 数组变成 text[] 参数）。
     const started = await database.$client.unsafe<{ event: { input?: { messages?: { id?: string }[] } } }[]>(
-      `SELECT event FROM openbot_local_events WHERE thread_id = $1 AND run_id = ANY($2::text[])
-       AND event->>'type' = 'RUN_STARTED'`, [threadId, runs.map((run) => run.run_id)],
+      `SELECT e.event FROM openbot_local_events e
+       JOIN openbot_local_runs r ON r.thread_id = e.thread_id AND r.run_id = e.run_id
+       WHERE e.thread_id = $1 AND r.status = 'stopped' AND e.event->>'type' = 'RUN_STARTED'
+       ORDER BY e.sequence DESC LIMIT 50`, [threadId],
     );
+    if (!started.length) return [];
     const position = new Map(messages.map((message, index) => [message.id, index]));
     const ids = new Set<string>();
     for (const { event } of started) {
