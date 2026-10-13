@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import { isStaleChunkError, reloadForStaleChunk } from "@/lib/stale-chunk";
 
 /**
  * Whether a pending route is drawn inside a shell (app, settings, admin) that is already on screen.
@@ -107,8 +108,12 @@ export function StartupPending() {
   return useContext(ShellContext) ? <RouteSkeleton /> : <AppSkeleton />;
 }
 
-export function StartupFailure() {
+export function StartupFailure({ error }: { error?: unknown } = {}) {
   const inShell = useContext(ShellContext);
+  // 部署后旧页面要的分包已不存在：自动刷新一次拿新版本（lib/stale-chunk.ts），刷新前先显示骨架而不是报错。
+  const stale = isStaleChunkError(error);
+  const [reloading] = useState(() => stale && reloadForStaleChunk());
+  if (reloading) return inShell ? <RouteSkeleton /> : <AppSkeleton />;
   if (inShell) {
     return (
       <div className="route-skel" role="alert">
