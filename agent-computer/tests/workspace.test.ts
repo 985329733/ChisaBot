@@ -162,6 +162,7 @@ describe("listing the workspace", () => {
       readBytes: 1000,
       writeBytes: 1000,
       listEntries: 3,
+      downloadBytes: 1000,
     });
     for (const n of [1, 2, 3, 4, 5]) await ws.write(`f${n}.txt`, "x");
     const listing = await ws.list();

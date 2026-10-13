@@ -97,11 +97,16 @@ async function showBanner(page: Page, block: SiteBlock) {
           "backdrop-filter:blur(16px) saturate(1.4)",
           "box-shadow:0 8px 32px rgba(30,60,110,.18)",
           `color:${dark ? "#e8eef7" : "#1d2733"}`,
-          'font:14px/1.6 "PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC",system-ui,sans-serif',
+          // 拉丁字母优先用带粗体字面的字体（容器里是 Liberation Sans），中文回落到 PingFang / 雅黑 / Noto / 文泉驿。
+          'font:14px/1.6 "PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC","Liberation Sans",Arial,"WenQuanYi Zen Hei",system-ui,sans-serif',
+          "font-synthesis:weight",
           "text-align:left",
         ].join(";");
         const title = document.createElement("div");
-        title.style.cssText = "font-size:16px;font-weight:600;margin-bottom:4px";
+        // 容器里的中文字体（文泉驿正黑）只有常规体，Chromium 在 Linux 上也不会替它合成粗体，
+        // 600 会原样渲染成细字。用和文字同色的 0.6px 描边补出粗体效果；有真粗体的系统上叠一点描边几乎看不出。
+        title.style.cssText =
+          "font-size:16px;font-weight:700;margin-bottom:4px;-webkit-text-stroke:0.6px currentColor;paint-order:stroke fill";
         title.textContent = `${site || "这个网站"} 拦截了机器人浏览器`;
         const body = document.createElement("div");
         body.style.cssText = `font-size:13px;color:${dark ? "#b4c0d0" : "#4a5869"}`;
