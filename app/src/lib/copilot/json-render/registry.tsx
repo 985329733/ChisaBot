@@ -1,15 +1,37 @@
 import { defineRegistry, useBoundProp } from "@json-render/react";
 import {
   IconAlertTriangle,
+  IconArrowUpRight,
+  IconCheck,
   IconCircleCheck,
   IconInfoCircle,
-  IconTrendingDown,
-  IconTrendingUp,
-  IconMinus,
   IconX,
 } from "@tabler/icons-react";
-import { Component, type CSSProperties, type ReactNode, useId, useLayoutEffect, useRef } from "react";
-import { jsonRenderCatalog } from "../../../../../shared/json-render/catalog";
+import { Component, type CSSProperties, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { jsonRenderCatalog, normaliseTone } from "../../../../../shared/json-render/catalog";
+import { Chart, Gauge, HeatStrip, Ring, SparkSvg, Sparkline } from "./charts";
+import {
+  Accordion,
+  Avatar,
+  Carousel,
+  Clock,
+  Countdown,
+  DeltaChip,
+  Hero,
+  IconTile,
+  KeyValue,
+  LinkCard,
+  RelativeTime,
+  RichIcon,
+  SafeImg,
+  Status,
+  StatusDot,
+  Tabs,
+  TimeText,
+  Timeline,
+} from "./rich";
+import { ActionArea, useLiveValue, useRichActions } from "./rich-context";
+import { safeHttp, safeHttps, trendOfText } from "./rich-utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -40,11 +62,11 @@ const ALERT_ICON = {
   danger: IconX,
 } as const;
 
-const TREND_ICON = {
-  up: IconTrendingUp,
-  down: IconTrendingDown,
-  flat: IconMinus,
-} as const;
+/** 语义色类名：.jr-tone-*（styles.css 里定义 --tone / --tone-soft）。default 不加。 */
+const toneOf = (tone: unknown) => {
+  const t = normaliseTone(tone);
+  return t === "default" ? undefined : `jr-tone-${t}`;
+};
 
 /**
  * 大数字拆成「数字 + 单位」：单位小一号、淡一点（26.9℃ → 26.9 + ℃，2.9 km/h → 2.9 + km/h）。
@@ -180,11 +202,18 @@ class NodeBoundary extends Component<{ type: string; children: ReactNode }, { fa
 export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog, {
   components: {
     Card: ({ props, children }) => (
-      <section className={cn("jr-card jr-el", props.tone && props.tone !== "default" && `is-${props.tone}`)}>
+      <section className={cn("jr-card jr-el", normaliseTone(props.tone) !== "default" && `is-${normaliseTone(props.tone)} ${toneOf(props.tone)}`)}>
         {props.title || props.description ? (
-          <header className="jr-card-h">
-            {props.title ? <h3>{props.title}</h3> : null}
-            {props.description ? <p>{props.description}</p> : null}
+          <header className={cn("jr-card-h", props.icon && "has-icon")}>
+            {props.icon ? (
+              <span className={cn("jr-card-ic", toneOf(props.tone ?? "accent") ?? "jr-tone-accent")}>
+                <RichIcon className="size-4" name={props.icon} />
+              </span>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              {props.title ? <h3>{props.title}</h3> : null}
+              {props.description ? <p>{props.description}</p> : null}
+            </div>
           </header>
         ) : null}
         <div className="jr-card-b">{children}</div>
@@ -215,7 +244,12 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
     Heading: ({ props }) => {
       const level = props.level ?? 2;
       const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
-      return <Tag className={cn("jr-heading jr-el", `is-l${level}`)}>{props.text}</Tag>;
+      return (
+        <Tag className={cn("jr-heading jr-el", `is-l${level}`, props.icon && "has-icon")}>
+          {props.icon ? <RichIcon className="jr-heading-ic" name={props.icon} /> : null}
+          {props.text}
+        </Tag>
+      );
     },
     Text: ({ props }) => (
       <p
@@ -230,24 +264,39 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
       </p>
     ),
     Metric: ({ props }) => {
-      const Trend = props.trend ? TREND_ICON[props.trend] : null;
       const { num, unit } = splitMetricValue(text(props.value));
+      const live = useLiveValue(num);
+      const tinted = props.variant === "tinted";
+      const tone = normaliseTone(props.tone);
+      const trend = props.trend ?? (props.delta ? trendOfText(props.delta) : undefined);
+      const sparkTone = props.trend === "up" ? "success" : props.trend === "down" ? "danger" : tone !== "default" ? tone : undefined;
       return (
-        <div className="jr-metric jr-el">
+        <ActionArea
+          className={cn("jr-metric jr-el", tinted && `is-tinted ${toneOf(tone === "default" ? "accent" : tone)}`, props.spark && "has-spark")}
+          item={props}
+          label={props.label}
+        >
           <div className="jr-metric-k" title={props.label}>
-            {props.label}
+            {props.icon ? <RichIcon className="jr-metric-ic" name={props.icon} /> : null}
+            <span className="truncate">{props.label}</span>
           </div>
-          <FitLine className={cn("jr-metric-v", props.tone && props.tone !== "default" && `is-${props.tone}`)}>
-            {num}
+          <FitLine className={cn("jr-metric-v", !tinted && tone !== "default" && `is-${tone}`, live.flash && "jr-flash")}>
+            {live.shown}
             {unit ? <span className="jr-metric-u">{unit}</span> : null}
           </FitLine>
-          {props.delta ? (
-            <div className={cn("jr-metric-d", props.trend && `is-${props.trend}`)}>
-              {Trend ? <Trend className="size-3.5 shrink-0" aria-hidden /> : null}
-              <span className="truncate">{props.delta}</span>
+          {props.delta || props.caption ? (
+            <div className="jr-metric-d">
+              {props.delta ? (
+                <span className={cn("jr-delta-chip", trend === "up" ? "jr-tone-success" : trend === "down" ? "jr-tone-danger" : undefined)}>
+                  {trend === "up" ? <span aria-hidden>{"▲"}</span> : trend === "down" ? <span aria-hidden>{"▼"}</span> : null}
+                  <span className="truncate">{props.delta.replace(/^[▲▼]\s*/, "")}</span>
+                </span>
+              ) : null}
+              {props.caption ? <span className="jr-metric-cap truncate">{props.caption}</span> : null}
             </div>
           ) : null}
-        </div>
+          {props.spark ? <SparkSvg className="jr-metric-spark" data={props.spark} height={28} tone={sparkTone} /> : null}
+        </ActionArea>
       );
     },
     Table: ({ props }) => {
@@ -287,39 +336,88 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
     },
     List: ({ props }) => {
       const Tag = props.ordered ? "ol" : "ul";
+      const items = Array.isArray(props.items) ? props.items : [];
+      const media = items.some((item) => safeHttps(item?.image));
       return (
-        <Tag className={cn("jr-list jr-el", props.ordered && "is-ordered")}>
-          {(Array.isArray(props.items) ? props.items : []).map((item, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: items carry no identity of their own.
-            <li key={index} className="jr-list-row">
-              {props.ordered ? <span className="jr-list-n">{index + 1}</span> : null}
-              <div className="min-w-0 flex-1">
-                <div className="jr-list-t">{item.title}</div>
-                {item.description ? <div className="jr-list-s">{item.description}</div> : null}
-              </div>
-              {item.meta ? <div className="jr-list-m">{item.meta}</div> : null}
-            </li>
-          ))}
+        <Tag className={cn("jr-list jr-el", props.ordered && "is-ordered", media && "has-media")}>
+          {items.map((item, index) => {
+            const linked = Boolean(safeHttp(item.href));
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: items carry no identity of their own.
+              <li className={cn("jr-list-item", toneOf(item.tone))} key={index} style={{ "--jr-i": String(index) } as CSSProperties}>
+                <ActionArea affordance="none" className="jr-list-row" item={item} label={item.title}>
+                  {props.ordered ? <span className="jr-list-n">{index + 1}</span> : null}
+                  {safeHttps(item.image) ? (
+                    <span className="jr-list-thumb">
+                      <SafeImg alt="" src={item.image} />
+                    </span>
+                  ) : item.icon ? (
+                    <span className={cn("jr-list-ic", toneOf(item.tone ?? "accent") ?? "jr-tone-accent")}>
+                      <RichIcon className="size-4" name={item.icon} />
+                    </span>
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <div className="jr-list-t">
+                      {item.title}
+                      {item.badge ? <span className={cn("jr-list-badge", toneOf(item.tone ?? "accent") ?? "jr-tone-accent")}>{item.badge}</span> : null}
+                    </div>
+                    {item.description ? <div className="jr-list-s">{item.description}</div> : null}
+                  </div>
+                  {item.meta || item.time ? (
+                    <div className="jr-list-m">
+                      {item.meta ? <span>{item.meta}</span> : null}
+                      {item.time ? <TimeText value={item.time} /> : null}
+                    </div>
+                  ) : null}
+                  {linked ? <IconArrowUpRight aria-hidden className="jr-list-go" /> : null}
+                </ActionArea>
+              </li>
+            );
+          })}
         </Tag>
       );
     },
     Badge: ({ props }) => (
-      <span className={cn("jr-badge jr-el", props.tone && props.tone !== "default" && `is-${props.tone}`)}>
-        {props.text}
-      </span>
-    ),
-    Button: ({ props, emit }) => (
-      <Button
-        className="jr-button jr-el"
-        disabled={props.disabled ?? false}
-        onClick={() => emit("press")}
-        size="sm"
-        type="button"
-        variant={BUTTON_VARIANT[props.variant ?? "primary"]}
+      <ActionArea
+        affordance="inline"
+        className={cn("jr-badge jr-el", normaliseTone(props.tone) !== "default" && `is-${normaliseTone(props.tone)} ${toneOf(props.tone)}`)}
+        item={props}
       >
-        {props.label}
-      </Button>
+        {props.dot || props.pulse ? <StatusDot pulse={props.pulse} tone={props.tone ?? "success"} /> : null}
+        {props.icon ? <RichIcon className="size-3.5" name={props.icon} /> : null}
+        <span>{props.text}</span>
+      </ActionArea>
     ),
+    Button: ({ props, emit }) => {
+      const actions = useRichActions();
+      const [copied, setCopied] = useState(false);
+      useEffect(() => {
+        if (!copied) return;
+        const timer = setTimeout(() => setCopied(false), 1500);
+        return () => clearTimeout(timer);
+      }, [copied]);
+      const href = safeHttp(props.href);
+      return (
+        <Button
+          className={cn("jr-button jr-el", copied && "is-copied")}
+          disabled={props.disabled ?? false}
+          onClick={async () => {
+            if (href) actions.openLink(href);
+            else if (props.ask && actions.ask) actions.ask(props.ask);
+            else if (props.copy && (await actions.copy(props.copy))) setCopied(true);
+            emit("press");
+          }}
+          size="sm"
+          title={href ?? undefined}
+          type="button"
+          variant={BUTTON_VARIANT[props.variant ?? "primary"]}
+        >
+          {copied ? <IconCheck aria-hidden className="size-4" /> : props.icon ? <RichIcon className="size-4" name={props.icon} /> : null}
+          {copied ? "已复制" : props.label}
+          {href ? <IconArrowUpRight aria-hidden className="size-3.5 opacity-70" /> : null}
+        </Button>
+      );
+    },
     Input: ({ props, bindings }) => {
       const id = useId();
       const [value, setValue] = useBoundProp<string | number | null | undefined>(
@@ -406,15 +504,22 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
       );
     },
     Alert: ({ props }) => {
-      const tone = props.tone ?? "info";
-      const Icon = ALERT_ICON[tone];
+      const raw = normaliseTone(props.tone ?? "info");
+      const tone = raw === "default" || raw === "accent" ? "info" : raw;
+      const Icon = ALERT_ICON[tone as keyof typeof ALERT_ICON] ?? IconInfoCircle;
+      const action = props.actionLabel && (safeHttp(props.href) || props.ask || props.copy);
       return (
-        <div className={cn("jr-alert jr-el", `is-${tone}`)} role={tone === "danger" ? "alert" : "status"}>
-          <Icon aria-hidden className="jr-alert-ic size-[18px]" />
+        <div className={cn("jr-alert jr-el", `is-${tone}`, `jr-tone-${tone}`)} role={tone === "danger" ? "alert" : "status"}>
+          {props.icon ? <RichIcon className="jr-alert-ic size-[18px]" name={props.icon} /> : <Icon aria-hidden className="jr-alert-ic size-[18px]" />}
           <div className="min-w-0 flex-1">
             {props.title ? <div className="jr-alert-t">{props.title}</div> : null}
             <div className="jr-alert-m">{props.message}</div>
           </div>
+          {action ? (
+            <ActionArea affordance="inline" className="jr-alert-act" item={props}>
+              {props.actionLabel}
+            </ActionArea>
+          ) : null}
         </div>
       );
     },
@@ -425,7 +530,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
           {props.label ? (
             <div className="jr-progress-k">
               <span>{props.label}</span>
-              <span>{`${Math.round(value)}%`}</span>
+              <span>{props.valueText ?? `${Math.round(value)}%`}</span>
             </div>
           ) : null}
           <div
@@ -433,7 +538,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={value}
-            className={cn("jr-progress-track", props.tone && props.tone !== "default" && `is-${props.tone}`)}
+            className={cn("jr-progress-track", normaliseTone(props.tone) !== "default" && `is-${normaliseTone(props.tone)} ${toneOf(props.tone)}`)}
             role="progressbar"
           >
             <div className="jr-progress-bar" style={{ width: `${value}%` }} />
@@ -452,7 +557,9 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
           }
         >
           {safe ? (
-            <img alt={props.alt} decoding="async" loading="lazy" referrerPolicy="no-referrer" src={props.src} />
+            <ActionArea className="jr-image-a" item={{ href: props.href }}>
+              <img alt={props.alt} decoding="async" loading="lazy" referrerPolicy="no-referrer" src={props.src} />
+            </ActionArea>
           ) : (
             <div className="jr-image-blocked">{"图片地址不安全，已隐藏"}</div>
           )}
@@ -460,7 +567,60 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
         </figure>
       );
     },
-    Separator: () => <hr className="jr-sep jr-el" />,
+    Separator: ({ props }) =>
+      props.label ? (
+        <div className="jr-sep-l jr-el">
+          <span>{props.label}</span>
+        </div>
+      ) : (
+        <hr className="jr-sep jr-el" />
+      ),
+    Sparkline: ({ props }) => <Sparkline data={props.data} height={props.height} label={props.label} tone={props.tone} value={props.value} />,
+    Chart: ({ props }) => (
+      <Chart
+        caption={props.caption}
+        data={props.data}
+        height={props.height}
+        kind={props.kind}
+        labels={props.labels}
+        series={props.series}
+        tone={props.tone}
+        unit={props.unit}
+      />
+    ),
+    Ring: ({ props }) => (
+      <Ring caption={props.caption} center={props.center} label={props.label} segments={props.segments} size={props.size} tone={props.tone} value={props.value} />
+    ),
+    Gauge: ({ props }) => (
+      <Gauge dangerAt={props.dangerAt} label={props.label} max={props.max} min={props.min} tone={props.tone} unit={props.unit} value={props.value} warnAt={props.warnAt} />
+    ),
+    HeatStrip: ({ props }) => (
+      <HeatStrip caption={props.caption} label={props.label} labels={props.labels} rows={props.rows} tone={props.tone} values={props.values} />
+    ),
+    Hero: ({ props }) => <Hero {...props} />,
+    Avatar: ({ props }) => <Avatar {...props} />,
+    Link: ({ props }) => <LinkCard {...props} />,
+    Icon: ({ props }) => <IconTile label={props.label} name={props.name} size={props.size} tone={props.tone} />,
+    Status: ({ props }) => <Status {...props} />,
+    Delta: ({ props }) => <DeltaChip invert={props.invert} label={props.label} trend={props.trend} value={props.value} />,
+    Tabs: ({ props, children }) => (
+      <Tabs tabs={props.tabs} variant={props.variant}>
+        {children}
+      </Tabs>
+    ),
+    Carousel: ({ props, children }) => <Carousel itemWidth={props.itemWidth}>{children}</Carousel>,
+    Timeline: ({ props }) => <Timeline items={props.items} />,
+    KeyValue: ({ props }) => <KeyValue columns={props.columns} items={props.items} />,
+    Accordion: ({ props, children }) => (
+      <Accordion icon={props.icon} open={props.open} summary={props.summary} title={props.title}>
+        {children}
+      </Accordion>
+    ),
+    Countdown: ({ props }) => (
+      <Countdown caption={props.caption} doneText={props.doneText} label={props.label} showSeconds={props.showSeconds} target={props.target} />
+    ),
+    Clock: ({ props }) => <Clock label={props.label} showDate={props.showDate} showSeconds={props.showSeconds} timezone={props.timezone} />,
+    RelativeTime: ({ props }) => <RelativeTime prefix={props.prefix} time={props.time} />,
   },
   /*
    * 动作的真正实现在 render-ui-tool.tsx 里通过 JSONUIProvider 的 handlers 传入，因为它们要用到当前对话
@@ -469,6 +629,8 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
   actions: {
     send_message: async () => undefined,
     open_link: async () => undefined,
+    copy_text: async () => undefined,
+    refresh_panel: async () => undefined,
   },
 });
 

@@ -1,8 +1,8 @@
 import { RouteSkeleton } from "@/components/startup-status";
-import { CopilotChat, useAgent } from "@copilotkit/react-core/v2";
+import { CopilotChat, useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { BotComposerContext, BotModelInput } from "@/components/agents/bot-model-input";
 import { defaultAgentId } from "@/lib/agents/default-agent";
@@ -13,6 +13,7 @@ import {
 } from "@/lib/agents/queries";
 import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
+import { ConversationProvider } from "@/lib/copilot/conversation";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { RICH_MESSAGE_VIEW } from "@/lib/copilot/rich-message-view";
@@ -185,6 +186,29 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）：机器人开始用计算机时自动切过去，停手后切回。
   useComputerAutoWatch(agentId, watch === true, showComputer);
   const composer = useMemo(() => ({ name, onNewTopic: startNew }), [name, startNew]);
+  /*
+   * 生成式界面里的「问一句」（DESIGN.md §29）：按钮的 send_message、列表行 / 磁贴的 ask。以前机器人
+   * 对话里没有 ConversationProvider，这些点了没反应（只有频道聊天能用）。右栏面板不在这棵树里，
+   * 它发 chisabot-ask 事件，这里接住，发到当前对话。正在回答时不插话。
+   */
+  const { copilotkit } = useCopilotKit();
+  const askFromUi = useCallback(
+    (text: string) => {
+      const said = text.trim();
+      if (!said || chatAgent.isRunning) return;
+      chatAgent.addMessage({ id: crypto.randomUUID(), role: "user", content: said });
+      void copilotkit.runAgent({ agent: chatAgent }).catch(() => {});
+    },
+    [chatAgent, copilotkit],
+  );
+  useEffect(() => {
+    const on = (event: Event) => {
+      const text = (event as CustomEvent<unknown>).detail;
+      if (typeof text === "string") askFromUi(text);
+    };
+    window.addEventListener("chisabot-ask", on);
+    return () => window.removeEventListener("chisabot-ask", on);
+  }, [askFromUi]);
 
   return (
       <div className="flex h-full min-h-0 flex-col">
@@ -239,6 +263,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
            */}
           {threadId ? (
             <BotComposerContext.Provider value={composer}>
+            <ConversationProvider ask={askFromUi}>
             <CopilotChat
               input={BotModelInput}
               agentId={agentId}
@@ -249,6 +274,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
               key={`${agentId}:${threadId}`}
               threadId={threadId}
             />
+            </ConversationProvider>
             </BotComposerContext.Provider>
           ) : null}
         </div>

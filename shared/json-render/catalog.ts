@@ -21,10 +21,57 @@ import { z } from "zod";
 
 export const RENDER_UI_TOOL = "render_ui";
 
+/**
+ * 语义色。写成宽松的字符串而不是枚举：模型常写 good / bad / brand / info，枚举会让整个元素被跳过；
+ * 浏览器用 normaliseTone 归一（good → success、bad → danger、brand → accent……），不认识的当 default。
+ */
 const tone = z
-  .enum(["default", "accent", "success", "warn", "danger"])
+  .string()
+  .max(16)
   .nullish()
-  .describe("语义色，默认 default");
+  .describe("语义色：default / accent（品牌蓝）/ info / success（好、涨）/ warn / danger（坏、跌），默认 default");
+
+export const TONES = ["default", "accent", "info", "success", "warn", "danger"] as const;
+export type Tone = (typeof TONES)[number];
+const TONE_ALIASES: Record<string, Tone> = {
+  brand: "accent", primary: "accent", blue: "accent", sky: "accent",
+  good: "success", ok: "success", positive: "success", green: "success", up: "success",
+  warning: "warn", amber: "warn", yellow: "warn", orange: "warn", caution: "warn",
+  bad: "danger", error: "danger", negative: "danger", red: "danger", down: "danger", critical: "danger",
+  neutral: "default", muted: "default", gray: "default", grey: "default", none: "default",
+  cyan: "info", teal: "info", purple: "info",
+};
+/** 任意写法 → 六种语义色之一。 */
+export function normaliseTone(value: unknown): Tone {
+  if (typeof value !== "string") return "default";
+  const key = value.trim().toLowerCase();
+  if ((TONES as readonly string[]).includes(key)) return key as Tone;
+  return TONE_ALIASES[key] ?? "default";
+}
+
+/** 每一项（行、磁贴、链接）都可以带一个点击动作；三选一，优先 href。 */
+const itemActions = {
+  href: z.string().max(2000).nullish().describe("点击在新标签页打开的 http(s) 链接（会显示 ↗）"),
+  ask: z.string().max(500).nullish().describe("点击后以用户身份发给你的一句话（例如「展开讲讲这条新闻」）"),
+  copy: z.string().max(2000).nullish().describe("点击复制到剪贴板的文字"),
+};
+
+/** 图标名（Tabler 图标的子集），不认识的名字不画图标。 */
+export const ICON_NAMES = [
+  "trending-up", "trending-down", "chart-line", "chart-bar", "chart-pie", "activity", "gauge",
+  "coin", "currency-dollar", "currency-yuan", "currency-bitcoin", "wallet", "building-bank", "receipt",
+  "sun", "moon", "cloud", "cloud-rain", "cloud-storm", "snowflake", "wind", "droplet", "temperature", "umbrella", "sunrise", "sunset", "mist",
+  "server", "cpu", "database", "cloud-computing", "wifi", "bolt", "battery", "device-desktop", "terminal", "code", "bug", "shield", "lock", "key",
+  "brand-github", "git-fork", "git-pull-request", "git-commit", "star", "eye", "users", "user", "heart", "message", "mail", "bell",
+  "news", "article", "link", "world", "rss", "book", "bookmark", "photo", "video", "music", "microphone",
+  "clock", "calendar", "hourglass", "alarm", "timeline", "flag", "trophy", "target", "rocket", "flame", "sparkles",
+  "map-pin", "plane", "car", "train", "bike", "walk", "home", "building", "package", "truck", "shopping-cart", "tag",
+  "check", "x", "alert-triangle", "info-circle", "circle-check", "circle-x", "help", "refresh", "download", "upload", "external-link", "copy", "settings", "search", "list", "filter",
+] as const;
+const icon = z.string().max(40).nullish().describe(`图标名，可选：${ICON_NAMES.join(" ")}`);
+
+/** 数列：数字（或能读成数字的字符串，如 "81,272"）；null 表示这一点缺数据。 */
+const numbers = z.array(z.union([z.number(), z.string().max(24), z.null()])).max(400);
 const gap = z.enum(["sm", "md", "lg"]).nullish().describe("间距，默认 md");
 
 /** 单元格只接受纯文本 / 数字，不接受 HTML。 */
@@ -37,6 +84,7 @@ export const jsonRenderCatalog = defineCatalog(schema, {
         title: z.string().nullish(),
         description: z.string().nullish(),
         tone,
+        icon,
       }),
       slots: ["default"],
       description:
@@ -65,6 +113,7 @@ export const jsonRenderCatalog = defineCatalog(schema, {
       props: z.object({
         text: z.string(),
         level: z.number().int().min(1).max(3).nullish().describe("1 最大，默认 2"),
+        icon,
       }),
       slots: [],
       description: "标题文字。",
@@ -86,9 +135,15 @@ export const jsonRenderCatalog = defineCatalog(schema, {
         delta: z.string().nullish().describe("对比说明，例如 “较昨日 +12%”"),
         trend: z.enum(["up", "down", "flat"]).nullish(),
         tone,
+        icon,
+        variant: z.enum(["plain", "tinted"]).nullish().describe("tinted = 按 tone 着色的磁贴（带图标、渐变底），plain = 平铺数字（默认）"),
+        spark: numbers.nullish().describe("可选，最近一段的数列（如 24 小时价格），画成数字下方的迷你走势线"),
+        caption: z.string().nullish().describe("数字下面一行很短的补充，如「体感 29°」"),
+        ...itemActions,
       }),
       slots: [],
-      description: "统计磁贴：小标签 + 大数字 + 可选对比。",
+      description:
+        "统计磁贴：label + 大数字 value（数字 + 单位）+ 可选 delta（配 trend up/down，显示 ▲▼ 着色胶囊）+ 可选 spark（数字数组，画成迷你走势线）+ icon。variant \"tinted\" = 按 tone 着色的渐变磁贴，用于 2–4 个并排的关键数。刷新时数字会平滑滚动到新值并闪一下。",
     },
     Table: {
       props: z.object({
@@ -114,27 +169,43 @@ export const jsonRenderCatalog = defineCatalog(schema, {
             title: z.string(),
             description: z.string().nullish(),
             meta: z.string().nullish().describe("右侧的短信息，例如时间、数量"),
+            image: z.string().nullish().describe("左侧缩略图，真实的 https 图片地址（新闻配图、商品图）"),
+            icon,
+            tone,
+            badge: z.string().nullish().describe("标题后的小标签，如「新」「热」"),
+            time: z.string().nullish().describe("ISO 时间（2026-10-13T08:00:00+08:00），显示成会自己走的「3 分钟前」"),
+            ...itemActions,
           }),
         ),
         ordered: z.boolean().nullish(),
       }),
       slots: [],
-      description: "列表行：标题 + 可选说明 + 右侧元信息。",
+      description:
+        "列表行：可选缩略图 / 图标 + 标题 + 说明 + 右侧元信息。每一行可带 href（新标签页打开，显示 ↗）、ask 或 copy，整行可点。新闻、搜索结果、待办都用它。",
     },
     Badge: {
-      props: z.object({ text: z.string(), tone }),
+      props: z.object({
+        text: z.string(),
+        tone,
+        icon,
+        dot: z.boolean().nullish().describe("前面加一个状态圆点"),
+        pulse: z.boolean().nullish().describe("圆点呼吸闪烁（表示「正在进行 / 在线」）"),
+        ...itemActions,
+      }),
       slots: [],
-      description: "胶囊徽标，用于状态、标签。",
+      description: "胶囊徽标 / 标签 / 链接胶囊（带 href 时可点）。多个放进 horizontal Stack。",
     },
     Button: {
       props: z.object({
         label: z.string(),
         variant: z.enum(["primary", "secondary", "ghost", "danger"]).nullish(),
         disabled: z.boolean().nullish(),
+        icon,
+        ...itemActions,
       }),
       slots: [],
       description:
-        "胶囊按钮，点击触发 press 事件。用 on.press 绑定动作：send_message（以用户身份发一条消息给你）、open_link 或内置的 setState。",
+        "胶囊按钮。最简单是写 href（打开链接）/ ask（替用户发一句话）/ copy（复制）；也可用 on.press 绑定动作：send_message、open_link、copy_text、refresh_panel 或内置的 setState。",
     },
     Input: {
       props: z.object({
@@ -173,16 +244,20 @@ export const jsonRenderCatalog = defineCatalog(schema, {
       props: z.object({
         title: z.string().nullish(),
         message: z.string(),
-        tone: z.enum(["info", "success", "warn", "danger"]).nullish(),
+        tone: z.string().max(16).nullish().describe("info（默认）/ success / warn / danger"),
+        icon,
+        actionLabel: z.string().nullish().describe("右侧小按钮的文字（配合 href / ask）"),
+        ...itemActions,
       }),
       slots: [],
-      description: "提示条：信息 / 成功 / 警告 / 错误。",
+      description: "提示条 / 标注：信息 / 成功 / 警告 / 错误，渐变底色 + 图标，可带一个动作。",
     },
     Progress: {
       props: z.object({
         value: z.number().min(0).max(100),
         label: z.string().nullish(),
         tone,
+        valueText: z.string().nullish().describe("右侧显示的文字，默认是百分比（例如写「3/5」）"),
       }),
       slots: [],
       description: "进度条，value 为 0–100。",
@@ -193,14 +268,241 @@ export const jsonRenderCatalog = defineCatalog(schema, {
         alt: z.string(),
         caption: z.string().nullish(),
         aspect: z.enum(["16:9", "4:3", "1:1", "auto"]).nullish(),
+        href: itemActions.href,
       }),
       slots: [],
       description: "图片。只用你确实拿到的真实 https 图片地址，不要编造链接。",
     },
     Separator: {
-      props: z.object({}),
+      props: z.object({ label: z.string().nullish().describe("可选，线中间的小字") }),
       slots: [],
-      description: "1px 分隔线。",
+      description: "1px 分隔线，可带中间小字（「今天」「更早」）。",
+    },
+    Sparkline: {
+      props: z.object({
+        data: numbers.describe("按时间先后的数列，至少 2 个点"),
+        tone,
+        label: z.string().nullish(),
+        value: z.union([z.string(), z.number()]).nullish().describe("右侧显示的当前值"),
+        height: z.number().int().min(16).max(80).nullish().describe("高度 px，默认 32"),
+      }),
+      slots: [],
+      description: "迷你走势线（渐变填充），一行：可选 label + 线（data 数列）+ 当前 value。tone 不写时按首尾涨跌自动绿 / 红。",
+    },
+    Chart: {
+      props: z.object({
+        kind: z.enum(["line", "area", "bar"]).nullish().describe("默认 area"),
+        labels: z.array(z.string()).max(400).nullish().describe("横轴标签，与数据一一对应（如 10/09、10/10…）"),
+        data: numbers.nullish().describe("单条数据；多条用 series"),
+        series: z
+          .array(z.object({ name: z.string(), data: numbers, tone }))
+          .max(3)
+          .nullish()
+          .describe("最多 3 条数据，每条 { name, data, tone }"),
+        unit: z.string().nullish().describe("数值单位，悬停提示里显示，如 $、℃、%"),
+        height: z.number().int().min(60).max(320).nullish().describe("高度 px，默认 140"),
+        tone,
+        caption: z.string().nullish(),
+      }),
+      slots: [],
+      description:
+        "折线 / 面积 / 柱状图（SVG，渐变填充，鼠标悬停或手指按住显示数值）。用于价格走势、气温、流量等。数据点 ≤ 60 个最好。",
+    },
+    Ring: {
+      props: z.object({
+        value: z.number().min(0).max(100).nullish().describe("单值进度环 0–100"),
+        segments: z
+          .array(z.object({ label: z.string(), value: z.number().min(0), tone }))
+          .max(6)
+          .nullish()
+          .describe("甜甜圈图：几段占比（按 value 比例），不写 value 时用"),
+        label: z.string().nullish(),
+        center: z.string().nullish().describe("圆心的大字，默认是百分比"),
+        caption: z.string().nullish(),
+        tone,
+        size: z.enum(["sm", "md", "lg"]).nullish(),
+      }),
+      slots: [],
+      description: "环形进度（value 0–100）或甜甜圈图（segments: [{label, value, tone}]，按比例，带图例）。CPU、磁盘、预算、占比。center 是圆心大字。",
+    },
+    Gauge: {
+      props: z.object({
+        value: z.number(),
+        min: z.number().nullish(),
+        max: z.number().nullish().describe("默认 100"),
+        label: z.string().nullish(),
+        unit: z.string().nullish(),
+        tone,
+        warnAt: z.number().nullish().describe("到这个值变黄"),
+        dangerAt: z.number().nullish().describe("到这个值变红"),
+      }),
+      slots: [],
+      description: "半圆仪表：空气质量、负载、速度等有上下限的单个数值。",
+    },
+    HeatStrip: {
+      props: z.object({
+        values: numbers.describe("每一格的数值（如每天的提交数 / 每小时是否正常 1/0）"),
+        labels: z.array(z.string()).max(400).nullish().describe("每一格的说明（悬停显示），与 values 对应"),
+        rows: z.number().int().min(1).max(7).nullish().describe("1 = 一条（默认，如在线率），7 = 日历格（按周排列，如 GitHub 贡献）"),
+        tone,
+        label: z.string().nullish(),
+        caption: z.string().nullish().describe("右侧短说明，如「99.9% 在线」"),
+      }),
+      slots: [],
+      description: "热力条 / 日历点：一串小方格按数值深浅着色。rows 1 = 一条（在线率，1 正常 0 故障），rows 7 = 按周排的日历格（GitHub 贡献）。caption 写右侧短结论。",
+    },
+    Hero: {
+      props: z.object({
+        title: z.string(),
+        subtitle: z.string().nullish(),
+        eyebrow: z.string().nullish().describe("标题上方的小字，如「今日头条」「香港 · 现在」"),
+        image: z.string().nullish().describe("真实的 https 封面图；没有就用 tone 渐变"),
+        icon,
+        tone,
+        value: z.union([z.string(), z.number()]).nullish().describe("可选，大号数字（如气温 26℃）"),
+        ...itemActions,
+      }),
+      slots: [],
+      description: "封面横幅：封面图（或语义色渐变）+ 渐变遮罩 + 标题 / 副标题 / 可选大数字，可点击打开链接。一张界面最多一个。",
+    },
+    Avatar: {
+      props: z.object({
+        name: z.string(),
+        src: z.string().nullish().describe("真实的 https 头像 / logo 地址；没有就显示名字首字"),
+        subtitle: z.string().nullish(),
+        size: z.enum(["sm", "md", "lg"]).nullish(),
+        shape: z.enum(["circle", "square"]).nullish().describe("人用 circle，组织 / 项目 logo 用 square"),
+        status: tone.describe("右下角状态点颜色（success 在线、warn 忙、danger 离线）"),
+        ...itemActions,
+      }),
+      slots: [],
+      description: "头像 / logo + 名字 + 一行副标题（身份行）。src 是真实 https 头像（没有就显示首字），人用 shape circle、组织 / 仓库用 square；status 是右下角状态点的 tone。",
+    },
+    Link: {
+      props: z.object({
+        url: z.string().describe("http(s) 链接"),
+        title: z.string(),
+        description: z.string().nullish(),
+        image: z.string().nullish().describe("可选缩略图（https）"),
+        meta: z.string().nullish().describe("如「2 小时前」「GitHub」"),
+      }),
+      slots: [],
+      description: "链接卡：网站图标 + 域名 + 标题 + 可选摘要 / 缩略图，点击在新标签页打开（↗）。",
+    },
+    Icon: {
+      props: z.object({ name: z.string().max(40).describe(`图标名：${ICON_NAMES.join(" ")}`), tone, size: z.enum(["sm", "md", "lg"]).nullish(), label: z.string().nullish() }),
+      slots: [],
+      description: "带语义色底的图标块，可带一个短标签。",
+    },
+    Status: {
+      props: z.object({
+        label: z.string(),
+        tone: tone.describe("success 正常 / warn 降级 / danger 故障 / default 未知"),
+        detail: z.string().nullish().describe("右侧短信息，如「200 · 85ms」"),
+        pulse: z.boolean().nullish().describe("圆点呼吸（正常运行中 / 正在进行）"),
+        ...itemActions,
+      }),
+      slots: [],
+      description: "状态行：彩色状态圆点（可呼吸）+ 名称 + 右侧细节。服务、设备、订单状态。",
+    },
+    Delta: {
+      props: z.object({
+        value: z.union([z.string(), z.number()]).describe("变化量，如 +3.2% 或 -120"),
+        trend: z.enum(["up", "down", "flat"]).nullish().describe("不写时按正负号判断"),
+        invert: z.boolean().nullish().describe("true = 涨是坏事（如延迟、价格对买家），颜色反过来"),
+        label: z.string().nullish().describe("如「24h」「较昨日」"),
+      }),
+      slots: [],
+      description: "涨跌小胶囊：▲ 绿 / ▼ 红（invert 反转）。",
+    },
+    Tabs: {
+      props: z.object({
+        tabs: z.array(z.string()).min(1).max(6).describe("每个标签的文字；children 按顺序一个标签一个"),
+        variant: z.enum(["tabs", "segmented"]).nullish().describe("segmented = 分段开关（默认），tabs = 下划线标签"),
+      }),
+      slots: ["default"],
+      description: "标签页 / 分段切换：一次显示一个子元素（children 与 tabs 一一对应）。用来在同一块地方切换「今天 / 本周」「价格 / 成交量」。",
+    },
+    Carousel: {
+      props: z.object({ itemWidth: z.enum(["sm", "md", "lg"]).nullish().describe("每一项宽度，默认 md") }),
+      slots: ["default"],
+      description: "横向滑动列表（可拖动 / 滚动，吸附对齐）：一排 Link / Metric / Hero / Image 卡片。",
+    },
+    Timeline: {
+      props: z.object({
+        items: z
+          .array(
+            z.object({
+              title: z.string(),
+              time: z.string().nullish().describe("时间文字（10/13 09:00）或 ISO 时间"),
+              description: z.string().nullish(),
+              tone,
+              icon,
+              ...itemActions,
+            }),
+          )
+          .max(20),
+      }),
+      slots: [],
+      description: "时间线：竖线 + 节点 + 标题 / 时间 / 说明。行程、发布记录、快递轨迹、事件进展。",
+    },
+    KeyValue: {
+      props: z.object({
+        items: z
+          .array(
+            z.object({
+              label: z.string(),
+              value: z.union([z.string(), z.number()]),
+              tone,
+              icon,
+              mono: z.boolean().nullish().describe("等宽字体（IP、哈希、版本号）"),
+              ...itemActions,
+            }),
+          )
+          .max(24),
+        columns: z.number().int().min(1).max(2).nullish().describe("1 或 2 列，默认 1"),
+      }),
+      slots: [],
+      description: "键值清单：左标签、右数值（可着色、可复制、可点链接）。规格、配置、服务器信息。",
+    },
+    Accordion: {
+      props: z.object({
+        title: z.string(),
+        summary: z.string().nullish().describe("收起时标题右侧的短摘要"),
+        open: z.boolean().nullish().describe("默认展开"),
+        icon,
+      }),
+      slots: ["default"],
+      description: "可折叠的小节：点标题展开 / 收起 children。放次要细节。",
+    },
+    Countdown: {
+      props: z.object({
+        target: z.string().describe("目标时间，ISO 格式带时区，如 2026-10-25T09:00:00+08:00"),
+        label: z.string().nullish(),
+        doneText: z.string().nullish().describe("到点后显示的文字，默认「已到时间」"),
+        showSeconds: z.boolean().nullish().describe("显示秒（默认：不足 1 天时显示）"),
+        caption: z.string().nullish(),
+      }),
+      slots: [],
+      description: "倒计时：在浏览器里每秒走动（天 时 分 秒），不需要刷新。",
+    },
+    Clock: {
+      props: z.object({
+        timezone: z.string().nullish().describe("IANA 时区，如 Asia/Shanghai、America/New_York；默认用户本地"),
+        label: z.string().nullish().describe("如「纽约」"),
+        showSeconds: z.boolean().nullish(),
+        showDate: z.boolean().nullish(),
+      }),
+      slots: [],
+      description: "会走的时钟（浏览器本地计时）。世界时钟用 Grid 放几个。",
+    },
+    RelativeTime: {
+      props: z.object({
+        time: z.string().describe("ISO 时间"),
+        prefix: z.string().nullish().describe("前缀，如「更新于」「发布于」"),
+      }),
+      slots: [],
+      description: "会自己更新的相对时间（「3 分钟前」「2 小时后」），一行淡色小字。",
     },
   },
   actions: {
@@ -219,6 +521,14 @@ export const jsonRenderCatalog = defineCatalog(schema, {
       params: z.object({ url: z.string().describe("http(s) 链接") }),
       description: "在新标签页打开一个 http(s) 链接。",
     },
+    copy_text: {
+      params: z.object({ text: z.string().describe("要复制的文字") }),
+      description: "把一段文字复制到用户的剪贴板（按钮上会短暂显示「已复制」）。",
+    },
+    refresh_panel: {
+      params: z.object({}),
+      description: "只在右栏面板里有效：让这张面板立刻重新取数据。对话里的界面不要用。",
+    },
   },
 });
 
@@ -229,10 +539,16 @@ const DROPPED_PROMPT_LINE = /sample data|realistic|Never leave data empty|Never 
 
 const CUSTOM_RULES = [
   "界面里的所有文字一律使用简体中文。",
-  "type 只能是上面 AVAILABLE COMPONENTS 列出的组件名；不要使用其他工具里的组件名（例如 Record、Chart、Kanban）。",
-  "只展示你真实拥有的信息（来自对话、工具结果或你确定的知识），绝不编造数据、链接或图片；没有数据就不要画这一块。",
-  "最外层通常是一个 Card；多个 Metric 放进 Grid；按钮组放进 horizontal Stack。保持简洁，一般不超过 30 个元素。",
-  "按钮只用 send_message、open_link 或内置的 setState / pushState / removeState / validateForm；不要使用 confirm 字段。",
+  "type 只能是上面 AVAILABLE COMPONENTS 列出的组件名；不要使用其他工具里的组件名（例如 Record、Kanban、Markdown）。",
+  "只展示你真实拥有的信息（来自对话、工具结果或你确定的知识），绝不编造数据、链接或图片；没有数据就不要画这一块。图片 / 头像 / 缩略图只用工具结果里真实出现过的 https 地址。",
+  "最外层通常是一个 Card（可带 icon）；多个 Metric 放进 Grid；按钮组放进 horizontal Stack。保持简洁，一般不超过 30 个元素。",
+  "选对组件，让界面一眼能看懂：有一串按时间的数 → Chart（大）或 Metric 的 spark / Sparkline（小）；占比 → Ring；有上下限的单值 → Gauge；每天 / 每小时的记录 → HeatStrip；有网址的条目 → List 每行带 href（有配图就带 image）或 Link；一个主角 → Hero；目标时间 → Countdown（会自己走）；时区 → Clock；状态 → Status / Badge dot；涨跌 → Delta 或 Metric 的 delta + trend；规格参数 → KeyValue；事件经过 → Timeline；同一处要切换的两三组内容 → Tabs；一排卡片 → Carousel；次要细节 → Accordion。",
+  "能点就让它能点：新闻、仓库、文章、商品这类有网址的行 / 卡片都写 href（新标签页打开，自动显示 ↗）；想让用户追问的写 ask；IP、命令、地址写 copy。",
+  "颜色有含义才用：tone 只能写 default / accent（品牌蓝）/ info / success（好、涨）/ warn / danger（坏、跌），只给涨跌、好坏、预警、品牌重点；一张界面里有颜色的地方不超过 3–4 处。",
+  `icon 只能写这些名字（Tabler 图标）：${ICON_NAMES.join(" ")}。`,
+  "每一项都能带动作：组件或 List / Timeline / KeyValue 的每一行可写 href（http(s) 链接，新标签页打开）、ask（替用户发一句话）、copy（复制的文字）。时间字段（List.items[].time、Timeline.items[].time、RelativeTime.time、Countdown.target）写 ISO 带时区，如 2026-10-13T09:00:00+08:00。",
+  "数列（Chart.data / series[].data、Sparkline.data、Metric.spark、HeatStrip.values）写数字数组，按时间先后；Chart.labels 与数据一一对应，写短（10/13、09:00）。",
+  "按钮只用 send_message、open_link、copy_text、refresh_panel 或内置的 setState / pushState / removeState / validateForm；不要使用 confirm 字段。",
   "用户要的是「面板」（放在右侧面板栏、长期保留的小工具）时不要用 render_ui：有 proposePanelDraft 工具就用它保存；没有就请用户点右栏面板的「新建」后再说一遍。",
   "send_message 只是替用户发一条消息给你，真正的操作（发送邮件、付款、删除等）仍由你在下一轮用工具完成，并照常经过审批。",
   "表单：输入组件用 $bindState 绑定到 /form/... 并在 /state 里给出初始值；提交按钮用 send_message 并设置 includeState 为 \"/form\"。",
@@ -332,6 +648,10 @@ export function parseRenderUiSpec(input: unknown, partial = false): Spec | null 
 }
 
 const BUILT_IN_ACTIONS = new Set(["setState", "pushState", "removeState", "validateForm"]);
+
+/** 只认 https 的图片类属性（封面、头像、缩略图）；不是 https 的地址在宽容处理时直接去掉这一项。 */
+const IMAGE_PROPS: Record<string, string[]> = { Hero: ["image"], Avatar: ["src"], Link: ["image"] };
+const isHttps = (value: unknown) => typeof value === "string" && /^https:\/\//i.test(value.trim());
 
 /** `on` 里的动作：名字必须存在；本部署的动作（send_message / open_link）按目录校验参数。 */
 function actionIssues(key: string, on: unknown): string[] {
@@ -502,7 +822,7 @@ export function sanitizeRenderUiSpec(spec: Spec | null): RenderUiSanitized | nul
       continue;
     }
     const props = element.props && typeof element.props === "object" && !Array.isArray(element.props)
-      ? (element.props as Record<string, unknown>)
+      ? { ...(element.props as Record<string, unknown>) }
       : {};
     const bad = Object.entries(definition.props.shape).find(([name, field]) => {
       const value = props[name];
@@ -515,6 +835,17 @@ export function sanitizeRenderUiSpec(spec: Spec | null): RenderUiSanitized | nul
     if (type === "Image" && typeof props.src === "string" && !/^https:\/\//i.test(props.src)) {
       skipped.push(`${key}（图片地址不是 https）`);
       continue;
+    }
+    for (const name of IMAGE_PROPS[type as string] ?? []) {
+      if (props[name] !== undefined && props[name] !== null && !isDynamic(props[name]) && !isHttps(props[name])) {
+        props[name] = null;
+        skipped.push(`${key}.${name}（图片地址不是 https，已去掉）`);
+      }
+    }
+    if (type === "List" && Array.isArray(props.items)) {
+      props.items = (props.items as Record<string, unknown>[]).map((item) =>
+        item && typeof item === "object" && item.image && !isHttps(item.image) ? { ...item, image: null } : item,
+      );
     }
     element.props = props;
     if (element.on !== undefined) element.on = normaliseOn(element.on);

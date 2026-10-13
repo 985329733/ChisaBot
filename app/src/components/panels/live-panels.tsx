@@ -8,12 +8,19 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../../shared/json-render/catalog";
 import { pruneEmptySections } from "../../../../shared/json-render/empty-sections";
 import { dropDuplicateTitle } from "../../../../shared/json-render/panel-title";
 import { client } from "@/lib/client";
 import { jsonRenderRegistry } from "@/lib/copilot/json-render/registry";
+import { copyText, openInNewTab, RichUiProvider, useNow } from "@/lib/copilot/json-render/rich-context";
+
+/** 面板里的「问一句」发到当前机器人的对话（bot.tsx 监听）。 */
+function askBot(text: string) {
+  const said = text.trim();
+  if (said) window.dispatchEvent(new CustomEvent("chisabot-ask", { detail: said }));
+}
 
 /**
  * 实时面板（server/src/live-panels，2026-10-13）：机器人用一句话的请求做出来、自己按计划刷新的卡片。
@@ -76,9 +83,9 @@ export function useLivePanels(botId: string | undefined) {
   });
 }
 
-function ago(iso: string | null): string {
+function ago(iso: string | null, now = Date.now()): string {
   if (!iso) return "";
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  const s = Math.max(0, (now - new Date(iso).getTime()) / 1000);
   if (s < 60) return "刚刚更新";
   if (s < 3600) return `${Math.floor(s / 60)} 分钟前更新`;
   if (s < 86400) return `${Math.floor(s / 3600)} 小时前更新`;
@@ -91,34 +98,58 @@ function cadence(minutes: number | null): string {
   return `每 ${minutes} 分钟刷新`;
 }
 
-const LiveBody = memo(function LiveBody({ spec: source, title }: { spec: string; title: string }) {
+const LiveBody = memo(function LiveBody({ spec: source, title, onRefresh }: { spec: string; title: string; onRefresh?: () => void }) {
   // 空列表 / 空重复区块不画，免得只剩一个孤零零的小标题（shared/json-render/empty-sections.ts）；
   // 和卡片头同名的标题也不再画第二遍（shared/json-render/panel-title.ts）。
   const spec = useMemo(
     () => dropDuplicateTitle(pruneEmptySections(sanitizeRenderUiSpec(parseRenderUiSpec(source, false))?.spec ?? null), title),
     [source, title],
   );
+  /*
+   * 刷新只换数据（DESIGN.md §32）：新规范到了也不重新挂载——元素 key 没变，React 复用同一批组件，
+   * 数字从旧值滚到新值并闪一下（rich-context useLiveValue）。state 仓库按规范版本换新，表格 / 列表直接用字面值。
+   */
   // biome-ignore lint/correctness/useExhaustiveDependencies: one store per spec version.
   const store = useMemo(() => createStateStore({ ...((spec as Spec | null)?.state ?? {}) }), [source]);
+  const refreshRef = useRef(onRefresh);
+  refreshRef.current = onRefresh;
   const handlers = useMemo(
     () => ({
       open_link: (params: Record<string, unknown>) => {
         const url = typeof params.url === "string" ? params.url : "";
         if (/^https?:\/\//i.test(url)) window.open(url, "_blank", "noopener,noreferrer");
       },
-      send_message: () => {},
+      send_message: (params: Record<string, unknown>) => {
+        if (typeof params.text === "string") askBot(params.text);
+      },
+      copy_text: (params: Record<string, unknown>) => {
+        if (typeof params.text === "string" && params.text) void copyText(params.text);
+      },
+      refresh_panel: () => refreshRef.current?.(),
     }),
+    [],
+  );
+  const rich = useMemo(
+    () => ({ surface: "panel" as const, ask: askBot, openLink: openInNewTab, copy: copyText, refresh: () => refreshRef.current?.() }),
     [],
   );
   if (!spec?.root || !spec.elements?.[spec.root]) return <p className="live-panel-note">{"内容无法显示，下次刷新会重画。"}</p>;
   return (
     <div className="jr-surface live-panel-body">
-      <JSONUIProvider handlers={handlers} registry={jsonRenderRegistry} store={store}>
-        <Renderer registry={jsonRenderRegistry} spec={spec as Spec} />
-      </JSONUIProvider>
+      <RichUiProvider value={rich}>
+        <JSONUIProvider handlers={handlers} registry={jsonRenderRegistry} store={store}>
+          <Renderer registry={jsonRenderRegistry} spec={spec as Spec} />
+        </JSONUIProvider>
+      </RichUiProvider>
     </div>
   );
 });
+
+/** 「3 分钟前更新」会自己走（一分钟内每 15 秒，之后每分钟）。 */
+function UpdatedAgo({ at }: { at: string | null }) {
+  const now = useNow(at && Date.now() - new Date(at).getTime() < 90_000 ? 15 : 60);
+  return <>{ago(at, now)}</>;
+}
 
 function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: LivePanel) => void }) {
   const queryClient = useQueryClient();
@@ -147,11 +178,6 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
     },
     onError: (e) => setProblem(e instanceof Error ? e.message : "删除失败"),
   });
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const t = window.setInterval(() => tick((n) => n + 1), 60_000);
-    return () => window.clearInterval(t);
-  }, []);
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(false);
@@ -161,12 +187,27 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
 
   const busy = panel.refreshing || refresh.isPending;
   const building = panel.status === "building" || (!panel.spec && busy);
+  // 有内容但最近一次刷新失败：内容照常显示，标成「可能已过期」（DESIGN.md §32）。
+  const stale = Boolean(panel.error && panel.spec && !building);
 
   return (
-    <article aria-busy={building || busy || undefined} className="glass-card live-panel" data-live-panel={panel.id} data-status={panel.status}>
+    <article
+      aria-busy={building || busy || undefined}
+      className="glass-card live-panel"
+      data-live-panel={panel.id}
+      data-refreshing={(busy && !building) || undefined}
+      data-stale={stale || undefined}
+      data-status={panel.status}
+    >
       <header className="live-panel-head">
         <h3 className="live-panel-title">{panel.title}</h3>
         {busy && !building ? <IconRefresh aria-label={"正在刷新"} className="live-panel-spin size-3.5" /> : null}
+        {stale && !busy ? (
+          <span className="live-panel-stale" title={panel.error ?? undefined}>
+            <IconAlertTriangle aria-hidden className="size-3" />
+            {"可能已过期"}
+          </span>
+        ) : null}
         <div className="relative ml-auto">
           <button
             aria-expanded={menu}
@@ -229,7 +270,7 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
           <span className="live-panel-note">{"正在搭建，机器人在取数据…"}</span>
         </div>
       ) : panel.spec ? (
-        <LiveBody spec={panel.spec} title={panel.title} />
+        <LiveBody onRefresh={() => refresh.mutate()} spec={panel.spec} title={panel.title} />
       ) : null}
 
       {panel.error && !building ? (
@@ -255,7 +296,14 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
             </span>
           ) : null}
           <span className="live-panel-time" title={panel.refreshedAt ? new Date(panel.refreshedAt).toLocaleString("zh-CN") : undefined}>
-            {[ago(panel.refreshedAt), cadence(panel.refreshMinutes)].filter(Boolean).join(" · ")}
+            {busy ? (
+              "正在刷新…"
+            ) : (
+              <>
+                <UpdatedAgo at={panel.refreshedAt} />
+                {`${panel.refreshedAt ? " · " : ""}${cadence(panel.refreshMinutes)}`}
+              </>
+            )}
           </span>
         </footer>
       ) : null}
