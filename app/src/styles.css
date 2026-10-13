@@ -6101,7 +6101,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 /* 后台任务停掉了（用户自己停的）：中性灰，不是红色的「失败」（2026-10-13）。 */
 .worker-icon.is-stopped { color: var(--ink-2); background: var(--glass-3); }
 
-/* ===================================================================================
+/* ==========================================================================================
  * 输入框不透字（DESIGN.md §25「输入框不透字」，2026-10-13）：消息滚到输入框下面时，原来 0.7–0.88 的底色 + 毛玻璃
  * 在实测里挡不住字（窄屏暗色最明显，字和占位符叠在一起）。底色提到 ~0.95：还是同一张天空玻璃卡
  * （同样的渐变、描边、阴影、高光），只是后面的字不再透出来。聚焦时更实一点。不加渐隐遮罩：
@@ -6113,7 +6113,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .dark .glass-composer:focus-within { background: rgba(30, 41, 61, 0.98); }
 /* 结果行收起时正文的下内边距不留白（内边距收不进 0fr 的行里，行会多出 10px）。 */
 .worker-result .worker-plan-collapse:not([data-open]) .worker-result-body { padding-bottom: 0; }
-=======
+
 /* §41 交互跟手：别让一次点击重算整页样式（2026-10-13，全面性能审计）。
  * ① 不写「:has(…) 后面跟任意后代」的规则（Tailwind 的 group-has-* / peer-has-*）：Chromium 把所有 :has 规则的
  *    失效集合并成一个，只要有一条是「:has(…) *」，任何 data-* / aria-* 变化都会让整个应用（约 4000 个元素）重算样式，
