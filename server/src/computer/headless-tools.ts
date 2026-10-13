@@ -25,6 +25,7 @@ import {
   type ComputerGateway,
   HumanHasControlError,
 } from "./gateway";
+import { HUMAN_CONTROL_ZH, noteHumanControlBlock, suspendsOnHumanControl } from "./control-blocks";
 import type { ControlState } from "./schema";
 
 /** Client tools supplied by OpenBot when the caller has no browser. */
@@ -401,6 +402,12 @@ export function createHeadlessComputerTools(options: {
         try {
           return await execute(input, context);
         } catch (error) {
+          if (error instanceof HumanHasControlError && !suspendsOnHumanControl(actor.initiator)) {
+            // 聊天 / 面板刷新：不挂起（挂起后没有东西会把这一轮接上，用户只看到一句话就没下文了）。
+            // 交回一个普通的中文结果，机器人照常把话说完（control-blocks.ts）。
+            noteHumanControlBlock(actor.initiator && "id" in actor.initiator ? actor.initiator.id : undefined);
+            return { ok: false, humanHasControl: true, reason: HUMAN_CONTROL_ZH, error: HUMAN_CONTROL_ZH };
+          }
           if (error instanceof HumanHasControlError) {
             throw new HeadlessToolSuspension(error.message, {
               kind: "computer_handoff",

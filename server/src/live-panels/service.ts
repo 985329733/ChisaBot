@@ -17,6 +17,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { inspectRenderUiSpec, parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../shared/json-render/catalog";
 import { emptySections } from "../../../shared/json-render/empty-sections";
+import { takeHumanControlBlock } from "../computer/control-blocks";
 import { lintPanelSpec, PANEL_DESIGN_GUIDE } from "./design";
 import type { AppVariables } from "../auth/guards";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
@@ -93,6 +94,8 @@ const updateParameters = z.object({
   refreshMinutes: z.number().int().min(0).max(10080).optional().describe("改刷新间隔时才填"),
 });
 const LINT_MAX_STRIKES = 3;
+/** 卡片上的说明：刷新没做成是因为有人接管着计算机（不是面板坏了）。 */
+export const CONTROL_HELD_NOTE = "计算机正由你接管，这次没刷新：在右栏「计算机」里点「交还」，几分钟内会自动刷新。";
 const idParameters = z.object({ id: z.string().min(1) });
 const failParameters = z.object({ id: z.string().min(1), reason: z.string().min(1).max(300).describe("用一句大白话说明为什么取不到数据") });
 
@@ -104,6 +107,8 @@ export const LIVE_PANEL_GUIDANCE = [
   PANEL_DESIGN_GUIDE,
   "要改已有面板（换内容、换城市、换币种、改刷新频率）时先 panel_list 找到它，取新数据后 panel_update（带新的 instruction / title），不要新建。",
   "实在取不到数据就 panel_fail 说明原因，并在对话里如实告诉用户。不要在对话里贴规范、JSON 或代码。",
+  "用户说面板刷新失败 / 坏了 / 过期，要你修时：先 panel_list 看它的报错，找到原因并修（取数方式不对就 panel_update 带新的 instruction）；修完必须调用 panel_refresh 真跑一次刷新，只有它返回 ok:true 才能说修好了。返回失败就把它给的原因原样用中文告诉用户、说下一步要用户做什么，不要说「救回来了」。",
+  "工具结果里有 humanHasControl / 「没有执行」时：那一步没做成。照实告诉用户（例如请在右栏「计算机」里点「交还」），不要假装完成，也不要不说话就结束。",
 ].join("\n");
 
 
@@ -163,6 +168,8 @@ export function createLivePanelService(deps: {
   const { store } = deps;
   const log = deps.log ?? ((event) => console.info(JSON.stringify(event)));
   const running = new Map<string, AbortController>();
+  /** 正在跑的刷新（panel_refresh 等它结束再回答）。 */
+  const jobs = new Map<string, Promise<void>>();
   /** 每张面板连续被设计检查退回的次数（只在内存里，重启清零）。 */
   const lintStrikes = new Map<string, number>();
 
@@ -173,7 +180,7 @@ export function createLivePanelService(deps: {
       row.spec
         ? `上一版面板规范（保持同样的布局和每个元素的 key，只换成最新数据——这样用户看到的是数字平滑滚动到新值，而不是整张重画；值是 $state 绑定的就只交 data）：\n${row.spec.slice(0, 12_000)}`
         : "",
-      "现在：用 web_search / web_fetch 取最新的真实数据，然后调用 panel_update（id 同上，带 spec（或只带 data）和 sources）。取不到就调用 panel_fail 说明原因。不要做别的事，也不需要回复任何文字。",
+      "现在：按刷新说明取最新的真实数据（网上的数据用 web_search / web_fetch；说明里写了本机命令就用 computer_run_command），然后调用 panel_update（id 同上，带 spec（或只带 data）和 sources）。取不到就调用 panel_fail 用中文大白话说明原因。不要做别的事，也不需要回复任何文字。",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -187,25 +194,58 @@ export function createLivePanelService(deps: {
     const controller = new AbortController();
     running.set(id, controller);
     const timer = setTimeout(() => controller.abort(new Error("刷新超时")), 6 * 60_000);
-    void (async () => {
+    const job = (async () => {
       try {
         await deps.runHeadless({ ownerUserId, botId: row.botId, instruction: refreshPrompt(row, !row.spec), panelId: id, signal: controller.signal });
         const after = await store.get(ownerUserId, id);
         const updated = after.refreshedAt && after.refreshedAt.getTime() >= startedAt;
+        if (!updated && takeHumanControlBlock(id, startedAt)) {
+          // 不是面板坏了：有人接管着计算机，命令被拒。写清楚、不算失败，5 分钟后再试（control-blocks.ts）。
+          await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000, row.failures);
+          log({ type: "live-panel-refresh", id, ok: false, reason: "human-has-control", ms: Date.now() - startedAt });
+          return;
+        }
         const failedNow = after.error && after.updatedAt.getTime() >= startedAt && !updated;
         if (!updated && !failedNow) await store.fail(ownerUserId, id, "这次刷新没有拿到新数据（机器人没有更新面板），稍后会再试。");
         log({ type: "live-panel-refresh", id, ok: Boolean(updated), ms: Date.now() - startedAt });
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        await store.fail(ownerUserId, id, `刷新失败：${reason.slice(0, 200)}`).catch(() => {});
+        if (takeHumanControlBlock(id, startedAt) || /A person has control|Take a fresh browser snapshot/.test(reason)) {
+          await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000, row.failures).catch(() => {});
+        } else if (controller.signal.aborted && String(controller.signal.reason?.message ?? controller.signal.reason) === "服务器重启") {
+          // 部署 / 重启打断的刷新不算失败，重启后 2 分钟内重来。
+          await store.defer(ownerUserId, id, "刷新被服务器重启打断，马上会重新刷新。", 2 * 60_000, row.failures).catch(() => {});
+        } else {
+          await store.fail(ownerUserId, id, `刷新失败：${reason.slice(0, 200)}`).catch(() => {});
+        }
         log({ type: "live-panel-refresh", id, ok: false, reason: reason.slice(0, 200) });
       } finally {
         clearTimeout(timer);
         running.delete(id);
+        jobs.delete(id);
         await store.release(ownerUserId, id).catch(() => {});
       }
     })();
+    jobs.set(id, job);
     return { started: true };
+  }
+
+  /**
+   * 机器人在对话里「修好」面板后必须用它验证（2026-10-13：机器人说「救回来了」，其实刷新照样失败）。
+   * 真跑一次后台刷新（和定时刷新同一条路），等它结束，按卡片上的真实结果回答。
+   */
+  async function refreshAndWait(ownerUserId: string, id: string, waitMs = 4 * 60_000) {
+    const startedAt = Date.now();
+    const kicked = await refreshNow(ownerUserId, id);
+    const job = jobs.get(id);
+    if (job) {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([job, new Promise((resolve) => { timeout = setTimeout(resolve, waitMs); })]);
+      if (timeout) clearTimeout(timeout);
+    }
+    const after = await store.get(ownerUserId, id);
+    const ok = Boolean(after.refreshedAt && after.refreshedAt.getTime() >= startedAt && !after.error);
+    return { ok, stillRunning: jobs.has(id), alreadyRunning: !kicked.started, panel: after };
   }
 
   /** 每分钟一次：到点的面板刷新；建了卡片却一直没填的，补跑一次，再不行就标失败。 */
@@ -343,6 +383,32 @@ export function createLivePanelService(deps: {
         },
       },
       {
+        name: "panel_refresh",
+        ref: "live-panels/panel_refresh",
+        description:
+          "立刻真跑一次某个面板的后台刷新（和每小时的自动刷新同一条路），等它跑完（最多约 4 分钟）再返回真实结果。修面板之后必须用它验证：只有返回 ok:true 才能告诉用户修好了。",
+        parameters: idParameters,
+        execute: async (args) => {
+          const parsed = idParameters.safeParse(args);
+          if (!parsed.success) return `${REFUSAL_MARKER} 需要 id`;
+          try {
+            await guard(parsed.data.id);
+            const result = await refreshAndWait(actorId, parsed.data.id);
+            const p = result.panel;
+            if (result.ok)
+              return JSON.stringify({ ok: true, title: p.title, refreshedAt: p.refreshedAt?.toISOString(), next: "刷新成功，面板已是最新数据。对话里一句话告诉用户修好了。" });
+            return JSON.stringify({
+              ok: false,
+              title: p.title,
+              error: p.error ?? (result.stillRunning ? "刷新还在跑，没在 4 分钟内结束" : "这次刷新没有更新面板"),
+              next: "没有修好。把 error 用中文原样告诉用户，并说清下一步要用户做什么；不要说已经修好。",
+            });
+          } catch (error) {
+            return say(error);
+          }
+        },
+      },
+      {
         name: "panel_remove",
         ref: "live-panels/panel_remove",
         description: "用户明确要求删除某个面板时调用（用户 10 分钟内可在右栏撤销）。",
@@ -427,6 +493,7 @@ export function createLivePanelService(deps: {
     tools,
     routes,
     refreshNow,
+    refreshAndWait,
     sweep,
     start() {
       timer ??= setInterval(() => void sweep(), 60_000);

@@ -122,7 +122,9 @@ describe("request-aware handoff", () => {
       interruption: "The browser restarted.",
     });
     expect(control.humanMayDrive()).toBe(false);
-    expect(() => control.admitBotAction(true)).toThrow(ControlError);
+    // 浏览器已经换了：不再把机器人卡在「有人接管」，只要求先拍新快照；命令等不碰页面的动作直接放行。
+    expect(() => control.admitBotAction(true)).toThrow(SnapshotRequiredError);
+    expect(() => control.admitBotAction(false)()).not.toThrow();
     expect(() => control.release(interrupted.id)).toThrow();
   });
 

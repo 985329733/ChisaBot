@@ -73,6 +73,8 @@ export function createApprovalRoutes(
         return context.json(
           {
             waiting: true,
+            // 前端据此区分：审批卡会接上这一轮；别的等待（例如交还计算机）不会，前端就不能悄悄停掉回合。
+            kind: error.waiting.kind,
             approvalId: error.waiting.requestId,
             reason: error.message,
           },

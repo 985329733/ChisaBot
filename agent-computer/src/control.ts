@@ -168,9 +168,13 @@ export function createControl(
     // Recovery is for a page a person was driving: what they left it as is unknown until someone
     // looks. A request nobody took left the page exactly as the Bot had it, and holding the Bot
     // until a person "checks" a page no person touched stranded it asking for control it had.
-    const personHadIt = data.holder === "human" || request?.status === "taken";
+    // 2026-10-13：interrupt 只在浏览器本身没了的时候被调用（停止、重置、换了浏览器/进程重启），
+    // 那个人在操作的页面已经不存在，没有什么可「检查」的。以前这里仍然置 recoveryRequired，
+    // 而它既不出现在 GET /control 里、也只有「再接管一次再交还」才能清掉：部署时有人正接管着，
+    // 机器人此后所有命令和网页操作都被「A person has control」拒绝，用户却看到控制权在机器人手里。
+    // 现在只要求机器人先拍一张新快照（resumeSnapshotRequired，下面照旧设置）。
     if (request && active(request)) finish(request, "interrupted", reason);
-    if (personHadIt) data.recoveryRequired = true;
+    data.recoveryRequired = false;
     data.holder = "bot";
     data.since = now();
     data.resumeSnapshotRequired = true;
@@ -181,7 +185,8 @@ export function createControl(
     return get();
   }
   // A persisted active request names a page in a previous process. Never call that completion.
-  if (restored && (active(current()) || data.holder === "human"))
+  // 旧版本留下的 recoveryRequired（见 interrupt）也一并解开：进程是新的，浏览器也是新的。
+  if (restored && (active(current()) || data.holder === "human" || data.recoveryRequired))
     interrupt(
       "The computer process restarted; the previous page was interrupted. Request help again to continue.",
     );
