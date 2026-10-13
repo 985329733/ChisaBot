@@ -40,6 +40,43 @@ ChisaBot 的三个客户端都能在线更新：网页、Windows PC 客户端、
 - 只有 NSIS 安装版会更新（安装目录里有 `Uninstall ChisaBot PC.exe`）；开发运行和免安装 zip 显示「只有安装版能自动更新」。
 - **版本号重置（2026-10-12）**：首个公开版本定为 0.1.0。之前内部测试过的 0.2.x 安装版不会自动“更新”到更低的 0.1.0（不允许降级），要卸载后手动装一次 0.1.0，之后正常自动更新。
 
+### 2.1 普通更新与「重新安装」（外壳指纹）
+
+PC 的在线更新**从来不是热更新**：每次都下载完整的 NSIS 安装包（约 100 MB），sha512 校验后运行它。问题在于
+electron-updater 一定以 `--updated /S` 运行安装包，electron-builder 的安装脚本在这个模式下：
+
+- 保留已有的桌面 / 开始菜单快捷方式（`keepShortcuts`，`allowToChangeInstallationDirectory: true` 时启用），不重建；
+- 不碰任务栏固定的快捷方式；只做一次不带 `SHCNF_FLUSH` 的 `SHChangeNotify`，Windows 图标缓存（按 exe 路径 + 图标序号缓存）
+  照旧。
+
+所以 exe 里的图标虽然已经换了（0.1.1 起就是品牌头像，已对 v0.1.2 安装包实测），用户看到的桌面、开始菜单、任务栏图标还是旧的。
+另外聊天窗口加载的是服务器网页，网页更新是即时的——这也是「看起来只是在线热更新」的原因。
+
+现在分成两种安装方式：
+
+- **外壳指纹**（`pc/scripts/shell-fingerprint.js`）：对 `build/icon.ico`、`build/installer.nsh`、`assets/icon.png`、
+  `assets/tray-*.png`、`package.json` 的 `main` / `productName` / `build`（`publish` 除外）/ `electron` 与
+  `electron-builder` 版本 / `NATIVE_DEPENDENCIES` 里的原生依赖算 sha256（取 16 位）。版本号、更新源、纯 JS 依赖不算。
+  `npm run fingerprint` 写 `src/shell-fingerprint.json`（打进 asar）；`npm test` 先跑 `--check`，过期就失败。
+  CI 打包前 `--write`，打包后 `--stamp dist/latest.yml` 给 `latest.yml` 加一行 `chisabotShell: <指纹>`
+  （sha512 是安装包的，不受影响）。发布者想强制所有人重新安装时用 `--stamp dist/latest.yml --full`，多一行 `fullInstall: true`。
+- **客户端**（`pc/src/updater.js` `requiresFullInstall`）：更新源的 `chisabotShell` 和本机指纹不同，或 `fullInstall: true`
+  → 这次是「重新安装」：下载好后弹窗标题换成 **「此更新需要重新安装，以更新图标/组件」**，按钮「重新安装」。点了以后
+  客户端自己运行下载好的安装包 `/S --force-run`（**不带 `--updated`**）：卸载旧版（保留数据，旧卸载程序拿到 `--updated`）、
+  全新安装、重建桌面和开始菜单快捷方式，装好自动打开。选「稍后」时，退出 ChisaBot PC 的那一刻静默重新安装
+  （`installOnQuit`；electron-updater 自带的退出安装会关掉，因为它一定带 `--updated`）。更新源没有 `chisabotShell`
+  （旧发布）→ 普通更新。
+- **安装脚本**（`pc/build/installer.nsh`，`build.nsis.include`）：每次安装（全新 / 更新 / 重新安装）结束都把还存在的桌面、
+  开始菜单快捷方式按新 exe 重写（用户删掉的不再建），`SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_FLUSH)`，并运行
+  `ie4uinit.exe -show`（失败再试 `-ClearIconCache`）。
+- **首次启动兜底**（`pc/src/shell-refresh.js`）：新版本启动 3 秒后，若打进包里的指纹和本机 `config.json` 的 `shellHash`
+  不同（包括从没有这个功能的版本升上来），把指向本程序 exe 的桌面 / 开始菜单 / **任务栏固定** 快捷方式用
+  `shell.writeShortcutLink(…, "update", { icon: exe, iconIndex: 0 })` 重写，再跑 `ie4uinit.exe -show`，记下新指纹，
+  写一条本机记录 `shell_refresh`。
+- **已经装了 0.1.2 及更早版本的电脑**：它们不认识 `chisabotShell`，照旧以 `--updated /S` 运行新安装包。但新安装包里的
+  `installer.nsh` 会重写快捷方式、刷新图标缓存，新版本第一次启动也会再刷新一次（它们的 `shellHash` 为空），所以不用手动重装，
+  图标在这次更新后就换过来。从下一次外壳变化开始，它们已经是新客户端，走「重新安装」。
+
 发布：推 `v*` 标签（或手动运行）触发 `.github/workflows/release.yml`：windows-latest 上 `npm ci`、`npm test`、
 `electron-builder --win nsis zip --x64 --publish never`，产物（安装包、zip、`latest.yml`、`.blockmap`）上传到该标签的
 GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `CHISABOT_UPDATE_FEED` 时还会多打一份「自建版」作为

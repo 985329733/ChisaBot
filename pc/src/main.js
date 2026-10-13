@@ -41,6 +41,7 @@ const { createOps } = require("./agent/ops");
 const auth = require("./agent/auth");
 const { ensureEnrolled } = require("./agent/enrollment");
 const { createUpdater } = require("./updater");
+const shellRefresh = require("./shell-refresh");
 const buildConfig = require("./build-config");
 const BUILD = buildConfig.load();
 const pkg = require("../package.json");
@@ -49,8 +50,11 @@ const PARTITION = "persist:chisabot";
 const ASSETS = path.join(__dirname, "..", "assets");
 const UI = path.join(__dirname, "ui");
 const HIDDEN = process.argv.includes("--hidden");
+/** 外壳指纹（scripts/shell-fingerprint.js 打包前写入）：和更新源比，决定普通更新还是重新安装。 */
+const SHELL_HASH = shellRefresh.loadFingerprint();
+const APP_USER_MODEL_ID = "cn.ayase.chisabot.pc";
 
-if (process.platform === "win32") app.setAppUserModelId("cn.ayase.chisabot.pc");
+if (process.platform === "win32") app.setAppUserModelId(APP_USER_MODEL_ID);
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let config;
@@ -710,6 +714,7 @@ function startUpdater() {
     platform: process.platform,
     execPath: process.execPath,
     productName: pkg.productName || "ChisaBot PC",
+    shellHash: SHELL_HASH,
     getAutoUpdate: () => config.get().autoUpdate !== false,
     logger: updateLogger(),
     onState: () => {
@@ -734,7 +739,7 @@ function openUpdateWindow() {
   }
   const { workArea } = screen.getPrimaryDisplay();
   const width = 440;
-  const height = 260;
+  const height = updater.state.fullInstall ? 280 : 260;
   updateWindow = new BrowserWindow({
     width,
     height,
@@ -760,7 +765,8 @@ function openUpdateWindow() {
 
 function installUpdateNow() {
   if (!updater || updater.state.status !== "downloaded") return false;
-  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "update_install", outcome: "succeeded", summary: `重启并安装 ${updater.state.version || ""}` });
+  const how = updater.state.fullInstall ? "重新安装" : "重启并安装";
+  config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "update_install", outcome: "succeeded", summary: `${how} ${updater.state.version || ""}` });
   quitting = true;
   agent?.stop();
   setTimeout(() => updater.install(), 50);
@@ -1059,7 +1065,9 @@ function registerIpc() {
     }
   });
   handleLocal("update:current", () =>
-    updater && updater.state.status === "downloaded" ? { version: updater.state.version || "", currentVersion: pkg.version } : null,
+    updater && updater.state.status === "downloaded"
+      ? { version: updater.state.version || "", currentVersion: pkg.version, fullInstall: !!updater.state.fullInstall }
+      : null,
   );
   handleLocal("update:answer", ({ restart } = {}) => {
     if (restart === true) return installUpdateNow();
@@ -1138,7 +1146,49 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   quitting = true;
   agent?.stop();
+  // 下载好的更新需要重新安装（换了图标 / 组件）而用户选了「稍后」：退出这一刻静默重新安装。
+  if (updater?.installOnQuit())
+    config?.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "update_install", outcome: "succeeded", summary: `退出时重新安装 ${updater.state.version || ""}` });
 });
+
+// ---------- 外壳刷新（src/shell-refresh.js） ----------
+// 新版本第一次启动且外壳指纹变了：把指向本程序的桌面 / 开始菜单 / 任务栏快捷方式按新 exe 重写，刷新图标缓存。
+
+function refreshShellIfChanged() {
+  if (process.platform !== "win32" || !app.isPackaged) return;
+  const last = config.get().shellHash || "";
+  if (!shellRefresh.needsShellRefresh({ current: SHELL_HASH, last })) return;
+  let result = { updated: [], cacheRefreshed: false };
+  try {
+    result = shellRefresh.refreshShell({
+      shell,
+      execPath: process.execPath,
+      appUserModelId: APP_USER_MODEL_ID,
+      candidates: shellRefresh.shortcutCandidates({
+        desktopDir: app.getPath("desktop"),
+        appData: process.env.APPDATA,
+        shortcutName: pkg.build?.nsis?.shortcutName || pkg.productName || "ChisaBot PC",
+      }),
+      systemRoot: process.env.SystemRoot || process.env.windir,
+      osRelease: os.release(),
+      run: (cmd, args) => {
+        const child = require("node:child_process").spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true });
+        child.on("error", () => {});
+        child.unref();
+      },
+      log: (line) => config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "shell_refresh", outcome: "warn", summary: line.slice(0, 300) }),
+    });
+  } finally {
+    config.set({ shellHash: SHELL_HASH });
+  }
+  config.appendAudit({
+    at: new Date().toISOString(),
+    actor: "本机",
+    operation: "shell_refresh",
+    outcome: "succeeded",
+    summary: `外壳已更新（${SHELL_HASH}）：快捷方式 ${result.updated.length} 个${result.cacheRefreshed ? "，已刷新图标缓存" : ""}`,
+  });
+}
 
 app.whenReady().then(() => {
   config = createConfig({ dir: app.getPath("userData"), safeStorage });
@@ -1146,6 +1196,11 @@ app.whenReady().then(() => {
   nativeTheme.themeSource = typeof appearance.dark === "boolean" ? (appearance.dark ? "dark" : "light") : "system";
   registerIpc();
   startUpdater();
+  setTimeout(() => {
+    try {
+      refreshShellIfChanged();
+    } catch {}
+  }, 3000);
   tray = new Tray(trayIcon("offline"));
   tray.on("click", () => void openApp());
   tray.on("double-click", () => void openApp());
