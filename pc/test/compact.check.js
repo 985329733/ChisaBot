@@ -109,3 +109,23 @@ test("切换：小窗被挪过位置，下次进小窗回到那里", () => {
   c.toggle(win);
   assert.deepEqual(win._b, { x: 40, y: 60, width: COMPACT_WIDTH, height: COMPACT_HEIGHT });
 });
+
+const { computeUpdateBounds } = require("../src/update-placement");
+
+test("更新提示：主窗口可见时放在主窗口里、顶栏下居中，跟着主窗口", () => {
+  const b = computeUpdateBounds({ chat: { x: 200, y: 100, width: 1280, height: 840 }, chatVisible: true, workArea: AREA, contentHeight: 250 });
+  assert.deepEqual(b, { x: 200 + (1280 - 440) / 2, y: 164, width: 440, height: 250, attached: true });
+});
+
+test("更新提示：小窗（420 宽）里收窄到 388，仍在窗口内", () => {
+  const chat = { x: 1488, y: 12, width: 420, height: 860 };
+  const b = computeUpdateBounds({ chat, chatVisible: true, workArea: AREA, contentHeight: 300 });
+  assert.equal(b.width, 388);
+  assert.ok(b.x >= chat.x && b.x + b.width <= chat.x + chat.width);
+  assert.ok(b.y + b.height <= chat.y + chat.height);
+});
+
+test("更新提示：主窗口在托盘里时放在工作区右下角", () => {
+  const b = computeUpdateBounds({ chat: null, chatVisible: false, workArea: SECOND, contentHeight: 260 });
+  assert.deepEqual(b, { x: 1920 + 1280 - 440 - 16, y: 680 - 260 - 16, width: 440, height: 260, attached: false });
+});
