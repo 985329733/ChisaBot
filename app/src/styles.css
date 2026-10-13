@@ -4935,3 +4935,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 /* 频道聊天：过程话一行淡色小字（chat-transcript.tsx TranscriptMessage tone="step"） */
 .chat-step-line { padding: 0 4px; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
 .chat-step-line :is(p, li) { margin: 0; color: var(--ink-3); }
+/* 窄面板（340px）：三列小格里的大数字不再一字一行折；表格单元格不折行，宽了就横向滚动（实测香港天气「10 月 13 日 今 天」竖排）。 */
+.live-panel-body .jr-grid .jr-metric-v { font-size: 20px; overflow-wrap: normal; word-break: keep-all; }
+.live-panel-body .jr-table th, .live-panel-body .jr-table td { padding: 8px 10px; white-space: nowrap; }
