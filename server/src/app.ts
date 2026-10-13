@@ -2241,6 +2241,9 @@ export function createApp(
      */
     app.get("*", async (context) => {
       if (context.req.path.startsWith("/api")) return context.notFound();
+      // 缺失的打包文件不是前端路由：回 404。以前回 index.html，部署后旧页面加载旧分包时把 HTML 当 JS，
+      // 整页报错（2026-10-13「模型设置崩了」）；404 让前端识别成「分包过期」并自动刷新（app/src/lib/stale-chunk.ts）。
+      if (context.req.path.startsWith("/assets/")) return context.notFound();
       const index = Bun.file(`${root}/index.html`);
       if (!(await index.exists())) return context.notFound();
       return new Response(index, {
