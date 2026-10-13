@@ -5669,6 +5669,42 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .cb-message-list > * { contain: layout style; contain-intrinsic-size: auto 240px; }
 .cb-message-list > :not(:nth-last-child(-n + 6)) { content-visibility: auto; }
 
+/*
+ * §35.4 聊天顶上的提示（较早消息没加载到 / 上一轮没有回答的原因）浮在聊天上面，不占版面：出现、消失都不改变
+ * 滚动区的大小和位置，消息不会跟着跳（以前发送时提示消失，整段聊天在一帧里跳 137–217px）。
+ * 宽度与消息列一致；太长时自己滚动（最高 min(40vh, 240px)）；可以关掉。
+ */
+.bot-chat-notices {
+  position: absolute; z-index: 25; top: 8px; left: 50%; transform: translateX(-50%);
+  width: min(42rem, calc(100% - 32px));
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.bot-chat-notice {
+  pointer-events: auto;
+  display: flex; align-items: flex-start; gap: 8px;
+  max-height: min(40vh, 240px); overflow: auto; overscroll-behavior: contain;
+  padding: 8px 8px 8px 16px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--danger-soft) 55%, rgba(255, 255, 255, 0.92));
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(var(--blur-2, 16px));
+  animation: bot-chat-notice-in var(--dur-2) var(--ease-out) both;
+}
+.dark .bot-chat-notice { background: color-mix(in srgb, var(--danger-soft) 60%, rgba(24, 33, 50, 0.94)); }
+.bot-chat-notice-text { flex: 1; min-width: 0; margin: 4px 0; font-size: 13px; line-height: 20px; color: var(--danger); overflow-wrap: anywhere; }
+.bot-chat-notice-x {
+  flex: none; width: 28px; height: 28px; border-radius: var(--r-xs);
+  display: grid; place-items: center; font-size: 18px; line-height: 1; color: var(--ink-3);
+  background: transparent; border: 0; cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-1) var(--ease-std);
+}
+.bot-chat-notice-x:hover { background: rgba(22, 36, 62, 0.06); color: var(--ink-1); }
+.dark .bot-chat-notice-x:hover { background: rgba(255, 255, 255, 0.08); }
+@keyframes bot-chat-notice-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bot-chat-notice { animation: none; } }
+
 /* ==========================================================================================
  * §36 小窗模式 + 窄窗口整理 + 面板库收进右栏（2026-10-13，DESIGN.md §36）。
  * ========================================================================================== */
