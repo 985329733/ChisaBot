@@ -168,6 +168,8 @@ function renderSidebar() {
     messageListEmphasis: "thread",
     selfHostBannerDismissed: false,
     mainBotId: null,
+    brandAccent: "Chisa",
+    brandRest: "Bot",
   });
   queryClient.setQueryData(authKeys.currentUser(), {
     id: "user",
@@ -222,6 +224,8 @@ test("message emphasis updates mounted rows from the account preferences cache",
       messageListEmphasis: "agent",
       selfHostBannerDismissed: false,
       mainBotId: null,
+      brandAccent: "Chisa",
+      brandRest: "Bot",
     }),
   );
   await waitFor(() => expect(agent.className).toContain("text-[0.9rem]"));
