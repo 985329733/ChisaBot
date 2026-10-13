@@ -128,3 +128,14 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 - 绑定码只换得到签发人自己的设备和会话；网关会话和密码登录是同一种（单用户网关部署下就是这个账号）。
 - 只支持本仓库的登录网关部署（`deploy/public/`）。不经网关、用 Better Auth 多用户登录的部署还没有手机会话（App 会提示改用账号密码，`/auth/device-session` 不存在时）。
 - 升级已有部署：更新应用镜像，再把 `deploy/public/auth/server.ts` 复制到网关目录并重启 `openbot-web-auth`（会话库原地加两列，已有登录不受影响）；Nginx 需要有 `/api/devices/agent/` 例外（新模板已带；以前手工加过 PC 节点例外的部署不用改）。
+
+## 11. 网络：系统代理与重连（0.1.6）
+
+- 聊天窗口是 Chromium，自动用系统代理；设备节点（`ws`）和登记 / 校验令牌请求跑在 Node 里。0.1.6 起它们也走
+  同一条路：`session.resolveProxy(url)` 问出 Chromium 的代理（PAC / 系统代理 / 命令行），`src/agent/proxy.js`
+  按列表依次尝试（HTTP / HTTPS 代理用 CONNECT，SOCKS5 无认证 CONNECT，`DIRECT` 直连），全部失败才报错。
+  只有 `DIRECT` 时与以前完全一样。
+- 重连：指数退避 1–30 秒；70 秒收不到服务器任何消息（服务器每 25 秒 ping）判定连接已死并重连；休眠唤醒、
+  解锁屏幕、聊天网页从服务器加载成功时 `reconnectNow()` 跳过退避立刻重连。
+- 离线时托盘 / 网页设备页显示真实原因（例如「服务器返回 403」「代理拒绝了连接」）和线路（`networkRoute`）；
+  设备页「这台电脑」的「重新连接」调 `pc:reconnect`。

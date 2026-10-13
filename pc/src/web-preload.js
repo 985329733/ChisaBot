@@ -72,6 +72,7 @@ if (isLocalPage) {
       pickFolders: () => ipcRenderer.invoke("pc:pick-folders"),
       // 已登录但这台电脑没登记 / 令牌失效时，用当前会话重新登记（和托盘「重新登记这台电脑」同一条路径）。
       enroll: () => ipcRenderer.invoke("pc:enroll"),
+      reconnect: () => ipcRenderer.invoke("pc:reconnect"),
       logout: () => ipcRenderer.invoke("pc:logout"),
       onChange(callback) {
         const listener = () => callback();

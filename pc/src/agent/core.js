@@ -59,6 +59,8 @@ function summarize(operation, args) {
  * @param {(req) => Promise<"approve"|"deny">} [options.approve]  弹出本机审批
  * @param {() => {paused: boolean, forceLocalApproval: boolean}} [options.local]
  * @param {object} [options.clientInfo]
+ * @param {(url: string) => Promise<object|undefined>} [options.getAgent]  走系统代理时给 ws 的 Agent（proxy.js）
+ * @param {number} [options.silenceMs]  多久收不到服务器任何消息就判定连接已死、重连（服务器每 25 秒 ping 一次）
  */
 function createNodeAgent(options) {
   const events = new EventEmitter();
@@ -70,6 +72,9 @@ function createNodeAgent(options) {
   let attempt = 0;
   let reconnectTimer = null;
   let stopped = false;
+  let lastError = "";
+  let watchdog = null;
+  const silenceMs = options.silenceMs ?? 70_000;
   const running = new Map(); // call id -> AbortController
   const approvalPrompts = new Map(); // approval id -> { cancel }
 
@@ -91,6 +96,20 @@ function createNodeAgent(options) {
     events.emit("audit", { at: new Date().toISOString(), ...entry });
   }
 
+  /** 连接还在但一直没有消息（休眠唤醒、换网络、代理悄悄断开）：服务器那边早就判离线了，这里也要尽快重连。 */
+  function armWatchdog(ws) {
+    clearTimeout(watchdog);
+    if (!silenceMs) return;
+    watchdog = setTimeout(() => {
+      if (socket !== ws) return;
+      lastError = "长时间没有收到服务器消息";
+      try {
+        ws.terminate();
+      } catch {}
+    }, silenceMs);
+    if (typeof watchdog.unref === "function" && options.unrefTimers) watchdog.unref();
+  }
+
   function scheduleReconnect() {
     if (stopped || state === "revoked") return;
     clearTimeout(reconnectTimer);
@@ -98,7 +117,7 @@ function createNodeAgent(options) {
     const delay = Math.round(base * (0.7 + Math.random() * 0.6));
     attempt++;
     events.emit("reconnect", { delay, attempt });
-    reconnectTimer = setTimeout(connect, delay);
+    reconnectTimer = setTimeout(() => void connect(), delay);
     if (typeof reconnectTimer.unref === "function" && options.unrefTimers) reconnectTimer.unref();
   }
 
@@ -215,31 +234,46 @@ function createNodeAgent(options) {
     }
   }
 
-  function connect() {
-    if (stopped) return;
+  let connecting = false;
+  async function connect() {
+    if (stopped || connecting || socket) return;
     const token = options.getToken();
     if (!token) {
       setState("offline", "未登录");
       return;
     }
+    connecting = true;
     setState("connecting");
     const origin = new URL(options.serverUrl).origin;
+    const url = wsUrlFor(options.serverUrl);
     let ws;
     try {
-      ws = new WebSocketImpl(wsUrlFor(options.serverUrl), {
+      // 系统代理（proxy.js）：窗口里的 Chromium 走代理，节点也得走同一条路，否则直连不通的网络里永远离线。
+      const agent = options.getAgent ? await options.getAgent(url).catch(() => undefined) : undefined;
+      if (stopped) return;
+      ws = new WebSocketImpl(url, {
         headers: { "X-Device-Token": token, Origin: origin, "User-Agent": `ChisaBotPC/${options.clientInfo?.clientVersion || "0"}` },
         handshakeTimeout: 15_000,
+        ...(agent ? { agent } : {}),
       });
     } catch (error) {
-      setState("offline", error.message);
+      lastError = error && error.message ? error.message : String(error);
+      setState("offline", lastError);
       scheduleReconnect();
       return;
+    } finally {
+      connecting = false;
     }
     socket = ws;
+    armWatchdog(ws);
     ws.on("open", () => {
+      lastError = "";
       send({ type: "hello", ...(options.clientInfo || {}) });
     });
-    ws.on("message", (data) => onMessage(data));
+    ws.on("message", (data) => {
+      armWatchdog(ws);
+      onMessage(data);
+    });
     ws.on("unexpected-response", (_req, res) => {
       let body = "";
       res.on("data", (c) => (body += c));
@@ -253,13 +287,16 @@ function createNodeAgent(options) {
           setState("revoked", revoked ? "设备已被撤销" : "设备令牌无效");
           events.emit("revoked");
         } else {
-          setState("offline", `服务器返回 ${res.statusCode}`);
-          scheduleReconnect();
+          // 不在这里排重连：ws 随后会触发 close，由 close 统一排（以前这里和 close 各排一次）。
+          lastError = `服务器返回 ${res.statusCode}`;
+          setState("offline", lastError);
         }
       });
     });
     ws.on("close", (code) => {
       if (socket === ws) socket = null;
+      else return; // 已被 reconnectNow() 换掉的旧连接
+      clearTimeout(watchdog);
       for (const controller of running.values()) controller.abort();
       running.clear();
       for (const prompt of approvalPrompts.values()) prompt.cancel();
@@ -271,11 +308,12 @@ function createNodeAgent(options) {
         return;
       }
       if (state !== "revoked" && !stopped) {
-        setState("offline", code === 4000 ? "在别处重新连接" : undefined);
+        setState("offline", code === 4000 ? "在别处重新连接" : lastError || (code === 1006 ? "连接中断" : `连接关闭（${code}）`));
         scheduleReconnect();
       }
     });
     ws.on("error", (error) => {
+      lastError = error && error.message ? error.message : String(error);
       events.emit("error", error);
     });
   }
@@ -285,11 +323,34 @@ function createNodeAgent(options) {
     start() {
       stopped = false;
       attempt = 0;
-      connect();
+      void connect();
+    },
+    /**
+     * 立刻重连（网络恢复、休眠唤醒、聊天窗口刚成功加载、用户在设备页点「重新连接」）：
+     * 已在线就什么都不做；否则丢掉退避等待，马上再连一次。
+     */
+    reconnectNow() {
+      if (stopped || state === "revoked") return false;
+      if (state === "online" && socket && socket.readyState === 1) return false;
+      clearTimeout(reconnectTimer);
+      attempt = 0;
+      if (socket && socket.readyState !== 1) {
+        const old = socket;
+        socket = null;
+        try {
+          old.terminate();
+        } catch {}
+      }
+      void connect();
+      return true;
+    },
+    get lastError() {
+      return lastError;
     },
     stop() {
       stopped = true;
       clearTimeout(reconnectTimer);
+      clearTimeout(watchdog);
       if (socket) socket.close(1000, "bye");
       socket = null;
       setState("stopped");

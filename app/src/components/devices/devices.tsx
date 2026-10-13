@@ -495,6 +495,12 @@ export function ConnectionCard({
     if (result.status === "enrolled" || result.status === "already") toast.success(result.message);
     else if (result.status !== "cancelled") throw new Error(result.message);
   }, { errorToast: (error) => error.message });
+  const reconnect = useAsyncAction(async () => {
+    if (!bridge?.reconnect) return;
+    const result = await bridge.reconnect();
+    onLocal(result.state);
+    if (result.status === "failed" || result.status === "login") throw new Error(result.message);
+  }, { errorToast: (error) => error.message });
   const online = devices.filter((device) => device.online);
   const thisPc = local ? devices.find((device) => device.id === local.deviceId) : undefined;
   const pcConnected = local ? local.agentState === "online" : false;
@@ -538,7 +544,7 @@ export function ConnectionCard({
               ? `已连接${thisPc ? `为「${thisPc.name}」` : ""} · 客户端 ${local.version}`
               : local.needsEnroll
                 ? `${local.statusText}。点「登记这台电脑」用当前登录重新关联，所有能力仍默认关闭。`
-                : `${local.statusText} · 客户端 ${local.version}`
+                : `${local.statusText} · 客户端 ${local.version}${local.networkRoute ? ` · ${local.networkRoute}` : ""}`
           }
           title={
             <span className="device-cap-t">
@@ -555,6 +561,17 @@ export function ConnectionCard({
               state={enroll.state}
             >
               {"登记这台电脑"}
+            </Button>
+          ) : !pcConnected && !local.localPaused && local.agentState !== "revoked" && bridge?.reconnect ? (
+            // 客户端离线：原因已经写在说明里（statusText 带真实原因），这里给一个立刻重连的按钮，不用等退避。
+            <Button
+              feedback={{ pending: "连接中…", success: "已发起", error: "失败" }}
+              onClick={() => void reconnect.run()}
+              size="sm"
+              state={reconnect.state}
+              variant="outline"
+            >
+              {"重新连接"}
             </Button>
           ) : (
             <span className={cn("device-badge", pcConnected ? "is-ok" : local.localPaused ? "is-danger" : "is-warn")}>

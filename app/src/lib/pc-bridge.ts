@@ -22,6 +22,8 @@ export type PcLocalState = {
   enrolled?: boolean;
   /** 需要「登记这台电脑」：没登记 / 令牌无效 / 被撤销（0.1.1 起）。 */
   needsEnroll?: boolean;
+  /** 节点这次连接走的路线：「直连」或「HTTP 代理 127.0.0.1:7890」（0.1.6 起，系统代理）。 */
+  networkRoute?: string;
   tokenProtected: boolean;
   localPaused: boolean;
   forceLocalApproval: boolean;
@@ -61,6 +63,8 @@ export type PcBridge = {
    * status：enrolled / already（令牌仍有效，重新连接）/ login（会话过期）/ offline / failed / cancelled。
    */
   enroll?(): Promise<{ status: string; message: string; state: PcLocalState }>;
+  /** 跳过重连等待，立刻重新连接服务器（没登记时先补登记；0.1.6 起）。 */
+  reconnect?(): Promise<{ status: string; message: string; state: PcLocalState }>;
   /** 立即检查更新（返回最新的更新状态）。 */
   checkUpdate?(): Promise<PcUpdateState>;
   /** 新版本已下载时，退出并安装（会先在本机弹确认窗）。 */
