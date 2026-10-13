@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readServerThread, writeServerThread } from "../src/lib/copilot/bot-thread";
 import { queuedFor, restoreQueue, takeQueued } from "../src/lib/copilot/thread-inbox";
-import { mergeSnapshot } from "../src/lib/copilot/use-conversation-sync";
+import { mergeSnapshot, userOrderDiffers } from "../src/lib/copilot/use-conversation-sync";
 
 /**
  * 全端同步（DESIGN.md §42）客户端的两件不需要浏览器的事：旧服务器（没有 /api/bot-threads）要被认出来、
@@ -104,5 +104,21 @@ describe("mergeSnapshot (merge-mode reconnect)", () => {
   test("nothing new returns the same array", () => {
     const local = [m("u1"), m("a1")];
     expect(mergeSnapshot(local, [m("a1")])).toBe(local);
+  });
+});
+
+describe("userOrderDiffers (reconcile after a local turn, DESIGN.md §42.7)", () => {
+  test("a send the server never stored (failed turn) is not an order mismatch", () => {
+    expect(userOrderDiffers(["u1", "u2", "failed"], ["u1", "u2"])).toBe(false);
+    expect(userOrderDiffers(["u1", "failed", "u3"], ["u1", "u3"])).toBe(false);
+  });
+  test("a message only the server has is not an order mismatch (merge join adds it)", () => {
+    expect(userOrderDiffers(["u1"], ["u1", "other-device"])).toBe(false);
+  });
+  test("two devices sending at once: different order is a mismatch", () => {
+    expect(userOrderDiffers(["u1", "mine", "theirs"], ["u1", "theirs", "mine"])).toBe(true);
+  });
+  test("identical lists match", () => {
+    expect(userOrderDiffers(["u1", "u2"], ["u1", "u2"])).toBe(false);
   });
 });

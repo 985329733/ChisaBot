@@ -5,6 +5,8 @@
 //   BASE=http://127.0.0.1:3092 BOT=<机器人 id> THREAD=<要打开的会话 id，建议用真实长会话的副本> ASSERT=1 node send-jump.mjs
 //   场景：W/H（默认 1280×800；窄窗 W=420 H=860）、SCROLLUP=700（发送前上滑）、PROMPT=…（长回复 / 多行）、CPU=4、
 //         FAIL=1 TWICE=1（第一轮模拟失败让提示出现，第二轮正常发送让提示消失）、VIDEO=1。输出在 /out。
+//         POLLTICK=1（全端同步 §42.7：从第一次发送起到最后一轮结束后 POLLMS 毫秒（默认 6000），把每次 /sync 的回复改成
+//         「事件序号变了 + 服务器在回答」，逼同步在本机发送中 / 刚结束时反复尝试接入；必须 0 跳）。
 import { chromium } from "playwright-core";
 import fs from "node:fs";
 const exe = fs.readdirSync("/ms-playwright").find((d) => d.startsWith("chromium-") && !d.includes("headless"));
@@ -104,6 +106,21 @@ if (failLeft) {
     return route.continue();
   });
 }
+// POLLTICK=1：发送期间及之后几秒伪造「别处有动静」的同步回复（只改这台看到的 /sync，不碰服务器）。
+let pollUntil = 0, pollForced = 0, pollBump = 0;
+if (process.env.POLLTICK === "1") {
+  await page.route(/\/api\/bot-threads\/[^/]+\/sync/, async (route) => {
+    const res = await route.fetch();
+    let body = await res.text();
+    if (Date.now() < pollUntil) {
+      try {
+        const j = JSON.parse(body);
+        if (j.thread) { j.thread.seq = `${j.thread.seq}-poll${++pollBump}`; j.thread.running = true; pollForced++; body = JSON.stringify(j); }
+      } catch {}
+    }
+    return route.fulfill({ response: res, body });
+  });
+}
 page.on("pageerror", (e) => log("pageerror", String(e).slice(0, 200)));
 page.on("console", (m) => { if (m.type() === "error") log("console", m.text().slice(0, 200)); });
 if (Number(process.env.CPU || 1) > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU) }); }
@@ -130,6 +147,7 @@ async function sendOnce(prompt, tag) {
   await ta.click();
   await ta.fill(prompt);
   const at = await page.evaluate(() => performance.now());
+  if (process.env.POLLTICK === "1") pollUntil = Number.POSITIVE_INFINITY;
   await page.keyboard.press("Enter");
   for (const ms of [40, 120, 250, 500, 900, 1500, 2500]) {
     const now = await page.evaluate(() => performance.now());
@@ -138,6 +156,7 @@ async function sendOnce(prompt, tag) {
   }
   const t0 = Date.now(); let idle = 0;
   while (Date.now() - t0 < RUNMS && idle < 4) { idle = (await page.locator('[data-testid="composer-stop"]').count()) ? 0 : idle + 1; await page.waitForTimeout(500); }
+  if (process.env.POLLTICK === "1") { pollUntil = Date.now() + Number(process.env.POLLMS || 6000); await page.waitForTimeout(Number(process.env.POLLMS || 6000) + 500); }
   return at;
 }
 const PROMPT = process.env.PROMPT_B64 ? Buffer.from(process.env.PROMPT_B64, "base64").toString("utf8") : process.env.PROMPT;
@@ -175,8 +194,12 @@ log("RESULT", JSON.stringify({ frames: post.length, anchorId, before: pre[pre.le
 log("UPS", JSON.stringify(ups.slice(0, 15)));
 log("ANCHORDOWN", JSON.stringify(anchorDowns.slice(0, 15)));
 log("EVENTS", JSON.stringify(events.slice(0, 30).map((e) => ({ ...e, dt: e.t - tSend }))));
-const bad = scr.length + ups.length;
-log(bad ? "FAIL send-jump" : "PASS send-jump", JSON.stringify({ screenJumps: scr.length, upJumps: ups.length }));
+if (process.env.POLLTICK === "1") log("POLLTICK", JSON.stringify({ forcedSyncReplies: pollForced }));
+// 发出去的消息不许消失（失败的那条也留在本机，§42.7）：发送后任何一次 DOM 变化删掉了消息就算失败。
+const removed = events.filter((e) => e.kind === "dom" && e.removedMsgs > 0 && e.t >= tSend);
+if (removed.length) log("REMOVED", JSON.stringify(removed.map((e) => ({ dt: e.t - tSend, n: e.removedMsgs }))));
+const bad = scr.length + ups.length + (process.env.ALLOW_REMOVE === "1" ? 0 : removed.length);
+log(bad ? "FAIL send-jump" : "PASS send-jump", JSON.stringify({ screenJumps: scr.length, upJumps: ups.length, removed: removed.length }));
 await ctx.close();
 await browser.close();
 process.exit(bad && process.env.ASSERT === "1" ? 1 : 0);

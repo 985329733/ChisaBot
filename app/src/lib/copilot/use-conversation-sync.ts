@@ -38,9 +38,25 @@ export function mergeSnapshot<T extends Msg>(local: readonly T[], snapshot: read
     result.splice(insertAt, 0, message);
     changed = true;
     index.clear();
-    result.forEach((item, position) => index.set(item.id, position));
+    for (const [position, item] of result.entries()) index.set(item.id, position);
   }
   return changed ? result : (local as T[]);
+}
+
+/**
+ * 本机和服务器的用户消息先后是否不一致（只比两边都有的那些）。
+ *
+ * 只在一边有的不算：这台发了但服务器没存下来的（这一轮在上游 / 网络上失败了）留在这台，照旧显示，
+ * 不为它重建——重建会把它从列表里删掉，整段聊天跟着往回跳一截（DESIGN.md §42.7）；服务器有、这台没有的
+ * 由合并式接入补进来，也不用重建。
+ */
+export function userOrderDiffers(local: readonly string[], server: readonly string[]): boolean {
+  const inServer = new Set(server);
+  const inLocal = new Set(local);
+  const a = local.filter((id) => inServer.has(id));
+  const b = server.filter((id) => inLocal.has(id));
+  if (a.length !== b.length) return true;
+  return a.some((id, at) => id !== b[at]);
 }
 
 type Connect = (options: { agent: AbstractAgent }) => Promise<unknown>;
@@ -104,7 +120,7 @@ export function useConversationSync(
     /*
      * 本机一轮结束后对一次顺序：两台设备几乎同时发时，服务器只开一轮，后到的那条被读进这一轮的中间
      * （§38.1）；但后到那台本地是把自己的消息先放在末尾的，消息快照只换内容不换顺序，于是两台设备看到的
-     * 顺序不一样。比较用户消息的先后，和服务器不一样就重新接一次（服务器回放，以它为准）。只读一次消息列表，
+     * 顺序不一样。比较两边都有的用户消息的先后（userOrderDiffers），和服务器不一样就重新接一次（服务器回放，以它为准）。只读一次消息列表，
      * 平时顺序一致什么都不做。
      */
     const hasResult = (toolCallId: string) =>
@@ -120,7 +136,10 @@ export function useConversationSync(
         const userIds = (list: readonly { id: string; role: string }[]) => list.filter((message) => message.role === "user").map((message) => message.id);
         const server = userIds(body?.messages ?? []);
         const local = userIds(agent.messages as never);
-        if (server.length && local.join("\n") !== server.join("\n")) join("rebuild");
+        if (!server.length) return;
+        if (userOrderDiffers(local, server)) join("rebuild");
+        // 服务器有、这台还没有的用户消息（别的设备刚发的）：合并式接上，不清空。
+        else if (server.some((id) => !local.includes(id))) join();
       }, 800);
     };
     const subscription = agent.subscribe({
