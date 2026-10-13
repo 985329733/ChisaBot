@@ -382,6 +382,8 @@ function refreshTray() {
         : []),
       ...(config.get().serverUrl
         ? [
+            // 打开主窗口并直接弹出网页「绑定手机」二维码（DESIGN.md §33）。
+            { label: "绑定手机…", click: () => void openApp("/settings/devices?pair=1") },
             { label: "这台电脑的权限…", click: () => void openDeviceSettings() },
             { label: "本机设置…", click: () => void openDeviceSettings("local") },
           ]

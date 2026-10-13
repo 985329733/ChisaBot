@@ -1,7 +1,9 @@
 import {
   IconBell,
+  IconDevices,
   IconLogout,
   IconMoon,
+  IconQrcode,
   IconSelector,
   IconSettings,
   IconShieldCheck,
@@ -10,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
+import { PairPhoneDialog } from "@/components/devices/pair-phone";
 import { GlassAvatar } from "@/components/layout/glass-topbar";
 import { ProfileDialog } from "@/components/layout/profile-dialog";
 import { useTheme } from "@/components/theme-provider";
@@ -37,7 +40,7 @@ import { cn } from "@/lib/utils";
  * 账号（DESIGN-v4）：左栏最底下一张小玻璃卡 —— 头像 + 名字 + 版本号，点开账号菜单（向上弹出）。
  * 聊天、偏好设置、管理后台三个区域都在同一个位置。左栏收起后只剩头像，菜单向右弹出。
  *
- * 菜单只放「我」的事：偏好设置 · 审批 · 通知 ‖ 管理后台（管理员）‖ 暗色外观 ‖ 退出登录。
+ * 菜单只放「我」的事：个人资料 · 设置 · 审批 · 通知 ‖ 绑定手机 · 设备管理（DESIGN.md §33）‖ 管理后台（管理员）‖ 暗色外观 ‖ 退出登录。
  * 其余设置项（已连接账号、密码、模型、凭据…）在偏好设置 / 管理后台的左栏里，不在这里重复。
  */
 export function AccountMenu({ compact = false }: { compact?: boolean }) {
@@ -54,6 +57,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
     (approvals.data?.questions.length ?? 0);
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [pairOpen, setPairOpen] = useState(false);
   // 当前应用版本（/api/version 的 version，例如 0.1.0）。
   const served = useQuery({
     queryKey: ["app-version"],
@@ -163,6 +167,20 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="glass-sep" />
         <DropdownMenuGroup className="py-1">
+          {/* 扫码绑定手机：直接弹出二维码（网页和 PC 客户端里都一样，DESIGN.md §33）。 */}
+          <Row
+            icon={<IconQrcode className={icon} />}
+            label={"绑定手机"}
+            onClick={() => {
+              setOpen(false);
+              if (sidebar?.isMobile) sidebar.setOpenMobile(false);
+              setPairOpen(true);
+            }}
+          />
+          <Row icon={<IconDevices className={icon} />} label={"设备管理"} onClick={() => go("/settings/devices")} />
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator className="glass-sep" />
+        <DropdownMenuGroup className="py-1">
           <DropdownMenuItem className="glass-mi" closeOnClick={false} onClick={() => setDark(!dark)}>
             <IconMoon className={icon} />
             <span className="min-w-0 flex-1">{"暗色外观"}</span>
@@ -186,6 +204,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
       </DropdownMenuContent>
     </DropdownMenu>
     <ProfileDialog onOpenChange={setProfileOpen} open={profileOpen} />
+    <PairPhoneDialog onOpenChange={setPairOpen} open={pairOpen} />
     </>
   );
 }
