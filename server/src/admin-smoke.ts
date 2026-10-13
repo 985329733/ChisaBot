@@ -7,9 +7,11 @@
  * - 走和聊天完全相同的模型解析（`resolveConnection` / 给了 `agentId` 时 `resolveConnectionForAgent`，
  *   即机器人自己的模型覆盖）和相同的 AI SDK 客户端（`connectionLanguageModel`），所以它通过就说明
  *   「这台服务器此刻能用聊天用的那套配置跟模型说上话」；
- * - 让模型原样回一个随机口令，回对了才算通过（排除缓存、假响应、只通不答）；
+ * - 问模型一道随机的两位数加法（每次数字不同，排除缓存）。模型有非空回复就算通过——这证明「配置 →
+ *   模型服务 → 回复」整条往返是通的；答对了另外记 `answered: true`。以前是让模型「原样回一个口令」，
+ *   但有的模型（实测 mimo，2026-10-13）会把它当成提示注入拒绝，自检时好时坏，和服务器本身无关；
  * - **不写数据库**：不建频道、不写消息、不写记忆、不触发投递，响应 `persisted: false`。只在服务器
- *   日志打一行结果，口令和回复不进日志。
+ *   日志打一行结果，题目和回复不进日志。
  *
  * 仅管理员。公网网关照常先认证会话；本机 127.0.0.1:3001 的开发用户也是管理员，发布脚本用它。
  */
@@ -35,7 +37,9 @@ export type SmokeResult = {
   model: string;
   agentId: string | null;
   latencyMs: number;
-  /** 模型有没有把口令原样回来。 */
+  /** 模型有没有答对那道加法题。 */
+  answered: boolean;
+  /** 旧字段，和 `answered` 相同（旧版页面 / 脚本读它）。 */
   echoed: boolean;
   /** 模型回复的前 200 个字（排查用）。 */
   reply: string;
@@ -57,7 +61,8 @@ export const generateWithConnection: Generate = async (
   const model = connectionLanguageModel(connection.model, connection.apiKey);
   const result = await model.doGenerate({
     prompt: [{ role: "user", content: [{ type: "text", text: prompt }] }],
-    maxOutputTokens: 256,
+    // 会先「思考」的模型要留够余量，不然思考用完了正文是空的。
+    maxOutputTokens: 1024,
     abortSignal: signal,
   });
   return result.content
@@ -66,8 +71,25 @@ export const generateWithConnection: Generate = async (
     .trim();
 };
 
-export function smokePrompt(nonce: string): string {
-  return `这是一次服务器自检。请只回复下面这个口令，不要加任何别的文字：${nonce}`;
+export type SmokeQuestion = { a: number; b: number; answer: number };
+
+/** 一道每次都不同的两位数加法。 */
+export function smokeQuestion(): SmokeQuestion {
+  const bytes = randomBytes(2);
+  const a = 10 + (bytes[0]! % 90);
+  const b = 10 + (bytes[1]! % 90);
+  return { a, b, answer: a + b };
+}
+
+export function smokePrompt(question: Pick<SmokeQuestion, "a" | "b">): string {
+  return `${question.a} + ${question.b} 等于多少？只回复结果数字。`;
+}
+
+/** 回复里有没有正确答案（全角数字也认；整数完整匹配，「185」不算答对 85）。 */
+export function smokeAnswered(reply: string, answer: number): boolean {
+  const normalized = reply.replace(/[０-９]/gu, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
+  const numbers: string[] = normalized.match(/\d+/gu) ?? [];
+  return numbers.includes(String(answer));
 }
 
 export function createAdminSmokeRoutes(options: {
@@ -116,14 +138,14 @@ export function createAdminSmokeRoutes(options: {
       } catch {
         return context.json({ error: "模型配置暂时无法读取。" }, 503);
       }
-      const nonce = `CHISA-${randomBytes(4).toString("hex").toUpperCase()}`;
+      const question = smokeQuestion();
       const start = performance.now();
       let reply = "";
       let failure: string | null = null;
       try {
         reply = await generate(
           connection,
-          smokePrompt(nonce),
+          smokePrompt(question),
           AbortSignal.timeout(options.timeoutMs ?? SMOKE_TIMEOUT_MS),
         );
       } catch (error) {
@@ -134,27 +156,29 @@ export function createAdminSmokeRoutes(options: {
             : "模型请求失败（连接、密钥或模型名有问题）。";
       }
       const latencyMs = Math.round(performance.now() - start);
-      const echoed = !failure && reply.includes(nonce);
+      const answered = !failure && smokeAnswered(reply, question.answer);
+      const ok = !failure && reply.trim().length > 0;
       const result: SmokeResult = {
-        ok: echoed,
+        ok,
         persisted: false,
         provider: connection.model.provider,
         model: connection.model.defaultModel,
         agentId,
         latencyMs,
-        echoed,
+        answered,
+        echoed: answered,
         reply: reply.slice(0, 200),
         message:
           failure ??
-          (echoed
-            ? "自检通过：模型按要求回复了口令。"
-            : reply
-              ? "模型有回复，但没有原样回口令。"
+          (answered
+            ? "自检通过：模型正确回答了测试题。"
+            : ok
+              ? "自检通过：模型有回复（答案没对上，但连接和模型往返正常）。"
               : "模型返回了空回复。"),
       };
       // 秘密不进日志：只有结果、模型名和耗时。
       log(
-        `[admin-smoke] ok=${result.ok} model=${result.model} agent=${agentId ?? "-"} ${latencyMs}ms`,
+        `[admin-smoke] ok=${result.ok} answered=${answered} model=${result.model} agent=${agentId ?? "-"} ${latencyMs}ms`,
       );
       return context.json(result, result.ok ? 200 : 502);
     });

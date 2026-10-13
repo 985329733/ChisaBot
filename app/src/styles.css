@@ -6097,3 +6097,19 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(ol, ul) :is(ol, u
  * 放不下时由外面的表格容器横向滚动（Streamdown 自带 overflow-x: auto）。 */
 html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(th, td)::after { content: ""; display: block; width: 4em; height: 0; }
 html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="table-wrapper"] > div { overscroll-behavior-x: contain; }
+
+/* 后台任务停掉了（用户自己停的）：中性灰，不是红色的「失败」（2026-10-13）。 */
+.worker-icon.is-stopped { color: var(--ink-2); background: var(--glass-3); }
+
+/* ==========================================================================================
+ * 输入框不透字（DESIGN.md §25「输入框不透字」，2026-10-13）：消息滚到输入框下面时，原来 0.7–0.88 的底色 + 毛玻璃
+ * 在实测里挡不住字（窄屏暗色最明显，字和占位符叠在一起）。底色提到 ~0.95：还是同一张天空玻璃卡
+ * （同样的渐变、描边、阴影、高光），只是后面的字不再透出来。聚焦时更实一点。不加渐隐遮罩：
+ * 遮罩要么进布局（§35.4 不许），要么得在大滚动区上用 mask（每帧重绘，伤性能）。
+ * ========================================================================================== */
+.glass-composer { background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.93)); }
+.glass-composer:focus-within { background: rgba(255, 255, 255, 0.98); }
+.dark .glass-composer { background: linear-gradient(180deg, rgba(36, 48, 69, 0.97), rgba(27, 37, 56, 0.95)); }
+.dark .glass-composer:focus-within { background: rgba(30, 41, 61, 0.98); }
+/* 结果行收起时正文的下内边距不留白（内边距收不进 0fr 的行里，行会多出 10px）。 */
+.worker-result .worker-plan-collapse:not([data-open]) .worker-result-body { padding-bottom: 0; }

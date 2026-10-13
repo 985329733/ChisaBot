@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Hono } from "hono";
-import { createAdminSmokeRoutes, smokePrompt } from "../src/admin-smoke";
+import { createAdminSmokeRoutes, smokeAnswered, smokePrompt } from "../src/admin-smoke";
 import type { AppVariables } from "../src/auth/guards";
 import type { RuntimeModelConnection } from "../src/copilot";
 
@@ -51,7 +51,13 @@ test("admins only", async () => {
   expect(called).toBe(false);
 });
 
-test("passes only when the model echoes the nonce; never persists; no secrets in logs", async () => {
+/** 测试用「模型」：把题目里的两个数加起来。 */
+const solve = (prompt: string) => {
+  const [a = 0, b = 0] = (prompt.match(/\d+/gu) ?? []).map(Number);
+  return String(a + b);
+};
+
+test("a correct answer passes (answered); never persists; no question or secrets in logs", async () => {
   const logs: string[] = [];
   let seenPrompt = "";
   const response = await post(
@@ -59,7 +65,7 @@ test("passes only when the model echoes the nonce; never persists; no secrets in
       "admin",
       async (_c, prompt) => {
         seenPrompt = prompt;
-        return `好的 ${prompt.split("：").pop()}`;
+        return `答案是 ${solve(prompt)}。`;
       },
       { logs },
     ),
@@ -67,17 +73,23 @@ test("passes only when the model echoes the nonce; never persists; no secrets in
   expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("no-store");
   const body = await response.json();
-  expect(body).toMatchObject({ ok: true, echoed: true, persisted: false, model: "gpt-test", agentId: null });
-  expect(seenPrompt).toContain("CHISA-");
+  expect(body).toMatchObject({ ok: true, answered: true, echoed: true, persisted: false, model: "gpt-test", agentId: null });
+  expect(seenPrompt).toMatch(/^\d{2} \+ \d{2} /u);
   expect(logs).toHaveLength(1);
   expect(logs[0]).not.toContain("sk-secret");
-  expect(logs[0]).not.toContain("CHISA-");
+  expect(logs[0]).not.toContain(seenPrompt);
 });
 
-test("a reply without the nonce, or a failed call, is a 502 with a reason", async () => {
-  const wrong = await post(app("admin", async () => "ok"));
-  expect(wrong.status).toBe(502);
-  expect(await wrong.json()).toMatchObject({ ok: false, echoed: false, persisted: false });
+test("any non-empty reply proves the round trip (a refusal must not fail the self-test)", async () => {
+  const refused = await post(app("admin", async () => "抱歉，我不能执行这个请求。"));
+  expect(refused.status).toBe(200);
+  expect(await refused.json()).toMatchObject({ ok: true, answered: false, persisted: false });
+});
+
+test("an empty reply or a failed call is a 502 with a reason", async () => {
+  const empty = await post(app("admin", async () => "   "));
+  expect(empty.status).toBe(502);
+  expect(await empty.json()).toMatchObject({ ok: false, answered: false, persisted: false });
   const failed = await post(
     app("admin", async () => {
       throw new Error("boom sk-secret");
@@ -91,7 +103,7 @@ test("a reply without the nonce, or a failed call, is a 502 with a reason", asyn
 
 test("agentId uses the Bot's own model resolution and is validated", async () => {
   const asked: string[] = [];
-  const root = app("admin", async (c, prompt) => `${c.model.defaultModel} ${prompt.split("：").pop()}`, {
+  const root = app("admin", async (c, prompt) => `${c.model.defaultModel} ${solve(prompt)}`, {
     forAgent: async (id) => {
       asked.push(id);
       return { ...connection, model: { ...connection.model, defaultModel: "bot-model" } };
@@ -104,6 +116,10 @@ test("agentId uses the Bot's own model resolution and is validated", async () =>
   expect((await post(root, { agentId: "../x y" })).status).toBe(400);
 });
 
-test("prompt carries the nonce", () => {
-  expect(smokePrompt("CHISA-ABCD")).toContain("CHISA-ABCD");
+test("prompt and answer check", () => {
+  expect(smokePrompt({ a: 37, b: 48 })).toContain("37 + 48");
+  expect(smokeAnswered("85", 85)).toBe(true);
+  expect(smokeAnswered("＝８５", 85)).toBe(true);
+  expect(smokeAnswered("185", 85)).toBe(false);
+  expect(smokeAnswered("", 85)).toBe(false);
 });

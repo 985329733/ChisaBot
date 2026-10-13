@@ -42,6 +42,8 @@ export const PER_USER_BACKLOG = 6;
 export const WORKER_TIMEOUT_MS = 15 * 60_000;
 export const RESULT_LIMIT = 6_000;
 const ACTIVE: WorkerStatus[] = ["queued", "running", "waiting"];
+/** 用户在卡片上停掉的任务交回对话时的说明（结果行展开后看到的就是这句）。 */
+export const CANCELLED_BY_USER = "你在任务卡片上停止了这个任务，它没有做完。需要的话可以让我重新做。";
 
 const iso = (value: Date | string | null) => (value ? new Date(value).toISOString() : null);
 const clip = (text: string, limit: number) => (text.length > limit ? `${text.slice(0, limit - 1)}…` : text);
@@ -85,6 +87,12 @@ export function describeWorkerStep(name: string, args: Record<string, unknown>):
       if (name.startsWith("memory")) return "正在查记忆";
       return `正在使用 ${name}`;
   }
+}
+
+/** 卡片上开头那一行：清单里正在做的那一步，没有清单就说在看任务。 */
+export function initialStep(plan: readonly WorkerPlanStep[]): string {
+  const current = plan.find((step) => step.status === "current") ?? plan.find((step) => step.status === "pending");
+  return current ? clip(current.text, 40) : "正在看任务要求";
 }
 
 /** 交给模型的任务说明：它是在后台、没人看着，结束时的最后一段话就是交回去的结果。 */
@@ -135,13 +143,18 @@ export type WorkerService = ThreadWorkerRoutes & {
   start(input: { ownerUserId: string; agentId: string; parentThreadId: string; title: string; task: string; plan?: string[] }): Promise<WorkerView>;
   get(workerId: string): Promise<WorkerView | null>;
   updatePlan(workerId: string, steps: WorkerPlanStep[]): Promise<void>;
+  /** 删机器人前：停掉它还在跑 / 排队的后台任务（不交付结果）。返回停了几个。 */
+  stopForAgent(agentId: string): Promise<number>;
+  /** 清掉孤儿行：机器人已经不存在的后台任务记录、对话已经不存在的收件箱行（超过一小时的）。 */
+  sweepOrphans(): Promise<{ workers: number; inbox: number }>;
 };
 
 export function createWorkerService(options: WorkerServiceOptions): WorkerService {
   const { database, inbox, control, runTurn } = options;
   const deliverTurn = options.deliverTurn ?? runTurn;
   const sql = database.$client;
-  const live = new Map<string, { step?: string | null; plan?: WorkerPlanStep[]; controller: AbortController; unobserve?: () => void; flush?: ReturnType<typeof setTimeout> }>();
+  type LiveState = { step?: string | null; initialStep?: string; plan?: WorkerPlanStep[]; controller: AbortController; unobserve?: () => void; flush?: ReturnType<typeof setTimeout> };
+  const live = new Map<string, LiveState>();
   let pumping = false;
 
   const row = async (id: string) => (await sql.unsafe<WorkerRow[]>("SELECT * FROM chisabot_workers WHERE id = $1", [id]))[0] ?? null;
@@ -226,9 +239,10 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
 
   const launch = async (worker: WorkerRow) => {
     const controller = new AbortController();
-    const state: { step?: string | null; plan?: WorkerPlanStep[]; controller: AbortController; unobserve?: () => void } = {
-      controller, step: "正在准备", plan: worker.plan ?? [],
-    };
+    // 卡片一出来就有一句有意义的当前步骤（以前前几秒一直是「正在准备」）：有初步清单就用正在做的那一步，
+    // 没有就说在看任务；之后第一次工具调用 / 清单更新 / 开口说话会换掉它。
+    const firstStep = initialStep(worker.plan ?? []);
+    const state: LiveState = { controller, step: firstStep, initialStep: firstStep, plan: worker.plan ?? [] };
     live.set(worker.id, state);
     await sql.unsafe("UPDATE chisabot_workers SET status = 'running', started_at = now(), step = $2, updated_at = now() WHERE id = $1", [worker.id, state.step]);
     const calls = new Map<string, { name: string; args: string }>();
@@ -243,9 +257,9 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
         try { args = JSON.parse(call.args || "{}"); } catch { /* 参数不是 JSON：只按名字描述。 */ }
         const line = describeWorkerStep(call.name, args);
         if (line) { state.step = line; persistLive(worker.id); }
-      } else if (e.type === EventType.TEXT_MESSAGE_START && (e.role ?? "assistant") === "assistant" && state.step === "正在准备") {
-        // 只在还没做任何事时把「正在准备」换掉；之后的过程话不覆盖上一步（一步一行，不闪）。
-        state.step = "正在思考"; persistLive(worker.id);
+      } else if (e.type === EventType.TEXT_MESSAGE_START && (e.role ?? "assistant") === "assistant" && state.step === state.initialStep && !state.plan?.length) {
+        // 只在还没做任何事、也没有清单时换掉开头那句；之后的过程话不覆盖上一步（一步一行，不闪）。
+        state.step = "正在想怎么做"; persistLive(worker.id);
       }
     });
     const timer = setTimeout(() => controller.abort(new Error("timeout")), WORKER_TIMEOUT_MS);
@@ -367,7 +381,12 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
         status: (["done", "current", "pending", "blocked"] as const).includes(step.status) ? step.status : "pending",
       })).filter((step) => step.text);
       const state = live.get(id);
-      if (state) { state.plan = clean; persistLive(id); }
+      if (state) {
+        state.plan = clean;
+        // 还停在开头那句（没调过别的工具）：换成清单里正在做的那一步。
+        if (state.step === state.initialStep) state.step = state.initialStep = initialStep(clean);
+        persistLive(id);
+      }
       else await sql.unsafe("UPDATE chisabot_workers SET plan = $2::text::jsonb, updated_at = now() WHERE id = $1", [id, JSON.stringify(clean)]);
     },
 
@@ -388,17 +407,48 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
       await inbox.enqueue({ threadId: found.thread_id, ownerUserId: actorId, message: { id: randomUUID(), role: "user", content: `补充说明（用户通过主对话发来）：${text}` } as Message });
     },
 
-    async cancel(threadId, workerId, actorId) {
+    async cancel(threadId, workerId, actorId, options) {
       const found = await owned(workerId, actorId, threadId);
       if (!ACTIVE.includes(found.status)) return;
-      await sql.unsafe(
-        "UPDATE chisabot_workers SET status = 'cancelled', finished_at = now(), updated_at = now(), step = NULL WHERE id = $1 AND status IN ('queued', 'running', 'waiting')",
-        [workerId],
+      const announce = !options?.quiet;
+      // 要补「已停止」的：同一句里就写上交回消息的 id，卡片 / 页面立刻知道要等这条消息（不和交付抢）。
+      const stopped = await sql.unsafe<WorkerRow[]>(
+        `UPDATE chisabot_workers SET status = 'cancelled', finished_at = now(), updated_at = now(), step = NULL, error = $2,
+         result_message_id = CASE WHEN $3::boolean THEN 'worker-result-' || id ELSE result_message_id END
+         WHERE id = $1 AND status IN ('queued', 'running', 'waiting') RETURNING *`,
+        [workerId, announce ? CANCELLED_BY_USER : null, announce],
       );
       const state = live.get(workerId);
       state?.controller.abort(new Error("cancelled"));
       await control.stop({ threadId: found.thread_id }).catch(() => false);
       void pump();
+      // 用户在卡片上点的停止：主机器人前面说过「做完会把结果发到这里」，不补一句就成了没下文的承诺
+      // （实测 2026-10-13）。走和结果同一条路：对话里出现一行「后台任务「x」已停止」，主机器人一句话确认。
+      if (announce && stopped[0]) void deliver(stopped[0]).catch((error) => console.warn("worker stop notice failed", error));
+    },
+
+    async stopForAgent(agentId) {
+      const rows = await sql.unsafe<{ id: string; thread_id: string }[]>(
+        `UPDATE chisabot_workers SET status = 'cancelled', finished_at = now(), updated_at = now(), step = NULL
+         WHERE agent_id = $1 AND status IN ('queued', 'running', 'waiting') RETURNING id, thread_id`,
+        [agentId],
+      );
+      for (const stopped of rows) {
+        live.get(stopped.id)?.controller.abort(new Error("cancelled"));
+        await control.stop({ threadId: stopped.thread_id }).catch(() => false);
+      }
+      return rows.length;
+    },
+
+    async sweepOrphans() {
+      const workers = await sql.unsafe(
+        "DELETE FROM chisabot_workers w WHERE NOT EXISTS (SELECT 1 FROM agents a WHERE a.id = w.agent_id) AND w.status NOT IN ('queued', 'running', 'waiting') RETURNING id",
+      );
+      const inbox = await sql.unsafe(
+        `DELETE FROM chisabot_thread_inbox i WHERE i.updated_at < now() - interval '1 hour'
+         AND NOT EXISTS (SELECT 1 FROM openbot_local_threads t WHERE t.id = i.thread_id) RETURNING id`,
+      );
+      return { workers: workers.length, inbox: inbox.length };
     },
 
     workerTools(workerId) {
@@ -443,7 +493,7 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
             z.object({
               title: z.string().describe("几个字的任务名，显示在任务卡片上，例如「对比三款降噪耳机」"),
               task: z.string().describe("完整的任务说明：要做什么、标准、限制、交回什么。后台任务看不到这段对话，所以把需要的背景都写进去。"),
-              plan: z.array(z.string()).max(8).optional().describe("可选：初步步骤（每步十个字左右）"),
+              plan: z.array(z.string()).max(8).optional().describe("建议给：初步步骤 3–5 步（每步十个字左右）。卡片会立刻显示第一步，用户不用干等「准备中」。"),
             }),
             async (args: { title: string; task: string; plan?: string[] }) => {
               const started = await service.start({ ownerUserId, agentId, parentThreadId: threadId, title: args.title, task: args.task, plan: args.plan });
@@ -457,6 +507,7 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
             "后台任务：耗时较长、可以独立完成的事（多来源调研、大量整理、多步骤网上操作）用 delegate_task 交给后台并行做，主对话保持能聊；每个任务给一个几个字的标题和完整说明（后台看不到这段对话）。",
             `同时最多 ${PER_USER_RUNNING} 个在跑；多出来的会自动排队（卡片显示「排队中」），前面的做完就自动开始，最多 ${PER_USER_BACKLOG} 个没结束的。所以用户要几个就照常委派几个，不要自己设提醒等空位再补开。后台任务和你共用同一个浏览器，所以同一时间最多委派一个需要用浏览器的任务，而且它在用浏览器时你自己不要用。`,
             "用户想给某个后台任务补充要求就用 worker_message；想取消就用 worker_cancel；问进度用 worker_status。结果回来时会是一条以「⟦chisabot:worker-result:」开头的消息。",
+            "结果消息说「已停止」时，是用户自己在任务卡片上停掉的：只用一句话确认已经停止，不要重新开始、不要重新委派，也不要追问。",
           ].join("\n"),
         },
         tool(
@@ -473,7 +524,7 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
           "停止一个后台任务。",
           z.object({ workerId: z.string() }),
           async (args: { workerId: string }) => {
-            try { await service.cancel(threadId, args.workerId, ownerUserId); return "已停止。"; }
+            try { await service.cancel(threadId, args.workerId, ownerUserId, { quiet: true }); return "已停止。"; }
             catch (error) { return error instanceof Error ? error.message : "停止失败。"; }
           },
         ),

@@ -244,6 +244,14 @@ type ActiveRun = {
 /** 一次运行最多接着跑几段（每段 = 一次完整的模型循环；段与段之间读进新排队的消息）。 */
 const MAX_SEGMENTS = 8;
 
+/** 对话还不存在时这些只读接口回的空结果（和存在但什么都没有时一样）。 */
+const EMPTY_THREAD_READS: Record<string, unknown> = {
+  context: { context: null },
+  stopped: { userMessageIds: [] },
+  inbox: { running: false, items: [] },
+  workers: { workers: [] },
+};
+
 /** Public OSS runner with our own PostgreSQL transcript and per-thread lease. */
 class PostgresAgentRunner extends AgentRunner {
   private readonly active = new Map<string, ActiveRun>();
@@ -576,7 +584,8 @@ class PostgresAgentRunner extends AgentRunner {
 export type ThreadWorkerRoutes = {
   list(threadId: string, actorId: string): Promise<unknown[]>;
   steer(threadId: string, workerId: string, actorId: string, text: string): Promise<void>;
-  cancel(threadId: string, workerId: string, actorId: string): Promise<void>;
+  /** `quiet`：机器人自己用工具停的（它这一轮里自己会说）；不给 = 用户在卡片上点的，停完往对话里补一条「已停止」。 */
+  cancel(threadId: string, workerId: string, actorId: string, options?: { quiet?: boolean }): Promise<void>;
 };
 
 /** 进程内能直接问运行器的事（后台任务用）。 */
@@ -710,6 +719,15 @@ export async function createLocalConversations(database: Database): Promise<Loca
       const [encodedId, operation] = suffix.split("/");
       if (!encodedId) throw new LocalConversationError("Thread is required", 400);
       const threadId = decodeURIComponent(encodedId);
+      // 新对话第一次打开时还没有这一行（第一条消息才建）：输入框读数、停止标记、收件箱、任务卡片这几个
+      // 只读接口回空结果（200），不报 404 —— 浏览器控制台里每开一个新对话就是三条红字（实测 2026-10-13）。
+      // 别人的对话也走这里，回的同样是空结果，看不出它存不存在。
+      if (request.method === "GET" && operation && Object.hasOwn(EMPTY_THREAD_READS, operation)) {
+        const found = await database.$client.unsafe<{ owner_user_id: string }[]>(
+          "SELECT owner_user_id FROM openbot_local_threads WHERE id = $1", [threadId],
+        );
+        if (!found[0] || found[0].owner_user_id !== actorId) return Response.json(EMPTY_THREAD_READS[operation]);
+      }
       const row = await store.owned({ threadId, userId: actorId });
       const requestedAgent = url.searchParams.get("agentId");
       if (requestedAgent && requestedAgent !== row.agent_id) throw new LocalConversationError("Thread not found", 404);
