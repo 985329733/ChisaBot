@@ -1,5 +1,5 @@
 import { RouteSkeleton } from "@/components/startup-status";
-import { CopilotChat } from "@copilotkit/react-core/v2";
+import { CopilotChat, useAgent } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
@@ -16,7 +16,7 @@ import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { ZH_MESSAGE_VIEW } from "@/lib/copilot/reasoning-zh";
-import { useTurnCompaction } from "@/lib/copilot/turn-compaction";
+import { useStoppedTurnIds, useTurnCompaction } from "@/lib/copilot/turn-compaction";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 /** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
@@ -167,7 +167,12 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   const stopped = useStoppedTurn(agentId);
   // 一轮收成「一句话 → 结果」：中间过程话变淡色小字，网页小条 / 思考只留最后一个（turn-compaction.ts）。
   const skyRef = useRef<HTMLDivElement | null>(null);
-  useTurnCompaction(skyRef, `${agentId}:${threadId ?? ""}`);
+  const { agent: chatAgent } = useAgent({ agentId });
+  const stoppedTurns = useStoppedTurnIds(threadId);
+  useTurnCompaction(skyRef, `${agentId}:${threadId ?? ""}`, {
+    messages: () => chatAgent.messages as never,
+    stopped: stoppedTurns,
+  });
   const { watch } = Route.useSearch();
   const navigate = Route.useNavigate();
   const showComputer = useCallback(

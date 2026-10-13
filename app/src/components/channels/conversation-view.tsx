@@ -36,6 +36,7 @@ export function ConversationView({
   pending = false,
   autoFocus = false,
   stopped,
+  stoppedTurns,
   onBeforeRetry,
   stoppable,
   queueWhileBusy = false,
@@ -80,6 +81,8 @@ export function ConversationView({
   autoFocus?: boolean;
   /** Why the last turn ended without an answer. Drawn at the end of the transcript, not here. */
   stopped?: string;
+  /** 用户按停止的那些轮次（开启那一轮的用户消息 id），末尾挂「已停止」。 */
+  stoppedTurns?: ReadonlySet<string>;
   /**
    * Called just before the error card's 重试 resends the restored draft, so the caller can take the
    * failed turn's own copy of the message out of the transcript instead of showing it twice.
@@ -465,6 +468,7 @@ export function ConversationView({
           queued={queued}
           restoring={restoring}
           topNotice={transcriptNotice}
+          {...(stoppedTurns ? { stoppedTurns } : {})}
           {...(stopped ? { stopped, onRetry: retry } : {})}
         />
       </div>

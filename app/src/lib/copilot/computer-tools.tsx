@@ -291,7 +291,7 @@ export function ComputerTools() {
       const { frame, error } = await readScreenshot(computerId);
       if (!frame) return { ok: false, reason: error ?? "没截到图" };
       try {
-        if (toolCall?.id) keepShot(toolCall.id, await shrinkPng(frame.base64), frame.url);
+        if (toolCall?.id) keepShot(toolCall.id, await shrinkPng(frame.base64), frame.url, computerId ?? undefined);
       } catch {}
       return { ok: true, shown: true, url: frame.url ?? null, note: "截图已显示在对话里，不要再描述截图本身，直接回答用户。" };
     },

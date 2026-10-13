@@ -106,6 +106,8 @@ type ChatTranscriptProps = {
    * be told, and only the thing that ended the turn knows which one happened.
    */
   stopped?: string;
+  /** 用户按停止的那些轮次（开启那一轮的用户消息 id），末尾挂「已停止」，没有结果气泡。 */
+  stoppedTurns?: ReadonlySet<string>;
   /** Re-run the turn that failed. Without it the error card has no retry button. */
   onRetry?: () => void;
   /** 会话最上方的一句提示（例如较早的消息读不到），在第一条消息之前。 */
@@ -674,13 +676,29 @@ const TranscriptMessage = memo(function TranscriptMessage({
   delay,
   role,
   text,
+  tone,
 }: {
   commandNames?: string;
   delay: number;
   role: "user" | "assistant";
   text: string;
+  /** compactTurns：开场一句 / 过程话 / 结果。过程话画成一行淡色小字，开场和过程都没有复制。 */
+  tone?: "lead" | "step" | "final" | undefined;
 }) {
   const isUser = role === "user";
+  if (!isUser && tone === "step") {
+    return (
+      <MessageRow align="start">
+        <MessageContent>
+          <Arriving delay={delay}>
+            <div className="chat-step-line" data-cb-turn="step">
+              <Streamdown components={markdownComponents}>{text}</Streamdown>
+            </div>
+          </Arriving>
+        </MessageContent>
+      </MessageRow>
+    );
+  }
   /*
    * Checked before anything else a person's message gets. A firing is not a person's message: the
    * chip split, the end alignment and the bubble are all wrong for it, and each one of them would
@@ -714,6 +732,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
             shrink to its own text. A person's bubble keeps fitting what they said.
           */}
           <Bubble
+            data-cb-turn={isUser ? undefined : tone}
             align={align}
             variant={isUser ? "muted" : "ghost"}
             className={isUser ? undefined : "w-full"}
@@ -763,7 +782,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
               )}
             </BubbleContent>
           </Bubble>
-          {isUser || !text.trim() ? null : <CopyMessage text={text} />}
+          {isUser || !text.trim() || tone === "lead" ? null : <CopyMessage text={text} />}
         </Arriving>
       </MessageContent>
     </MessageRow>
@@ -1623,6 +1642,7 @@ export function ChatTranscript({
   queued = EMPTY_QUEUE,
   restoring = false,
   stopped,
+  stoppedTurns,
   onRetry,
   topNotice,
 }: ChatTranscriptProps) {
@@ -1637,6 +1657,8 @@ export function ChatTranscript({
    * which is where the 25x came from. This runs per render and is not worth guarding.
    */
   const items = groupBrowserSteps(toVisibleChatItems(messages));
+  // 一轮收成「开场一句 → 结果」，与机器人聊天同一规则（compactTurns，2026-10-13 第四轮）。
+  const compact = compactTurns(items, busy, stoppedTurns ?? EMPTY_STOPS);
 
   /*
    * ONLY WHILE THERE IS NOTHING ELSE TO LOOK AT. Once a reply starts streaming, or a tool line
@@ -1789,6 +1811,27 @@ export function ChatTranscript({
             ) : null}
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
             {items.map((item, index) =>
+              compact.hidden.has(item.id) ? null : compact.stoppedAfter === item.id ? (
+                [renderRow(item, index), (
+                  <MessageScrollerItem data-row="activity" key={`${item.id}:stopped`} messageId={`${item.id}:stopped`}>
+                    <div className="chat-stopped-mark" data-testid="turn-stopped">{"◼ 已停止"}</div>
+                  </MessageScrollerItem>
+                )]
+              ) : renderRow(item, index),
+            )}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton className="chat-bottom-pill">
+          <IconChevronDown className="size-4" />
+          {"回到底部"}
+        </MessageScrollerButton>
+        <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+
+  function renderRow(item: TranscriptItem, index: number) {
+    return (
               item.kind === "browser" ? (
                 <MessageScrollerItem
                   data-row="activity"
@@ -1836,6 +1879,7 @@ export function ChatTranscript({
                     delay={delays.delayFor(item.id, index, items.length)}
                     role={item.role}
                     text={item.text}
+                    tone={compact.tone.get(item.id)}
                   />
                 </MessageScrollerItem>
               ) : item.kind === "attachments" ? (
@@ -1854,16 +1898,63 @@ export function ChatTranscript({
                 // `never` here, so a future addition to `VisibleChatItem` fails to typecheck at
                 // this call instead of silently falling into this branch and rendering nothing.
                 assertNever(item)
-              ),
-            )}
-          </MessageScrollerContent>
-        </MessageScrollerViewport>
-        <MessageScrollerButton className="chat-bottom-pill">
-          <IconChevronDown className="size-4" />
-          {"回到底部"}
-        </MessageScrollerButton>
-        <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
-      </MessageScroller>
-    </MessageScrollerProvider>
-  );
+              )
+    );
+  }
+}
+
+const EMPTY_STOPS: ReadonlySet<string> = new Set();
+
+/**
+ * 一轮收成「开场一句 → 结果」（频道聊天版，规则与 lib/copilot/turn-compaction.ts 相同，2026-10-13 第四轮）。
+ *
+ *  - 每轮第一段助手文字 = 开场一句（气泡，没有复制）；
+ *  - 结果 = 最后一段文字，且它后面没有再调工具 / 开网页；这一轮还在跑或被用户停掉时没有结果；
+ *  - 中间的过程话：没结果时一行淡色小字；有了结果就收起；
+ *  - 开网页的小条每轮只留最后一组；
+ *  - 被停掉的一轮：最后一个看得见的行后面挂「已停止」。
+ */
+export function compactTurns(
+  items: readonly TranscriptItem[],
+  busy: boolean,
+  stopped: ReadonlySet<string>,
+): { tone: Map<string, "lead" | "step" | "final">; hidden: Set<string>; stoppedAfter: string | null } {
+  const tone = new Map<string, "lead" | "step" | "final">();
+  const hidden = new Set<string>();
+  let stoppedAfter: string | null = null;
+  const sent = (item: TranscriptItem) =>
+    item.kind === "attachments" || (item.kind === "text" && isPersonSentMessage(item.role, item.text));
+  const turns: { users: TranscriptItem[]; rest: TranscriptItem[] }[] = [{ users: [], rest: [] }];
+  for (const item of items) {
+    const current = turns[turns.length - 1]!;
+    if (sent(item)) {
+      if (current.rest.length === 0 && current.users.length > 0) current.users.push(item);
+      else turns.push({ users: [item], rest: [] });
+    } else current.rest.push(item);
+  }
+  turns.forEach((turn, index) => {
+    const live = busy && index === turns.length - 1;
+    const isStopped = !live && turn.users.some((user) => stopped.has(turnOf(user)));
+    const callsTool = (item: TranscriptItem) => item.kind === "tool" || item.kind === "browser";
+    const texts = turn.rest.filter(
+      (item): item is Extract<TranscriptItem, { kind: "text" }> => item.kind === "text" && item.role === "assistant" && item.text.trim().length > 0,
+    );
+    let final: string | null = null;
+    texts.forEach((item, i) => {
+      const at = turn.rest.indexOf(item);
+      const toolAfter = turn.rest.slice(at + 1).some(callsTool);
+      if (i === texts.length - 1 && !live && !isStopped && !toolAfter) {
+        final = item.id;
+        tone.set(item.id, "final");
+      } else tone.set(item.id, i === 0 ? "lead" : "step");
+    });
+    if (final) for (const item of texts) if (tone.get(item.id) === "step") hidden.add(item.id);
+    const browsers = turn.rest.filter((item) => item.kind === "browser");
+    for (const item of browsers.slice(0, -1)) hidden.add(item.id);
+    if (isStopped) {
+      const visible = [...turn.users, ...turn.rest].filter((item) => !hidden.has(item.id));
+      stoppedAfter = visible[visible.length - 1]?.id ?? null;
+    }
+  });
+  return { tone, hidden, stoppedAfter };
 }
