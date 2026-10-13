@@ -191,6 +191,39 @@ export class LocalConversationClient {
     return { threadId: identity.threadId, runId: identity.runId };
   }
 
+  /**
+   * 进程启动时调用：本进程还没跑任何一轮，库里残留的线程锁都来自已经退出的进程（容器重启、更新换镜像、崩溃）。
+   * 不清掉的话，被打断的那个对话要等锁的 120 秒到期才能再发消息，期间每次发送都是 409「Thread already running」，
+   * 用户看到的就是「发消息没反应」。一个数据库只跑一个 ChisaBot 进程（compose 先停旧容器再起新的）；
+   * 多副本部署设 CHISABOT_RELEASE_LOCKS_ON_START=0 关掉。
+   */
+  async ɵreleaseOrphanedLocks(): Promise<{ threads: number; runs: number }> {
+    const runs = await this.store.database.$client.unsafe(
+      `UPDATE openbot_local_runs SET status = 'interrupted', finished_at = now()
+       WHERE status = 'running' RETURNING run_id`,
+    );
+    const threads = await this.store.database.$client.unsafe(
+      `UPDATE openbot_local_threads SET run_id = NULL, lock_expires_at = NULL
+       WHERE run_id IS NOT NULL RETURNING id`,
+    );
+    return { threads: threads.length, runs: runs.length };
+  }
+
+  /** 这个进程里没有对应的运行（上一个进程留下的锁）：按停止时直接释放，用户不用干等锁到期。 */
+  async ɵreleaseOrphanedLock(threadId: string, runId?: string): Promise<boolean> {
+    const rows = await this.store.database.$client.unsafe(
+      `UPDATE openbot_local_threads SET run_id = NULL, lock_expires_at = NULL
+       WHERE id = $1 AND run_id IS NOT NULL AND ($2::text IS NULL OR run_id = $2) RETURNING run_id`,
+      [threadId, runId ?? null],
+    );
+    if (rows.length === 0) return false;
+    await this.store.database.$client.unsafe(
+      `UPDATE openbot_local_runs SET status = 'interrupted', finished_at = now()
+       WHERE thread_id = $1 AND status = 'running'`, [threadId],
+    );
+    return true;
+  }
+
   async ɵcleanupThreadLock(identity: LeaseIdentity): Promise<void> {
     await this.store.database.$client.unsafe(
       `UPDATE openbot_local_threads SET run_id = NULL, lock_expires_at = NULL
@@ -408,7 +441,9 @@ class PostgresAgentRunner extends AgentRunner {
 
   async stop({ threadId, runId }: AgentRunnerStopRequest): Promise<boolean> {
     const entry = this.active.get(threadId);
-    if (!entry || entry.stopped || (runId !== undefined && entry.runId !== runId)) return false;
+    // 不在本进程里跑、库里却锁着：是重启前留下的孤儿锁，停止 = 释放它。
+    if (!entry) return await this.client.ɵreleaseOrphanedLock(threadId, runId);
+    if (entry.stopped || (runId !== undefined && entry.runId !== runId)) return false;
     entry.stopped = true;
     entry.agent.abortRun();
     await entry.agent.detachActiveRun();
@@ -446,6 +481,15 @@ export async function createLocalConversations(database: Database): Promise<Loca
   await database.$client.unsafe("CREATE INDEX IF NOT EXISTS openbot_local_threads_owner_updated ON openbot_local_threads(owner_user_id, updated_at DESC)");
   const store = new ConversationStore(database);
   const client = new LocalConversationClient(store);
+  if (process.env.CHISABOT_RELEASE_LOCKS_ON_START !== "0") {
+    try {
+      const released = await client.ɵreleaseOrphanedLocks();
+      if (released.threads || released.runs)
+        console.log(JSON.stringify({ type: "conversation-locks-released", ...released }));
+    } catch (error) {
+      console.warn("releasing orphaned conversation locks failed", error);
+    }
+  }
   /*
    * 输入框「上下文」读数（DESIGN.md §25）：最近一次带用量的 RUN_FINISHED；一条都没有就按消息文字粗估。
    * 只读一行（按 thread_id + sequence 索引倒序），不扫整张事件表。
