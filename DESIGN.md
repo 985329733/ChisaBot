@@ -675,6 +675,7 @@
 - **根因**：不是 JS，也不是网络——取消时没有任何请求，4× CPU 降速下主线程最长任务只有 ~15ms。卡在合成 / 光栅：弹窗卡片带 `backdrop-filter: saturate(160%) blur(22px)`，退出时一边缩放一边淡出，每一帧都要把卡片后面的整块画面重新模糊一次；全屏遮罩的 `blur(4px)` 随淡出逐帧重做，而且遮罩把 `backdrop-filter` 写进了 `transition-property`（非合成动画）。高分屏 / 核显上更明显。实测（4× CPU，生产数据只读）：退出期间 43fps、每次都有 50ms 的掉帧；去掉退出时的毛玻璃后 55fps、最长帧 33ms，点击到下一帧绘制 72–80ms → 48–56ms。
 - **规则**（`styles.css` 末尾 §37 段，所有 Dialog / Sheet 通用）：遮罩只过渡 `opacity`；进入 `data-ending-style`（取消、×、Esc、点遮罩四条路径完全一样）时，卡片、遮罩、抽屉立刻去掉 `backdrop-filter`，退出动画只剩 `transform` / `opacity`。卡片底色本身 0.86 不透明，160ms 淡出里看不出差别。不要再给遮罩加 `transition: backdrop-filter`，也不要做模糊程度的动画。
 - **关闭不重渲染内容**：新建机器人向导（`create-agent-dialog.tsx`）用 `memo` 包住，回调用 ref 固定身份——调用方每次渲染都传新的箭头函数，关闭会让调用方重渲染，以前连带整个向导重渲染一次。现在关闭只做退出动画，卸载在动画结束后。
+- **37.2 打开也一样**（2026-10-13 性能审计）：打开动画期间（遮罩 `--dur-2`、卡片 / 抽屉 `--dur-3`）不带 `backdrop-filter`，动画结束那一帧再加上——用只有 `backdrop-filter: none` 的离散 `@keyframes glass-hold`（`step-end`）「按住」，不改 JS、不加类名；减少动态效果时不按住。以前打开第一帧就要模糊整块背景、之后每帧随缩放 / 淡入重做，4× CPU 下点击到第一帧 450–800ms、主线程 0 JS。以后新加的弹层（Popover 以外带大面积毛玻璃的）也照这个做：动画期间不模糊，静止后再模糊。
 - **验证**：`tests/dialog-close/close-perf.mjs`（Playwright，4× CPU，四条关闭路径各量 N 次：点击→弹窗消失、最长帧间隔、fps、长任务、关闭期间的请求）。
 
 ## 38. 回答期间也能发消息 · 后台任务 · 任务卡片（2026-10-13）

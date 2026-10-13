@@ -5781,6 +5781,16 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 :is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="dialog-content"], [data-slot="sheet-content"])[data-ending-style] {
   backdrop-filter: none;
 }
+/* §37.2 开弹窗也不重算毛玻璃（2026-10-13，性能审计）：打开动画期间（遮罩 220ms / 卡片、抽屉 300ms）先不带 backdrop-filter，
+ * 动画结束那一帧再加上。以前打开的第一帧就要模糊整块背景、之后每一帧随缩放 / 淡入重做——4× CPU 下点击到第一帧 450–800ms，
+ * 主线程上 0 JS。用一段只有 backdrop-filter: none 的离散动画「按住」，动画结束后回到原值；不动 JS、不加类名。
+ * 卡片底色 0.86 不透明，毛玻璃晚 300ms 出现看不出来。减少动态效果时不按住（没有打开动画）。 */
+@keyframes glass-hold { from, to { backdrop-filter: none; } }
+:is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"])[data-open]:not([data-ending-style]) { animation: glass-hold var(--dur-2) step-end; }
+:is([data-slot="dialog-content"], [data-slot="sheet-content"])[data-open]:not([data-ending-style]) { animation: glass-hold var(--dur-3) step-end; }
+@media (prefers-reduced-motion: reduce) {
+  :is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="dialog-content"], [data-slot="sheet-content"])[data-open] { animation: none; }
+}
 
 /* ── 回答期间也能发消息 + 后台任务卡片（DESIGN.md §38，2026-10-13）──────────────────────── */
 /* 「已排队」气泡：和用户气泡同位置同圆角，淡一点、虚线描边；被读到时从这里消失、出现在记录里。 */
