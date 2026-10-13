@@ -22,7 +22,21 @@ sh deploy/start.sh
 
 主服务默认只监听 `127.0.0.1:3001`。公网使用需要继续配置 [HTTPS 登录网关](public/README.zh-CN.md)。网关保护下的后端沿用单管理员工作空间；不要将该单用户后端端口直接对外开放。
 
-`start.sh` 检查 `.env`、前端产物和 Compose 配置，创建共享模型网络，再构建并启动容器。`app/dist` 必须先构建；首次构建会拉取固定的上游基础镜像并安装锁定依赖。完整默认镜像名为 `local/chisabot:latest`，可通过 `CHISABOT_IMAGE` 修改。
+`start.sh` 检查 `.env`、前端产物和 Compose 配置，**安装或升级宿主机在线更新服务 `chisabot-updater`**（`install-updater.sh`，需要 root + systemd；不满足时只提示，照常启动），创建共享模型网络，再构建并启动容器。`app/dist` 必须先构建；首次构建会拉取固定的上游基础镜像并安装锁定依赖。完整默认镜像名为 `local/chisabot:latest`，可通过 `CHISABOT_IMAGE` 修改；镜像会记下来源提交（工作区没有未提交改动时），系统更新页据此显示落后多少个提交。
+
+## 在线更新（管理后台 → 系统更新）
+
+默认就装：`sudo sh deploy/start.sh` 会顺带运行 `deploy/install-updater.sh`，按这份部署生成 `/opt/chisabot-updater/config.env`（`COMPOSE_DIR` = 这个 `deploy/` 目录，`PUBLIC_HEALTH_URL` 取 `.env` 的 `CHISABOT_DOMAIN` + `CHISABOT_HTTPS_PORT`，`GITHUB_REPO` 取 git 远程，完整构建内存上限按本机内存），装好 systemd 服务，`compose.yaml` 已经带了两个挂载和 `CHISABOT_UPDATER_DIR`。之后在网页上点「检查更新」「一键更新」即可，第一次是完整构建（约 4–8 分钟），之后依赖不变的更新只替换代码（约 1–2 分钟）。不想装：`CHISABOT_UPDATER=off sh deploy/start.sh`。
+
+装了在线更新以后，镜像由它管理（`.env` 里 `CHISABOT_IMAGE=local/chisabot:auto-…`），再运行 `start.sh` 不会重新构建、只启动；一定要按当前检出重新构建：`CHISABOT_FORCE_BUILD=1 sh deploy/start.sh`。
+
+**老部署（2026-10-13 之前部署的，或跳过了在线更新那一步）**：系统更新页是空的 / 显示「未安装」，收不到新版本。在服务器上运行一次：
+
+```sh
+cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh
+```
+
+它安装（或升级）更新服务，并用**现在正在运行的镜像**重建一次容器挂上更新目录（不重新构建，断开十几秒）。只想看会做什么：`sh deploy/install-updater.sh --check`。详见 [在线更新](../docs/online-update.md)。
 
 ## Magpie
 

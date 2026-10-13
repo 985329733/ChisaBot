@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ChisaBot 宿主机更新程序（docs/online-update.md）。root 的 systemd 服务 chisabot-updater。
@@ -16,8 +16,14 @@ GITHUB_FETCH=off 时不联网，只读本机镜像（由发布者 git push 到�
 更新有两种（update.sh 自动选）：依赖没变 → 快速更新（只替换代码层）；依赖或底座变了 → 完整构建
 （仓库 Dockerfile 从头构建，限内存），请求里 "mode": "full" 可以强制完整构建。
 
-为了兼容 CentOS 7 自带的 python2.7 / git 1.8 写成这样；不依赖第三方包。
+python3（3.6+，在 3.12 上测试）和 python2.7 都能跑，不依赖第三方包：服务优先用 python3，没有（或太旧）时用
+python2（deploy/updater/install.sh 写进 systemd unit）。兼容 CentOS 7 的 python2.7 / git 1.8。
+自测：python3 deploy/updater/test_updater.py（python2 同样可以）。
+
+自升级：一次更新成功后 update.sh 用新提交里的 deploy/updater/install.sh --scripts-only 换掉本目录的脚本；
+这个进程发现自己的文件变了，等手上没有任务时重新 exec 自己（不需要 systemctl restart）。
 """
+import io
 import json
 import os
 import re
@@ -27,7 +33,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-U = "/opt/chisabot-updater"
+U = os.environ.get("CHISABOT_UPDATER_HOME") or "/opt/chisabot-updater"
 SPOOL = os.path.join(U, "spool")
 REQ = os.path.join(SPOOL, "requests")
 STATE_DIR = os.path.join(SPOOL, "state")
@@ -38,20 +44,34 @@ AUDIT = os.path.join(U, "audit.log")
 MIRROR = os.path.join(U, "mirror.git")
 TOKEN_FILE = os.path.join(U, "github-token")
 BASE_ENV = os.path.join(U, "base.env")
-VERSION = "2"
+# 和 server 的 SYSTEM_UPDATE_UPDATER_VERSION（shared/system-update.ts）一起改：页面据此提示「更新程序是旧版本」。
+VERSION = "3"
+PUBLIC_HEALTH_EXAMPLE = "chisabot.example.com"
+
+try:
+    TEXT_TYPES = (basestring,)  # noqa: F821  (python2)
+except NameError:
+    TEXT_TYPES = (str, bytes)
+PY2 = sys.version_info[0] == 2
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{6,64}\.json$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-CTRL_RE = re.compile(u"[\x00-\x08\x0b-\x1f\x7f]|\x1b\\[[0-9;]*[A-Za-z]")
+# ANSI 颜色序列要先整段去掉，否则只去掉 ESC、留下 "[31m"。
+CTRL_RE = re.compile(u"\x1b\\[[0-9;]*[A-Za-z]|[\x00-\x08\x0b-\x1f\x7f]")
 ACTIONS = ("check", "update", "rollback")
 
 CHECK_EVERY = 30 * 60
 REFRESH_EVERY = 30
 
 
+def utcnow():
+    """naive UTC datetime（datetime.utcnow 在 3.12 起弃用）。"""
+    return datetime(*time.gmtime()[:6])
+
+
 def now_iso():
-    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def load_config():
@@ -59,7 +79,7 @@ def load_config():
     cfg = {}
     for path in (os.path.join(U, "config.env"), BASE_ENV):
         try:
-            with open(path) as f:
+            with open_text(path) as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#") or "=" not in line:
@@ -72,7 +92,6 @@ def load_config():
     return cfg
 
 
-CFG = load_config()
 
 
 def run(args, timeout=60, env=None):
@@ -95,9 +114,9 @@ def git(*args):
 
 
 def clean(text, limit=400):
-    if not isinstance(text, basestring):
+    if not isinstance(text, TEXT_TYPES):
         return ""
-    if isinstance(text, str):
+    if isinstance(text, bytes):
         text = text.decode("utf-8", "replace")
     return CTRL_RE.sub(u"", text).strip()[:limit]
 
@@ -113,8 +132,26 @@ def write_json(path, data, mode=0o644):
 def audit(entry):
     entry = dict(entry)
     entry["at"] = now_iso()
-    with open(AUDIT, "a") as f:
-        f.write(json.dumps(entry, ensure_ascii=False).encode("utf-8") + "\n")
+    line = json.dumps(entry, ensure_ascii=False)
+    if not isinstance(line, bytes):
+        line = line.encode("utf-8")
+    with open(AUDIT, "ab") as f:
+        f.write(line + b"\n")
+
+
+def open_text(path):
+    """文本文件（config.env、compose 里有中文注释，请求里的名字可能是中文）：python3 下不受 locale 影响。"""
+    if PY2:
+        return open(path)
+    return io.open(path, encoding="utf-8", errors="replace")
+
+
+def read_text(path):
+    with io.open(path, "rb") as f:
+        return f.read().decode("utf-8", "replace")
+
+
+CFG = load_config()
 
 
 class Updater(object):
@@ -219,11 +256,17 @@ class Updater(object):
         if not cur:
             return None
         tag = cur["image"].split(":")[-1]
+        # deploy/start.sh 部署（env 模式，见 compose-image.sh）：上一版镜像名记在 .image.before-<标签>。
+        image_file = os.path.join(CFG["COMPOSE_DIR"], ".image.before-%s" % tag)
         before = os.path.join(CFG["COMPOSE_DIR"], "%s.before-%s" % (CFG["COMPOSE_FILE"], tag))
+        pattern = r"^    image: (%s:[A-Za-z0-9._-]+)\s*$" % re.escape(CFG["IMAGE_REPO"])
+        if os.path.exists(image_file):
+            before = image_file
+            pattern = r"^(%s:[A-Za-z0-9._-]+)\s*$" % re.escape(CFG["IMAGE_REPO"])
         try:
-            with open(before) as f:
+            with open_text(before) as f:
                 for line in f:
-                    m = re.match(r"^    image: (%s:[A-Za-z0-9._-]+)\s*$" % re.escape(CFG["IMAGE_REPO"]), line)
+                    m = re.match(pattern, line)
                     if m:
                         prev = {"image": m.group(1)}
                         code, commit = run(["docker", "image", "inspect", "-f", '{{index .Config.Labels "chisabot.commit"}}', prev["image"]], timeout=20)
@@ -283,7 +326,9 @@ class Updater(object):
         except IOError:
             base = ""
         reason = None
-        if code == 0 and fp.strip() != base:
+        if not base:
+            reason = u"这台服务器还没有快速更新用的底座（第一次一键更新），完整构建一次之后，依赖不变的更新只替换代码"
+        elif code == 0 and fp.strip() != base:
             reason = u"这些提交改动了依赖（bun.lock / package.json）、Dockerfile 或 docker/"
         else:
             image = CFG.get("BASE_IMAGE", "")
@@ -296,6 +341,20 @@ class Updater(object):
             return main, latest, items, u"当前镜像没有记录来源提交，完整构建一次之后就能按提交快速更新", behind
         deps_changed = bool(behind) and reason is not None
         return main, latest, items, (reason if deps_changed else None), behind
+
+    def warnings(self):
+        """配置上的问题（页面显示成提示，不阻止更新）。只给代号，文字在前端。"""
+        out = []
+        url = CFG.get("PUBLIC_HEALTH_URL", "")
+        if not url:
+            out.append("health_url_missing")
+        elif PUBLIC_HEALTH_EXAMPLE in url:
+            out.append("health_url_example")
+        if not os.path.isfile(os.path.join(CFG.get("COMPOSE_DIR", "/nonexistent"), CFG.get("COMPOSE_FILE", "compose.yaml"))):
+            out.append("compose_missing")
+        if run(["docker", "buildx", "version"], timeout=20)[0] != 0:
+            out.append("buildx_missing")
+        return out
 
     def refresh(self):
         cur = self.current()
@@ -310,6 +369,7 @@ class Updater(object):
                 "behind": behind,
                 "depsChanged": bool(deps),
                 "fullReason": deps,
+                "warnings": self.warnings(),
             }
             if cur and cur.get("commit") and main == cur["commit"]:
                 self.snapshot["behind"] = 0
@@ -332,6 +392,8 @@ class Updater(object):
                 "commits": snap.get("commits") or [],
                 "depsChanged": bool(snap.get("depsChanged")),
                 "fullReason": snap.get("fullReason"),
+                "warnings": snap.get("warnings") or [],
+                "python": "%d.%d" % sys.version_info[:2],
                 "estimates": self.estimates(),
                 "externalBusy": bool(snap.get("externalBusy")),
                 "job": job,
@@ -360,7 +422,7 @@ class Updater(object):
             try:
                 if os.path.getsize(path) > 4096:
                     raise ValueError("too big")
-                with open(path) as f:
+                with open_text(path) as f:
                     req = json.load(f)
             except (IOError, OSError, ValueError):
                 req = None
@@ -450,8 +512,7 @@ class Updater(object):
             return
         path = os.path.join(JOBS, job["id"] + ".log")
         try:
-            with open(path) as f:
-                lines = f.read().decode("utf-8", "replace").splitlines()
+            lines = read_text(path).splitlines()
         except IOError:
             lines = []
         result = None
@@ -505,7 +566,7 @@ class Updater(object):
             if not job.get("durationSec"):
                 try:
                     started = datetime.strptime(job["startedAt"], "%Y-%m-%dT%H:%M:%SZ")
-                    job["durationSec"] = int((datetime.utcnow() - started).total_seconds())
+                    job["durationSec"] = int((utcnow() - started).total_seconds())
                 except (KeyError, ValueError):
                     pass
             if job["status"] == "succeeded":
@@ -518,6 +579,14 @@ class Updater(object):
         else:
             self.write_state()
 
+    def upgraded(self):
+        """自己的文件被 install.sh 换掉了（自升级）而且手上没有任务：该重新 exec 了。"""
+        try:
+            stamp = os.stat(SELF).st_mtime
+        except OSError:
+            return False
+        return stamp != SELF_MTIME and not self.busy() and self.child is None and not self.checking
+
     def loop(self):
         for d in (REQ, STATE_DIR, JOBS):
             if not os.path.isdir(d):
@@ -525,6 +594,10 @@ class Updater(object):
         self.start_check()
         while True:
             try:
+                if self.upgraded():
+                    sys.stderr.write("chisabot-updater: scripts upgraded, re-exec\n")
+                    sys.stderr.flush()
+                    os.execv(sys.executable, [sys.executable, SELF] + sys.argv[1:])
                 self.take_requests()
                 self.poll_job()
                 if time.time() - self.last_check > CHECK_EVERY:
@@ -536,6 +609,13 @@ class Updater(object):
                 sys.stderr.flush()
                 time.sleep(5)
             time.sleep(2)
+
+
+SELF = os.path.abspath(__file__)
+try:
+    SELF_MTIME = os.stat(SELF).st_mtime
+except OSError:
+    SELF_MTIME = None
 
 
 if __name__ == "__main__":

@@ -18,7 +18,9 @@ MODE=""
 case "$ACTION" in
   check|update|rollback) ;;
   status)
-    python3 - "$STATE" <<'PY' 2>/dev/null || cat "$STATE"
+    PY=$(command -v python3 || command -v python2 || echo false)
+    "$PY" - "$STATE" <<'PY' 2>/dev/null || cat "$STATE"
+from __future__ import print_function
 import json, sys
 s = json.load(open(sys.argv[1]))
 j = s.get("job") or {}

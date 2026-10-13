@@ -5,6 +5,8 @@
 set -uo pipefail
 U=/opt/chisabot-updater
 . "$U/config.env"
+# shellcheck source=compose-image.sh
+. "$U/compose-image.sh"
 JOB=""
 [ "${1:-}" = "--job" ] && JOB="${2:-}"
 RESULT=failed
@@ -19,9 +21,8 @@ step prepare "准备回滚"
 CUR_IMAGE=$(docker inspect -f '{{.Config.Image}}' "$CONTAINER" 2>/dev/null) || fail "找不到容器 $CONTAINER"
 CUR_TAG=${CUR_IMAGE##*:}
 BEFORE="$COMPOSE_DIR/$COMPOSE_FILE.before-$CUR_TAG"
-[ -f "$BEFORE" ] || fail "没有 $CUR_TAG 上线前的 compose，无法确定上一版"
-PREV=$(sed -n "s#^    image: \($IMAGE_REPO:[A-Za-z0-9._-]*\)\$#\1#p" "$BEFORE" | head -n 1)
-[ -n "$PREV" ] || fail "上一版 compose 里没有镜像"
+PREV=$(previous_image "$CUR_TAG")
+[ -n "$PREV" ] || fail "没有 $CUR_TAG 上线前的记录（compose.before / .image.before），无法确定上一版"
 docker image inspect "$PREV" >/dev/null 2>&1 || fail "上一版镜像 $PREV 已经不在了"
 echo "::from:: $CUR_IMAGE"
 echo "::to:: $PREV"
@@ -32,9 +33,13 @@ step swap "切换到 $PREV"
   cd "$COMPOSE_DIR" || exit 1
   exec 8>.deploy.lock
   flock -w 60 8 || exit 1
-  cp -p "$COMPOSE_FILE" "$COMPOSE_FILE.rolledback-$CUR_TAG-$(date -u +%Y%m%dT%H%M%SZ)"
-  cp -p "$BEFORE" "$COMPOSE_FILE"
-  grep -q "image: $PREV\$" "$COMPOSE_FILE" || exit 1
+  if [ "$(image_mode)" = env ]; then
+    set_image "$PREV" || exit 1
+  else
+    cp -p "$COMPOSE_FILE" "$COMPOSE_FILE.rolledback-$CUR_TAG-$(date -u +%Y%m%dT%H%M%SZ)"
+    cp -p "$BEFORE" "$COMPOSE_FILE"
+    grep -q "image: $PREV\$" "$COMPOSE_FILE" || exit 1
+  fi
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --no-deps --pull never --wait --wait-timeout 180 "$SERVICE"
 ) || fail "切换失败（compose 已改回上一版，请检查容器）"
 

@@ -31,6 +31,9 @@ U=/opt/chisabot-updater
 # 完整构建上线后写的底座（覆盖 config.env 里的 BASE_IMAGE / NODE_MODULES_BASE）。
 # shellcheck source=/dev/null
 [ -f "$U/base.env" ] && . "$U/base.env"
+# shellcheck source=compose-image.sh
+. "$U/compose-image.sh"
+IMAGE_MODE=$(image_mode)
 FULL_BUILD_MEMORY=${FULL_BUILD_MEMORY:-6g}
 FULL_BUILDER=${FULL_BUILDER:-chisabot-builder}
 # 同时跑的构建步骤数：冷缓存时多个阶段会并行（apt、bun install、vite），一起超过内存上限。
@@ -294,10 +297,17 @@ echo "::rollback:: $RB"
   cd "$COMPOSE_DIR" || exit 1
   exec 8>.deploy.lock
   flock -w 60 8 || { echo "拿不到 $COMPOSE_DIR/.deploy.lock"; exit 1; }
-  cp -p "$COMPOSE_FILE" "$COMPOSE_FILE.before-$TAG"
-  sed -i "s#^\(    image: \)$IMAGE_REPO:[A-Za-z0-9._-]*#\1$NEW_IMAGE#" "$COMPOSE_FILE"
-  grep -q "image: $NEW_IMAGE\$" "$COMPOSE_FILE" || { cp -p "$COMPOSE_FILE.before-$TAG" "$COMPOSE_FILE"; echo "compose 里没有找到镜像行"; exit 1; }
-  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" config --quiet || { cp -p "$COMPOSE_FILE.before-$TAG" "$COMPOSE_FILE"; exit 1; }
+  if [ "$IMAGE_MODE" = env ]; then
+    # 仓库自带的 compose.yaml 不改，镜像写进同目录 .env 的 CHISABOT_IMAGE。
+    echo "$CUR_IMAGE" > ".image.before-$TAG"
+    restore() { set_image "$CUR_IMAGE"; }
+    set_image "$NEW_IMAGE" || { restore; echo "无法把 CHISABOT_IMAGE 写进 $COMPOSE_DIR/.env"; exit 1; }
+  else
+    cp -p "$COMPOSE_FILE" "$COMPOSE_FILE.before-$TAG"
+    restore() { cp -p "$COMPOSE_FILE.before-$TAG" "$COMPOSE_FILE"; }
+    set_image "$NEW_IMAGE" || { restore; echo "compose 里没有找到镜像行"; exit 1; }
+  fi
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" config --quiet || { restore; exit 1; }
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --no-deps --pull never --wait --wait-timeout 240 "$SERVICE"
 )
 SWAP=$?
@@ -340,6 +350,22 @@ if [ "$MODE" = full ]; then
   fi
   docker buildx prune --builder "$FULL_BUILDER" -f --max-used-space "$BUILD_CACHE_MAX" >/dev/null 2>&1 \
     || docker buildx prune --builder "$FULL_BUILDER" -f --keep-storage "$BUILD_CACHE_MAX" >/dev/null 2>&1 || true
+fi
+# 更新程序自己也跟着升级（新提交里的 deploy/updater/）：只换脚本，守护进程空闲时自动重新加载。失败不影响这次更新。
+if [ -f "$B/src/deploy/updater/install.sh" ]; then
+  if bash "$B/src/deploy/updater/install.sh" --scripts-only 2>&1 | sed 's/^/更新程序 | /'; then :; fi
+fi
+# deploy/start.sh 部署的（env 模式）：仓库检出没有本地改动、能快进时快进到这次的提交，和正在运行的版本保持一致
+# （下次手动 start.sh 用的 compose.yaml 也是新的）。归 root 的检出才动，失败只记一行。
+REPO_DIR=$(dirname "$COMPOSE_DIR")
+if [ "$IMAGE_MODE" = env ] && [ -d "$REPO_DIR/.git" ] && [ "$(stat -c %u "$REPO_DIR")" = 0 ]; then
+  if [ -z "$(git -C "$REPO_DIR" status --porcelain --untracked-files=no 2>/dev/null)" ] \
+    && git -C "$REPO_DIR" fetch -q "$U/mirror.git" "$TARGET" 2>/dev/null \
+    && git -C "$REPO_DIR" merge -q --ff-only "$TARGET" >/dev/null 2>&1; then
+    echo "仓库 $REPO_DIR 已快进到 ${TARGET:0:7}"
+  else
+    echo "（仓库 $REPO_DIR 有本地改动或不能快进，没有同步；需要时手动 git pull）"
+  fi
 fi
 step done "完成：$NEW_IMAGE 已上线（用时 $(( $(date +%s) - START_TS )) 秒）"
 echo "::duration:: $(( $(date +%s) - START_TS ))"

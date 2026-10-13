@@ -8,7 +8,9 @@ import {
   IconHistory,
   IconPackage,
   IconServer,
+  IconAlertTriangle,
   IconStethoscope,
+  IconTool,
   IconX,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +20,10 @@ import {
   DEFAULT_UPDATE_ESTIMATE_SEC,
   estimateText,
   FULL_UPDATE_STEPS,
+  installUpdaterCommand,
   ROLLBACK_STEPS,
+  SYSTEM_UPDATE_UPDATER_VERSION,
+  type SystemUpdateWarning,
   type SystemUpdateHistoryEntry,
   type SystemUpdateJob,
   type SystemUpdateOverview,
@@ -27,6 +32,7 @@ import {
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Card, EmptyState, ErrorCard, SettingRow, StatTile } from "@/components/ui/skyglass";
 import {
@@ -198,23 +204,39 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
 
   if (!data.configured) {
     return (
-      <EmptyState
-        description="这个部署没有挂载宿主机更新程序的目录（CHISABOT_UPDATER_DIR）。安装方法见 docs/online-update.md。"
-        icon={<IconServer className="size-6" />}
-        title="宿主机更新程序未安装"
+      <UpdaterSetupCard
+        command={installUpdaterCommand(data.sourceDir)}
+        description="这个部署还没装宿主机更新服务（较早部署的、或部署时跳过了这一步），所以这里收不到新版本。在服务器上运行一次下面的命令：拉取最新代码、安装更新服务、给容器挂上更新目录（用现在的镜像重建一次容器，断开十几秒，不重新构建）。之后回到这一页就能检查和一键更新。"
+        title="还没装宿主机更新服务"
       />
     );
   }
 
   return (
     <>
-      {!data.updaterOnline ? (
-        <ErrorCard
-          className="mt-2"
-          description={`宿主机上的 chisabot-updater 服务${data.updatedAt ? `从 ${timeText(data.updatedAt)} 起` : ""}没有回应，暂时不能更新或回滚。请在服务器上运行 systemctl status chisabot-updater 查看。`}
+      {!data.updatedAt ? (
+        <UpdaterSetupCard
+          command={installUpdaterCommand(data.sourceDir)}
+          description="容器已经挂好了更新目录，但宿主机上的更新服务 chisabot-updater 从来没有运行过（没装，或装失败了）。在服务器上运行一次下面的命令安装它，大约一分钟后这一页会自动变成可用。"
+          title="宿主机更新服务没有安装"
+        />
+      ) : !data.updaterOnline ? (
+        <UpdaterSetupCard
+          command="sudo systemctl restart chisabot-updater && systemctl --no-pager status chisabot-updater"
+          description={`宿主机上的 chisabot-updater 服务从 ${timeText(data.updatedAt)} 起没有回应，暂时不能更新或回滚。先在服务器上重启它；还是不行，就用「${installUpdaterCommand(data.sourceDir)}」重新安装。`}
           title="更新程序离线"
+          tone="danger"
+        />
+      ) : data.updaterOutdated ? (
+        <UpdaterSetupCard
+          command={installUpdaterCommand(data.sourceDir)}
+          description={`服务器上的更新程序是 v${data.updaterVersion ?? 1}，这一版页面需要 v${SYSTEM_UPDATE_UPDATER_VERSION}。旧版还能更新，但不会自己升级，也看不到配置问题。在服务器上运行一次下面的命令升级（不重建容器、不中断服务）；以后每次更新成功后它会自动跟着升级。`}
+          title="更新程序是旧版本"
         />
       ) : null}
+      {data.warnings.map((code) => (
+        <WarningNote code={code} key={code} />
+      ))}
       <div className="magpie-stats">
         <StatTile
           delta={data.running.builtAt ? `构建于 ${timeText(data.running.builtAt)}` : undefined}
@@ -458,6 +480,70 @@ function useElapsed(startedAt: string | undefined, running: boolean) {
   }, [running]);
   const started = startedAt ? Date.parse(startedAt) : Number.NaN;
   return running && Number.isFinite(started) ? Math.max(0, (now - started) / 1000) : undefined;
+}
+
+/** 没装 / 离线 / 旧版本：一句话说明 + 在服务器上要运行的那一行命令（可复制）。 */
+function UpdaterSetupCard({
+  title,
+  description,
+  command,
+  tone = "warn",
+}: {
+  title: string;
+  description: string;
+  command: string;
+  tone?: "warn" | "danger";
+}) {
+  return (
+    <Card className={cn("sysupd-note sysupd-setup mt-2", tone === "danger" ? "is-danger" : "is-full")} role="status">
+      <span className="sysupd-note-ic" aria-hidden>
+        <IconTool className="size-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h4>{title}</h4>
+        <p>{description}</p>
+        <div className="sysupd-cmd">
+          <code className="sysupd-mono">{command}</code>
+          <CopyButton size="sm" value={command} variant="outline" />
+        </div>
+        <p className="sysupd-note-meta">{"需要 root（sudo）、systemd、Docker、python3。详见 docs/online-update.md「老部署怎么升级到可一键更新」。"}</p>
+      </div>
+    </Card>
+  );
+}
+
+const WARNING_TEXT: Record<SystemUpdateWarning, { title: string; body: string }> = {
+  health_url_example: {
+    title: "健康检查地址还是示例域名",
+    body: "/opt/chisabot-updater/config.env 的 PUBLIC_HEALTH_URL 还是 chisabot.example.com，公网登录页检查被跳过。改成自己的 https://<域名>:<端口>/login（或在 deploy/.env 填好 CHISABOT_DOMAIN 后运行 sudo sh deploy/install-updater.sh 自动改）。",
+  },
+  health_url_missing: {
+    title: "没有配置健康检查地址",
+    body: "PUBLIC_HEALTH_URL 为空，更新后只检查本机，不检查公网登录页。配好 HTTPS 网关后在 deploy/.env 填 CHISABOT_DOMAIN / CHISABOT_HTTPS_PORT，再运行 sudo sh deploy/install-updater.sh。",
+  },
+  compose_missing: {
+    title: "找不到 compose 文件",
+    body: "config.env 的 COMPOSE_DIR / COMPOSE_FILE 指向的文件不存在，更新会在切换这一步失败。改成实际部署的目录（deploy/start.sh 部署的就是仓库的 deploy/ 目录）。",
+  },
+  buildx_missing: {
+    title: "宿主机没有 docker buildx",
+    body: "完整构建要用 Docker 的 buildx 插件（Debian/Ubuntu：apt install docker-buildx-plugin）。没有它只能做快速更新。",
+  },
+};
+
+function WarningNote({ code }: { code: SystemUpdateWarning }) {
+  const text = WARNING_TEXT[code];
+  return (
+    <Card className="sysupd-note is-full mt-2" role="note">
+      <span className="sysupd-note-ic" aria-hidden>
+        <IconAlertTriangle className="size-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h4>{text.title}</h4>
+        <p>{text.body}</p>
+      </div>
+    </Card>
+  );
 }
 
 function JobCard({

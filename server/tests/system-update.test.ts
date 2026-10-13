@@ -151,3 +151,27 @@ test("routes: admins only, no-store, audit rows for update requests", async () =
   expect(again.status).toBe(409);
   expect(audits).toHaveLength(2);
 });
+
+test("updater not installed yet / old / misconfigured: overview says so, request write failure is a 503", () => {
+  // Docker created the mounted directories itself (no host updater): no state, requests dir not writable.
+  const empty = spool();
+  const none = createSystemUpdateService({ dir: empty, sourceDir: "/srv/chisabot", running, now: () => NOW });
+  const view = none.overview();
+  expect(view).toMatchObject({ configured: true, updaterOnline: false, updaterOutdated: false, sourceDir: "/srv/chisabot" });
+  expect(view.updatedAt).toBeUndefined();
+  rmSync(path.join(empty, "requests"), { recursive: true });
+  writeFileSync(path.join(empty, "requests"), "not a directory");
+  expect(none.request("check", { id: "u" })).toEqual({ error: "无法写入更新请求：宿主机更新服务没有安装好。", status: 503 });
+
+  const old = createSystemUpdateService({ dir: spool({ ...fresh, updaterVersion: "2" }), running, now: () => NOW });
+  expect(old.overview()).toMatchObject({ updaterVersion: 2, updaterOutdated: true, warnings: [] });
+  const current = createSystemUpdateService({
+    dir: spool({ ...fresh, updaterVersion: "3", warnings: ["health_url_example", "rm -rf /", "buildx_missing"] }),
+    sourceDir: "../../etc; rm",
+    running,
+    now: () => NOW,
+  });
+  const ok = current.overview();
+  expect(ok).toMatchObject({ updaterVersion: 3, updaterOutdated: false, warnings: ["health_url_example", "buildx_missing"] });
+  expect(ok.sourceDir).toBeUndefined();
+});

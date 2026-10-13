@@ -1,5 +1,5 @@
 #!/bin/bash
-# 健康检查（docs/online-update.md）：容器 healthy、没有重启、本机 /health 200、公网登录页 200，
+# 健康检查（docs/online-update.md）：容器 healthy、没有重启、本机 /health 200、公网登录页 200（PUBLIC_HEALTH_URL 为空或是示例域名时跳过），
 # 给了构建号时 /api/version 必须是这一版。用法：health.sh <镜像> [构建号]
 set -uo pipefail
 . /opt/chisabot-updater/config.env
@@ -20,9 +20,16 @@ H=$(docker inspect -f '{{.State.Health.Status}}' "$CONTAINER")
 C=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$LOCAL_URL/health")
 echo "本机 /health $C"
 [ "$C" = 200 ] || exit 1
-P=$(curl -ks -o /dev/null -w '%{http_code}' --max-time 15 "$PUBLIC_HEALTH_URL")
-echo "公网 $PUBLIC_HEALTH_URL $P"
-[ "$P" = 200 ] || exit 1
+case "${PUBLIC_HEALTH_URL:-}" in
+  "")
+    echo "PUBLIC_HEALTH_URL 没有配置：跳过公网登录页检查（配好 HTTPS 网关后在 /opt/chisabot-updater/config.env 填上）" ;;
+  *chisabot.example.com*)
+    echo "PUBLIC_HEALTH_URL 还是示例域名 chisabot.example.com：跳过公网登录页检查（改成自己的 https://<域名>:<端口>/login）" ;;
+  *)
+    P=$(curl -ks -o /dev/null -w '%{http_code}' --max-time 15 "$PUBLIC_HEALTH_URL")
+    echo "公网 $PUBLIC_HEALTH_URL $P"
+    [ "$P" = 200 ] || exit 1 ;;
+esac
 if [ -n "$TAG" ]; then
   V=$(curl -s --max-time 10 "$LOCAL_URL/api/version")
   echo "/api/version $V"

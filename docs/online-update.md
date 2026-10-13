@@ -67,7 +67,7 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
              ▼                                      ▲
    /opt/chisabot-updater/spool/requests     /opt/chisabot-updater/spool/state
              │                                      │
-             └──▶ chisabot-updater（宿主机 root，systemd，python2）──▶ update.sh / rollback.sh
+             └──▶ chisabot-updater（宿主机 root，systemd，python3 / python2.7）──▶ update.sh / rollback.sh
 ```
 
 - 容器只能放三种请求：`check`、`update`、`rollback`。宿主机只认这三种动作，请求里的字符串从不执行；`update` 只能更新到
@@ -113,7 +113,7 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
      `examples/zh-CN`、`agent-computer/src`（服务器直接 import 它的 `egress.ts`）、`build-info.json`，层数固定，不会碰到 127 层上限；标签 `auto-<UTC 时间>-<提交>`，标签
      `chisabot.commit` 记录提交；
   6. 切换：写回滚脚本 `/opt/openbot-zh/rollback-to-<旧标签>.sh`，`compose.yaml.before-<新标签>`，改镜像行，`docker compose up --wait`；
-  7. 健康检查（`health.sh`）：容器 healthy、20 秒内没有重启、本机 `/health` 200、`PUBLIC_HEALTH_URL`（公网登录页）200、
+  7. 健康检查（`health.sh`）：容器 healthy、20 秒内没有重启、本机 `/health` 200、`PUBLIC_HEALTH_URL`（公网登录页）200（为空或示例域名时跳过）、
      `/api/version` 的构建号是新的；最后做一次模型往返自检（`POST /api/admin/smoke`，见 `docs/admin-smoke.md`，不写任何对话），
      结果只记进日志、不影响通过与否；**不通过就自动执行回滚脚本**，任务记为「已自动回滚」；
   8. 完成：只保留最近 3 个 `auto-*` 镜像（正在用的、上一版 = 回滚目标、底座都不删），`docker image prune`。
@@ -126,28 +126,90 @@ GitHub Release（通用版）。配置了仓库变量 `CHISABOT_SERVER_URL` / `C
 - 手动：`request.sh update [--full]`（排队，页面可见）；演练 `update.sh --job manual-xxxx --target <sha> [--full] --dry-run`
   （备份 + 构建，在切换前停下）、`--build-only --tag <标签>`（只构建镜像，供手动发布）。
 
-### 安装（一次）
+### 安装（默认自动）
 
-需要 Docker Engine + Compose v2 + **buildx 插件**（`docker buildx version`）、git、python2、flock。
+需要 root、systemd、Docker Engine + Compose v2 + **buildx 插件**（`docker buildx version`）、git、flock、curl，以及 **python3（3.6+）**——
+Ubuntu 24.04 等只有 python3 的系统直接可用；没有可用 python3 的老系统（CentOS 7）退回 python2.7。`install.sh` 先找 python3、再找 python2，
+把找到的解释器写进 systemd unit（老 unit 写死 `/usr/bin/python2` 的，重新运行会改成 python3）。自测：`python3 deploy/updater/test_updater.py`
+（`bun test server/tests/updater-python.test.ts` 会用本机有的 python3 / python2 各跑一次）。
+
+`deploy/start.sh` 每次都会运行 **`deploy/install-updater.sh`**（`--no-recreate --quiet`），没装或旧了就装 / 升级，所以按 README 部署的
+服务器默认就有在线更新。它是幂等的，也可以单独运行：
 
 ```sh
-# 宿主机 root，在仓库的 deploy/updater/ 下
-vi config.env        # 先改 COMPOSE_DIR、PUBLIC_HEALTH_URL、GITHUB_REPO（自己的 fork）、FULL_BUILD_MEMORY 等；install.sh 只在第一次复制它
-bash install.sh      # 建 /opt/chisabot-updater、从 GitHub 拉 main 到 mirror.git、装并启动 systemd 服务
+sudo sh deploy/install-updater.sh            # 安装或升级（已是最新时什么也不做）
+sh deploy/install-updater.sh --check         # 只检查：打印会做什么，需要安装 / 升级时退出码 10，不改任何东西
 ```
 
-全新安装没有快速更新的底座：第一次在 系统更新 页点「一键完整更新」就是用仓库 Dockerfile 完整构建，之后自动有底座。
-已经有压平底座的老部署：`bash install.sh <底座对应的提交>`（写 `base-deps.sha256`，`NODE_MODULES_BASE` 放一份与 bun.lock 一致的 node_modules）。
+- **没装过**：按这份部署生成 `/opt/chisabot-updater/config.env`（以 `deploy/updater/config.env` 为模板）：`COMPOSE_DIR` = 仓库的 `deploy/`、
+  `PUBLIC_HEALTH_URL` = `deploy/.env` 的 `CHISABOT_DOMAIN` + `CHISABOT_HTTPS_PORT`（443 不写端口；没填域名时留空 = 健康检查跳过公网登录页）、
+  `GITHUB_REPO` = `git remote get-url origin` 里的 GitHub owner/repo、`FULL_BUILD_MEMORY` / `FULL_BUILD_PARALLELISM` 按物理内存（≥ 7.5 GB：6g / 2；
+  更小：内存 − 1.5 GB、并行 1）。然后运行 `deploy/updater/install.sh`：脚本、`mirror.git`（从 GitHub 拉 main）、spool 权限、systemd 服务。
+- **装过**：脚本或 unit 和仓库里的不一样就升级（先 `bash -n` / 编译检查，写临时文件再改名，正在跑的 update.sh 不受影响）。`config.env` 只改一处：
+  `PUBLIC_HEALTH_URL` 是空的或还是示例域名 `chisabot.example.com`、而 `deploy/.env` 里有真实域名时改成真实的（原文件备份 `config.env.bak-*`）。
+  有更新正在进行时拒绝运行。
+- **容器没挂更新目录**（老 compose / 老容器）：`COMPOSE_DIR` 就是这个 `deploy/` 时，把 `.env` 的 `CHISABOT_IMAGE` 设成**正在运行的镜像**，
+  用它重建一次容器（`up --no-build`，断开十几秒）；`COMPOSE_DIR` 是别的目录（手写 compose，例如 `/opt/openbot-zh`）时只打印要加的几行。
+- 前置条件不满足（不是 root、没有 systemd、没有 Python）时给出明确的一句话并退出（非 0）；`start.sh` 里只是提示，照常启动。
 
-compose（`/opt/openbot-zh/compose.yaml`）的 openbot 服务加：
+仓库的 `deploy/compose.yaml` 自带：
 
 ```yaml
     volumes:
-      - /opt/chisabot-updater/spool/requests:/var/lib/chisabot-updater/requests
-      - /opt/chisabot-updater/spool/state:/var/lib/chisabot-updater/state:ro
+      - ${CHISABOT_UPDATER_HOME:-/opt/chisabot-updater}/spool/requests:/var/lib/chisabot-updater/requests
+      - ${CHISABOT_UPDATER_HOME:-/opt/chisabot-updater}/spool/state:/var/lib/chisabot-updater/state:ro
     environment:
       CHISABOT_UPDATER_DIR: /var/lib/chisabot-updater
 ```
+
+没装更新服务时这两个目录由 Docker 建（root 所有、空的），页面显示「宿主机更新服务没有安装」和安装命令，请求写不进去时返回 503。
+
+**两种 compose（`deploy/updater/compose-image.sh`）**：
+
+- **env 模式**（`deploy/start.sh` 部署：compose 写的是 `image: ${CHISABOT_IMAGE:-…}`）：仓库里的 `compose.yaml` 从不修改，切换 = 改
+  同目录 `.env` 的 `CHISABOT_IMAGE`，上一版记在 `deploy/.image.before-<新标签>`；更新成功后，仓库检出（root 所有、没有本地改动、能快进时）
+  快进到这次的提交，下次手动 `start.sh` 用的也是新代码。装了在线更新后 `start.sh` 看到 `CHISABOT_IMAGE` 是 `auto-*` 就不再构建、只启动
+  （否则会用 `Dockerfile.zh` 覆盖同名标签）；`CHISABOT_FORCE_BUILD=1` 强制按当前检出构建 `local/chisabot:latest`。
+- **compose 模式**（手写 compose，`image: local/chisabot:<标签>` 写死）：和以前一样改这一行，留 `compose.yaml.before-<新标签>`。
+
+**镜像的来源提交**：`start.sh` 构建 `Dockerfile.zh` 时传 `CHISABOT_COMMIT`（工作区没有未提交改动时）等，镜像里有 `/app/build-info.json`
+和 `chisabot.commit` 标签，系统更新页能显示当前提交和落后多少个提交。它不是快速更新的底座（底座要和仓库根 `Dockerfile` 的依赖一致），
+所以**第一次一键更新仍是完整构建**，页面写明原因；之后依赖不变的更新走快速更新。
+
+**健康检查地址**：`PUBLIC_HEALTH_URL` 为空或还是示例域名时 `health.sh` 跳过公网登录页检查（日志里写明），不会因为它把好好的新版本回滚掉；
+页面上显示提示，教你改。
+
+**自升级**：一次更新成功后，`update.sh` 运行新提交里的 `deploy/updater/install.sh --scripts-only`：只换 `/opt/chisabot-updater/` 下的脚本
+和 unit（不碰 config.env、mirror、compose），守护进程发现自己的文件变了、手上没有任务时重新 exec 自己。装了 v3 以后更新服务跟着仓库走，
+不用再手动升级。v3 之前的更新程序没有这个钩子，要手动运行一次 `sudo sh deploy/install-updater.sh`（页面会提示「更新程序是旧版本」）。
+（unit 换了解释器时 `--scripts-only` 只 daemon-reload，下次服务重启才生效；`install-updater.sh` 会直接重启。）
+
+**页面上的几种状态**（管理后台 → 系统更新）：
+
+| 状态 | 原因 | 页面给的命令 |
+| --- | --- | --- |
+| 还没装宿主机更新服务 | 容器没有 `CHISABOT_UPDATER_DIR`（老 compose） | `cd <仓库> && git pull && sudo sh deploy/install-updater.sh` |
+| 宿主机更新服务没有安装 | 挂了目录，但 state.json 从没写过 | 同上 |
+| 更新程序离线 | state.json 超过 2 分钟没更新 | `sudo systemctl restart chisabot-updater`，不行再重装 |
+| 更新程序是旧版本 | state.json 的 `updaterVersion` < 3 | 同第一行（不重建容器） |
+| 配置提示 | `warnings`：`health_url_example` / `health_url_missing` / `compose_missing` / `buildx_missing` | 说明怎么改 |
+
+`<仓库>` 取容器环境变量 `CHISABOT_SOURCE_DIR`（`start.sh` 写进 `deploy/.env`），没有就按 README 的 `/opt/chisabot-src`。
+
+### 老部署怎么升级到可一键更新
+
+2026-10-13 之前部署的服务器（当时在线更新是可选的第 7 步）多半没装更新服务，系统更新页是空的、收不到更新。在服务器上运行一次：
+
+```sh
+cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh
+```
+
+然后 管理后台 → 系统更新 →「检查更新」→「一键完整更新」（第一次完整构建，约 4–8 分钟；小内存机器更久，先加 swap）。
+已经装了旧版更新程序的（页面显示「更新程序是旧版本」，或在 Ubuntu 24.04 上因为没有 python2 根本起不来）运行同一行即可：
+升级脚本、unit 改用 python3、修正示例域名，不重建容器。之前手工改过 `chisabot-updater.py` / unit 的，这一步会用仓库版本覆盖（已经兼容 python3）。
+
+手动安装（不用 install-updater.sh）仍然可以：编辑 `deploy/updater/config.env` 后在 `deploy/updater/` 下 `bash install.sh`，
+再自己给 compose 加上面的挂载。已经有压平底座的老部署：`bash install.sh <底座对应的提交>`（写 `base-deps.sha256`，`NODE_MODULES_BASE` 放一份与 bun.lock 一致的 node_modules）。
 
 依赖或底座变了（指纹不符）：不用再手动构建，点「一键完整更新」（或 `request.sh update --full`）。
 
