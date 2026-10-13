@@ -2155,7 +2155,8 @@ const livePanelService = createLivePanelService({
     }
   },
 });
-livePanelService.start();
+// CHISABOT_LIVE_PANEL_SWEEP=0：不跑后台刷新循环（只给并排的预览容器用，免得它替正式实例刷新面板）。
+if (process.env.CHISABOT_LIVE_PANEL_SWEEP !== "0") livePanelService.start();
 startInProcessRoutineSweep();
 
 /**

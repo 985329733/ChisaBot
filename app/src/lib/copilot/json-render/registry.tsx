@@ -8,7 +8,7 @@ import {
   IconMinus,
   IconX,
 } from "@tabler/icons-react";
-import { Component, type CSSProperties, type ReactNode, useId } from "react";
+import { Component, type CSSProperties, type ReactNode, useId, useLayoutEffect, useRef } from "react";
 import { jsonRenderCatalog } from "../../../../../shared/json-render/catalog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +45,120 @@ const TREND_ICON = {
   down: IconTrendingDown,
   flat: IconMinus,
 } as const;
+
+/**
+ * 大数字拆成「数字 + 单位」：单位小一号、淡一点（26.9℃ → 26.9 + ℃，2.9 km/h → 2.9 + km/h）。
+ * 只在数字打头、后面跟着不含数字的短单位时拆；「10月13日」「$82,407」之类原样。
+ */
+export function splitMetricValue(value: string): { num: string; unit: string } {
+  const m = value.trim().match(/^([+\-−]?[$¥€£₿]?\s?\d[\d,]*(?:\.\d+)?)\s*([^\d\s][^\d]{0,9})?$/u);
+  if (!m || !m[2]) return { num: value.trim(), unit: "" };
+  return { num: m[1], unit: m[2].trim() };
+}
+
+/**
+ * 数字永远一行：放不下就把字号往小调（最小 13px），绝不把「26.9℃」折成两行（DESIGN.md §29）。
+ * 每次尺寸变化先回到样式表里的字号再量，所以卡片变宽时字会长回去。
+ */
+function FitLine({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.fontSize = "";
+      let size = Number.parseFloat(getComputedStyle(el).fontSize) || 24;
+      while (el.scrollWidth > el.clientWidth + 0.5 && size > 13) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+  return (
+    <div className={className} ref={ref}>
+      {children}
+    </div>
+  );
+}
+
+/** 窄表格的简表：日期写短（10月13日 / 2026-10-13 → 10/13）；数值列里 ℃ 写成 °，省出宽度。 */
+export function shortDate(value: string): string {
+  return value
+    .replace(/^\d{4}[-/年.](\d{1,2})[-/月.](\d{1,2})日?/u, (_, m, d) => `${Number(m)}/${Number(d)}`)
+    .replace(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/gu, (_, m, d) => `${Number(m)}/${Number(d)}`)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** 简表数值：℃ / °C 写成 °，「29.0 / 22.9」去掉斜杠两边的空格。 */
+export function compactValue(value: string): string {
+  return shortDate(value)
+    .replace(/\s*(?:℃|°\s*C\b)/gu, "°")
+    .replace(/(\d)\s*\/\s*(?=[\d+\-−])/gu, "$1/");
+}
+
+const looksNumeric = (value: string) => /^[\s+\-−$¥€£₿]*\d/u.test(value) && !/[月日年]/u.test(value);
+
+/**
+ * 表格在窄容器（< 440px，容器查询）里换成简表：第一列（第二列是文字时连同第二列）叠成左边一格，
+ * 其余列靠右、各占一列、不折行。宽容器照常是表格。两份 DOM 都在，样式表按容器宽度只显示一份。
+ */
+function CompactRows({
+  columns,
+  rows,
+}: {
+  columns: { key: string; label: string; align?: string | null }[];
+  rows: Record<string, unknown>[];
+}) {
+  if (!columns.length) return null;
+  const [first, second, ...others] = columns;
+  const secondIsText =
+    Boolean(second) &&
+    columns.length >= 3 &&
+    rows.some((row) => text(row?.[second.key]).trim() !== "") &&
+    rows.every((row) => !looksNumeric(text(row?.[second.key])));
+  const after = secondIsText ? others : [second, ...others].filter(Boolean);
+  // 靠右最多 3 列；再多的列折进左边第二行（「最大风速 17.7 km/h」），不让整张表横向滚动。
+  const rest = after.slice(0, 3);
+  const extra = after.slice(3);
+  return (
+    <div className="jr-rows" role="table" style={{ "--jr-rest": String(rest.length) } as CSSProperties}>
+      <div className="jr-rows-h" role="row">
+        <span role="columnheader">{secondIsText ? `${first.label} · ${second.label}` : first.label}</span>
+        {rest.map((column) => (
+          <span key={column.key} role="columnheader">
+            {column.label}
+          </span>
+        ))}
+      </div>
+      {rows.map((row, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no identity of their own.
+        <div className="jr-rows-r" key={index} role="row">
+          <span className="jr-rows-p" role="cell">
+            <span className="jr-rows-t">{shortDate(text(row?.[first.key]))}</span>
+            {(() => {
+              const sub = [
+                secondIsText ? text(row?.[second.key]) : "",
+                ...extra.map((column) => (text(row?.[column.key]) ? `${column.label} ${compactValue(text(row?.[column.key]))}` : "")),
+              ].filter(Boolean);
+              return sub.length ? <span className="jr-rows-s">{sub.join(" · ")}</span> : null;
+            })()}
+          </span>
+          {rest.map((column) => (
+            <span className="jr-rows-v" key={column.key} role="cell" title={`${column.label} ${text(row?.[column.key])}`}>
+              <span className="jr-rows-x">{compactValue(text(row?.[column.key]))}</span>
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * 每个节点各自一个错误边界：一个组件画不出来时只跳过它自己（开发者控制台留记录），整张界面照常显示。
@@ -117,49 +231,60 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
     ),
     Metric: ({ props }) => {
       const Trend = props.trend ? TREND_ICON[props.trend] : null;
+      const { num, unit } = splitMetricValue(text(props.value));
       return (
         <div className="jr-metric jr-el">
-          <div className="jr-metric-k">{props.label}</div>
-          <div className={cn("jr-metric-v", props.tone && props.tone !== "default" && `is-${props.tone}`)}>
-            {text(props.value)}
+          <div className="jr-metric-k" title={props.label}>
+            {props.label}
           </div>
+          <FitLine className={cn("jr-metric-v", props.tone && props.tone !== "default" && `is-${props.tone}`)}>
+            {num}
+            {unit ? <span className="jr-metric-u">{unit}</span> : null}
+          </FitLine>
           {props.delta ? (
             <div className={cn("jr-metric-d", props.trend && `is-${props.trend}`)}>
-              {Trend ? <Trend className="size-3.5" aria-hidden /> : null}
-              {props.delta}
+              {Trend ? <Trend className="size-3.5 shrink-0" aria-hidden /> : null}
+              <span className="truncate">{props.delta}</span>
             </div>
           ) : null}
         </div>
       );
     },
-    Table: ({ props }) => (
-      <div className="jr-table-wrap jr-el">
-        <table className="jr-table">
-          {props.caption ? <caption>{props.caption}</caption> : null}
-          <thead>
-            <tr>
-              {(Array.isArray(props.columns) ? props.columns : []).map((column) => (
-                <th key={column.key} className={column.align ? `is-${column.align}` : undefined} scope="col">
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(Array.isArray(props.rows) ? props.rows : []).map((row, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no identity of their own.
-              <tr key={index}>
-                {(Array.isArray(props.columns) ? props.columns : []).map((column) => (
-                  <td key={column.key} className={column.align ? `is-${column.align}` : undefined}>
-                    {text(row?.[column.key])}
-                  </td>
+    Table: ({ props }) => {
+      const columns = Array.isArray(props.columns) ? props.columns : [];
+      const rows = (Array.isArray(props.rows) ? props.rows : []) as Record<string, unknown>[];
+      return (
+        <div className="jr-tbl jr-el">
+          {props.caption ? <div className="jr-tbl-cap">{props.caption}</div> : null}
+          <div className="jr-table-wrap">
+            <table className="jr-table">
+              <thead>
+                <tr>
+                  {columns.map((column) => (
+                    <th key={column.key} className={column.align ? `is-${column.align}` : undefined} scope="col">
+                      {column.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no identity of their own.
+                  <tr key={index}>
+                    {columns.map((column) => (
+                      <td key={column.key} className={column.align ? `is-${column.align}` : undefined}>
+                        {text(row?.[column.key])}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ),
+              </tbody>
+            </table>
+          </div>
+          <CompactRows columns={columns} rows={rows} />
+        </div>
+      );
+    },
     List: ({ props }) => {
       const Tag = props.ordered ? "ol" : "ul";
       return (

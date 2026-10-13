@@ -17,6 +17,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { inspectRenderUiSpec, parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../shared/json-render/catalog";
 import { emptySections } from "../../../shared/json-render/empty-sections";
+import { lintPanelSpec, PANEL_DESIGN_GUIDE } from "./design";
 import type { AppVariables } from "../auth/guards";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
 import { LivePanelError, type LivePanelRow, type LivePanelStore, MIN_REFRESH_MINUTES } from "./store";
@@ -64,7 +65,7 @@ const createParameters = z.object({
     .string()
     .min(1)
     .max(2000)
-    .describe("以后每次刷新要做什么：显示哪些数据、从哪里取（写清楚接口或网址）、怎么排版。刷新时你只看得到这句话和上一版面板。"),
+    .describe("以后每次刷新要做什么：这张面板回答的一个问题、显示哪些数据、从哪里取（写清楚接口或网址）、用【面板设计规范】里的哪个版式（A–E）。刷新时你只看得到这句话和上一版面板。"),
   refreshMinutes: z
     .number()
     .int()
@@ -80,12 +81,13 @@ const updateParameters = z.object({
     .string()
     .min(2)
     .max(100_000)
-    .describe("面板内容：json-render 规范，格式和组件与 render_ui 完全相同（JSONL 或完整 {root,elements} JSON）。只放结果（数字、列表、表格），不要放「数据来源」「更新时间」，卡片会自己显示。宽度按 340px 的窄卡设计。"),
+    .describe("面板内容：json-render 规范，格式和组件与 render_ui 完全相同（JSONL 或完整 {root,elements} JSON）。只放结果（数字、列表、表格），不要放「数据来源」「更新时间」，卡片会自己显示。按【面板设计规范】写：先按 320px 窄卡设计，最外层 Stack、不用 Card。"),
   sources: z.array(sourceSchema).min(1).max(6).describe("这次数据实际来自哪里（必须是你刚刚读过的网址）"),
   title: z.string().min(1).max(60).optional().describe("改标题时才填"),
   instruction: z.string().min(1).max(2000).optional().describe("用户要求修改面板时，填新的刷新说明（例如改成显示以太坊）"),
   refreshMinutes: z.number().int().min(0).max(10080).optional().describe("改刷新间隔时才填"),
 });
+const LINT_MAX_STRIKES = 3;
 const idParameters = z.object({ id: z.string().min(1) });
 const failParameters = z.object({ id: z.string().min(1), reason: z.string().min(1).max(300).describe("用一句大白话说明为什么取不到数据") });
 
@@ -94,6 +96,7 @@ export const LIVE_PANEL_GUIDANCE = [
   "1) 先 panel_create（标题 + 刷新说明 + 刷新间隔），卡片会立刻出现在右栏；对话里只说一句「好的，正在做…面板」。",
   "2) 再用 web_search / web_fetch 取真实数据（优先公开 JSON 接口，例如 api.coingecko.com、api.open-meteo.com），绝不编造数字。",
   "3) 用 panel_update 交上 json-render 规范 + 来源（数字、列表、表格都直接写成字面值：List 的 items / Table 的 rows 直接列出每一行，不要用 repeat 或 $state 绑定）；最后对话里一句话说做好了、多久刷新一次，并提一个有用的下一步。",
+  PANEL_DESIGN_GUIDE,
   "要改已有面板（换内容、换城市、换币种、改刷新频率）时先 panel_list 找到它，取新数据后 panel_update（带新的 instruction / title），不要新建。",
   "实在取不到数据就 panel_fail 说明原因，并在对话里如实告诉用户。不要在对话里贴规范、JSON 或代码。",
 ].join("\n");
@@ -137,6 +140,8 @@ export function createLivePanelService(deps: {
   const { store } = deps;
   const log = deps.log ?? ((event) => console.info(JSON.stringify(event)));
   const running = new Map<string, AbortController>();
+  /** 每张面板连续被设计检查退回的次数（只在内存里，重启清零）。 */
+  const lintStrikes = new Map<string, number>();
 
   function refreshPrompt(row: LivePanelRow, firstFill: boolean) {
     return [
@@ -210,13 +215,13 @@ export function createLivePanelService(deps: {
         name: "panel_update",
         ref: "live-panels/panel_update",
         description:
-          "把取到的真实数据画进右栏面板（首次填充、刷新、或按用户要求修改）。spec 用 render_ui 同一套组件（Card/Stat/Table/List/Badge… 规则同 render_ui），窄卡 340px：一个大数字 + 涨跌徽章 + 几行补充最好看。来源 sources 必填。",
+          "把取到的真实数据画进右栏面板（首次填充、刷新、或按用户要求修改）。spec 用 render_ui 同一套组件，来源 sources 必填。必须遵守系统提示里的【面板设计规范】（一层外壳不用 Card、不重复标题、Metric ≤4、大块 ≤2、≤5 行、短标签、不写段落）；不合格会被退回并写明怎么改，照改后重新调用。",
         parameters: updateParameters,
         execute: async (args) => {
           const parsed = updateParameters.safeParse(args);
           if (!parsed.success) return `${REFUSAL_MARKER} 参数不对：${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("；")}`;
           try {
-            await guard(parsed.data.id);
+            const current = await guard(parsed.data.id);
             const verdict = inspectRenderUiSpec(parsed.data.spec);
             if (!verdict.ok) return [`${REFUSAL_MARKER} 面板规范无效，没有保存。修正后再调用 panel_update：`, ...verdict.issues.map((i) => `- ${i}`)].join("\n");
             const empty = emptyMetrics(parsed.data.spec);
@@ -225,6 +230,16 @@ export function createLivePanelService(deps: {
             const hollow = emptySections(sanitizeRenderUiSpec(parseRenderUiSpec(parsed.data.spec, false))?.spec ?? null);
             if (hollow.length)
               return `${REFUSAL_MARKER} 面板没有保存：${hollow.map((l) => `「${l}」`).join("、")}下面是空的（List 的 items / Table 的 rows 是空的，或 repeat.statePath 指向的 state 数组不存在或为空）。把取到的每一行直接写进 List 的 items（或 Table 的 rows），不要用 repeat 和 $state，然后再调用 panel_update；确实没有数据就把这一节连同标题一起删掉。`;
+            // 面板设计规范（design.ts）：不合格就退回并写明每一处怎么改。同一张面板连续退回 3 次后照样保存
+            // （渲染端有兜底），免得机器人在一个规范细节上来回打转、面板一直空着。
+            const lint = lintPanelSpec(parsed.data.spec, parsed.data.title ?? current.title);
+            const strikes = lintStrikes.get(parsed.data.id) ?? 0;
+            if (lint.length && strikes < LINT_MAX_STRIKES) {
+              lintStrikes.set(parsed.data.id, strikes + 1);
+              log({ type: "live-panel-lint", panelId: parsed.data.id, strike: strikes + 1, issues: lint });
+              return [`${REFUSAL_MARKER} 面板没有保存：不符合【面板设计规范】。逐条改好后用同一个 id 重新调用 panel_update（不要新建面板，也不要在对话里解释）：`, ...lint.map((i) => `- ${i}`)].join("\n");
+            }
+            lintStrikes.delete(parsed.data.id);
             const row = await store.update(actorId, parsed.data.id, { ...parsed.data, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
             return `面板「${row.title}」已更新${row.refreshMinutes ? `，之后每 ${row.refreshMinutes >= 1440 ? `${Math.round(row.refreshMinutes / 1440)} 天` : row.refreshMinutes >= 60 ? `${Math.round(row.refreshMinutes / 60)} 小时` : `${row.refreshMinutes} 分钟`}自动刷新` : ""}。${options.refreshOf ? "这是后台刷新，不需要回复。" : "对话里只用一句话告诉用户，不要贴面板内容或规范。"}`;
           } catch (error) {
