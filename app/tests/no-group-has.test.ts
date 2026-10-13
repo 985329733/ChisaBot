@@ -19,3 +19,8 @@ test("no group-has-* / peer-has-* utilities (whole-app style invalidation)", () 
   const offenders = files(root).filter((file) => /(^|[\s"'`])(group|peer)-has-/m.test(readFileSync(file, "utf8")));
   expect(offenders.map((file) => path.relative(root, file))).toEqual([]);
 });
+
+test("styles.css has no leftover merge-conflict markers (a stray line silently drops the next rule)", () => {
+  const css = readFileSync(path.join(import.meta.dir, "../src/styles.css"), "utf8");
+  expect(css.split("\n").filter((line) => /^(<{7}|={7}|>{7})( |$)/.test(line))).toEqual([]);
+});
