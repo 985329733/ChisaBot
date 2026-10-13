@@ -1,7 +1,8 @@
 import { IconDownload } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { AddDeviceCard, ApprovalsCard, ConnectionCard, DeviceRow, NoDevices } from "@/components/devices/devices";
+import { AddDeviceCard, AddPhoneCard, ApprovalsCard, ConnectionCard, DeviceRow, NoDevices } from "@/components/devices/devices";
+import { PairPhoneButton } from "@/components/devices/pair-phone";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, ErrorCard } from "@/components/ui/skyglass";
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/_authed/settings/devices/")({
 });
 
 /**
- * 设置 → 设备（模板 B）：待审批 → 设备列表（账号下关联的全部设备）→ 添加一台电脑 / 下载 PC 客户端。
+ * 设置 → 设备（模板 B）：待审批 → 设备列表（账号下关联的全部设备）→ 添加一台手机（扫码绑定）→ 添加一台电脑 / 下载 PC 客户端。
  * 设备属于账号，所有机器人共用（docs/pc-node.md §7）。机器人「⋯ → 电脑操作…」也指向这里。
  */
 function DevicesPage() {
@@ -28,12 +29,15 @@ function DevicesPage() {
   return (
     <PageShell
       action={
-        installer && !local ? (
-          <Button nativeButton={false} render={<a download href={installer.url} />} size="sm">
-            <IconDownload />
-            {"下载 PC 客户端"}
-          </Button>
-        ) : undefined
+        <span className="flex flex-wrap items-center gap-2">
+          <PairPhoneButton />
+          {installer && !local ? (
+            <Button nativeButton={false} render={<a download href={installer.url} />} size="sm">
+              <IconDownload />
+              {"下载 PC 客户端"}
+            </Button>
+          ) : null}
+        </span>
       }
       description="关联到你账号的全部设备，由你的所有机器人共用：机器人只能在每台设备开启的能力和允许的文件夹里操作在线设备，「询问」的操作先问你，每一步都有记录，随时可以紧急停止。"
       title="设备"
@@ -79,6 +83,9 @@ function DevicesPage() {
           ) : null}
         </>
       )}
+      <PageSection title="添加一台手机">
+        <AddPhoneCard />
+      </PageSection>
       <PageSection title="添加一台电脑">
         <AddDeviceCard />
       </PageSection>

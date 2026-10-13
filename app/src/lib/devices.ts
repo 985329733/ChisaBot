@@ -184,3 +184,25 @@ export const ACTION_LABEL: Record<string, string> = {
   kill_switch_on: "紧急停止",
   kill_switch_off: "解除紧急停止",
 };
+
+// ---- 手机扫码绑定（DESIGN.md §33） ----
+
+export type PairingTicket = { id: string; code: string; expiresAt: string; ttlSeconds: number };
+export type PairingStatus = {
+  id: string;
+  state: "pending" | "bound" | "expired" | "cancelled";
+  expiresAt: string;
+  device: { id: string; name: string } | null;
+};
+
+export function createPairing(): Promise<PairingTicket> {
+  return client("/api/devices/pairing", { method: "POST", fallback: "无法生成二维码，请重试" }).then((r) => r.json());
+}
+
+export function pairingStatus(id: string, signal?: AbortSignal): Promise<PairingStatus> {
+  return client(`/api/devices/pairing/${encodeURIComponent(id)}`, { fallback: "无法读取绑定状态", signal }).then((r) => r.json());
+}
+
+export async function cancelPairing(id: string) {
+  await client(`/api/devices/pairing/${encodeURIComponent(id)}`, { method: "DELETE", fallback: "取消失败" }).catch(() => {});
+}

@@ -60,4 +60,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    // 扫码绑定（DESIGN.md §33）：内嵌 ZXing 扫码界面，不依赖 Google Play 服务（国产手机也能用）。
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0") { isTransitive = false }
+    implementation("com.google.zxing:core:3.5.3")
 }

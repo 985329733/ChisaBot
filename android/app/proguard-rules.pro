@@ -7,3 +7,8 @@
 -keepclassmembers class cn.ayase.chisabot.MainActivity$LoginBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
+
+# 扫码绑定（zxing-android-embedded）：库自带 consumer 规则不全，保留扫码界面与解码器。
+-keep class com.journeyapps.barcodescanner.** { *; }
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**

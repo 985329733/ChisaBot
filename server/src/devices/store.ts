@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, notInArray } from "drizzle-orm";
 import {
   type DeviceAuditEntry,
   type DeviceCapabilities,
@@ -7,6 +7,7 @@ import {
   defaultCapabilities,
   normalizeCapabilities,
 } from "../../../shared/devices";
+import { MOBILE_PLATFORMS } from "../../../shared/devices";
 import type { Database } from "../db/client";
 import { deviceAuditEvents, deviceBotAccess, devices } from "../db/schema";
 
@@ -282,13 +283,19 @@ export function createDeviceStore(database: Database) {
 
     /**
      * 属于 owner 的全部未撤销设备。设备属于账号而不是某个机器人：用户的每个机器人都能使用它们
-     * （能力开关、允许的文件夹、审批、紧急停止照常生效）。
+     * （能力开关、允许的文件夹、审批、紧急停止照常生效）。扫码绑定的手机只用来登录聊天，不算在内。
      */
     async forOwner(ownerUserId: string): Promise<DeviceRecord[]> {
       const rows = await database
         .select()
         .from(devices)
-        .where(and(eq(devices.ownerUserId, ownerUserId), isNull(devices.revokedAt)))
+        .where(
+          and(
+            eq(devices.ownerUserId, ownerUserId),
+            isNull(devices.revokedAt),
+            notInArray(devices.platform, [...MOBILE_PLATFORMS]),
+          ),
+        )
         .orderBy(desc(devices.createdAt));
       return hydrate(rows);
     },

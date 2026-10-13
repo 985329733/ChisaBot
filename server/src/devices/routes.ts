@@ -9,6 +9,7 @@ import type { AppVariables } from "../auth/guards";
 import { upgradeWebSocket } from "../channels/socket";
 import { DeviceRefusedError, type DeviceHub, describeChange } from "./hub";
 import { type GrantedTool, REFUSAL_MARKER } from "../plugins/tools";
+import { createPairingStore, isMobilePlatform, type PairingStore } from "./pairing";
 import type { DevicePatch, DeviceRecord, DeviceStore } from "./store";
 
 /**
@@ -44,6 +45,22 @@ function fail(ip: string | null) {
     failures.set(key, { count: 1, until: Date.now() + FAIL_WINDOW_MS });
   else entry.count++;
   if (failures.size > 5000) failures.clear();
+}
+
+const pairAttempts = new Map<string, { count: number; until: number }>();
+const PAIR_LIMIT = 30;
+
+function pairLimited(ip: string | null) {
+  const entry = pairAttempts.get(ip ?? "?");
+  return !!entry && entry.until > Date.now() && entry.count >= PAIR_LIMIT;
+}
+
+function countPair(ip: string | null) {
+  const key = ip ?? "?";
+  const entry = pairAttempts.get(key);
+  if (!entry || entry.until < Date.now()) pairAttempts.set(key, { count: 1, until: Date.now() + FAIL_WINDOW_MS });
+  else entry.count++;
+  if (pairAttempts.size > 5000) pairAttempts.clear();
 }
 
 function parsePatch(body: unknown): DevicePatch | string {
@@ -86,8 +103,11 @@ export function createDeviceRoutes(options: {
   auditStore?: AuditStore;
   /** 这个人跑某个机器人时会拿到的设备工具（与聊天里完全同一条路径，index.ts 的 deviceToolsFor）。 */
   toolsFor?: (actorId: string, botId: string) => Promise<GrantedTool[]>;
+  /** 手机扫码绑定的一次性绑定码（默认放在本进程内存里）。 */
+  pairing?: PairingStore;
 }) {
   const { store, hub, requireUser, auditStore, toolsFor } = options;
+  const pairing = options.pairing ?? createPairingStore();
   const routes = new Hono<{ Variables: Variables }>();
   const userGuard = requireUser as unknown as MiddlewareHandler<{ Variables: Variables }>;
 
@@ -125,6 +145,12 @@ export function createDeviceRoutes(options: {
   routes.get(
     "/agent/ws",
     requireDevice,
+    async (context, next) => {
+      // 扫码绑定的手机只用来登录聊天，不能作为机器人可操作的节点接入。
+      if (isMobilePlatform(context.get("device").platform))
+        return context.json({ error: "手机设备不能作为电脑节点连接。" }, 403);
+      await next();
+    },
     upgradeWebSocket((context) => {
       const device = context.get("device") as DeviceRecord;
       const ip = clientIp(context.req.raw);
@@ -154,21 +180,109 @@ export function createDeviceRoutes(options: {
   /** PC 端「退出登录」：设备自己作废自己的令牌。 */
   routes.post("/agent/unenroll", requireDevice, async (context) => {
     const device = context.get("device");
+    const mobile = isMobilePlatform(device.platform);
     await store.revoke(device.id);
     await store.audit({
       deviceId: device.id,
       ownerUserId: device.ownerUserId,
       actorType: "device",
       actorId: device.id,
-      actorName: "PC 客户端",
+      actorName: mobile ? "手机客户端" : "PC 客户端",
       action: "unenrolled",
-      summary: "在 PC 上退出登录，令牌已作废",
+      summary: mobile ? "在手机上退出登录，令牌已作废" : "在 PC 上退出登录，令牌已作废",
       outcome: "succeeded",
       detail: null,
       durationMs: null,
     });
     hub.kick(device.id);
     return context.json({ ok: true });
+  });
+
+  // ---- 手机扫码绑定（DESIGN.md §33） ----
+
+  /**
+   * 手机扫码后调用（公开路径，网关不校验会话）：一次性绑定码 → 在签发人名下登记一台手机，返回设备令牌。
+   * 绑定码 192 bit，失败按 IP 计数限速（与设备令牌同一个计数器）；另外每个 IP 每 10 分钟最多尝试 30 次。
+   */
+  routes.post("/agent/pair", async (context) => {
+    const ip = clientIp(context.req.raw);
+    if (limited(ip) || pairLimited(ip)) return context.json({ error: "尝试次数过多，请稍后再试。" }, 429);
+    countPair(ip);
+    const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body || typeof body !== "object") return context.json({ error: "请求格式无效。" }, 400);
+    const result = pairing.redeem(body.code);
+    if (!result.ok) {
+      fail(ip);
+      const error =
+        result.reason === "used"
+          ? "这个二维码已经用过了，请在网页上刷新二维码后重新扫码。"
+          : result.reason === "expired"
+            ? "二维码已过期，请在网页上刷新二维码后重新扫码。"
+            : "二维码无效，请扫描 ChisaBot 网页「设置 → 设备 → 绑定手机」里的二维码。";
+      return context.json({ error, reason: result.reason }, result.reason === "invalid" ? 400 : 410);
+    }
+    try {
+      const model = typeof body.model === "string" ? body.model : null;
+      const { device, token } = await store.enroll({
+        ownerUserId: result.ownerUserId,
+        name: body.name ?? model ?? "我的手机",
+        platform: body.platform === "ios" ? "ios" : "android",
+        osVersion: body.osVersion,
+        hostname: model,
+        arch: null,
+        clientVersion: body.clientVersion,
+        ip,
+      });
+      await store.touch(device.id, { ip });
+      pairing.complete(result.pairingId, device);
+      await store.audit({
+        deviceId: device.id,
+        ownerUserId: result.ownerUserId,
+        actorType: "device",
+        actorId: device.id,
+        actorName: "手机客户端",
+        action: "enrolled",
+        summary: `扫码绑定手机「${device.name}」（${device.platform}${device.osVersion ? ` · ${device.osVersion}` : ""}）`,
+        outcome: "succeeded",
+        detail: null,
+        durationMs: null,
+      });
+      await mainAudit(result.ownerUserId, device.id, "device_enrolled", device.name);
+      const fresh = (await store.get(device.id)) ?? device;
+      return context.json({ device: hub.view(fresh), token }, 201);
+    } catch {
+      pairing.fail(result.pairingId);
+      return context.json({ error: "绑定失败，请在网页上刷新二维码后重试。" }, 500);
+    }
+  });
+
+  /**
+   * 登录网关用手机的设备令牌换会话时调用（deploy/public/auth/server.ts 的 /auth/device-session）。
+   * 只接受手机设备；顺便记一次「最后在线」。
+   */
+  routes.post("/agent/session", requireDevice, async (context) => {
+    const device = context.get("device");
+    if (!isMobilePlatform(device.platform)) return context.json({ error: "只有手机设备可以这样登录。" }, 403);
+    const facts = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+    await store.touch(device.id, {
+      ip: clientIp(context.req.raw) ?? device.lastIp,
+      clientVersion: facts?.clientVersion,
+      osVersion: facts?.osVersion,
+    });
+    return context.json({ device: { id: device.id, name: device.name, ownerUserId: device.ownerUserId } });
+  });
+
+  /**
+   * 网关定期（约 30 秒）问一次：这台手机还有效吗？撤销后网关立刻作废它的会话，手机回到登录页。
+   * 只回答直连本服务的请求（网关在本机直连 127.0.0.1:3001）：经过公网 Nginx 的请求都带 X-Forwarded-For，一律 404。
+   */
+  routes.get("/agent/state/:id", async (context) => {
+    if (context.req.header("x-forwarded-for") || context.req.header("x-real-ip"))
+      return context.json({ error: "页面不存在。" }, 404);
+    const device = await store.get(context.req.param("id"));
+    const active = !!device && !device.revoked && isMobilePlatform(device.platform);
+    if (active && device) await store.touch(device.id);
+    return context.json({ active });
   });
 
   // ---- 已登录的人 ----
@@ -220,6 +334,24 @@ export function createDeviceRoutes(options: {
     });
     await mainAudit(actor.id, device.id, "device_enrolled", device.name);
     return context.json({ device: hub.view(device), token }, 201);
+  });
+
+  /** 网页「绑定手机」：签发一次性绑定码（5 分钟），网页把它和服务器地址一起画成二维码。 */
+  routes.post("/pairing", userGuard, (context) => {
+    const actor = context.var.actor;
+    const issued = pairing.issue(actor.id);
+    return context.json(issued, 201);
+  });
+
+  routes.get("/pairing/:pairingId", userGuard, (context) => {
+    const status = pairing.status(context.req.param("pairingId"), context.var.actor.id);
+    if (!status) return context.json({ error: "这个二维码不存在或已过期。" }, 404);
+    return context.json(status);
+  });
+
+  routes.delete("/pairing/:pairingId", userGuard, (context) => {
+    pairing.cancel(context.req.param("pairingId"), context.var.actor.id);
+    return context.json({ ok: true });
   });
 
   routes.get("/approvals", userGuard, (context) => {

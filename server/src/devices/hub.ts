@@ -9,6 +9,7 @@ import {
   OPERATION_LABEL,
   type ServerToDevice,
 } from "../../../shared/devices";
+import { isMobilePlatform, MOBILE_ONLINE_WINDOW_MS } from "./pairing";
 import type { DevicePatch, DeviceRecord, DeviceStore } from "./store";
 
 /**
@@ -103,7 +104,11 @@ export function createDeviceHub(options: {
 
   function view(record: DeviceRecord): DeviceView {
     const { tokenHash: _omit, ...rest } = record;
-    return { ...rest, online: connections.has(record.id) };
+    // 手机不连 /agent/ws：最近一次会话校验（网关约每 30 秒一次）在窗口内就算在线。
+    const online = isMobilePlatform(record.platform)
+      ? !record.revoked && !!record.lastSeenAt && Date.now() - Date.parse(record.lastSeenAt) < MOBILE_ONLINE_WINDOW_MS
+      : connections.has(record.id);
+    return { ...rest, online };
   }
 
   async function pushConfig(deviceId: string) {
