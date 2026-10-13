@@ -1,5 +1,6 @@
 import { CopilotChatMessageView } from "@copilotkit/react-core/v2";
 import type { ReactElement } from "react";
+import { QueuedMessages } from "@/components/chat/queued-messages";
 
 /**
  * 机器人聊天的消息列表：不虚拟化（2026-10-13，修「AI 输出的时候有时候会跳到聊天记录上面」；DESIGN.md §35）。
@@ -42,6 +43,8 @@ export function renderUnvirtualizedMessageList({
     >
       {messageElements}
       {interruptElement}
+      {/* 回答期间发的、还没被读到的消息（DESIGN.md §38.1）。 */}
+      <QueuedMessages />
       {showCursor ? (
         <div className="cpk:mt-2">
           <CopilotChatMessageView.Cursor />

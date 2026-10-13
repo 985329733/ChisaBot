@@ -295,6 +295,7 @@ import { createUserPreferencesStore } from "./user-preferences";
 import { createVoiceSessionStore } from "./voice/sessions";
 import { createVoiceSummarizer } from "./voice/summary";
 import { repeatAfterEach } from "./work/loop";
+import { createWorkerService, type WorkerService } from "./workers/service";
 import {
   createWorkQueue,
   DEFAULT_MAX_ATTEMPTS,
@@ -1876,6 +1877,62 @@ const governedTurnRunner = createTurnRunner({
     copilotRuntime.learning?.containerForThread(input) ??
     Promise.resolve(undefined),
 });
+/*
+ * 后台任务（DESIGN.md §38，workers/service.ts）：只在本地对话后端下有。工人的回合用自己的一个回合运行器
+ * （超时 15 分钟、多一个 worker_plan 工具），结果交回主对话用上面的 governedTurnRunner。
+ */
+const workerComputerTools = async ({ ownerUserId, agentId, initiator }: { ownerUserId: string; agentId: string; initiator: AuditInitiator }) => {
+  if (!computerGateway) return [];
+  const actor = await actorFor(ownerUserId);
+  const profile = await agentProfileStore.get(actor, agentId);
+  if (!profile || !canUseComputer(profile, actor)) return [];
+  return createHeadlessComputerTools({
+    gateway: computerGateway,
+    botId: agentId,
+    actor: { id: actor.id, userId: actor.id, initiator },
+    auditStore: bootAuditStore,
+    ...(signInService ? { signIn: signInService } : {}),
+  });
+};
+let workerService: WorkerService | undefined;
+if (localBackend) {
+  const workerTurnRunner = createTurnRunner({
+    intelligence: routineIntelligence,
+    runner: routineAgentRunner,
+    components: { store: componentStore, auditStore: bootAuditStore },
+    buildAgentFor,
+    toolsForTurn: async (input) => [
+      ...(await workerComputerTools(input)),
+      ...(workerService && input.threadId.startsWith("worker-") ? workerService.workerTools(input.threadId.slice("worker-".length)) : []),
+    ],
+    learningContainerForThread: (input) =>
+      copilotRuntime.learning?.containerForThread(input) ?? Promise.resolve(undefined),
+    turnTimeoutMs: 15 * 60_000 + 30_000,
+  });
+  workerService = createWorkerService({
+    database,
+    inbox: localBackend.inbox,
+    control: localBackend.control,
+    runTurn: workerTurnRunner,
+    deliverTurn: governedTurnRunner,
+    agentOfThread: async (threadId) => {
+      const rows = await database.$client.unsafe<{ agent_id: string }[]>("SELECT agent_id FROM openbot_local_threads WHERE id = $1", [threadId]);
+      return rows[0]?.agent_id ?? null;
+    },
+  });
+  await workerService.ensure();
+  try {
+    const interrupted = await workerService.recover();
+    if (interrupted) console.log(JSON.stringify({ type: "workers-interrupted-by-restart", count: interrupted }));
+  } catch (error) {
+    console.warn("marking interrupted workers failed", error);
+  }
+  localBackend.setWorkers(workerService);
+}
+/** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
+const isChannelThread = async (threadId: string) =>
+  (await database.$client.unsafe("SELECT 1 FROM intelligence_channel_mappings WHERE thread_id = $1 LIMIT 1", [threadId])).length > 0;
+
 const routineRunner = createRoutineRunner({
   routineStore,
   channelStore,
@@ -2253,10 +2310,27 @@ const actorAgentResolver = createActorAgentResolver({
       ),
     );
     return async (botId, input) => {
-      const tools = await coordination(botId, input);
+      const coordinated = await coordination(botId, input);
       const props = input.forwardedProps as
-        | { panelAuthoring?: { sessionId?: unknown } }
+        | { panelAuthoring?: { sessionId?: unknown }; chisabotWorker?: unknown; chisabotWorkerDelivery?: unknown }
         | undefined;
+      // 后台任务的委派工具：只给机器人私聊里人自己的回合和交付结果的回合（工人回合、群聊不给）。
+      const delegating =
+        workerService &&
+        // 人自己的回合，或者「后台结果交回来」的那一轮（用户在那一轮里插的话也可能要委派）。
+        (!initiator || initiator.kind === "person" || Boolean(props?.chisabotWorkerDelivery)) &&
+        !props?.chisabotWorker &&
+        input.threadId &&
+        !input.threadId.startsWith("worker-") &&
+        !(await isChannelThread(input.threadId).catch(() => true));
+      const tools = delegating
+        ? [
+            ...coordinated,
+            ...(await restrictNamedToolsForWorkflow(initiator, async () =>
+              workerService!.delegationTools({ ownerUserId: actorId, agentId: botId, threadId: input.threadId }),
+            )()),
+          ]
+        : coordinated;
       const sessionId = props?.panelAuthoring?.sessionId;
       if (typeof sessionId !== "string" || !sessionId || sessionId.length > 128)
         return tools;

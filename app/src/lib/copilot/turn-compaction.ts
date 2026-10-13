@@ -70,7 +70,7 @@ export function useTurnCompaction(
 
     const apply = () => {
       frame = 0;
-      const running = Boolean(host.querySelector('[data-testid="composer-stop"]'));
+      const running = Boolean(host.querySelector('[data-testid="composer-stop"], [data-testid="composer-queue"]'));
       if (running !== wasRunning) {
         wasRunning = running;
         // 右栏面板据此加快轮询（live-panels.tsx），计算机状态行据此不退回空闲提示（use-status.ts）。
@@ -84,7 +84,8 @@ export function useTurnCompaction(
 
       const turns: { user: Element | null; els: Element[] }[] = [{ user: null, els: [] }];
       for (const el of Array.from(list.children)) {
-        if (el.matches(".copilotKitUserMessage") || el.querySelector(":scope > .copilotKitUserMessage")) turns.push({ user: el, els: [] });
+        // 后台任务交回来的结果（DESIGN.md §38.2）也开启新的一轮：主机器人的总结是那一轮的结果。
+        if (el.matches(".copilotKitUserMessage, .worker-result-msg") || el.querySelector(":scope > .copilotKitUserMessage, :scope > .worker-result-msg")) turns.push({ user: el, els: [] });
         else turns[turns.length - 1]?.els.push(el);
       }
       lastUserId = turns.length > 1 ? idOf(turns[turns.length - 1]!.user!) : null;

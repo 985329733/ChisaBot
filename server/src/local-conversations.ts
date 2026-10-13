@@ -2,6 +2,7 @@ import { compactEvents, EventType, type AbstractAgent, type BaseEvent, type Mess
 import { AgentRunner, createRunEventFinalizer, type AgentRunnerConnectRequest, type AgentRunnerRunRequest, type AgentRunnerStopRequest } from "@copilotkit/runtime/v2";
 import { Observable, ReplaySubject, Subject } from "rxjs";
 import { estimateTokens, readingFromRunFinished, type ThreadContextReading } from "./context-usage";
+import { anchorsPresent, INBOX_TEXT_LIMIT, newSteerSession, ThreadInbox, type TranscriptInjection, weaveMessages, withSteering } from "./thread-inbox";
 import type { Database } from "./db/client";
 
 /** Errors also satisfy the existing history reader's platform-error contract. */
@@ -236,24 +237,68 @@ type LiveEvent = { sequence: bigint; event: BaseEvent };
 type ActiveRun = {
   runId: string; agent: AbstractAgent; stream: ReplaySubject<BaseEvent>;
   live: Subject<LiveEvent>; stopped: boolean; done: Promise<void>;
+  /** 这一轮里读进来的插话（排队消息 / 后台任务结果），存档和推给界面前织进消息列表。 */
+  injections: TranscriptInjection[];
 };
+
+/** 一次运行最多接着跑几段（每段 = 一次完整的模型循环；段与段之间读进新排队的消息）。 */
+const MAX_SEGMENTS = 8;
 
 /** Public OSS runner with our own PostgreSQL transcript and per-thread lease. */
 class PostgresAgentRunner extends AgentRunner {
   private readonly active = new Map<string, ActiveRun>();
-  constructor(private readonly store: ConversationStore, private readonly client: LocalConversationClient) { super(); }
+  private readonly observers = new Map<string, Set<(event: BaseEvent) => void>>();
+  constructor(
+    private readonly store: ConversationStore,
+    private readonly client: LocalConversationClient,
+    readonly inbox: ThreadInbox,
+  ) { super(); }
+
+  /** 这个进程里这个对话是不是正在跑。 */
+  isActive(threadId: string): boolean { return this.active.has(threadId); }
+
+  /** 在进程内旁听一个对话的事件（后台任务卡片读它的步骤）。返回取消函数。 */
+  observe(threadId: string, listener: (event: BaseEvent) => void): () => void {
+    let set = this.observers.get(threadId);
+    if (!set) { set = new Set(); this.observers.set(threadId, set); }
+    set.add(listener);
+    return () => {
+      set!.delete(listener);
+      if (!set!.size && this.observers.get(threadId) === set) this.observers.delete(threadId);
+    };
+  }
 
   run(request: AgentRunnerRunRequest): Observable<BaseEvent> {
-    if (this.active.has(request.threadId)) throw new LocalConversationError("Thread already running", 409);
     if (request.input.threadId !== request.threadId || !request.input.runId) throw new LocalConversationError("Run thread and runId are required", 400);
+    const running = this.active.get(request.threadId);
+    // 正在回答时又发来消息：不拒绝、不打断。新的用户消息进收件箱（下一步读进去），这个请求接上正在跑的那一轮。
+    if (running) return this.join(request, running);
     const entry: ActiveRun = {
       runId: request.input.runId, agent: request.agent,
       stream: new ReplaySubject<BaseEvent>(), live: new Subject<LiveEvent>(),
-      stopped: false, done: Promise.resolve(),
+      stopped: false, done: Promise.resolve(), injections: [],
     };
     this.active.set(request.threadId, entry);
     entry.done = this.execute(request, entry);
     return entry.stream.asObservable();
+  }
+
+  private join(request: AgentRunnerRunRequest, running: ActiveRun): Observable<BaseEvent> {
+    return new Observable<BaseEvent>((subscriber) => {
+      let subscription: { unsubscribe(): void } | undefined;
+      let closed = false;
+      void (async () => {
+        const row = await this.store.thread(request.threadId);
+        const known = new Set([...row.messages.map((message) => message.id), ...running.injections.map((item) => item.message.id)]);
+        for (const message of request.input.messages) {
+          if (known.has(message.id) || message.role !== "user") continue;
+          await this.inbox.enqueue({ threadId: request.threadId, ownerUserId: row.owner_user_id, message });
+        }
+        if (closed) return;
+        subscription = running.stream.subscribe(subscriber);
+      })().catch((error) => subscriber.error(error));
+      return () => { closed = true; subscription?.unsubscribe(); };
+    });
   }
 
   private async execute(request: AgentRunnerRunRequest, entry: ActiveRun): Promise<void> {
@@ -268,10 +313,29 @@ class PostgresAgentRunner extends AgentRunner {
     const finalizer = createRunEventFinalizer();
     const newMessages: Message[] = [];
     let prepared = prepareConversationMessages([], [], []);
+    /** 段与段之间扣下的 RUN_FINISHED：还要接着跑就丢掉，最后一段的才发出去。 */
+    let heldFinish: BaseEvent | undefined;
+    let segmenting = false;
+    /** 智能体最近一次报告的消息列表（不含插话）。 */
+    let latest: Message[] = [];
+    /** 已读进来、但它紧跟的工具结果还没到消息列表里的插话：等到了再推快照。 */
+    let pendingNotices: string[][] = [];
+    const woven = (messages: readonly Message[]) => weaveMessages(messages, entry.injections);
+    const notify = (event: BaseEvent) => {
+      for (const listener of this.observers.get(threadId) ?? []) {
+        try { listener(event); } catch { /* 旁听者出错不影响这一轮。 */ }
+      }
+    };
     const emit = async (source: BaseEvent) => {
       let event = source;
-      if (event.type === EventType.RUN_STARTED) event = { ...event, threadId, runId: entry.runId, input: { ...input, messages: newMessages } } as BaseEvent;
-      else if (event.type === EventType.RUN_FINISHED) event = { ...event, threadId, runId: entry.runId } as BaseEvent;
+      if (event.type === EventType.RUN_STARTED) {
+        // 第二段起的 RUN_STARTED 不发：对用户来说这还是同一次回复。
+        if (runStarted) return;
+        event = { ...event, threadId, runId: entry.runId, input: { ...input, messages: newMessages } } as BaseEvent;
+      } else if (event.type === EventType.RUN_FINISHED) {
+        event = { ...event, threadId, runId: entry.runId } as BaseEvent;
+        if (segmenting) { heldFinish = event; return; }
+      }
       const published = prepared.event(event);
       if (!published) return;
       const sequence = await this.store.append(threadId, entry.runId, published);
@@ -281,6 +345,7 @@ class PostgresAgentRunner extends AgentRunner {
       failed ||= published.type === EventType.RUN_ERROR;
       entry.stream.next(published);
       entry.live.next({ sequence, event: published });
+      notify(published);
     };
     // AG-UI catches subscriber exceptions. Remember failed writes and stop the producer ourselves.
     const guarded = (action: () => Promise<unknown>): Promise<void> => {
@@ -294,14 +359,37 @@ class PostgresAgentRunner extends AgentRunner {
       });
       return durableWrites;
     };
+    /** 推一张带插话的完整快照给界面（幂等：同 id 的消息替换，不会重复）。 */
+    const pushSnapshot = (messages: readonly Message[]) => {
+      const snapshot = structuredClone(woven(messages)) as Message[];
+      return guarded(() => emit({ type: EventType.MESSAGES_SNAPSHOT, messages: snapshot } as BaseEvent));
+    };
     // AG-UI invokes these callbacks without awaiting them. Freeze each snapshot and queue it
     // with event writes so an earlier partial snapshot cannot overwrite the completed transcript.
     const capture = (messages: readonly Readonly<Message>[], state: unknown) => {
-      const savedMessages = prepared.project(structuredClone(messages) as Message[]);
+      latest = structuredClone(messages) as Message[];
+      const savedMessages = prepared.project(woven(latest));
       const savedState = prepared.sanitize(structuredClone(state));
-      return guarded(() => this.store.snapshot(threadId, entry.runId, savedMessages, savedState));
+      const write = guarded(() => this.store.snapshot(threadId, entry.runId, savedMessages, savedState));
+      if (pendingNotices.length && pendingNotices.every((anchors) => anchorsPresent(latest, anchors))) {
+        pendingNotices = [];
+        void pushSnapshot(latest);
+      }
+      return write;
     };
+    const steering = () => newSteerSession(
+      async () => {
+        if (entry.stopped) return [];
+        return (await this.inbox.claim(threadId, entry.runId)).map((claimed) => claimed.message);
+      },
+      (messages, anchors) => {
+        for (const message of messages) entry.injections.push({ message, anchors });
+        if (anchorsPresent(latest, anchors)) void pushSnapshot(latest);
+        else pendingNotices.push(anchors);
+      },
+    );
     const finalize = async (interruptionMessage?: string) => {
+      if (heldFinish && !terminal) { const finish = heldFinish; heldFinish = undefined; await emit(finish); }
       if (!runStarted && !terminal) await emit({ type: EventType.RUN_STARTED, threadId, runId: entry.runId } as BaseEvent);
       for (const event of finalizer.finalize({ stopRequested: entry.stopped,
         protocolVersion: input.protocolVersion, ...(interruptionMessage ? { interruptionMessage } : {}) })) {
@@ -315,7 +403,7 @@ class PostgresAgentRunner extends AgentRunner {
         await emit(event);
       }
       await durableWrites;
-      await this.store.snapshot(threadId, entry.runId, prepared.project(agent.messages), prepared.sanitize(agent.state));
+      await this.store.snapshot(threadId, entry.runId, prepared.project(woven(agent.messages)), prepared.sanitize(agent.state));
     };
     try {
       const identity = await this.store.thread(threadId);
@@ -340,10 +428,23 @@ class PostgresAgentRunner extends AgentRunner {
       prepared = prepareConversationMessages(row.messages, input.messages, request.persistedInputMessages);
       const oldIds = new Set(row.messages.map((message) => message.id));
       newMessages.push(...prepared.visible.filter((message) => !oldIds.has(message.id)));
+      // 排队过、后来被客户端当普通消息发出来的：由这一轮负责回答。
+      await this.inbox.merge(threadId, entry.runId, newMessages.filter((message) => message.role === "user").map((message) => message.id));
+      // 欠回答的（上一轮出错 / 服务重启）和还在排队的，跟着这一轮一起读进去。
+      await this.inbox.requeueOwed(threadId);
+      const early = await this.inbox.claim(threadId, entry.runId);
+      const execution = [...prepared.execution];
+      for (const claimed of early) {
+        if (execution.some((message) => message.id === claimed.message.id)) continue;
+        execution.push(claimed.message);
+        newMessages.push(claimed.message);
+        entry.injections.push({ message: claimed.message, anchors: [], afterId: execution[execution.length - 2]?.id });
+      }
       agent.threadId = threadId;
-      agent.setMessages(prepared.execution);
+      agent.setMessages(execution);
+      latest = execution;
       agent.setState(Object.keys(row.state ?? {}).length > 0 ? row.state : input.state ?? {});
-      await this.store.snapshot(threadId, entry.runId, prepared.visible, prepared.sanitize(agent.state));
+      await this.store.snapshot(threadId, entry.runId, prepared.project(woven(prepared.visible)), prepared.sanitize(agent.state));
       let renewing = false;
       heartbeat = setInterval(() => {
         if (renewing) return;
@@ -351,23 +452,42 @@ class PostgresAgentRunner extends AgentRunner {
         void guarded(() => this.client.ɵrenewThreadLock({ threadId, runId: entry.runId, ttlSeconds: 120 }))
           .finally(() => { renewing = false; });
       }, 30_000);
-      if (!entry.stopped) {
+      for (let segment = 0; segment < MAX_SEGMENTS && !entry.stopped; segment++) {
+        segmenting = true;
         let finalized!: () => void;
         const finalization = new Promise<void>((resolve) => { finalized = resolve; });
-        await agent.runAgent(input, {
+        const segmentInput = segment === 0 ? input : { ...input, runId: entry.runId, messages: agent.messages };
+        await withSteering(steering(), () => agent.runAgent(segmentInput, {
           onEvent: ({ event }) => guarded(() => emit(structuredClone(event))),
           onMessagesChanged: ({ messages, state }) => capture(messages, state),
           onStateChanged: ({ messages, state }) => capture(messages, state),
           onRunFinalized: () => { finalized(); },
-        });
+        }));
         await finalization;
+        await durableWrites;
+        if (persistenceError || failed || entry.stopped || !heldFinish) break;
+        // 这一段正常结束了，收件箱里还有没读的：同一次运行接着开下一段，把它们读进去。
+        const more = segment + 1 < MAX_SEGMENTS ? await this.inbox.claim(threadId, entry.runId) : [];
+        if (!more.length) break;
+        const base = woven(agent.messages);
+        for (const claimed of more) {
+          entry.injections.push({ message: claimed.message, anchors: [], afterId: base[base.length - 1]?.id });
+          base.push(claimed.message);
+        }
+        agent.setMessages(base);
+        latest = base;
+        heldFinish = undefined;
+        await pushSnapshot(base);
+        await guarded(() => this.store.snapshot(threadId, entry.runId, prepared.project(base), prepared.sanitize(agent.state)));
       }
+      segmenting = false;
       if (heartbeat) { clearInterval(heartbeat); heartbeat = undefined; }
       await durableWrites;
       if (persistenceError) throw persistenceError;
       await finalize();
     } catch (error) {
       failed = true;
+      segmenting = false;
       if (heartbeat) { clearInterval(heartbeat); heartbeat = undefined; }
       await durableWrites;
       if (started && !persistenceError) {
@@ -387,6 +507,7 @@ class PostgresAgentRunner extends AgentRunner {
             "UPDATE openbot_local_runs SET status = $3, finished_at = now() WHERE thread_id = $1 AND run_id = $2",
             [threadId, entry.runId, entry.stopped ? "stopped" : failed ? "error" : "finished"],
           );
+          await this.inbox.settle(threadId, entry.runId, entry.stopped ? "stopped" : failed ? "owed" : "answered");
           await this.client.ɵcleanupThreadLock({ threadId, runId: entry.runId });
         } catch (error) { entry.stream.error(error); entry.live.error(error); }
       }
@@ -451,9 +572,27 @@ class PostgresAgentRunner extends AgentRunner {
   }
 }
 
+/** 后台任务（workers/service.ts）挂到对话接口上的那部分：列出、补充说明、停止。 */
+export type ThreadWorkerRoutes = {
+  list(threadId: string, actorId: string): Promise<unknown[]>;
+  steer(threadId: string, workerId: string, actorId: string, text: string): Promise<void>;
+  cancel(threadId: string, workerId: string, actorId: string): Promise<void>;
+};
+
+/** 进程内能直接问运行器的事（后台任务用）。 */
+export type LocalRunControl = {
+  isActive(threadId: string): boolean;
+  observe(threadId: string, listener: (event: BaseEvent) => void): () => void;
+  stop(request: AgentRunnerStopRequest): Promise<boolean>;
+};
+
 export type LocalConversationBackend = {
   client: LocalConversationClient;
   runner: AgentRunner;
+  control: LocalRunControl;
+  inbox: ThreadInbox;
+  /** 后台任务服务建好以后挂上来（index.ts）。 */
+  setWorkers(routes: ThreadWorkerRoutes): void;
   handle(request: Request, actorId: string): Promise<Response | undefined>;
 };
 
@@ -481,7 +620,15 @@ export async function createLocalConversations(database: Database): Promise<Loca
   await database.$client.unsafe("CREATE INDEX IF NOT EXISTS openbot_local_threads_owner_updated ON openbot_local_threads(owner_user_id, updated_at DESC)");
   const store = new ConversationStore(database);
   const client = new LocalConversationClient(store);
+  const inbox = new ThreadInbox(database);
+  await inbox.ensure();
   if (process.env.CHISABOT_RELEASE_LOCKS_ON_START !== "0") {
+    try {
+      const owed = await inbox.releaseInterrupted();
+      if (owed) console.log(JSON.stringify({ type: "thread-inbox-owed-after-restart", count: owed }));
+    } catch (error) {
+      console.warn("releasing interrupted inbox items failed", error);
+    }
     try {
       const released = await client.ɵreleaseOrphanedLocks();
       if (released.threads || released.runs)
@@ -531,7 +678,8 @@ export async function createLocalConversations(database: Database): Promise<Loca
     }
     return [...ids];
   };
-  const runner = new PostgresAgentRunner(store, client);
+  const runner = new PostgresAgentRunner(store, client, inbox);
+  let workers: ThreadWorkerRoutes | undefined;
 
   const handle = async (request: Request, actorId: string): Promise<Response | undefined> => {
     const url = new URL(request.url);
@@ -571,7 +719,43 @@ export async function createLocalConversations(database: Database): Promise<Loca
         if (operation === "context") return Response.json({ context: await contextReading(threadId, row.messages) });
         if (operation === "stopped") return Response.json({ userMessageIds: await stoppedTurns(threadId, row.messages) });
         if (operation === "events") return Response.json({ events: compactEvents((await store.events(threadId)).map((event) => event.event)) });
+        if (operation === "inbox") return Response.json({ running: runner.isActive(threadId), items: await inbox.list(threadId) });
+        if (operation === "workers") return Response.json({ workers: workers ? await workers.list(threadId, actorId) : [] });
         if (!operation) return Response.json({ thread: record(row) });
+      }
+      if (operation === "inbox" && request.method === "POST") {
+        // 正在回答时又发来的一条：进收件箱（这一轮的下一步读进去）。没在跑就告诉客户端照常发送。
+        const body = await request.json() as { id?: unknown; text?: unknown };
+        const id = typeof body.id === "string" ? body.id.trim() : "";
+        const text = typeof body.text === "string" ? body.text.trim() : "";
+        if (!id || id.length > 128) throw new LocalConversationError("Message id is required", 400);
+        if (!text) throw new LocalConversationError("Message text is required", 400);
+        if (text.length > INBOX_TEXT_LIMIT) throw new LocalConversationError("Message is too long", 413);
+        if (!runner.isActive(threadId)) return Response.json({ queued: false });
+        if (row.messages.some((message) => message.id === id)) return Response.json({ queued: true, status: "read" });
+        try {
+          await inbox.enqueue({ threadId, ownerUserId: actorId, message: { id, role: "user", content: text } as Message });
+        } catch (error) {
+          throw new LocalConversationError(error instanceof Error ? error.message : "Queue is full", 429);
+        }
+        return Response.json({ queued: true, status: "queued" });
+      }
+      if (operation === "inbox" && request.method === "DELETE") {
+        const id = url.searchParams.get("id") ?? "";
+        return Response.json({ withdrawn: id ? await inbox.withdraw(threadId, id) : false });
+      }
+      if (operation === "workers" && request.method === "POST") {
+        if (!workers) throw new LocalConversationError("Background workers are not available", 404);
+        const body = await request.json() as { workerId?: unknown; action?: unknown; text?: unknown };
+        const workerId = typeof body.workerId === "string" ? body.workerId : "";
+        if (!workerId) throw new LocalConversationError("Worker is required", 400);
+        if (body.action === "cancel") await workers.cancel(threadId, workerId, actorId);
+        else if (body.action === "steer") {
+          const text = typeof body.text === "string" ? body.text.trim() : "";
+          if (!text) throw new LocalConversationError("Message text is required", 400);
+          await workers.steer(threadId, workerId, actorId, text.slice(0, INBOX_TEXT_LIMIT));
+        } else throw new LocalConversationError("Unknown worker action", 400);
+        return Response.json({ ok: true });
       }
       if (!operation && request.method === "DELETE") {
         const removed = await database.$client.unsafe(
@@ -602,5 +786,10 @@ export async function createLocalConversations(database: Database): Promise<Loca
       throw error;
     }
   };
-  return { client, runner, handle };
+  const control: LocalRunControl = {
+    isActive: (threadId) => runner.isActive(threadId),
+    observe: (threadId, listener) => runner.observe(threadId, listener),
+    stop: (request) => runner.stop(request),
+  };
+  return { client, runner, control, inbox, setWorkers: (routes) => { workers = routes; }, handle };
 }

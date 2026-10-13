@@ -16,6 +16,8 @@ import { useActiveBot } from "@/lib/copilot/active-bot";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
+import { queueMessage } from "@/lib/copilot/thread-inbox";
+import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
 import { RICH_MESSAGE_VIEW } from "@/lib/copilot/rich-message-view";
 import { useStoppedTurnIds, useTurnCompaction } from "@/lib/copilot/turn-compaction";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
@@ -189,18 +191,30 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   /*
    * 生成式界面里的「问一句」（DESIGN.md §29）：按钮的 send_message、列表行 / 磁贴的 ask。以前机器人
    * 对话里没有 ConversationProvider，这些点了没反应（只有频道聊天能用）。右栏面板不在这棵树里，
-   * 它发 chisabot-ask 事件，这里接住，发到当前对话。正在回答时不插话。
+   * 它发 chisabot-ask 事件，这里接住，发到当前对话。正在回答时进收件箱（§38.1）。
    */
   const { copilotkit } = useCopilotKit();
   const askFromUi = useCallback(
     (text: string) => {
       const said = text.trim();
-      if (!said || chatAgent.isRunning) return;
+      if (!said) return;
+      // 正在回答时：进收件箱，下一步读到（DESIGN.md §38.1），不再丢掉。
+      if (chatAgent.isRunning) {
+        if (threadId) void queueMessage(threadId, said).then((outcome) => {
+          if (outcome !== "send") return;
+          chatAgent.addMessage({ id: crypto.randomUUID(), role: "user", content: said });
+          void copilotkit.runAgent({ agent: chatAgent }).catch(() => {});
+        });
+        return;
+      }
       chatAgent.addMessage({ id: crypto.randomUUID(), role: "user", content: said });
       void copilotkit.runAgent({ agent: chatAgent }).catch(() => {});
     },
-    [chatAgent, copilotkit],
+    [chatAgent, copilotkit, threadId],
   );
+  // 回答期间发的消息、后台任务的结果和服务器自己起的那一轮（DESIGN.md §38）。
+  const runChat = useCallback((options: { agent: typeof chatAgent }) => copilotkit.runAgent(options), [copilotkit]);
+  useThreadInbox(threadId, chatAgent, runChat as never);
   useEffect(() => {
     const on = (event: Event) => {
       const text = (event as CustomEvent<unknown>).detail;

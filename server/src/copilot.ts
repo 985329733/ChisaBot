@@ -43,6 +43,7 @@ import type { AgentFetch, StallGuard } from "./channels/stall-guard";
 import { HeadlessToolsMiddleware } from "./computer/headless-tools";
 import type { DeploymentConfig } from "./config";
 import { meterLanguageModel, meterRun } from "./context-usage";
+import { steerLanguageModel } from "./thread-inbox";
 import { observeModelConnection } from "./desktop-connection-failure";
 import { desktopTelemetryProperties } from "./desktop-telemetry";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
@@ -445,12 +446,14 @@ export function builtInAgentConfiguration(
   ];
 
   return {
-    model:
-      planModel ??
-      (model.baseUrl || model.useApiKey === false
+    // 每一步开始前看收件箱：机器人回答期间用户又发来的话、后台任务的结果在步与步之间读进去（thread-inbox.ts）。
+    // 计划模型（PlanModel）自己转发整段对话，不插话；它照样能吃到段与段之间读进来的消息。
+    model: planModel
+      ? planModel
+      : model.baseUrl || model.useApiKey === false
         ? // 每一步的用量记到当前运行的计量器（输入框的「上下文」读数，context-usage.ts）。
-          meterLanguageModel(connectionLanguageModel(model, apiKey))
-        : `${model.provider}/${model.defaultModel}`),
+          steerLanguageModel(meterLanguageModel(connectionLanguageModel(model, apiKey)))
+        : `${model.provider}/${model.defaultModel}`,
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
      * holds, then the computer.
