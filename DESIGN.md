@@ -489,3 +489,10 @@
 - 计算机状态行：一轮还在跑时保留最后一句（「刚刚打开 example.com」），不在两步之间退回空闲提示；这一轮结束 6 秒后才淡出。
 - 截图缩略图存在服务器（`/api/chat-shots`，按人，≤400KB/张，每人 200 张 / 30 天），任何设备都能看到；不进模型上下文。
 - 面板 / render_ui 里空的 List、Table、repeat 区块不画，连同它前面落单的小标题（`shared/json-render/empty-sections.ts`）；`panel_update` 遇到空区块直接退回。
+
+## 28. 品牌头像与品牌色（2026-10-13）
+
+- 标志 = 一张头像：黑长发、红发带、红瞳、黑项圈，海蓝背景。原图 `assets/brand/source.webp`，所有尺寸由 `python3 assets/brand/generate.py` 生成（网页 favicon / PWA、登录网关、PC、Android、`desktop/`、README）。不要手工改单个图标文件，改脚本重跑。
+- 裁切：≥ 64px 用「脸 + 发带 + 项圈」的主裁切；≤ 64px（favicon、托盘）用更紧的脸部裁切，保证 16/32px 还认得出红眼和黑发。圆形用于头像位（顶栏、登录页、Android 圆形图标），圆角方形用于应用图标（PC、favicon、Android 方形）。
+- 品牌色只取两种：发带红 `--brand-ribbon`（亮 `#d4202c` / 暗 `#ff4d5a`）、海蓝 `--brand-ocean`（亮 `#66b4d4` / 暗 `#4f9fc4`）。**只用在品牌位置**：顶栏头像外的细红环、登录页头像与标题后的红点、Android 自适应图标底色、README。界面主色、按钮、焦点仍是 `--accent-blue`，不要把整个主题改成红色。
+- 顶栏：头像 28px 圆形，在品牌名前面（`BrandAvatar`，`brand-mark.tsx`），白色 1.5px 描边 + 3px 半透明发带红环。头像固定，品牌名仍可按人修改。

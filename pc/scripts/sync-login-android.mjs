@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const from = join(here, "..", "src", "ui");
 const to = join(here, "..", "..", "android", "app", "src", "main", "assets", "login");
 mkdirSync(to, { recursive: true });
-for (const file of ["login.html", "login.css", "login.js", "ui.css", "ui.js", "sky.js", "skyglass-tokens.css"]) {
+for (const file of ["login.html", "login.css", "login.js", "ui.css", "ui.js", "sky.js", "skyglass-tokens.css", "logo.png"]) {
   copyFileSync(join(from, file), join(to, file));
   console.log(`→ android/app/src/main/assets/login/${file}`);
 }

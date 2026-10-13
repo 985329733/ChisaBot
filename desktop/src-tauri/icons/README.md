@@ -1,5 +1,8 @@
 # OpenBot desktop icons
 
+> **ChisaBot：** 这些文件已换成 ChisaBot 品牌头像，由 `python3 assets/brand/generate.py` 生成（规则见 `DESIGN.md` §28）。
+> 下面关于 orb 导出的说明是上游原文，只作记录。
+
 These assets export the existing static `.orb`, `.orb::before`, and `.orb::after`
 artwork in [the desktop stylesheet](../../src/styles.css). The Welcome screen
 uses that same artwork. No palette, gradient, highlight, or rim is redrawn.

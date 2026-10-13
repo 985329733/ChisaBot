@@ -71,8 +71,8 @@ test("login page: CSP-clean, has the four fields, and the Android copy is identi
   for (const id of ['id="server"', 'id="user"', 'id="pass"', 'id="remember"', 'id="toggle"', 'id="history"']) assert.ok(html.includes(id), id);
   assert.ok(!html.includes("../../assets"), "不能引用 PC 专有路径（Android 共用）");
   const android = path.join(__dirname, "..", "..", "android", "app", "src", "main", "assets", "login");
-  for (const file of ["login.html", "login.css", "login.js", "ui.css", "ui.js", "sky.js", "skyglass-tokens.css"]) {
-    assert.equal(fs.readFileSync(path.join(android, file), "utf8"), fs.readFileSync(path.join(UI, file), "utf8"), `android/…/assets/login/${file} 过期：运行 node scripts/sync-login-android.mjs`);
+  for (const file of ["login.html", "login.css", "login.js", "ui.css", "ui.js", "sky.js", "skyglass-tokens.css", "logo.png"]) {
+    assert.ok(fs.readFileSync(path.join(android, file)).equals(fs.readFileSync(path.join(UI, file))), `android/…/assets/login/${file} 过期：运行 node scripts/sync-login-android.mjs`);
   }
 });
 
