@@ -55,6 +55,7 @@ import { readResponsibilityTurn } from "@/lib/channels/responsibility-turn";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
+import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { friendlyError } from "@/lib/chat/friendly-error";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -692,7 +693,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
         <MessageContent>
           <Arriving delay={delay}>
             <div className="chat-step-line" data-cb-turn="step">
-              <Streamdown components={markdownComponents}>{text}</Streamdown>
+              <SmoothStreamdown components={markdownComponents}>{text}</SmoothStreamdown>
             </div>
           </Arriving>
         </MessageContent>
@@ -778,7 +779,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
                  * closing token arrives, so the answer visibly rewrites itself as it lands. This
                  * closes them for the duration.
                  */
-                <Streamdown components={markdownComponents}>{text}</Streamdown>
+                <SmoothStreamdown components={markdownComponents}>{text}</SmoothStreamdown>
               )}
             </BubbleContent>
           </Bubble>
