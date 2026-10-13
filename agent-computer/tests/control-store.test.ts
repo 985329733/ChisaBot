@@ -120,3 +120,19 @@ test("opaque tool call ids cannot collide with object prototype names", () => {
     );
   }
 });
+test("a stored recovery flag from an older version does not strand the Bot after a restart", () => {
+  const { store } = fixture();
+  store.save({
+    version: 1,
+    holder: "bot",
+    since: new Date().toISOString(),
+    resumeSnapshotRequired: true,
+    recoveryRequired: true,
+    requests: [],
+    aliases: {},
+  });
+  const restored = createControl(undefined, { store });
+  // 命令、写文件不碰页面：直接放行；网页上的点击等仍要先拍新快照。
+  expect(() => restored.admitBotAction(false)()).not.toThrow();
+  expect(() => restored.admitBotAction(true)).toThrow();
+});

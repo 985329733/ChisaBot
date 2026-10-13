@@ -141,6 +141,24 @@ export function createLivePanelStore(db: Database) {
         .where(own(owner, id));
       return get(owner, id);
     },
+    /**
+     * 这次没刷成，但不是面板的错（有人接管着计算机、服务器重启）：卡片写明原因，保留旧数据，
+     * 不计失败次数、不退避，几分钟后再试。
+     */
+    async defer(owner: string, id: string, reason: string, retryMs: number) {
+      const current = await get(owner, id);
+      await db
+        .update(livePanels)
+        .set({
+          status: current.spec ? "ready" : "failed",
+          error: reason.slice(0, 300),
+          leaseUntil: null,
+          nextRefreshAt: new Date(Date.now() + retryMs),
+          updatedAt: new Date(),
+        })
+        .where(own(owner, id));
+      return get(owner, id);
+    },
     async undoEdit(owner: string, id: string) {
       const current = await get(owner, id);
       const prev = current.previous as { title?: string; spec?: string; sources?: LivePanelSource[]; instruction?: string; refreshMinutes?: number | null } | null;

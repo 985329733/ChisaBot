@@ -75,6 +75,23 @@ export function useFrontendTool<T extends Record<string, unknown>>(
           );
           const payload: unknown = await response.json();
           if (response.status === 202) {
+            const kind =
+              payload && typeof payload === "object" && "kind" in payload && typeof payload.kind === "string"
+                ? payload.kind
+                : "approval";
+            // 只有审批会在决定之后接上这一轮。别的等待（例如等人交还计算机）没有东西会接上：
+            // 以前这里一样 stopAgent，用户只看到机器人说了一句就再没下文（2026-10-13）。
+            // 现在把原因作为工具结果交回去，让机器人把话说完。
+            if (!kind.startsWith("approval")) {
+              const reason =
+                payload && typeof payload === "object" && "reason" in payload && typeof payload.reason === "string"
+                  ? payload.reason
+                  : "";
+              return {
+                ok: false,
+                reason: `没有执行，需要用户先处理右栏「计算机」里的请求（${reason || kind}）。如实告诉用户，不要说已经完成。`,
+              };
+            }
             if (!context.agent) throw new Error("中断的对话不可用。");
             // Stop signals the SDK to discard this handler's unfinished result. The server owns
             // resume: the decision executes the action once and continues this conversation.
