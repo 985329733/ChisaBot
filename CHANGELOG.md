@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 全端同步：同一个机器人在网页、装成应用的网页版、ChisaBot PC、安卓客户端上打开的是同一段对话，历史完整。一台设备上发的消息、正在流式输出的回答、排队消息和后台任务卡片，几秒内出现在其它开着的设备上（页面在前台时每 2 秒同步一次，切回前台立即同步）；在任一设备点「新对话」，所有设备一起换。第一次打开时沿用这台浏览器原来的对话，任何旧对话都不会被删除。见 DESIGN.md §42。只改服务器和网页，PC / Android 客户端不用更新。
 - 更跟手：点按钮、开关菜单、复制、发送、切右栏标签时不再卡一下。以前几乎每次点击都会让浏览器把整个界面（约 4000 个元素）的样式重算一两遍（4× CPU 降速下每次 130–230ms）；现在只重算点到的那一小块，打开菜单 / 弹窗也不再锁整页滚动、重排整页。界面外观不变。只改服务器网页，PC / Android 不用更新。见 DESIGN.md §41。
 - 修复（后台任务 / 并发实测的收尾）：① 输入框底色更实，滚到它下面的消息不再透出来和占位符叠在一起（窄屏暗色最明显）。② 在任务卡片上点「停止」后，对话里会补一行「后台任务「x」已停止」，机器人一句话确认，之前那句「做完会把结果发到这里」不再悬着。③ 新任务卡片一出来就显示第一步（不再「正在准备 / 步骤 0/n」干等几秒）；同时有 2 个以上任务在跑时，卡片默认收成一行，点开看清单和按钮。④ 删除机器人时连带删除它的后台任务记录、隐藏的任务对话和排队消息，删之前先停掉它还在跑的任务；以前删机器人留下的这些孤儿记录在服务启动时自动清掉。⑤ 打开新对话时浏览器控制台不再报三条 404。⑥ 系统更新里的「自检」改成问模型一道随机加法题、有回复就算通过：以前让模型「原样回口令」，有的模型（Mimo）会当成提示注入拒绝，自检时好时坏。只改服务器和网页，PC / Android 不用更新。见 DESIGN.md §25、§38.3，`docs/admin-smoke.md`。
 
@@ -137,7 +138,6 @@ Bot's next turn reads it.
   the connection before reporting the refusal. The unread body could be as large as the whole
   download budget, so a computer reached through a proxy that re-chunks left a transfer running and a
   connection checked out of the pool on every attempt.
-
 
 - A conversation title cut at 60 characters no longer ends in half an emoji. `slice` counts UTF-16
   code units and an emoji is two of them, so a title cut between the halves rendered a replacement

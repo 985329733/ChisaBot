@@ -15,6 +15,7 @@ import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { useBotThread } from "@/lib/copilot/bot-thread";
+import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { queueMessage } from "@/lib/copilot/thread-inbox";
 import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
@@ -159,7 +160,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
    * page can say so instead of letting the Bot answer as if nothing were missing. `startNew`
    * mints another fresh thread on demand for the New chat control below.
    */
-  const { threadId, history, startNew } = useBotThread(agentId);
+  const { threadId, history, startNew, onActivity } = useBotThread(agentId);
   /*
    * A turn that ends without an answer has to be said out loud here, because the packaged chat says
    * nothing. It reports a failed run to an `onError` prop and otherwise carries on as though the
@@ -215,6 +216,9 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   // 回答期间发的消息、后台任务的结果和服务器自己起的那一轮（DESIGN.md §38）。
   const runChat = useCallback((options: { agent: typeof chatAgent }) => copilotkit.runAgent(options), [copilotkit]);
   useThreadInbox(threadId, chatAgent, runChat as never);
+  // 全端同步（DESIGN.md §42）：别的设备发的消息、正在流式的回答、排队消息、任务卡片拉到这台。
+  const connectChat = useCallback((options: { agent: typeof chatAgent }) => copilotkit.connectAgent(options), [copilotkit]);
+  useConversationSync(threadId, chatAgent, connectChat as never, onActivity);
   useEffect(() => {
     const on = (event: Event) => {
       const text = (event as CustomEvent<unknown>).detail;

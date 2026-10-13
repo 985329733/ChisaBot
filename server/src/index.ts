@@ -194,6 +194,7 @@ import { executeRenderUi, renderUiTools } from "./generative-ui/render-ui";
 import { RENDER_UI_TOOL } from "../../shared/json-render/catalog";
 import { createIntelligenceClient } from "./intelligence-client";
 import { createLocalConversations } from "./local-conversations";
+import { createBotThreads } from "./bot-threads";
 import { createChatShots } from "./chat-shots";
 import { createLinkPreviews } from "./link-preview/service";
 import { clearLearningRevisionFallback } from "./learning/runtime";
@@ -2205,6 +2206,8 @@ workflowEngineInstance = createWorkflowEngine({
  */
 // 对话里的截图缩略图按人存在服务器上，换设备也看得到（chat-shots.ts）。
 const chatShots = await createChatShots(database);
+// 全端同步：每个人每个机器人的「当前对话」存在服务器上，网页 / PC / 手机打开同一段（bot-threads.ts，DESIGN.md §42）。
+const botThreads = await createBotThreads(database, localBackend?.control);
 // 聊天里的链接预览卡（link-preview/service.ts）：只连公网；没有 og:image 时由内置浏览器截图（仅共享计算机部署）。
 const linkPreviews = await createLinkPreviews(database, {
   ...(config.computer?.provider === "shared"
@@ -3737,6 +3740,7 @@ const app = createApp(
       ],
       ["/api/live-panels", livePanelService.routes(requireUser)],
       ["/api/chat-shots", chatShots.routes(requireUser)],
+      ["/api/bot-threads", botThreads.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",

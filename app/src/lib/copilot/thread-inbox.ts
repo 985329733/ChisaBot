@@ -9,7 +9,36 @@ import { useSyncExternalStore } from "react";
  * 运行结束时还在排队的（入队和结束撞上了），由客户端按普通消息发出去，不会丢。
  */
 export type QueuedStatus = "sending" | "queued" | "failed";
-export type QueuedMessage = { id: string; text: string; status: QueuedStatus; at: number };
+export type QueuedMessage = {
+  id: string;
+  text: string;
+  status: QueuedStatus;
+  at: number;
+  /**
+   * 别的设备排的（全端同步，DESIGN.md §42）：这里只显示，回答结束时不由这台设备补发——补发只归排它的那台，
+   * 否则两台设备会把同一条各发一遍。
+   */
+  remote?: boolean;
+};
+
+/** 这台设备（这个浏览器）自己排过的消息 id，用来区分「我排的」和「别的设备排的」。 */
+const OWN_KEY = "chisabot-inbox-own";
+function ownIds(): string[] {
+  try {
+    const raw = window.localStorage.getItem(OWN_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(list) ? list.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function rememberOwn(id: string) {
+  try {
+    window.localStorage.setItem(OWN_KEY, JSON.stringify([...ownIds().filter((other) => other !== id), id].slice(-200)));
+  } catch {
+    // 存不了：最坏是刷新后这条被当作别的设备排的，不补发（服务器那一轮仍会读到它）。
+  }
+}
 
 const queues = new Map<string, QueuedMessage[]>();
 /** 刚被读进去的消息 id → 读到的时间（「已读取」标记几秒后淡出）。 */
@@ -57,6 +86,7 @@ const api = (threadId: string) => `/api/copilotkit/threads/${encodeURIComponent(
  */
 export async function queueMessage(threadId: string, text: string, id: string = crypto.randomUUID()): Promise<"queued" | "send" | "failed"> {
   const item: QueuedMessage = { id, text, status: "sending", at: Date.now() };
+  rememberOwn(id);
   set(threadId, [...queuedFor(threadId).filter((other) => other.id !== id), item]);
   const update = (status: QueuedStatus) =>
     set(threadId, queuedFor(threadId).map((other) => (other.id === id ? { ...other, status } : other)));
@@ -105,8 +135,8 @@ export function markRead(threadId: string, id: string) {
 
 /** 运行结束、还在排队的：交给调用方当普通消息发出去，并从排队里拿掉。 */
 export function takeQueued(threadId: string): QueuedMessage[] {
-  const taken = queuedFor(threadId).filter((item) => item.status === "queued");
-  if (taken.length) set(threadId, queuedFor(threadId).filter((item) => item.status !== "queued"));
+  const taken = queuedFor(threadId).filter((item) => item.status === "queued" && !item.remote);
+  if (taken.length) set(threadId, queuedFor(threadId).filter((item) => item.status !== "queued" || item.remote));
   return taken;
 }
 
@@ -115,17 +145,28 @@ export type InboxState = {
   items: { id: string; status: string; kind: string; message: { content?: unknown } }[];
 };
 
-/** 打开对话时：另一台设备 / 刷新前排的队还在服务器上，接回来。 */
+/** 打开对话时、以及同步发现收件箱变了时：另一台设备 / 刷新前排的队还在服务器上，接回来（别的设备排的标 remote）。 */
 export async function restoreQueue(threadId: string): Promise<InboxState | null> {
   const response = await fetch(api(threadId), { credentials: "include" }).catch(() => null);
   if (!response?.ok) return null;
   const state = (await response.json()) as InboxState;
   const known = new Set(queuedFor(threadId).map((item) => item.id));
+  const own = new Set(ownIds());
+  const serverQueued = new Set(state.items.filter((item) => item.status === "queued").map((item) => item.id));
   const restored = state.items
     .filter((item) => item.status === "queued" && item.kind === "message" && !known.has(item.id))
-    .map((item) => ({ id: item.id, text: typeof item.message.content === "string" ? item.message.content : "", status: "queued" as const, at: Date.now() }))
+    .map((item) => ({
+      id: item.id,
+      text: typeof item.message.content === "string" ? item.message.content : "",
+      status: "queued" as const,
+      at: Date.now(),
+      ...(own.has(item.id) ? {} : { remote: true }),
+    }))
     .filter((item) => item.text);
-  if (restored.length) set(threadId, [...queuedFor(threadId), ...restored]);
+  // 别的设备排的、服务器上已经不在排队了（被读进去 / 撤回）：这里也拿掉（读进去的会随对话记录出现）。
+  const current = queuedFor(threadId);
+  const kept = current.filter((item) => !item.remote || serverQueued.has(item.id));
+  if (restored.length || kept.length !== current.length) set(threadId, [...kept, ...restored]);
   return state;
 }
 
