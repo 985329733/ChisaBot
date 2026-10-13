@@ -174,7 +174,7 @@ export function createAuthApp(config: AuthConfig) {
     if (request.method !== "POST") return json({ ok: false, error: "请求方法不支持。" }, 405, { Allow: "POST" });
     if (request.headers.get("Origin") !== config.publicOrigin) return json({ ok: false, error: "登录请求来源无效，请确认服务器地址。" }, 403);
     clean();
-    const clientKey = digest("client:" + (request.headers.get("X-OpenBot-Client") || "unknown"));
+    const clientKey = digest(`client:${request.headers.get("X-OpenBot-Client") || "unknown"}`);
     const failures = db.query("SELECT count FROM attempts WHERE client_key = ? AND expires_at > ?").get(clientKey, now()) as { count: number } | null;
     if ((failures?.count || 0) >= 10) return json({ ok: false, error: "尝试次数过多，请稍后再试。" }, 429, { "Retry-After": "60" });
     const deviceToken = (request.headers.get("X-Device-Token") || "").trim();

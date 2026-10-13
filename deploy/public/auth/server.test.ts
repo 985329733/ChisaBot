@@ -139,7 +139,7 @@ describe("public cookie login", () => {
 });
 
 describe("phone device sessions (QR pairing, DESIGN.md §33)", () => {
-  const phoneToken = "cbd_" + "a".repeat(43);
+  const phoneToken = `cbd_${"a".repeat(43)}`;
   function phoneApp(state: { active: boolean | "down"; sessionStatus?: number; revoked?: boolean }, now?: () => number, file = ":memory:") {
     const calls: string[] = [];
     const service = createAuthApp({
@@ -161,7 +161,7 @@ describe("phone device sessions (QR pairing, DESIGN.md §33)", () => {
     return { service, calls };
   }
   const exchange = (service: ReturnType<typeof app>, token = phoneToken, extra: Record<string, string> = {}) =>
-    service.fetch(new Request(origin + "/auth/device-session", { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "X-Device-Token": token, ...extra }, body: JSON.stringify({ clientVersion: "0.1.2" }) }));
+    service.fetch(new Request(`${origin}/auth/device-session`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "X-Device-Token": token, ...extra }, body: JSON.stringify({ clientVersion: "0.1.2" }) }));
 
   test("a valid phone token gets a 30-day session tied to the device", async () => {
     const { service, calls } = phoneApp({ active: true });
@@ -211,7 +211,7 @@ describe("phone device sessions (QR pairing, DESIGN.md §33)", () => {
     const { service } = phoneApp({ active: true });
     const malformed = await exchange(service, "cbd_short");
     expect(malformed.status).toBe(401); expect(malformed.headers.has("Set-Cookie")).toBe(false);
-    const unknown = await exchange(service, "cbd_" + "b".repeat(43));
+    const unknown = await exchange(service, `cbd_${"b".repeat(43)}`);
     expect(unknown.status).toBe(401);
     const cross = await exchange(service, phoneToken, { Origin: "https://evil.example" });
     expect(cross.status).toBe(403); expect(cross.headers.has("Set-Cookie")).toBe(false);

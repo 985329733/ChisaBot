@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 安卓扫码绑定：网页「设置 → 设备 → 绑定手机」显示一次性二维码（5 分钟有效、只能用一次、自动刷新，显示等待扫码 / 已绑定），安卓 App 登录页点「扫码绑定」扫一下，就登录到这个账号并直接进入主机器人，不用输入地址和密码。手机作为一台安卓设备出现在设备列表里，可以重命名、撤销或删除；撤销后手机半分钟内自动退出登录。手机只用来登录聊天，不会出现在机器人的设备工具里。账号密码登录照旧。**升级登录网关**：把 `deploy/public/auth/server.ts` 复制到网关目录并重启 `openbot-web-auth`（会话库原地加列，已有登录不受影响）；Nginx 需要 `location ^~ /api/devices/agent/` 例外（新模板已带）。见 `docs/pc-node.md` §10。
+
 ## 0.1.1（2026-10-13）
 
 - 品牌：网页 favicon / PWA 图标、登录页、顶栏、PC、Android 图标换成 ChisaBot 品牌头像；README 重写并附截图。

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 /**
- * 手机扫码绑定（docs/pc-node.md §8，DESIGN.md §33）。
+ * 手机扫码绑定（docs/pc-node.md §10，DESIGN.md §33）。
  *
  * 网页「设置 → 设备 → 绑定手机」向这里要一个**一次性、短时效**的绑定码，画成二维码；
  * 手机扫码后拿绑定码换设备令牌（/api/devices/agent/pair）。规则：
