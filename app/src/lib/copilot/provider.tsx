@@ -1,6 +1,7 @@
 import { CopilotKitProvider } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { toast } from "@/components/ui/toast";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { SignInTool } from "./sign-in-tool";
 import { ActiveBotProvider } from "./active-bot";
@@ -27,6 +28,20 @@ import { SkillTools } from "./skill-tools";
  * the server; a browser never sees them (see server/src/app.ts, where /api/capabilities projects the
  * runtime rather than returning it).
  */
+/**
+ * 发送失败不能静默（2026-10-13「发消息没反应了」）：服务器重启打断一轮后，那个对话的锁要等到期才放开，
+ * 期间每次发送 409 却什么都不显示。现在服务器启动时会释放孤儿锁，这里再兜底：运行失败一律给一条提示。
+ * 同一句话连着出现只显示一条（toast 自带去重）。
+ */
+export function describeCopilotError(code: string, error: Error | undefined): string | null {
+  const text = error?.message ?? "";
+  if (code === "agent_thread_locked" || /already running|409/i.test(text))
+    return "上一条回复还没结束（可能被服务器重启打断），请先点停止或稍等几秒再发。";
+  if (code === "agent_run_failed")
+    return `消息没有发出去：${text ? text.slice(0, 120) : "连接服务器失败"}，请稍后重试。`;
+  return null;
+}
+
 export function CopilotProvider({ children }: { children: ReactNode }) {
   const { data: capabilities } = useQuery(deploymentCapabilitiesQueryOptions());
 
@@ -34,6 +49,10 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
     <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
       credentials="include"
+      onError={({ code, error }) => {
+        const message = describeCopilotError(String(code), error);
+        if (message) toast.error(message);
+      }}
       /*
        * 不传 `openGenerativeUI`：Open Generative UI（`generateSandboxedUi`，沙箱 iframe 自写 HTML）
        * 已停用。SDK 只要运行时声明了该能力或这里出现了这个属性就会把工具提供给 Bot；服务器已不再
