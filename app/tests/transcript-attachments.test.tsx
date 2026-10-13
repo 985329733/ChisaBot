@@ -275,11 +275,12 @@ test("two files sent together are drawn as one row, not two", () => {
     ]),
   ]);
 
-  // The thing the grouping buys, stated as the DOM: two tiles inside a single list, rather than
-  // two rows each as wide as the transcript with a picture alone on each.
+  // The thing the grouping buys, stated as the DOM: one list, and since 2026-10-13 (DESIGN.md §31)
+  // the pictures in it are one stacked pile rather than a tile each.
   const lists = container.querySelectorAll("ul");
   expect(lists).toHaveLength(1);
-  expect(lists[0].querySelectorAll("li")).toHaveLength(2);
+  expect(lists[0].querySelectorAll("li")).toHaveLength(1);
+  expect(lists[0].querySelectorAll(".rp-pile .rp-pile-card")).toHaveLength(2);
 });
 
 test("a thumbnail is a crop, and what opens it is a button rather than a link", () => {

@@ -194,6 +194,7 @@ import { RENDER_UI_TOOL } from "../../shared/json-render/catalog";
 import { createIntelligenceClient } from "./intelligence-client";
 import { createLocalConversations } from "./local-conversations";
 import { createChatShots } from "./chat-shots";
+import { createLinkPreviews } from "./link-preview/service";
 import { clearLearningRevisionFallback } from "./learning/runtime";
 import { createLearningSettingsStore } from "./learning/settings";
 import { createMemoryIngestion } from "./memory/ingestion";
@@ -2133,6 +2134,12 @@ workflowEngineInstance = createWorkflowEngine({
  */
 // 对话里的截图缩略图按人存在服务器上，换设备也看得到（chat-shots.ts）。
 const chatShots = await createChatShots(database);
+// 聊天里的链接预览卡（link-preview/service.ts）：只连公网；没有 og:image 时由内置浏览器截图（仅共享计算机部署）。
+const linkPreviews = await createLinkPreviews(database, {
+  ...(config.computer?.provider === "shared"
+    ? { computer: { baseUrl: config.computer.baseUrl, ...(config.computer.token ? { token: config.computer.token } : {}) } }
+    : {}),
+});
 const livePanelStore = createLivePanelStore(database);
 const livePanelService = createLivePanelService({
   store: livePanelStore,
@@ -3638,6 +3645,7 @@ const app = createApp(
       ],
       ["/api/live-panels", livePanelService.routes(requireUser)],
       ["/api/chat-shots", chatShots.routes(requireUser)],
+      ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",
         createWorkflowRoutes({

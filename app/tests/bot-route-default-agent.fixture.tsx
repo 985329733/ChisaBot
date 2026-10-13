@@ -19,6 +19,11 @@ mock.module("@copilotkit/react-core/v2", () => ({
   ),
 }));
 
+// 富预览的消息视图依赖 CopilotChat 的消息组件，这里的 CopilotChat 是假的，用不到它。
+mock.module("@/lib/copilot/rich-message-view", () => ({
+  RICH_MESSAGE_VIEW: {},
+}));
+
 mock.module("@/lib/copilot/active-bot", () => ({
   useActiveBot: () => undefined,
 }));
