@@ -28,6 +28,7 @@ import {
 } from "./agents/plan-model";
 import type { AgentActor } from "./agents/profile-types";
 import { modelOverrideFromValue } from "./agents/model-selection";
+import { thinkTagLanguageModel } from "./agents/think-tags";
 import {
   executeNativeApprovalTool,
   nativeApprovalRun,
@@ -222,9 +223,12 @@ export function connectionLanguageModel(
     baseURL: model.baseUrl,
     fetch: connectionFetch,
   };
-  return model.provider === "anthropic"
-    ? outputLimitLanguageModel(createAnthropic(options)(model.defaultModel), model.defaultModel)
-    : createOpenAI(options).chat(model.defaultModel);
+  // 正文里 <think>…</think> 的推理改成思考片段，不进回复气泡（think-tags.ts）。
+  return thinkTagLanguageModel(
+    model.provider === "anthropic"
+      ? outputLimitLanguageModel(createAnthropic(options)(model.defaultModel), model.defaultModel)
+      : createOpenAI(options).chat(model.defaultModel),
+  );
 }
 
 /**
