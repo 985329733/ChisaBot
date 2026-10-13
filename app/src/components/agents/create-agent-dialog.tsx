@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,12 +58,26 @@ export function CreateAgentDialog({
   /** The new coworker's id, so the caller can open its dialog on it. */
   onCreated: (agentId: string) => void;
 }) {
+  /*
+   * Closing must not re-render the wizard (DESIGN.md §37). Callers pass fresh arrow functions on
+   * every render, and the close itself re-renders the caller, so the wizard gets callbacks that
+   * never change identity and is memoised: the only work a close does is the exit animation.
+   */
+  const latest = useRef({ onClose, onCreated });
+  useLayoutEffect(() => {
+    latest.current = { onClose, onCreated };
+  });
+  const close = useCallback(() => latest.current.onClose(), []);
+  const created = useCallback(
+    (agentId: string) => latest.current.onCreated(agentId),
+    [],
+  );
   return (
-    <Dialog onOpenChange={(next) => !next && onClose()} open={open}>
+    <Dialog onOpenChange={(next) => !next && close()} open={open}>
       <DialogContent>
         {/* All wizard state lives below DialogContent, whose portal unmounts on close: dismissing
             the dialog mid-way discards the half-answered steps rather than pickling them. */}
-        <CreateAgentWizard onClose={onClose} onCreated={onCreated} />
+        <CreateAgentWizard onClose={close} onCreated={created} />
       </DialogContent>
     </Dialog>
   );
@@ -168,7 +182,7 @@ const variants = {
   exit: (direction: number) => ({ x: `${-110 * direction}%`, opacity: 0 }),
 };
 
-function CreateAgentWizard({
+const CreateAgentWizard = memo(function CreateAgentWizard({
   onClose,
   onCreated,
 }: {
@@ -388,7 +402,7 @@ function CreateAgentWizard({
       </DialogBody>
     </>
   );
-}
+});
 
 /**
  * `hidden={false}` and `inert={false}` on every item, against the questionnaire's own hiding.

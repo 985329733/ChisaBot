@@ -5730,3 +5730,14 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   body:has(.bot-composer) .rail-tab.is-narrow,
   body:not(:has(.glass-composer)) .rail-tab.is-narrow { display: none; }
 }
+
+/* §37 关弹窗不卡（2026-10-13，用户：「bot 的创建面板，取消创建那个操作，还是非常卡顿」）。
+ * 根因：退出动画的每一帧都在重算毛玻璃——卡片自己的 backdrop-filter（saturate+blur 22px）随缩放 / 淡出逐帧重做，
+ * 全屏遮罩的 blur(4px) 随淡出逐帧重做，遮罩还把 backdrop-filter 放进了 transition-property（非合成动画）。
+ * 规则：遮罩只过渡 opacity；一进入 data-ending-style（取消 / × / Esc / 点遮罩 都一样），卡片、遮罩、抽屉都先去掉
+ * backdrop-filter，退出动画只剩 transform / opacity，交给合成器。卡片底色本来就是 0.86 不透明度，看不出差别。
+ * 只写不带前缀的 backdrop-filter。 */
+:is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"]) { transition-property: opacity; }
+:is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="dialog-content"], [data-slot="sheet-content"])[data-ending-style] {
+  backdrop-filter: none;
+}
