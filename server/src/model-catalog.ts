@@ -98,6 +98,7 @@ function project(body: unknown): ModelCatalogEntry[] {
     const context =
       row.context_window ?? row.context_length ?? row.max_input_tokens;
     const providerName = providerNameOf(row.magpie_label);
+    const maxOutput = row.max_output_tokens ?? row.max_completion_tokens;
     models.push({
       id: row.id,
       label,
@@ -108,6 +109,12 @@ function project(body: unknown): ModelCatalogEntry[] {
       context > 0 &&
       context <= 1e9
         ? { contextWindow: context }
+        : {}),
+      ...(typeof maxOutput === "number" &&
+      Number.isInteger(maxOutput) &&
+      maxOutput > 0 &&
+      maxOutput <= 1e8
+        ? { maxOutputTokens: maxOutput }
         : {}),
     });
   }

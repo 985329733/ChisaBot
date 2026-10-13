@@ -154,6 +154,7 @@ import {
   mountCopilotRuntime,
   normalizeModelBaseUrls,
   runtimeModelForEnvironment,
+  setModelOutputLimitResolver,
   type ToolSelection,
 } from "./copilot";
 import {
@@ -1073,6 +1074,10 @@ const resolveRuntimeConnection = () =>
 const modelCatalog = createModelCatalogService({
   resolveConnection: () => modelSettings.resolve(),
 });
+// 不认识的模型（走 Anthropic 协议的非 Claude 模型）按目录里的 max_output_tokens 定输出上限，别被截在 4096。
+setModelOutputLimitResolver(async (modelId) =>
+  (await modelCatalog.list()).models.find((entry) => entry.id === modelId)?.maxOutputTokens,
+);
 /*
  * Magpie, the model gateway. MAGPIE_ADMIN_URL (e.g. http://magpie:3430) plus its web key
  * (MAGPIE_WEB_KEY_FILE, readable only by the API user) turn on 管理后台 → 模型平台 Magpie and the

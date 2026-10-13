@@ -6,6 +6,8 @@ export type ModelCatalogEntry = {
   /** The provider's display name when the gateway gives one (Magpie: "… · OpenCode Zen"). */
   providerName?: string;
   contextWindow?: number;
+  /** 这个模型一次最多能输出多少 token（Magpie: max_output_tokens）。服务器用它给不认识的模型定输出上限。 */
+  maxOutputTokens?: number;
 };
 
 /** Gateway-side readiness of one provider, from Magpie's admin API. Never carries keys. */

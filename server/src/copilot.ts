@@ -223,8 +223,57 @@ export function connectionLanguageModel(
     fetch: connectionFetch,
   };
   return model.provider === "anthropic"
-    ? createAnthropic(options)(model.defaultModel)
+    ? outputLimitLanguageModel(createAnthropic(options)(model.defaultModel), model.defaultModel)
     : createOpenAI(options).chat(model.defaultModel);
+}
+
+/**
+ * 输出上限（不认识的模型别被截在 4096）。
+ *
+ * AI SDK 的 Anthropic 客户端只认得 Claude 的型号；走 Magpie 的 Anthropic 协议跑别家模型（默认的
+ * clinepass/…/mimo-v2.6-flash 就是）时，调用方没给 maxOutputTokens 它就按 4096 发，长回答写到一半
+ * 被截断（finish=length），界面上看不出来。这里在调用方没给的时候补上：模型目录（Magpie 的
+ * max_output_tokens）里有就用它，封顶 {@link MAX_OUTPUT_CAP}（CHISABOT_MAX_OUTPUT_TOKENS 可改）；
+ * 目录里没有就不动，照旧由 SDK 决定。认得的 Claude 型号 SDK 自己会再压到它的真实上限。
+ */
+export const MAX_OUTPUT_CAP = Number(process.env.CHISABOT_MAX_OUTPUT_TOKENS) || 32_000;
+type OutputLimitResolver = (modelId: string) => Promise<number | undefined>;
+let outputLimitFor: OutputLimitResolver = async () => undefined;
+/** index.ts 接上模型目录。 */
+export function setModelOutputLimitResolver(resolver: OutputLimitResolver): void {
+  outputLimitFor = resolver;
+}
+export async function resolveOutputLimit(modelId: string): Promise<number | undefined> {
+  try {
+    const limit = await Promise.race([
+      outputLimitFor(modelId),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 1500).unref?.()),
+    ]);
+    return typeof limit === "number" && limit > 0 ? Math.min(limit, MAX_OUTPUT_CAP) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+export function outputLimitLanguageModel<T>(model: T, modelId: string): T {
+  if (!model || typeof model !== "object" || /^claude-/i.test(modelId)) return model;
+  const target = model as unknown as Record<string, unknown>;
+  const fill = async (options: unknown) => {
+    const call = options as { maxOutputTokens?: number } | undefined;
+    if (!call || call.maxOutputTokens != null) return options;
+    const limit = await resolveOutputLimit(modelId);
+    return limit ? { ...call, maxOutputTokens: limit } : options;
+  };
+  return new Proxy(model as unknown as object, {
+    get(object, property) {
+      if ((property === "doStream" || property === "doGenerate") && typeof target[property] === "function") {
+        const method = target[property] as (options: unknown) => Promise<unknown>;
+        return async (options: unknown) => method.call(object, await fill(options));
+      }
+      // 不传 receiver：模型类的私有字段只认它自己（同 meterLanguageModel）。
+      const value = Reflect.get(object, property);
+      return typeof value === "function" ? value.bind(object) : value;
+    },
+  }) as unknown as T;
 }
 
 /** Optional desktop environment values may be present but blank; SDKs treat them as URLs. */
