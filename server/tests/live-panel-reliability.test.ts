@@ -132,3 +132,69 @@ describe("交还计算机", () => {
     expect(ran).toEqual(["lp_a"]);
   });
 });
+
+describe("删机器人：停掉它的面板刷新", () => {
+  test("retireBot 软删除它的面板、只中止它自己的刷新，中止不算失败", async () => {
+    const rows: Record<string, Record<string, unknown>> = {
+      p1: { id: "p1", ownerUserId: "u", botId: "b1", title: "A", instruction: "x", spec: "s", failures: 0, refreshedAt: null, error: null, removed: false },
+      p2: { id: "p2", ownerUserId: "u", botId: "b2", title: "B", instruction: "x", spec: "s", failures: 0, refreshedAt: null, error: null, removed: false },
+    };
+    const store = fakeStore(rows) as unknown as Record<string, unknown>;
+    const retired: string[] = [];
+    store.retireForBot = async (botId: string) => {
+      const ids = Object.values(rows).filter((r) => r.botId === botId).map((r) => r.id as string);
+      for (const id of ids) rows[id]!.removed = true;
+      retired.push(botId);
+      return ids;
+    };
+    const aborted: string[] = [];
+    const service = createLivePanelService({
+      store: store as unknown as LivePanelStore,
+      log: () => {},
+      runHeadless: ({ panelId, signal }) =>
+        new Promise<void>((resolve, reject) => {
+          const done = setTimeout(resolve, 400);
+          signal.addEventListener("abort", () => {
+            clearTimeout(done);
+            aborted.push(panelId);
+            reject(signal.reason);
+          });
+        }),
+    });
+    expect((await service.refreshNow("u", "p1")).started).toBe(true);
+    expect((await service.refreshNow("u", "p2")).started).toBe(true);
+    expect(await service.retireBot("b1")).toEqual(["p1"]);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(retired).toEqual(["b1"]);
+    expect(aborted).toEqual(["p1"]);
+    expect(rows.p1!.error).toBeNull(); // 没写「刷新失败」
+    expect(rows.p1!.leaseUntil).toBeNull(); // 租约放掉了
+    await new Promise((r) => setTimeout(r, 450));
+    expect(aborted).toEqual(["p1"]); // b2 的刷新照常跑完
+  });
+
+  test("开机清孤儿面板（CHISABOT_PANEL_ORPHAN_SWEEP=0 关掉）", async () => {
+    const calls: string[] = [];
+    const store = {
+      sweepOrphans: async () => { calls.push("sweep"); return ["lp_x"]; },
+      releaseOrphanLeases: async () => { calls.push("leases"); return 0; },
+      due: async () => [],
+      staleBuilding: async () => [],
+    } as unknown as LivePanelStore;
+    const s1 = createLivePanelService({ store, log: () => {}, runHeadless: async () => {} });
+    s1.start(); s1.stop();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls).toContain("sweep");
+    calls.length = 0;
+    process.env.CHISABOT_PANEL_ORPHAN_SWEEP = "0";
+    try {
+      const s2 = createLivePanelService({ store, log: () => {}, runHeadless: async () => {} });
+      s2.start(); s2.stop();
+      await new Promise((r) => setTimeout(r, 10));
+      expect(calls).not.toContain("sweep");
+      expect(calls).toContain("leases");
+    } finally {
+      delete process.env.CHISABOT_PANEL_ORPHAN_SWEEP;
+    }
+  });
+});

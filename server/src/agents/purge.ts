@@ -20,6 +20,8 @@
  *      Otherwise it stays a tombstone so the shared conversation remains readable, and is finished
  *      off by a later purge once that conversation is gone.
  *   4. Its browser profile directory, best effort.
+ *   Live panels (live_panels, DESIGN.md §43) are soft-removed with their refresh stopped right after
+ *   step 2, whatever happens next, and deleted in step 3.
  *   Background tasks (chisabot_workers, DESIGN.md §38) are stopped first and their rows, hidden
  *   worker-* threads and thread inbox rows go with the local threads in step 3.
  *
@@ -40,6 +42,7 @@ import {
   channels,
   groupBotThreads,
   learningThreadBindings,
+  livePanels,
   panelAuthoringSessions,
   panelCapabilityGrants,
   panelDrafts,
@@ -79,6 +82,11 @@ export function createAgentPurge(options: {
   profilesDir?: string;
   /** 停掉这个机器人还在跑 / 排队的后台任务（DESIGN.md §38），在删它的数据之前。 */
   stopWorkers?: (agentId: string) => Promise<unknown>;
+  /**
+   * 右栏的实时面板（live_panels，DESIGN.md §43）：软删除并停掉刷新（含正在跑的那次）。
+   * 不管机器人是否留成墓碑都先做；真正删掉机器人时再连行删除（removeForGood）。
+   */
+  retirePanels?: (agentId: string) => Promise<unknown>;
 }): AgentPurge {
   const { database, reset } = options;
   const profilesDir = options.profilesDir ?? process.env.PROFILES_DIR ?? "/profiles";
@@ -164,6 +172,11 @@ export function createAgentPurge(options: {
         await tx.delete(botPanelInstances).where(inArray(botPanelInstances.id, instanceIds));
       }
       await tx.delete(panelOperations).where(eq(panelOperations.botId, agentId));
+      // 实时面板（2026-10-13 以前删机器人会把它们留下）。
+      const live = await tx
+        .delete(livePanels)
+        .where(eq(livePanels.botId, agentId))
+        .returning({ id: livePanels.id });
 
       await tx.delete(groupBotThreads).where(eq(groupBotThreads.agentId, agentId));
       await tx
@@ -208,7 +221,7 @@ export function createAgentPurge(options: {
       await tx
         .delete(agents)
         .where(and(eq(agents.id, agentId), isNull(agents.packageId)));
-      return instanceIds.length;
+      return instanceIds.length + live.length;
     });
   }
 
@@ -246,6 +259,9 @@ export function createAgentPurge(options: {
 
     report.reset = await reset.execute(actor, agentId);
     report.mainBotCleared = await clearMainBot(agentId);
+    await options.retirePanels?.(agentId).catch((error: unknown) =>
+      console.warn(`[agents] retiring live panels of ${agentId} failed:`, error instanceof Error ? error.message : error),
+    );
     report.sharedConversationsKept = await liveConversations(agentId);
     if (report.sharedConversationsKept === 0) {
       await options.stopWorkers?.(agentId).catch((error: unknown) =>

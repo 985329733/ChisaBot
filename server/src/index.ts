@@ -3707,6 +3707,7 @@ const app = createApp(
         database,
         reset: botReset,
         stopWorkers: async (agentId) => workerService?.stopForAgent(agentId),
+        retirePanels: async (agentId) => livePanelService.retireBot(agentId),
       }),
       activity: createActivityStore(database),
       wakeUps: wakeUpStore,

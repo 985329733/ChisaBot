@@ -829,3 +829,16 @@
 
 实测通过、没改的行为（作为回归基线）：聊天里建面板 → 卡片「正在搭建」→ 真实数据填好；「立即刷新」有小圈、20–30 秒内换新数据；到点自动刷新成功；接管时刷新 → 卡片中文说明、不算失败；接管时让机器人修 → 它调用 `panel_refresh` 拿到 ok:false，原样转告并请你「交还」，不说修好了；交还后让机器人修 → 它调用 `panel_refresh` 拿到 ok:true 才说修好了；取数地址坏掉（404）→ 卡片「可能已过期」+ 中文原因，让机器人修 → 它改回有效接口、`panel_refresh` 验证通过后才说修好了。
 
+
+## 44. 思考内容收起就不在页面里；删机器人连面板一起删（2026-10-13）
+
+### 44.1 推理只在「思考了 N 秒」点开时存在
+- 推理走独立的 reasoning 消息（服务器把模型的 thinking 块转成 REASONING_* 事件，不进正文）。2026-10-13 实测 muse-spark-1.3 / mimo-v2.6-flash / step-5-preview 都用标准 thinking 块，solar-mini4 / gpt-5.6 不给推理，没有一个把推理写进正文（也没有 `<think>` 标签），所以服务器不剥正文。
+- 但 CopilotKit 自带的折叠只是 grid 0fr + overflow:hidden：英文推理一直在 DOM 里，Ctrl+F 搜得到、全选复制夹在回答中间、读屏会念、读 innerText 的脚本（我们自己的 e2e）当成回答——这就是「推理混进聊天正文」。
+- 规则：`reasoningMessage.toggle = ReasoningToggleZh`（lib/copilot/reasoning-zh.tsx）。收起时 `inert` + `aria-hidden`，收起动画（200ms）结束后把内容卸掉；点开才挂上。流式时照旧只显示「正在思考…」。回归测试 app/tests/reasoning-hidden.test.tsx。
+- e2e 检查「正文里有没有推理」时读 `.copilotKitMessages` 的 innerText 即可（收起的推理不在里面）。
+
+### 44.2 删机器人 = 它的面板也没了
+- 删机器人（agents/purge.ts）在清主机器人设置之后立刻把它的 live_panels 软删除、清掉 next_refresh_at 和租约，并中止它正在跑的刷新（中止不算失败、不写卡片）；机器人真正删掉时连行删除。留成墓碑（还有和别人共享的对话）时面板也已经停了。
+- 到点刷新（store.due）跳过机器人已不在 / 已标删除的面板，哪怕行还在。
+- 开机清孤儿：机器人行没了或资料已标删除的面板直接删掉（幂等；CHISABOT_PANEL_ORPHAN_SWEEP=0 关掉）。
