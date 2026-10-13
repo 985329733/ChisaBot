@@ -18,6 +18,10 @@ export type PcLocalState = {
   deviceId: string;
   agentState: "online" | "connecting" | "offline" | "revoked" | "stopped";
   statusText: string;
+  /** 本机有没有设备令牌（0.1.1 起）。false = 已登录但这台电脑还没登记成设备。旧客户端没有这个字段。 */
+  enrolled?: boolean;
+  /** 需要「登记这台电脑」：没登记 / 令牌无效 / 被撤销（0.1.1 起）。 */
+  needsEnroll?: boolean;
   tokenProtected: boolean;
   localPaused: boolean;
   forceLocalApproval: boolean;
@@ -52,6 +56,11 @@ export type PcBridge = {
   pickFolders(): Promise<string[]>;
   /** 退出登录并作废这台电脑的设备令牌（本机确认后），回到设置向导。 */
   logout(): Promise<boolean>;
+  /**
+   * 用当前登录会话把这台电脑（重新）登记成设备（0.1.1 起，旧客户端没有）。被撤销过的设备会先在 PC 上弹本机确认。
+   * status：enrolled / already（令牌仍有效，重新连接）/ login（会话过期）/ offline / failed / cancelled。
+   */
+  enroll?(): Promise<{ status: string; message: string; state: PcLocalState }>;
   /** 立即检查更新（返回最新的更新状态）。 */
   checkUpdate?(): Promise<PcUpdateState>;
   /** 新版本已下载时，退出并安装（会先在本机弹确认窗）。 */

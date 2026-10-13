@@ -39,6 +39,7 @@ const { createConfig } = require("./config");
 const { createNodeAgent } = require("./agent/core");
 const { createOps } = require("./agent/ops");
 const auth = require("./agent/auth");
+const { ensureEnrolled } = require("./agent/enrollment");
 const { createUpdater } = require("./updater");
 const buildConfig = require("./build-config");
 const BUILD = buildConfig.load();
@@ -54,6 +55,12 @@ if (!app.requestSingleInstanceLock()) app.quit();
 
 let config;
 let agent = null;
+/** 节点最近一次状态说明（例如「设备令牌无效」「设备已被撤销」），托盘和网页设备页用。 */
+let agentDetail = "";
+/** 为什么这台电脑还没成为在线设备（登记失败 / 会话过期 / 连不上）；登记成功后清空。 */
+let enrollIssue = "";
+let enrollRetryTimer = null;
+let enrolling = null;
 let tray = null;
 const windows = { login: null, chat: null };
 const UI_URL = pathToFileURL(UI).href; // 只用于 will-navigate 放行本机离线页
@@ -344,7 +351,8 @@ function statusKind() {
 
 function statusText() {
   const local = config.get();
-  if (!local.serverUrl || !config.getToken()) return "未登录";
+  if (!local.serverUrl) return "未登录";
+  if (!config.getToken()) return enrollIssue || "已登录，但这台电脑还没登记为设备";
   if (local.localPaused) return "紧急停止中";
   switch (agent?.state) {
     case "online":
@@ -352,7 +360,7 @@ function statusText() {
     case "connecting":
       return "正在连接…";
     case "revoked":
-      return "已被撤销，请重新登录";
+      return agentDetail === "设备令牌无效" ? "设备令牌无效，请重新登记这台电脑" : "已被撤销，请重新登记这台电脑";
     default:
       return "离线（自动重连中）";
   }
@@ -369,6 +377,9 @@ function refreshTray() {
       { label: `状态：${statusText()}`, enabled: false },
       { type: "separator" },
       { label: "打开 ChisaBot", click: () => void openApp() },
+      ...(needsEnroll()
+        ? [{ label: "重新登记这台电脑", click: () => void repairDevice({ force: true, manual: true }) }]
+        : []),
       ...(config.get().serverUrl
         ? [
             { label: "这台电脑的权限…", click: () => void openDeviceSettings() },
@@ -427,6 +438,54 @@ function screenshotHook({ maxWidth }) {
   });
 }
 
+/** 已登录服务器，但这台电脑没有可用的设备令牌（没登记 / 令牌无效 / 被撤销）。 */
+function needsEnroll() {
+  if (!config.get().serverUrl) return false;
+  return !config.getToken() || agent?.state === "revoked";
+}
+
+/**
+ * 补登记这台电脑（agent/enrollment.js）。自动路径（启动时）只在本机完全没有令牌时登记；
+ * 用户亲自点「重新登记」（托盘 / 网页设备页）时 force，作废无效或被撤销的旧令牌再登记。
+ * 连不上服务器时每分钟自动重试；会话过期时提示重新登录，不弹登录窗打断用户。
+ */
+function repairDevice({ force = false, manual = false } = {}) {
+  if (enrolling) return enrolling;
+  clearTimeout(enrollRetryTimer);
+  enrolling = ensureEnrolled({
+    config,
+    force,
+    sessionStatus,
+    cookieHeader: () => cookieHeaderFor(serverOrigin()),
+    enroll: (input) => auth.enroll(input),
+    checkToken: (input) => auth.checkToken(input),
+    info: { ...clientInfo(), name: config.get().deviceName || os.hostname() },
+  })
+    .then((result) => {
+      enrollIssue = result.status === "enrolled" || result.status === "already" || result.status === "no-server" ? "" : result.message;
+      if (result.status === "enrolled" || result.status === "already") {
+        if (result.status === "enrolled") {
+          agentDetail = "";
+          config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "enroll", outcome: "succeeded", summary: `${manual ? "重新登记" : "自动补登记"}：${result.message}` });
+        }
+        startAgent();
+      } else if (result.status === "failed") {
+        config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "enroll", outcome: "failed", summary: result.message.slice(0, 300) });
+      } else if (result.status === "offline") {
+        enrollRetryTimer = setTimeout(() => void repairDevice({ force }), 60_000);
+      }
+      if (manual && result.status === "login") void openApp();
+      if (manual && Notification.isSupported() && result.status !== "already")
+        new Notification({ title: "ChisaBot PC", body: result.message }).show();
+      refreshTray();
+      return result;
+    })
+    .finally(() => {
+      enrolling = null;
+    });
+  return enrolling;
+}
+
 function startAgent() {
   if (agent) agent.stop();
   const local = config.get();
@@ -456,7 +515,10 @@ function startAgent() {
     approve: (request) => askApproval(request),
     local: () => ({ paused: config.get().localPaused, forceLocalApproval: config.get().forceLocalApproval }),
   });
-  agent.events.on("state", () => refreshTray());
+  agent.events.on("state", (event) => {
+    agentDetail = event && event.detail ? String(event.detail) : event && event.state === "online" ? "" : agentDetail;
+    refreshTray();
+  });
   // 连接失败（断网、DNS、证书）由 core 自己重连；没有监听时 EventEmitter 的 "error" 会让主进程崩溃。
   agent.events.on("error", () => {});
   agent.events.on("config", (device) => {
@@ -738,6 +800,10 @@ function webLocalState() {
     deviceId: local.deviceId,
     agentState: agent?.state ?? "offline",
     statusText: statusText(),
+    /** 本机有没有设备令牌；false = 已登录但没登记（网页设备页显示「登记这台电脑」）。 */
+    enrolled: !!config.getToken(),
+    /** 需要用户点「重新登记这台电脑」（没登记 / 令牌无效 / 被撤销）。 */
+    needsEnroll: needsEnroll(),
     tokenProtected: config.tokenProtected(),
     localPaused: local.localPaused,
     forceLocalApproval: local.forceLocalApproval,
@@ -831,6 +897,9 @@ function handleChatWindow(channel, fn) {
 
 /** 作废这台电脑在 serverUrl 上的设备令牌并清掉本机记录（退出登录、换服务器时用）。 */
 async function dropDevice(serverUrl) {
+  clearTimeout(enrollRetryTimer);
+  enrollIssue = "";
+  agentDetail = "";
   const token = config.getToken();
   agent?.stop();
   agent = null;
@@ -911,6 +980,9 @@ async function submitLogin(input) {
     }
   }
   config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "login", outcome: "succeeded", summary: `登录 ${serverUrl}（${remember ? "记住登录" : "本次会话"}）` });
+  clearTimeout(enrollRetryTimer);
+  enrollIssue = warning;
+  agentDetail = "";
   startAgent();
   return { device, warning };
 }
@@ -1026,6 +1098,20 @@ function registerIpc() {
     return result.canceled ? [] : result.filePaths;
   });
   handleWeb("pc:logout", () => confirmLogout());
+  // 网页设备页的「登记这台电脑」：和托盘「重新登记这台电脑」同一条路径（本机亲自操作，所以 force）。
+  handleWeb("pc:enroll", async () => {
+    // 这台电脑是被人撤销的：网页脚本不能替用户把它重新接回去，先在本机确认（和解除紧急停止同一道闸）。
+    if (agent?.state === "revoked" && agentDetail !== "设备令牌无效") {
+      const ok = await confirmLocal({
+        title: "重新登记这台电脑？",
+        description: "这台电脑之前被撤销了关联。重新登记后它会作为新设备出现在设备列表里，所有能力仍默认关闭。",
+        confirmLabel: "重新登记",
+      });
+      if (!ok) return { status: "cancelled", message: "已取消。", state: webLocalState() };
+    }
+    const result = await repairDevice({ force: true, manual: true });
+    return { status: result.status, message: result.message, state: webLocalState() };
+  });
   handleWeb("pc:check-update", async () => (updater ? updater.check() : { supported: false, status: "idle" }));
   // 网页只能把「新版本已下载」的本机窗口叫出来；立即重启要在那个窗口里由本人点。
   handleWeb("pc:install-update", () => openUpdateWindow());
@@ -1064,6 +1150,8 @@ app.whenReady().then(() => {
   refreshTray();
   if (config.get().serverUrl) {
     if (config.getToken()) startAgent();
+    // 已登录但没有设备令牌（重装、令牌解不开、旧版配置）：用还有效的会话补登记，不再永远「看不到这台电脑」。
+    else void repairDevice();
     if (!HIDDEN && !config.get().startHidden) void openApp();
   } else {
     openLogin();

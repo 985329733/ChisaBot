@@ -41,6 +41,6 @@ test("preload channels stay minimal", () => {
   const web = fs.readFileSync(path.join(__dirname, "..", "src", "web-preload.js"), "utf8");
   assert.ok(web.includes('location.origin === origin && window.top === window'));
   const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.js"), "utf8");
-  for (const ch of ["pc:state", "pc:set", "pc:pick-folders", "pc:logout", "pc:appearance"]) assert.ok(main.includes(`handleWeb("${ch}"`), ch);
+  for (const ch of ["pc:state", "pc:set", "pc:pick-folders", "pc:logout", "pc:appearance", "pc:enroll"]) assert.ok(main.includes(`handleWeb("${ch}"`), ch);
   assert.ok(!/ipcMain\.handle\("(?!\$\{)/.test(main.replace(/function handle(Local|Web|ChatWindow)[\s\S]*?\n}\n/g, "")), "所有 handle 都要经过来源检查");
 });
