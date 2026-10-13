@@ -132,10 +132,16 @@ jobs:
           if [ -n "$feed" ]; then url="${feed%/}/"; else url="https://github.com/$REPO/releases/latest/download/"; fi
           node -e 'const fs=require("fs"),p=JSON.parse(fs.readFileSync("package.json","utf8"));p.build.publish=[{provider:"generic",url:process.argv[1],channel:"latest"}];fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")' "$url"
           cat src/build-config.json; echo "publish.url=$url"
+      - name: Shell fingerprint
+        # 外壳指纹（图标 / 安装脚本 / Electron 版本…）打进 asar；客户端拿它和 latest.yml 的 chisabotShell 比，
+        # 不同就走「重新安装」而不是 --updated 覆盖更新（docs/online-update.md §2.1）。
+        run: node scripts/shell-fingerprint.js --write
       - name: electron-builder
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder --win nsis zip --x64 --publish never
+      - name: Stamp latest.yml
+        run: node scripts/shell-fingerprint.js --stamp dist/latest.yml
       - name: Check latest.yml sha512
         run: |
           cat dist/latest.yml

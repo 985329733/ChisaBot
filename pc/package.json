@@ -9,10 +9,11 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/*.check.js",
+    "test": "node scripts/shell-fingerprint.js --check && node --test test/*.check.js",
     "agent": "node src/cli.js",
-    "dist:win": "electron-builder --win nsis zip --x64",
-    "dist:dir": "electron-builder --win dir --x64"
+    "dist:win": "node scripts/shell-fingerprint.js --write && electron-builder --win nsis zip --x64 && node scripts/shell-fingerprint.js --stamp dist/latest.yml",
+    "dist:dir": "node scripts/shell-fingerprint.js --write && electron-builder --win dir --x64",
+    "fingerprint": "node scripts/shell-fingerprint.js --write"
   },
   "dependencies": {
     "electron-updater": "6.8.9",
@@ -60,6 +61,7 @@
         "zh_CN"
       ],
       "unicode": true,
+      "include": "build/installer.nsh",
       "artifactName": "ChisaBot-PC-${version}-${arch}-setup.${ext}"
     },
     "electronLanguages": [
