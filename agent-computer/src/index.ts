@@ -16,6 +16,7 @@ import {
   offeredToken,
 } from "./authorisation";
 import { isPlainBotId } from "./bot-id";
+import { PreviewShotBusyError, PreviewShotRefusedError, previewShot } from "./preview-shot";
 import { browserRuntimeFromEnv } from "./browser-runtime";
 import { detectChallenge } from "./challenge";
 import {
@@ -781,6 +782,19 @@ serve<StreamData>({
     // The admin network policy, pushed by the server on every change; applied without a restart.
     if (url.pathname === "/egress-policy" && request.method === "PUT")
       return handleEgressPolicyRequest(botId, request);
+    // 链接预览卡的截图：独立的无头浏览器，不碰任何机器人的会话（preview-shot.ts）。
+    if (url.pathname === "/preview-shot" && request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as { url?: unknown } | null;
+      if (typeof body?.url !== "string") return json({ error: "缺少网址" }, 400);
+      try {
+        const shot = await previewShot(body.url, { sandbox: process.env.COMPUTER_SANDBOX === "on" });
+        return new Response(Buffer.from(shot), { headers: { "content-type": "image/jpeg", "cache-control": "no-store" } });
+      } catch (error) {
+        if (error instanceof PreviewShotBusyError) return json({ error: error.message }, 429);
+        if (error instanceof PreviewShotRefusedError) return json({ error: error.message }, 422);
+        return json({ error: "截图失败" }, 502);
+      }
+    }
     const session = sessions.for(botId);
 
     /*

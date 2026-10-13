@@ -11,7 +11,6 @@ import {
   IconRefresh,
   IconChevronDown,
   IconClock,
-  IconFile,
   IconX,
 } from "@tabler/icons-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -56,6 +55,12 @@ import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
+import {
+  FileCard,
+  HiddenMarkdownImage,
+  ImagePile,
+  MessageRichPreviews,
+} from "@/components/rich-previews/rich-previews";
 import { friendlyError } from "@/lib/chat/friendly-error";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -672,6 +677,9 @@ function ResponsibilityFiring({
  *
  * It is also what keeps the entrance honest — no remount means no replay of the fade.
  */
+/** 正文里的 Markdown 图片不内联画，统一进气泡下面的图片卡 / 一摞（DESIGN.md §31）。 */
+const richMarkdownComponents = { ...markdownComponents, img: HiddenMarkdownImage };
+
 const TranscriptMessage = memo(function TranscriptMessage({
   commandNames = "",
   delay,
@@ -779,10 +787,12 @@ const TranscriptMessage = memo(function TranscriptMessage({
                  * closing token arrives, so the answer visibly rewrites itself as it lands. This
                  * closes them for the duration.
                  */
-                <SmoothStreamdown components={markdownComponents}>{text}</SmoothStreamdown>
+                <SmoothStreamdown components={richMarkdownComponents}>{text}</SmoothStreamdown>
               )}
             </BubbleContent>
           </Bubble>
+          {/* 链接卡 / 图片一摞（DESIGN.md §31）；开场一句不带。 */}
+          {tone === "lead" ? null : <MessageRichPreviews align={align} text={isUser ? said : text} />}
           {isUser || !text.trim() || tone === "lead" ? null : <CopyMessage text={text} />}
         </Arriving>
       </MessageContent>
@@ -931,14 +941,33 @@ function AttachmentTiles({
   attachments: readonly SentAttachment[];
   className?: string;
 }) {
+  /*
+   * 本站的图片收成一张图卡 / 一摞（点开看大图：左右切换、缩放、下载，DESIGN.md §31）；文件和不可用的
+   * 附件仍是一格一格。哪张图读不出来，它自己从一摞里退出。
+   */
+  const pictures = attachments.filter(
+    (attachment) => attachment.modality === "image" && attachment.url.startsWith(ATTACHMENT_URL_PREFIX),
+  );
+  const rest = attachments.filter((attachment) => !pictures.includes(attachment));
   return (
     <ul
       className={cn(
-        "flex w-fit flex-wrap items-start justify-end gap-2 self-end",
+        "flex w-fit max-w-full flex-wrap items-start justify-end gap-2 self-end",
         className,
       )}
     >
-      {attachments.map((attachment) => (
+      {pictures.length > 0 ? (
+        <li key="pictures">
+          <ImagePile
+            align="end"
+            images={pictures.map((picture) => ({
+              src: picture.url,
+              ...(picture.filename ? { name: picture.filename, alt: `附件：${picture.filename}` } : { alt: "附件" }),
+            }))}
+          />
+        </li>
+      ) : null}
+      {rest.map((attachment) => (
         <li key={attachment.id}>
           <SentAttachmentTile attachment={attachment} />
         </li>
@@ -993,7 +1022,8 @@ function AttachmentTiles({
  * comment below names. That was the argument then and it is the whole argument now. Holding onto
  * "this file is GONE" is sound, deletion being terminal, but it buys nothing worth the branch.
  */
-const probesInFlight = new Map<string, Promise<boolean>>();
+type DocumentProbe = { missing: boolean; size: number | null };
+const probesInFlight = new Map<string, Promise<DocumentProbe>>();
 
 /**
  * Asks the route whether this file is missing, and answers the SAME question only once at a time.
@@ -1001,12 +1031,19 @@ const probesInFlight = new Map<string, Promise<boolean>>();
  * Resolves true for 404 and false for every other answer; a fetch that never arrives rejects, and
  * the caller declines to draw a conclusion from it.
  */
-function probeDocument(url: string): Promise<boolean> {
+function probeDocument(url: string): Promise<DocumentProbe> {
   const existing = probesInFlight.get(url);
   if (existing) return existing;
 
+  // 同一个 HEAD 顺便读 content-length，文件卡显示大小，不再另发一次请求（DESIGN.md §31）。
   const probe = fetch(url, { method: "HEAD", credentials: "include" })
-    .then((response) => response.status === 404)
+    .then((response) => {
+      const length = Number(response.headers.get("content-length"));
+      return {
+        missing: response.status === 404,
+        size: response.ok && Number.isFinite(length) && length > 0 ? length : null,
+      };
+    })
     .finally(() => {
       // Cleared however it settled, so the next mount asks again rather than inheriting an answer
       // that has had time to stop being true.
@@ -1065,8 +1102,9 @@ function probeDocument(url: string): Promise<boolean> {
  * also puts a document back in step with the picture beside it — an `<img>` handed a 401 shows a
  * broken image, not a sentence swearing the file was deleted.
  */
-function useDocumentIsGone(url: string, ask: boolean): boolean {
+function useDocumentIsGone(url: string, ask: boolean): { gone: boolean; size: number | null } {
   const [gone, setGone] = useState(false);
+  const [size, setSize] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ask) {
@@ -1078,10 +1116,11 @@ function useDocumentIsGone(url: string, ask: boolean): boolean {
 
     let cancelled = false;
     void probeDocument(url)
-      .then((missing) => {
+      .then(({ missing, size: bytes }) => {
         if (!cancelled && missing) {
           setGone(true);
         }
+        if (!cancelled && bytes !== null) setSize(bytes);
       })
       .catch(() => {
         // Deliberately nothing: see above. Not knowing is not the same as knowing it is gone.
@@ -1092,7 +1131,7 @@ function useDocumentIsGone(url: string, ask: boolean): boolean {
     };
   }, [ask, url]);
 
-  return gone;
+  return { gone, size };
 }
 
 function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
@@ -1115,7 +1154,7 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
    * announces the reader exactly as fetching it would. An off-site url is already unavailable
    * without anybody being asked.
    */
-  const gone = useDocumentIsGone(url, servable && modality === "document");
+  const { gone, size } = useDocumentIsGone(url, servable && modality === "document");
   const unavailable = failedToLoad || gone || !servable;
 
   /*
@@ -1150,18 +1189,8 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
   }
 
   if (modality === "document") {
-    return (
-      <div className="flex h-32 w-44 flex-col justify-between rounded-xl border border-border bg-muted/40 p-3">
-        <IconFile className="size-6 text-muted-foreground" />
-        <div className="min-w-0">
-          {/* `title` because the tile is fixed-width and a long name is cut, not wrapped. */}
-          <p className="truncate font-medium text-sm" title={filename}>
-            {filename ?? "未命名文件"}
-          </p>
-          <p className="text-muted-foreground text-xs">{"附件"}</p>
-        </div>
-      </div>
-    );
+    // 文件卡：图标 + 文件名 + 类型 · 大小 + 下载（DESIGN.md §31）。
+    return <FileCard name={filename} probeSize={false} size={size} url={url} />;
   }
 
   return (

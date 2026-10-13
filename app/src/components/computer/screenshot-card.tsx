@@ -1,6 +1,6 @@
 import { IconCamera, IconLoader2 } from "@tabler/icons-react";
 import { useState } from "react";
-import { createPortal } from "react-dom";
+import { Lightbox } from "@/components/rich-previews/lightbox";
 
 /**
  * 用户明确要「截个图」时，对话里放一张缩略图（2026-10-13，Hark 第二轮）。
@@ -91,14 +91,14 @@ export function ScreenshotCard({ id, running, failed, url }: { id?: string; runn
         />
         {host ? <span className="shot-card-host">{host}</span> : null}
       </button>
-      {open
-        ? createPortal(
-            <div aria-label="截图" aria-modal="true" className="shot-zoom" onClick={() => setOpen(false)} role="dialog">
-              <img alt="截图大图" src={shot.src} />
-            </div>,
-            document.body,
-          )
-        : null}
+      {/* 点开用和聊天图片同一个看大图（缩放、下载、Esc，DESIGN.md §31）。 */}
+      {open ? (
+        <Lightbox
+          images={[{ src: shot.src, alt: `${host || "页面"}的截图`, name: `截图${host ? `-${host}` : ""}.jpg` }]}
+          onClose={() => setOpen(false)}
+          startIndex={0}
+        />
+      ) : null}
     </>
   );
 }
