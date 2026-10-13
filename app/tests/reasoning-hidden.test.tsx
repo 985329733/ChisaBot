@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-import type { ReactElement } from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { CopilotChatReasoningMessage } from "@copilotkit/react-core/v2";
-import { REASONING_CLOSE_MS, ZH_MESSAGE_VIEW } from "@/lib/copilot/reasoning-zh";
+import { REASONING_CLOSE_MS, ReasoningMessageZh } from "@/lib/copilot/reasoning-zh";
 import { RICH_MESSAGE_VIEW } from "@/lib/copilot/rich-message-view";
 
 if (typeof document === "undefined") GlobalRegistrator.register();
@@ -19,17 +17,31 @@ afterEach(() => cleanup());
 const ENGLISH = "Composing two sentences that include the price range and cite the search sources as required.";
 const reasoning = { id: "r1", role: "reasoning", content: ENGLISH } as const;
 const answer = { id: "a1", role: "assistant", content: "今天比特币大约 83,400 美元。" } as const;
-const slots = ZH_MESSAGE_VIEW.reasoningMessage;
-
-function renderReasoning(props: { isRunning: boolean; messages: unknown[] }) {
-  const Msg = CopilotChatReasoningMessage as unknown as (p: Record<string, unknown>) => ReactElement;
-  return render(<Msg message={reasoning} {...props} {...slots} />);
+type Msg = { id: string; role: string; content: string };
+function renderReasoning(props: { isRunning: boolean; messages: Msg[] }) {
+  return render(<ReasoningMessageZh message={reasoning} {...props} />);
 }
 
 describe("推理内容收起时不在页面里", () => {
-  test("机器人聊天的 messageView 用的是这个折叠区", () => {
-    const rich = RICH_MESSAGE_VIEW as unknown as { reasoningMessage?: { toggle?: unknown } };
-    expect(rich.reasoningMessage?.toggle).toBe(slots.toggle);
+  test("机器人聊天的 messageView 用的是自己的思考消息（不是 CopilotKit 会自动展开的那个）", () => {
+    const rich = RICH_MESSAGE_VIEW as unknown as { reasoningMessage?: unknown };
+    expect(rich.reasoningMessage).toBe(ReasoningMessageZh);
+  });
+
+  test("流式 → 后面来了工具调用 / 正文 → 跑完：全程不自动展开（2026-10-13 生产上「思考了 5 秒」下摊开英文）", () => {
+    const tool = { id: "t1", role: "assistant", content: "" };
+    const view = renderReasoning({ isRunning: true, messages: [answer, reasoning] });
+    for (const step of [
+      { isRunning: true, messages: [answer, reasoning] },
+      { isRunning: true, messages: [answer, reasoning, tool] },
+      { isRunning: false, messages: [answer, reasoning] },
+      { isRunning: true, messages: [answer, reasoning] },
+      { isRunning: false, messages: [answer, reasoning, tool, answer] },
+    ]) {
+      view.rerender(<ReasoningMessageZh message={reasoning} {...step} />);
+      expect(view.container.textContent).not.toContain("Composing");
+    }
+    expect(view.container.textContent).toContain("思考");
   });
 
   test("回答之后（历史 / 刚结束）：只有「思考了…」，英文不在 DOM 里", () => {
