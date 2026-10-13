@@ -630,5 +630,6 @@
 
 - **根因**：CopilotKit 1.77 的消息列表超过 50 条就虚拟化（`@tanstack/react-virtual`），没量过的行按「已量过行的平均高度」估。行数一变（发消息、回复开始、出现思考 / 工具步骤）就把几十行没量过的行按新平均值重估，长回复把平均值拉高 → 视口上方凭空多出几千像素，scrollTop 不变，眼前换成更早的记录，贴底动画再把它拖回来。实测 64 条历史：发送那一帧 scrollHeight +2958px，视口顶上从第 63 条退到第 61 条。
 - **规则**：机器人聊天的消息列表**不虚拟化**——`RICH_MESSAGE_VIEW.children = renderUnvirtualizedMessageList`（`lib/copilot/message-list.tsx`，CopilotKit 关闭虚拟化的正式写法），结构 / 类名 / 光标与自带的一致。不要删这个 `children`，也不要给机器人聊天换回会估算行高的虚拟列表。
+- **性能**：全挂载后屏幕外旧消息靠 `content-visibility: auto` 跳过样式 / 布局 / 绘制（`styles.css` §35 段，最后 6 条始终渲染）；`contain-intrinsic-size: auto 240px` 对所有消息开着，显示过的消息离开视口后保持真实高度，贴底时上方高度不变。实测 110+ 条消息、4× CPU：流式 36fps、单个长任务 ≤ 206ms（只全挂载不加这条：18fps、长任务累计 11.5s）。
 - **贴底**：在底部时整轮流式都贴着底部（`use-stick-to-bottom`，平滑跟随）；用户往上滚（滚轮 / 触摸）就脱离，不被拽回，右下「↓」回到底部。消息末尾的预览卡、图片一摞在回复结束后出现时，贴底状态下平滑跟随下去。
 - **验证**：`tests/chat-scroll/repro.mjs`（假模型 + 60+ 条历史，逐帧记录 scrollTop / 视口里最早一条消息）——贴底时「视口出现更早记录」的帧数必须是 0，上滑后位置不变；桌面 1280×800、手机 390×844、4× CPU 都要过。回归单测 `app/tests/bot-message-list.test.tsx`。
