@@ -1,3 +1,4 @@
+import { markEventStreamUnbuffered } from "./event-stream-headers";
 import type { Hono as HonoApp, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -1526,6 +1527,10 @@ export function createApp(
   // The CopilotKit runtime, behind the same session guard as every other API route. Mounted last so
   // its own routing under /api/copilotkit cannot shadow an OpenBot route declared above.
   if (copilotHandler) {
+    // 流式回复（SSE）对任何反向代理都声明「别缓冲、别压缩」：nginx 认 X-Accel-Buffering，
+    // no-transform 让 CDN / 代理不去 gzip 它（gzip 会攒够一块才发，回复就一段一段地蹦）。
+    // 自带网关已经关了缓冲；这两个头是给别人自己部署时前面再套一层代理用的（docs/streaming.md）。
+    app.use("/api/copilotkit/*", markEventStreamUnbuffered);
     if (config.runtime.mode === "local") {
       if (!localBackend)
         throw new Error("The local conversation backend is required.");
@@ -2296,3 +2301,4 @@ function credentialInput(
     actorUserId,
   };
 }
+

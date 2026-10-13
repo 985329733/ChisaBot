@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Streamdown } from "streamdown";
+import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import {
   ACTIVE_RUN_STATUSES,
   TOOL_GROUP_INFO,
@@ -375,7 +376,7 @@ function StepCard({ run, step }: { run: WorkflowRunView; step: WorkflowStepState
 
       {step.output ? (
         <div className={cn("wf-step-out wf-md", long && !expanded && "is-clamped")}>
-          <Streamdown components={markdownComponents}>{step.output}</Streamdown>
+          <SmoothStreamdown components={markdownComponents}>{step.output}</SmoothStreamdown>
           {step.status === "running" ? <span aria-hidden className="wf-caret" /> : null}
         </div>
       ) : step.status === "running" ? (

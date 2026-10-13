@@ -1,5 +1,6 @@
 import { IconChevronRight } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { SmoothMarkdownRenderer } from "@/components/chat/smooth-markdown";
 
 /**
  * 机器人「思考」那一行的中文版（CopilotKit 自带的是写死的 "Thinking…" / "Thought for 2 seconds"）。
@@ -61,4 +62,6 @@ export function ReasoningContentZh({ isStreaming, hasContent, children }: { isSt
 
 export const ZH_MESSAGE_VIEW = {
   reasoningMessage: { header: ReasoningHeaderZh, contentView: ReasoningContentZh },
+  // 流式回复按帧匀速放字，不再一批一批地蹦（components/chat/smooth-markdown.tsx，DESIGN.md §28）。
+  assistantMessage: { markdownRenderer: SmoothMarkdownRenderer },
 } as const;

@@ -2,7 +2,7 @@ import { RouteSkeleton } from "@/components/startup-status";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Streamdown } from "streamdown";
+import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
   MessageContent,
@@ -208,9 +208,9 @@ function GroupLine({
             className="w-full"
           >
             <BubbleContent className="w-full">
-              <Streamdown components={markdownComponents}>
+              <SmoothStreamdown components={markdownComponents}>
                 {message.text}
-              </Streamdown>
+              </SmoothStreamdown>
             </BubbleContent>
           </Bubble>
         )}
