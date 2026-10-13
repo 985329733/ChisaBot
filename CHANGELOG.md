@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.4（2026-10-13）
+
 - 机器人浏览器不再被 Cloudflare 当成机器人封掉：托管浏览器在 Linux 上（镜像自带 Xvfb）默认改为在虚拟显示器里跑有界面 Chromium，不再用 headless。实测同一台服务器上 headless 打开 grok.com 的登录页 accounts.x.ai、x.ai 显示「Sorry, you have been blocked」、chatgpt.com 卡在「Just a moment...」，改后都能正常打开。想保留旧行为可设 `COMPUTER_BROWSER_MODE=headless`。
 - 网站仍然拦截时（「Sorry, you have been blocked」「Access denied / Error 1020」），机器人会收到中文说明，不再反复重试，会告诉你可以「接管控制」亲自试或让管理员配置出口代理（`EGRESS_PROXY_DEFAULT`）；「计算机」里的拦截页顶部也会盖一条中文提示。见 `docs/configuration.md`「网站拦截机器人浏览器」。
 
