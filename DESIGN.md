@@ -360,7 +360,7 @@
 ## 17. 生成式界面 json-render（2026-10-11 glass-20261011b）
 
 - 取代 A2UI。机器人调用 `render_ui` 工具，参数是 json-render 的 SpecStream（JSONL，每行一个 JSON Patch）；服务器按共享目录 `shared/json-render/catalog.ts` 校验，浏览器用同一份目录在对话里渲染（`app/src/lib/copilot/render-ui-tool.tsx`、`json-render/registry.tsx`），参数流式到达时逐块淡入。开关仍是 `OPENBOT_GENERATIVE_UI`（关闭时既不提供工具也不注册渲染器）。
-- 组件（17 个）：Card、Stack、Grid、Heading、Text、Metric、Table、List、Badge、Button、Input、Select、Checkbox、Alert、Progress、Image、Separator。样式全部是 `styles.css` 的 `.jr-*`，只用 Skyglass 令牌（玻璃 L1 卡片、L2 子块、墨色主按钮、天蓝进度/焦点），亮暗自动适配；动效 `--dur-2` 淡入上移 4px，减少动态效果时只淡入。
+- 组件（17 个，2026-10-13 扩到 37 个，见 §32）：Card、Stack、Grid、Heading、Text、Metric、Table、List、Badge、Button、Input、Select、Checkbox、Alert、Progress、Image、Separator。样式全部是 `styles.css` 的 `.jr-*`，只用 Skyglass 令牌（玻璃 L1 卡片、L2 子块、墨色主按钮、天蓝进度/焦点），亮暗自动适配；动效 `--dur-2` 淡入上移 4px，减少动态效果时只淡入。
 - 按钮动作：`send_message`（以用户身份在当前对话发一条可见消息，可用 `includeState` 附上表单值）、`open_link`（仅 http/https，新标签页）、内置 `setState / pushState / removeState / validateForm`。真正的操作仍由机器人用自己的工具完成并经过审批。
 - 生成中：同形状骨架 →「正在生成界面…」；格式错误：一行琥珀色「生成界面，无法工作 · 格式有误，机器人会修正后重新生成」，问题列表收在展开里（机器人会收到同样的问题并重试）。
 
@@ -535,3 +535,36 @@
 - **看大图**（`lightbox.tsx`）：全屏深色玻璃（`rgba(8,12,22,.82)` + blur），顶栏「序号 / 总数 + 图片说明（alt 优先，其次文件名）」和 放大 / 缩小 / 下载 / 关闭；左右箭头和键盘 ← → 切换，Esc 或点空白关闭；双击在 1× / 2.5× 间切，滚轮和 ＋－ 缩放到 1–4×，放大后可拖动；底部圆点指示。手机隐藏左右箭头，靠左右滑动。打开时焦点在关闭键，关闭后回到原处，背后页面不滚动。计算机截图卡也用同一个看大图。
 - **文件卡**：图标（按扩展名着色：PDF 红、表格绿、压缩包黄、其他蓝）+ 文件名一行截断 + 「类型 · 大小」+ 圆形下载按钮；宽 `min(300px, 100%)`。用户消息里的附件在气泡上方右对齐，链接卡在气泡下方。
 - 动效 150–300ms（`rp-in` 上浮淡入）；`prefers-reduced-motion` 下只淡入、不位移。浅色 / 深色都用 Skyglass 令牌，深色下一摞的白边降到 85% 亮度。
+
+## 32. 富组件：数据可视化、媒体、结构、可点、实时（2026-10-13）
+
+用户原话：「你这卡片太简单太单一。缺少各种视觉UI等效果。尤其是本身还要适用于生成式UI，内容持续刷新，可以点击跳转浏览器等等。大范围扩展一下」。
+
+对话里的 `render_ui` 和右栏面板共用一套组件（目录 `shared/json-render/catalog.ts`，实现 `app/src/lib/copilot/json-render/`：`registry.tsx` 注册、`charts.tsx` 图表、`rich.tsx` 媒体 / 结构 / 实时、`rich-context.tsx` 点击与刷新动画、`rich-utils.ts` 纯函数、`icons.tsx` 图标）。仍然 300px 窄卡优先、只用 Skyglass 令牌、亮暗自动。
+
+**组件（新增 20 个，共 37 个）**
+- 数据可视化：`Chart`（line / area / bar，最多 3 条，渐变填充、单调曲线不冲过头、悬停 / 按住显示数值的玻璃提示、横轴标签抽样、首尾刻度）、`Sparkline`（迷你走势，自动涨绿跌红，末端点呼吸）、`Ring`（进度环 / 甜甜圈 + 图例）、`Gauge`（半圆仪表，warnAt / dangerAt 自动变色）、`HeatStrip`（一条在线率 / 日历格贡献）。`Metric` 新增 `spark`（数字下的迷你走势）。全部手写 SVG，不引图表库。
+- 媒体与身份：`Hero`（封面图 + 渐变遮罩，没图用语义色渐变；可带大数字）、`Avatar`（头像 / logo，失败显示首字 + 按名字定色，右下状态点）、`Link`（网站自己的 favicon + 域名 + 标题 + 摘要 + 缩略图；不走第三方图标服务）、`Icon`（语义色图标块）。图标为 Tabler 的 103 个子集（`ICON_NAMES`），认不出的名字不画。
+- 状态：`Status`（彩色状态点，可呼吸 + 名称 + 右侧细节）、`Delta`（▲▼ 涨跌胶囊，`invert` 反色）、`Badge` 新增 `dot / pulse / icon`。`Metric` 新增 `variant: "tinted"`（按 tone 着色的渐变磁贴 + 图标 + 角落光斑）、`caption`、`icon`；`delta` 改成 ▲▼ 胶囊。
+- 结构：`Tabs`（分段开关 / 下划线标签，滑块 220ms 跟随，←→ 键切换）、`Carousel`（横滑、吸附、两端渐隐、悬停才出现左右按钮，触屏不显示）、`Timeline`（竖线节点，最新一个实心）、`KeyValue`（左标签右数值，可着色 / 等宽 / 复制 / 链接）、`Accordion`（grid-rows 0fr→1fr 展开）、`Separator` 可带中间小字、`Card` / `Heading` 可带图标、`Card` 带 tone 时右上角淡淡的语义色光晕。
+- 实时：`Countdown`（天时分秒，浏览器里每秒走）、`Clock`（IANA 时区）、`RelativeTime` 与 `List` / `Timeline` 的 ISO `time`（「3 分钟前」，一分钟内每 15 秒、一小时内每分钟重算）。整页共用一个 250ms 定时器（`useNow`），按需要的粒度才重渲染。
+
+**可点**
+- 每一项都能带动作：组件级 `href / ask / copy`（Metric、Badge、Button、Hero、Avatar、Status、Alert、Image），以及 `List` / `Timeline` / `KeyValue` 每一行。`href` = 原生 `<a target="_blank" rel="noopener noreferrer">`（中键、⌘ 点击照常），只放行 http(s)，显示 ↗（悬停时浮现，触屏常显淡色；列表行在右侧常显）；`ask` = 以用户身份发一句话；`copy` = 复制，图标变 ✓「已复制」1.5 秒。
+- 悬停浅玻璃底、按下 0.985、键盘焦点环；平铺在外壳里的可点行左右各外扩 8px，悬停底色不贴字。
+- 动作新增 `copy_text`、`refresh_panel`（只在面板里有效）。机器人对话以前没有 `ConversationProvider`，按钮的 send_message 点了没反应——现在 bot.tsx 提供了；右栏面板里的 ask 发 `chisabot-ask` 事件，由 bot.tsx 接住发到当前对话（正在回答时不插话）。
+
+**实时刷新**
+- 布局和数据分开：刷新说明要求「保持每个元素的 key 和布局不变，只换数据」；json-render 按 key 复用组件，所以新规范到了不重新挂载。值变了：数字从旧值滚到新值（300ms，先快后慢，只在前后缀 / 格式相同时滚，`31°/24°` 这种只闪不滚），同时整块淡蓝高亮 1.2 秒淡出（`.jr-flash`）。第一次出现不滚不闪。
+- 也支持 `$state` 绑定：`panel_update` 可以只交 `data`（深合并进上一版规范的 state，`mergePanelData`），不必重交 spec；规范里没有任何 `$state` 时拒绝并要求完整 spec。
+- 面板刷新中：内容上一道玻璃扫光（1.5s 循环）、数字 / 图表变淡到 0.6，底部写「正在刷新…」；平时底部「x 分钟前更新」会自己走。最近一次刷新失败但有旧内容：标题旁琥珀色「可能已过期」（悬停看原因），内容降饱和 + 0.78 透明度，失败原因照旧在卡片里。
+- 进场：同一列的块依次淡入上移，每块晚 40ms（最多 240ms），列表行 / 时间线每行晚 30–40ms；图表从左往右展开（clip-path 300ms），环 / 仪表从 0 画到值，柱子从底部长出来。
+
+**语义色**：`tone` 改成宽松字符串，浏览器 `normaliseTone` 归一到 6 种：default / accent（品牌蓝）/ info（新增青色，亮 `#0b8fb8` 暗 `#4cc9f0`）/ success / warn / danger；good、bad、brand、red、green… 都认，不认识的当 default（以前写错 tone 整个元素被跳过）。样式只读 `.jr-tone-*` 提供的 `--tone / --tone-soft / --tone-ink`。
+
+**安全**：只画纯文本；图片只认 https（Hero / Avatar / Link / List 缩略图不是 https 时只去掉那张图，不跳过整个元素），加载失败整块收起不留破图；`referrerPolicy="no-referrer"`。
+
+**减少动态效果**：进场只淡入不位移、无延迟；不画线 / 不长柱 / 不呼吸 / 不闪 / 不扫光（扫光换成静态淡底）；按下不缩放；数字直接换成新值。
+
+**面板规范（`server/src/live-panels/design.ts`，§29）同步扩展**：版式 A–H（行情 / 新闻可点 / 对比 / 倒计时 / 服务状态 / 天气 / 项目账号 / 资源用量），示例全部用新组件且必须通过检查；限额：大块 ≤ 3（Tabs 只算最大一页，Carousel 里的卡片不算进外面）、Hero ≤ 1、Metric ≤ 4、元素 ≤ 30、层数 ≤ 5、图表每条 ≤ 60 点、KeyValue ≤ 8、Carousel ≤ 8、Tabs ≤ 3 页且 children 与 tabs 一一对应、Countdown target 必须是合法时间、Clock 必须是 IANA 时区、href / 图片必须 http(s) / https 且不能是示例里的 example.com 占位。`render_ui` 提示词加了「选对组件」「能点就让它能点」「颜色有含义才用」三条。
+

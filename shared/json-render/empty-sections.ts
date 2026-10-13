@@ -24,7 +24,26 @@ type Element = {
   repeat?: { statePath?: unknown } | null;
 };
 
-const CONTAINERS = new Set(["Stack", "Grid", "Card"]);
+const CONTAINERS = new Set(["Stack", "Grid", "Card", "Carousel", "Accordion", "Tabs"]);
+
+/** 数据在某个数组属性里的组件：数组为空就是空区块（2026-10-13 富组件）。 */
+const ARRAY_PROP: Record<string, string> = {
+  List: "items",
+  Table: "rows",
+  Timeline: "items",
+  KeyValue: "items",
+  Sparkline: "data",
+  HeatStrip: "values",
+};
+
+/** Chart 有两种写法：data（单条）或 series（多条，每条有 data）。 */
+function chartEmpty(props: Record<string, unknown> | undefined, state: unknown): boolean {
+  const series = props?.series;
+  if (Array.isArray(series) && series.length > 0) {
+    return series.every((one) => emptyArray((one as { data?: unknown } | null)?.data, state) === true);
+  }
+  return emptyArray(props?.data, state) === true;
+}
 
 function lookup(state: unknown, path: string): unknown {
   return path
@@ -82,8 +101,9 @@ export function findEmptySections(spec: Spec | null | undefined): EmptySectionRe
     } else if (element.repeat && statePath !== undefined) {
       empty = false; // $item 等动态路径：不知道
     }
-    if (!empty && element.type === "List") empty = emptyArray(element.props?.items, state) === true;
-    if (!empty && element.type === "Table") empty = emptyArray(element.props?.rows, state) === true;
+    const arrayProp = element.type ? ARRAY_PROP[element.type] : undefined;
+    if (!empty && arrayProp) empty = emptyArray(element.props?.[arrayProp], state) === true;
+    if (!empty && element.type === "Chart") empty = chartEmpty(element.props, state);
     if (!empty && !element.repeat && element.type && CONTAINERS.has(element.type)) {
       const children = (element.children ?? []).filter((child): child is string => typeof child === "string" && child in elements);
       empty = children.length > 0 && children.every((child) => isEmpty(child));

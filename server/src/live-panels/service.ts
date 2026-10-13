@@ -81,7 +81,12 @@ const updateParameters = z.object({
     .string()
     .min(2)
     .max(100_000)
-    .describe("面板内容：json-render 规范，格式和组件与 render_ui 完全相同（JSONL 或完整 {root,elements} JSON）。只放结果（数字、列表、表格），不要放「数据来源」「更新时间」，卡片会自己显示。按【面板设计规范】写：先按 320px 窄卡设计，最外层 Stack、不用 Card。"),
+    .optional()
+    .describe("面板内容：json-render 规范，格式和组件与 render_ui 完全相同（JSONL 或完整 {root,elements} JSON）。只放结果（数字、图表、列表、表格），不要放「数据来源」「更新时间」，卡片会自己显示。按【面板设计规范】写：先按 300px 窄卡设计，最外层 Stack、不用 Card。刷新时保持元素 key 不变。"),
+  data: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("只换数据时用（可选）：上一版规范里的值是用 {\"$state\": \"/路径\"} 绑定的，就只交新的 state（如 {\"price\": \"$81,272\"}），不必重交 spec；会合并进上一版的 state。"),
   sources: z.array(sourceSchema).min(1).max(6).describe("这次数据实际来自哪里（必须是你刚刚读过的网址）"),
   title: z.string().min(1).max(60).optional().describe("改标题时才填"),
   instruction: z.string().min(1).max(2000).optional().describe("用户要求修改面板时，填新的刷新说明（例如改成显示以太坊）"),
@@ -101,6 +106,24 @@ export const LIVE_PANEL_GUIDANCE = [
   "实在取不到数据就 panel_fail 说明原因，并在对话里如实告诉用户。不要在对话里贴规范、JSON 或代码。",
 ].join("\n");
 
+
+/**
+ * 只换数据（DESIGN.md §32「布局和数据分开」）：把 data 深合并进上一版规范的 state，返回新的完整规范（JSON）。
+ * 上一版没有规范、或者规范里一个 $state 绑定都没有（换了 state 也不会显示）时返回 null，让机器人交完整 spec。
+ */
+export function mergePanelData(previous: string | null, data: Record<string, unknown>): string | null {
+  if (!previous) return null;
+  const spec = parseRenderUiSpec(previous, false) as { root?: string; elements?: Record<string, unknown>; state?: Record<string, unknown> } | null;
+  if (!spec?.root || !spec.elements) return null;
+  if (!JSON.stringify(spec.elements).includes('"$state"')) return null;
+  const merge = (base: unknown, patch: unknown): unknown => {
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) return patch;
+    const out: Record<string, unknown> = base && typeof base === "object" && !Array.isArray(base) ? { ...(base as Record<string, unknown>) } : {};
+    for (const [key, value] of Object.entries(patch as Record<string, unknown>)) out[key] = merge(out[key], value);
+    return out;
+  };
+  return JSON.stringify({ ...spec, state: merge(spec.state ?? {}, data) });
+}
 
 /**
  * 面板里的大数字不能是空的（2026-10-13 第二轮实测：比特币面板「现价（美元）」下面一片空白——
@@ -147,8 +170,10 @@ export function createLivePanelService(deps: {
     return [
       `【后台刷新面板，不是用户在聊天】面板「${row.title}」（id: ${row.id}）${firstFill ? "还没有内容，需要第一次填好" : "需要刷新数据"}。`,
       `刷新说明：${row.instruction}`,
-      row.spec ? `上一版面板规范（保持同样的布局，只换成最新数据）：\n${row.spec.slice(0, 12_000)}` : "",
-      "现在：用 web_search / web_fetch 取最新的真实数据，然后调用 panel_update（id 同上，带 spec 和 sources）。取不到就调用 panel_fail 说明原因。不要做别的事，也不需要回复任何文字。",
+      row.spec
+        ? `上一版面板规范（保持同样的布局和每个元素的 key，只换成最新数据——这样用户看到的是数字平滑滚动到新值，而不是整张重画；值是 $state 绑定的就只交 data）：\n${row.spec.slice(0, 12_000)}`
+        : "",
+      "现在：用 web_search / web_fetch 取最新的真实数据，然后调用 panel_update（id 同上，带 spec（或只带 data）和 sources）。取不到就调用 panel_fail 说明原因。不要做别的事，也不需要回复任何文字。",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -215,24 +240,32 @@ export function createLivePanelService(deps: {
         name: "panel_update",
         ref: "live-panels/panel_update",
         description:
-          "把取到的真实数据画进右栏面板（首次填充、刷新、或按用户要求修改）。spec 用 render_ui 同一套组件，来源 sources 必填。必须遵守系统提示里的【面板设计规范】（一层外壳不用 Card、不重复标题、Metric ≤4、大块 ≤2、≤5 行、短标签、不写段落）；不合格会被退回并写明怎么改，照改后重新调用。",
+          "把取到的真实数据画进右栏面板（首次填充、刷新、或按用户要求修改）。spec 用 render_ui 同一套组件（含图表 Chart / Sparkline、环 Ring、仪表 Gauge、热力 HeatStrip、封面 Hero、状态 Status、倒计时 Countdown 等），来源 sources 必填。必须遵守系统提示里的【面板设计规范】（一层外壳不用 Card、不重复标题、Metric ≤4、大块 ≤3、≤5 行、短标签、不写段落、有网址就写 href）；不合格会被退回并写明怎么改，照改后重新调用。",
         parameters: updateParameters,
         execute: async (args) => {
           const parsed = updateParameters.safeParse(args);
           if (!parsed.success) return `${REFUSAL_MARKER} 参数不对：${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("；")}`;
           try {
             const current = await guard(parsed.data.id);
-            const verdict = inspectRenderUiSpec(parsed.data.spec);
+            // 只换数据：把 data 合并进上一版规范的 state（布局不变，浏览器里数字原地滚动）。
+            let specText = parsed.data.spec;
+            if (!specText) {
+              if (!parsed.data.data) return `${REFUSAL_MARKER} 需要 spec（完整面板规范），或者只换数据时给 data。`;
+              const merged = mergePanelData(current.spec, parsed.data.data);
+              if (!merged) return `${REFUSAL_MARKER} 这张面板还没有可以只换数据的规范（第一次填充或没有用 $state 绑定），请交完整的 spec。`;
+              specText = merged;
+            }
+            const verdict = inspectRenderUiSpec(specText);
             if (!verdict.ok) return [`${REFUSAL_MARKER} 面板规范无效，没有保存。修正后再调用 panel_update：`, ...verdict.issues.map((i) => `- ${i}`)].join("\n");
-            const empty = emptyMetrics(parsed.data.spec);
+            const empty = emptyMetrics(specText);
             if (empty.length) return `${REFUSAL_MARKER} 面板没有保存：${empty.map((l) => `「${l}」`).join("、")}没有数值。把取到的数字直接写进 Metric 的 value（字符串，例如 "$82,407"），不要用 $state 绑定，然后再调用 panel_update。`;
             // 空列表 / 空重复区块（2026-10-13 第三轮实测：香港天气「未来 5 天」只剩标题）：退回去让机器人把数据写进去。
-            const hollow = emptySections(sanitizeRenderUiSpec(parseRenderUiSpec(parsed.data.spec, false))?.spec ?? null);
+            const hollow = emptySections(sanitizeRenderUiSpec(parseRenderUiSpec(specText, false))?.spec ?? null);
             if (hollow.length)
               return `${REFUSAL_MARKER} 面板没有保存：${hollow.map((l) => `「${l}」`).join("、")}下面是空的（List 的 items / Table 的 rows 是空的，或 repeat.statePath 指向的 state 数组不存在或为空）。把取到的每一行直接写进 List 的 items（或 Table 的 rows），不要用 repeat 和 $state，然后再调用 panel_update；确实没有数据就把这一节连同标题一起删掉。`;
             // 面板设计规范（design.ts）：不合格就退回并写明每一处怎么改。同一张面板连续退回 3 次后照样保存
             // （渲染端有兜底），免得机器人在一个规范细节上来回打转、面板一直空着。
-            const lint = lintPanelSpec(parsed.data.spec, parsed.data.title ?? current.title);
+            const lint = lintPanelSpec(specText, parsed.data.title ?? current.title);
             const strikes = lintStrikes.get(parsed.data.id) ?? 0;
             if (lint.length && strikes < LINT_MAX_STRIKES) {
               lintStrikes.set(parsed.data.id, strikes + 1);
@@ -240,7 +273,8 @@ export function createLivePanelService(deps: {
               return [`${REFUSAL_MARKER} 面板没有保存：不符合【面板设计规范】。逐条改好后用同一个 id 重新调用 panel_update（不要新建面板，也不要在对话里解释）：`, ...lint.map((i) => `- ${i}`)].join("\n");
             }
             lintStrikes.delete(parsed.data.id);
-            const row = await store.update(actorId, parsed.data.id, { ...parsed.data, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
+            const { data: _data, ...input } = parsed.data;
+            const row = await store.update(actorId, parsed.data.id, { ...input, spec: specText, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
             return `面板「${row.title}」已更新${row.refreshMinutes ? `，之后每 ${row.refreshMinutes >= 1440 ? `${Math.round(row.refreshMinutes / 1440)} 天` : row.refreshMinutes >= 60 ? `${Math.round(row.refreshMinutes / 60)} 小时` : `${row.refreshMinutes} 分钟`}自动刷新` : ""}。${options.refreshOf ? "这是后台刷新，不需要回复。" : "对话里只用一句话告诉用户，不要贴面板内容或规范。"}`;
           } catch (error) {
             return say(error);

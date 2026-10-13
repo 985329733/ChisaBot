@@ -12,6 +12,7 @@ import { pruneEmptySections } from "../../../../shared/json-render/empty-section
 import { ToolLine } from "@/components/channels/tool-line";
 import { useConversation } from "@/lib/copilot/conversation";
 import { jsonRenderRegistry } from "@/lib/copilot/json-render/registry";
+import { copyText, openInNewTab, RichUiProvider } from "@/lib/copilot/json-render/rich-context";
 import { REFUSAL_MARKER } from "@/lib/plugins/tool-result";
 
 /**
@@ -165,8 +166,23 @@ function JsonRenderSurface({
         if (!/^https?:\/\//i.test(url)) return;
         window.open(url, "_blank", "noopener,noreferrer");
       },
+      copy_text: (params: Record<string, unknown>) => {
+        if (typeof params.text === "string" && params.text) void copyText(params.text);
+      },
+      // 对话里的界面没有「刷新」：只有右栏面板会重新取数。
+      refresh_panel: () => {},
     }),
     [store],
+  );
+  // 列表行 / 磁贴上的 ask（替用户发一句话）走同一个对话。
+  const rich = useMemo(
+    () => ({
+      surface: "chat" as const,
+      openLink: openInNewTab,
+      copy: copyText,
+      ask: conversation?.ask ? (text: string) => conversationRef.current?.ask(text) : undefined,
+    }),
+    [conversation?.ask],
   );
 
   return (
@@ -177,9 +193,11 @@ function JsonRenderSurface({
       data-streaming={streaming || undefined}
       role="region"
     >
-      <JSONUIProvider handlers={handlers} registry={jsonRenderRegistry} store={store}>
-        <Renderer loading={streaming} registry={jsonRenderRegistry} spec={spec} />
-      </JSONUIProvider>
+      <RichUiProvider value={rich}>
+        <JSONUIProvider handlers={handlers} registry={jsonRenderRegistry} store={store}>
+          <Renderer loading={streaming} registry={jsonRenderRegistry} spec={spec} />
+        </JSONUIProvider>
+      </RichUiProvider>
     </div>
   );
 }

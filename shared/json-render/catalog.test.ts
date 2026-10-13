@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { pruneEmptySections } from "./empty-sections";
 import {
+  ICON_NAMES,
   inspectRenderUiSpec,
   jsonRenderCatalog,
+  normaliseTone,
   parseRenderUiSpec,
   RENDER_UI_TOOL,
   renderUiPrompt,
@@ -163,5 +166,107 @@ describe("json-render catalog (render_ui)", () => {
 
   test("a spec whose root itself is unusable is still refused", () => {
     expect(inspectRenderUiSpec(JSON.stringify({ root: "x", elements: { x: { type: "Record", props: {}, children: [] } } })).ok).toBe(false);
+  });
+
+  test("rich components (2026-10-13) validate with real-looking props", () => {
+    const spec = JSON.stringify({
+      root: "r",
+      elements: {
+        r: { type: "Stack", props: {}, children: ["hero", "chart", "ring", "gauge", "heat", "tabs", "tl", "kv", "acc", "cd", "clk", "rt", "car", "st", "dl", "av", "ln", "ic", "sp", "sep"] },
+        hero: { type: "Hero", props: { title: "多云", value: "26℃", tone: "info", icon: "cloud", href: "https://example.org" }, children: [] },
+        chart: { type: "Chart", props: { kind: "area", labels: ["a", "b", "c"], data: [1, "2,000", null], unit: "$" }, children: [] },
+        ring: { type: "Ring", props: { segments: [{ label: "A", value: 3, tone: "good" }, { label: "B", value: 1 }] }, children: [] },
+        gauge: { type: "Gauge", props: { value: 72, warnAt: 60, dangerAt: 90, unit: "%" }, children: [] },
+        heat: { type: "HeatStrip", props: { values: [0, 1, 2, 3], rows: 7 }, children: [] },
+        tabs: { type: "Tabs", props: { tabs: ["今天", "本周"] }, children: ["t1", "t2"] },
+        t1: { type: "Text", props: { text: "一" }, children: [] },
+        t2: { type: "Text", props: { text: "二" }, children: [] },
+        tl: { type: "Timeline", props: { items: [{ title: "发货", time: "2026-10-13T08:00:00+08:00", tone: "success" }] }, children: [] },
+        kv: { type: "KeyValue", props: { items: [{ label: "IP", value: "10.0.0.1", mono: true, copy: "10.0.0.1" }] }, children: [] },
+        acc: { type: "Accordion", props: { title: "详情" }, children: ["t3"] },
+        t3: { type: "Text", props: { text: "三" }, children: [] },
+        cd: { type: "Countdown", props: { target: "2026-12-31T23:59:59+08:00" }, children: [] },
+        clk: { type: "Clock", props: { timezone: "America/New_York", label: "纽约" }, children: [] },
+        rt: { type: "RelativeTime", props: { time: "2026-10-13T08:00:00Z", prefix: "更新于" }, children: [] },
+        car: { type: "Carousel", props: { itemWidth: "sm" }, children: ["m1"] },
+        m1: { type: "Metric", props: { label: "Star", value: "128k", variant: "tinted", icon: "star", spark: [1, 2, 3], tone: "brand" }, children: [] },
+        st: { type: "Status", props: { label: "官网", tone: "success", pulse: true, detail: "200" }, children: [] },
+        dl: { type: "Delta", props: { value: "+3.2%" }, children: [] },
+        av: { type: "Avatar", props: { name: "vercel", shape: "square" }, children: [] },
+        ln: { type: "Link", props: { url: "https://github.com/vercel/next.js", title: "next.js" }, children: [] },
+        ic: { type: "Icon", props: { name: "rocket", tone: "accent" }, children: [] },
+        sp: { type: "Sparkline", props: { data: [3, 2, 5], label: "7 天" }, children: [] },
+        sep: { type: "Separator", props: { label: "更早" }, children: [] },
+      },
+    });
+    const result = inspectRenderUiSpec(spec);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.warnings ?? []).toEqual([]);
+  });
+
+  test("new actions copy_text / refresh_panel are accepted; item-level href/ask/copy are plain props", () => {
+    const spec = JSON.stringify({
+      root: "r",
+      elements: {
+        r: { type: "Stack", props: {}, children: ["a", "b", "l"] },
+        a: { type: "Button", props: { label: "复制" }, on: { press: { action: "copy_text", params: { text: "ssh root@x" } } }, children: [] },
+        b: { type: "Button", props: { label: "刷新" }, on: { press: { action: "refresh_panel", params: {} } }, children: [] },
+        l: { type: "List", props: { items: [{ title: "新闻", href: "https://news.example.org/1", ask: "展开讲讲", time: "2026-10-13T08:00:00Z" }] }, children: [] },
+      },
+    });
+    expect(validateRenderUiSpec(parseRenderUiSpec(spec)).ok).toBe(true);
+  });
+
+  test("tones are tolerant: aliases map to the six semantic tones and unknown words fall back to default", () => {
+    expect(normaliseTone("good")).toBe("success");
+    expect(normaliseTone("Bad")).toBe("danger");
+    expect(normaliseTone("brand")).toBe("accent");
+    expect(normaliseTone("info")).toBe("info");
+    expect(normaliseTone("chartreuse")).toBe("default");
+    expect(normaliseTone(undefined)).toBe("default");
+    // a Badge with tone "info" used to be refused by the old enum
+    expect(inspectRenderUiSpec(JSON.stringify({ root: "b", elements: { b: { type: "Badge", props: { text: "x", tone: "info" }, children: [] } } })).ok).toBe(true);
+  });
+
+  test("non-https images on rich components are stripped, not the whole element", () => {
+    const result = inspectRenderUiSpec(
+      JSON.stringify({
+        root: "r",
+        elements: {
+          r: { type: "Stack", props: {}, children: ["h", "l"] },
+          h: { type: "Hero", props: { title: "封面", image: "http://insecure.test/a.jpg" }, children: [] },
+          l: { type: "List", props: { items: [{ title: "a", image: "data:image/png;base64,xx" }] }, children: [] },
+        },
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.spec.elements.h as { props: { image?: unknown } }).props.image).toBeNull();
+      expect((result.spec.elements.l as { props: { items: { image?: unknown }[] } }).props.items[0]?.image).toBeNull();
+    }
+  });
+
+  test("the prompt lists the icon names and the component-choice rule", () => {
+    const prompt = renderUiPrompt();
+    expect(prompt).toContain("Chart");
+    expect(prompt).toContain("能点就让它能点");
+    expect(prompt).toContain(ICON_NAMES[0]);
+  });
+
+  test("empty charts / timelines / key-value lists are pruned like empty lists", () => {
+    const spec = parseRenderUiSpec(
+      JSON.stringify({
+        root: "r",
+        elements: {
+          r: { type: "Stack", props: {}, children: ["h", "c", "h2", "t"] },
+          h: { type: "Heading", props: { text: "走势" }, children: [] },
+          c: { type: "Chart", props: { series: [{ name: "a", data: [] }] }, children: [] },
+          h2: { type: "Heading", props: { text: "说明" }, children: [] },
+          t: { type: "Text", props: { text: "留着" }, children: [] },
+        },
+      }),
+    );
+    const pruned = pruneEmptySections(spec);
+    expect(Object.keys(pruned?.elements ?? {}).sort()).toEqual(["h2", "r", "t"]);
   });
 });
