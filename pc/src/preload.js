@@ -16,6 +16,7 @@ const CHANNELS = new Set([
   "confirm:answer",
   "update:current",
   "update:answer",
+  "update:fit",
 ]);
 
 contextBridge.exposeInMainWorld("chisa", {

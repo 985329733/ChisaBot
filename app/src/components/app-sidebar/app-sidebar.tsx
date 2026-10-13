@@ -401,13 +401,15 @@ function BotMenuContent({
     }
     showPanels();
   };
+  // 窄窗口（左栏是抽屉、几乎占满窗口）右边放不下：改成贴着机器人行下方弹出、右边与卡片齐平，菜单留在窗口里（DESIGN.md §36.3）。
+  const drawer = Boolean(useOptionalSidebar()?.isMobile);
   return (
     <DropdownMenuContent
-      align="start"
+      align={drawer ? "end" : "start"}
       anchor={anchor}
       className="glass-pop bot-menu-pop"
-      side="right"
-      sideOffset={8}
+      side={drawer ? "bottom" : "right"}
+      sideOffset={drawer ? 4 : 8}
     >
       <BotChatMenuItems agentId={bot.id} chat={chat} latest={latest} />
       <DropdownMenuItem className="glass-mi" onClick={() => void openPanels()}>

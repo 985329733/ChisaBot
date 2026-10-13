@@ -2,6 +2,10 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconMenu2,
+  IconMessageCircle,
+  IconRepeat,
+  IconRoute,
+  IconSparkles,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -10,15 +14,15 @@ import { BrandMark } from "@/components/layout/brand-mark";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { type DesktopWindowBridge, useDesktopWindow } from "@/lib/desktop-window";
+import { canCompact, type DesktopWindowBridge, useDesktopWindow } from "@/lib/desktop-window";
 import { PROTO_PREVIEW } from "@/lib/proto-preview";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { label: "聊天", to: "/", match: (p: string) => p === "/" || p.startsWith("/channel") || p.startsWith("/group") || p === "/bot" || p.startsWith("/bot/") },
-  { label: "长期任务", to: "/responsibilities", match: (p: string) => p.startsWith("/responsibilities") || p.startsWith("/routines") },
-  { label: "技能", to: "/skills", match: (p: string) => p.startsWith("/skills") },
-  { label: "工作流", to: "/workflows", match: (p: string) => p.startsWith("/workflows") },
+  { label: "聊天", Icon: IconMessageCircle, to: "/", match: (p: string) => p === "/" || p.startsWith("/channel") || p.startsWith("/group") || p === "/bot" || p.startsWith("/bot/") },
+  { label: "长期任务", Icon: IconRepeat, to: "/responsibilities", match: (p: string) => p.startsWith("/responsibilities") || p.startsWith("/routines") },
+  { label: "技能", Icon: IconSparkles, to: "/skills", match: (p: string) => p.startsWith("/skills") },
+  { label: "工作流", Icon: IconRoute, to: "/workflows", match: (p: string) => p.startsWith("/workflows") },
 ] as const;
 
 export function initialsOf(name: string | null | undefined, email: string | undefined) {
@@ -102,6 +106,7 @@ export function GlassTopBar({ scope = "app" }: { scope?: ShellScope }) {
         )}
         {sidebar && !mobile ? <RosterToggle scope={scope} /> : null}
       </div>
+      {/* 窄的 PC 窗口（小窗模式，DESIGN.md §36.2）里图标常驻、只有当前一项带字；宽窗口和浏览器里图标隐藏，和以前一样。 */}
       <nav aria-label={"主导航"} className="glass-seg">
         {TABS.map((tab) => (
           <Link
@@ -109,21 +114,60 @@ export function GlassTopBar({ scope = "app" }: { scope?: ShellScope }) {
             key={tab.to}
             to={tab.to}
           >
-            {tab.label}
+            <tab.Icon aria-hidden className="glass-seg-ico" />
+            <span className="glass-seg-t">{tab.label}</span>
           </Link>
         ))}
       </nav>
       {/* 右区故意留空：右上角只属于窗口。 */}
       <div aria-hidden className="glass-topbar-end" />
-      {desktop ? <WindowControls bridge={desktop.bridge} maximized={desktop.maximized} /> : null}
+      {desktop ? <WindowControls bridge={desktop.bridge} compact={desktop.compact} maximized={desktop.maximized} /> : null}
     </header>
   );
 }
 
-/** PC 无边框窗口右上角：Windows 11 传统标题按钮（46×40，贴在窗口右上角，无胶囊底）；关闭悬停 #c42b1c 红底白字。 */
-export function WindowControls({ bridge, maximized }: { bridge: DesktopWindowBridge; maximized: boolean }) {
+const COMPACT_KEYS = /Mac/.test(navigator.userAgent) ? "⌘⇧M" : "Ctrl+Shift+M";
+
+/**
+ * PC 无边框窗口右上角：Windows 11 传统标题按钮（46×40，贴在窗口右上角，无胶囊底）；关闭悬停 #c42b1c 红底白字。
+ * 最左边是「小窗模式 / 恢复窗口」（DESIGN.md §36，PC 客户端支持时才有）；小窗里四个按钮收窄到 36px。
+ */
+export function WindowControls({
+  bridge,
+  maximized,
+  compact = false,
+}: {
+  bridge: DesktopWindowBridge;
+  maximized: boolean;
+  compact?: boolean;
+}) {
+  const compactLabel = compact ? "恢复窗口" : "小窗模式";
   return (
-    <div aria-label={"窗口"} className="win-ctrls" role="group">
+    <div aria-label={"窗口"} className="win-ctrls" data-count={canCompact(bridge) ? 4 : 3} role="group">
+      {canCompact(bridge) ? (
+        <button
+          aria-label={compactLabel}
+          aria-pressed={compact}
+          className="win-ctrl is-compact-toggle"
+          onClick={() => bridge.toggleCompact?.()}
+          title={`${compactLabel}（${COMPACT_KEYS}）`}
+          type="button"
+        >
+          {compact ? (
+            // 恢复窗口：一台横放的显示器。
+            <svg aria-hidden fill="none" height="10" viewBox="0 0 10 10" width="10">
+              <rect height="6" rx="1.2" stroke="currentColor" strokeWidth="1.1" width="8.4" x="0.8" y="0.9" />
+              <path d="M3.2 9.1h3.6" stroke="currentColor" strokeLinecap="round" strokeWidth="1.1" />
+            </svg>
+          ) : (
+            // 小窗模式：一部竖放的手机。
+            <svg aria-hidden fill="none" height="10" viewBox="0 0 10 10" width="10">
+              <rect height="8.6" rx="1.4" stroke="currentColor" strokeWidth="1.1" width="5.6" x="2.2" y="0.7" />
+              <path d="M4.3 7.4h1.4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.1" />
+            </svg>
+          )}
+        </button>
+      ) : null}
       <button aria-label={"最小化"} className="win-ctrl" onClick={() => bridge.minimize()} title={"最小化"} type="button">
         <svg aria-hidden height="10" viewBox="0 0 10 10" width="10">
           <path d="M1 5.5h8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />

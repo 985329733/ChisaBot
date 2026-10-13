@@ -5668,3 +5668,65 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .cb-message-list { display: flex; flex-direction: column; }
 .cb-message-list > * { contain: layout style; contain-intrinsic-size: auto 240px; }
 .cb-message-list > :not(:nth-last-child(-n + 6)) { content-visibility: auto; }
+
+/* ==========================================================================================
+ * §36 小窗模式 + 窄窗口整理 + 面板库收进右栏（2026-10-13，DESIGN.md §36）。
+ * ========================================================================================== */
+
+/* §36.4 面板库：右栏卡片里的一层 —— 左右各留 8px（与右栏同宽）、顶边贴卡片头下方、高度随内容，最高到卡片底。 */
+.rail-card { position: relative; }
+.rail-lib-scrim { position: absolute; inset: 0; z-index: 20; border-radius: inherit; background: rgba(17, 26, 43, 0.06); animation: rail-lib-fade var(--dur-1) linear both; }
+.dark .rail-lib-scrim { background: rgba(0, 0, 0, 0.22); }
+.rail-lib {
+  position: absolute; z-index: 21; top: 8px; left: 8px; right: 8px; max-height: calc(100% - 16px);
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  border-radius: calc(var(--r-xl) - 8px); /* 同心：卡片 24 − 间距 8 */
+  background: rgba(255, 255, 255, 0.94); border: 1px solid var(--line-strong); box-shadow: var(--shadow-2);
+  backdrop-filter: blur(var(--blur-2));
+  transform-origin: top center;
+  animation: rail-lib-in var(--dur-2) var(--ease-out) both;
+}
+.dark .rail-lib { background: rgba(24, 33, 50, 0.96); border-color: rgba(255, 255, 255, 0.1); }
+.rail-lib[data-state="closed"] { animation: rail-lib-out var(--dur-1) var(--ease-in) both; pointer-events: none; }
+.rail-lib-scrim[data-state="closed"] { animation: rail-lib-fade-out var(--dur-1) linear both; pointer-events: none; }
+.rail-lib-head { display: flex; align-items: center; gap: 8px; min-height: 30px; padding-left: 4px; }
+.rail-lib-t { font-size: 16px; font-weight: 600; line-height: 24px; color: var(--ink-1); }
+.rail-lib-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.rail-lib .rail-lib-x { width: 30px; padding: 0; justify-content: center; }
+.rail-lib-list { flex: 0 1 auto; }
+@keyframes rail-lib-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes rail-lib-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@keyframes rail-lib-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rail-lib-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .rail-lib { animation-name: rail-lib-fade; }
+  .rail-lib[data-state="closed"] { animation-name: rail-lib-fade-out; }
+}
+
+/* §36.2 窄的 PC 窗口（< 768px，小窗模式就是 420px）：
+ * 标题按钮收窄到 36px（4 个 = 144px），右边不再留等宽占位；主导航改成「图标 + 当前一项的字」，不再被切掉。
+ * 浏览器 / 手机里没有 data-desktop，这些规则不生效。 */
+.glass-seg-ico { display: none; flex: none; width: 16px; height: 16px; }
+@media (max-width: 767px) {
+  html[data-desktop] .win-ctrl { width: 36px; }
+  html[data-desktop] .glass-topbar { grid-template-columns: 40px minmax(0, 1fr); padding-right: calc(36px * 4 + 8px); }
+  html[data-desktop] .glass-topbar:has(.win-ctrls[data-count="3"]) { padding-right: calc(36px * 3 + 8px); }
+  html[data-desktop] .glass-topbar-end { display: none; }
+  html[data-desktop] .glass-topbar > .glass-seg { overflow: visible; }
+  html[data-desktop] .glass-seg-item { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; transition: background var(--dur-1) linear, color var(--dur-1) linear; }
+  html[data-desktop] .glass-seg-item.is-on { padding: 6px 12px 6px 10px; }
+  html[data-desktop] .glass-seg-ico { display: block; }
+  html[data-desktop] .glass-seg-item:not(.is-on) .glass-seg-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* 菜单一律留在窗口里（机器人行菜单在抽屉里改为向下弹出，见 app-sidebar）。 */
+  .bot-menu-pop[data-slot="dropdown-menu-content"] { max-width: calc(100vw - 16px); }
+}
+
+/* §36.3 窄窗口（< 768px）里的「面板」入口：机器人聊天放进输入框工具栏（＋ 旁边）；
+ * 右边缘的竖把手只留给频道聊天，机器人聊天和没有输入框的页面（长期任务、技能、设置…）不再显示它 —— 不压住消息和卡片。
+ * 其它页面要看面板：左栏机器人「⋯ → 自定义面板」。 */
+.bot-composer-panels { display: none; }
+@media (max-width: 767px) {
+  .bot-composer-panels { display: inline-grid; place-items: center; }
+  body:has(.bot-composer) .rail-tab.is-narrow,
+  body:not(:has(.glass-composer)) .rail-tab.is-narrow { display: none; }
+}

@@ -10,3 +10,8 @@ body.dialog-page { padding: 10px; display: flex; }
 .dialog-meta { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-12); color: var(--ink-3); margin-bottom: 12px; font-variant-numeric: tabular-nums; }
 .dialog-f { display: flex; gap: 8px; justify-content: flex-end; }
 .dialog-f .btn { min-width: 104px; }
+/* 更新提示（DESIGN.md §36.5）：标题可以折两行（小窗里窗口只有 388 宽，「此更新需要重新安装…」不再被省略号切掉）；
+   量高度时内容按自然高度排（is-measuring，update.js）。 */
+.update-page .dialog-title { white-space: normal; overflow: visible; }
+.update-page.is-measuring { display: block; }
+.update-page.is-measuring .dialog, .update-page.is-measuring .dialog-desc { flex: none; }

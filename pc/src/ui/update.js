@@ -26,5 +26,20 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") window.chisa.invoke("update:answer", { restart: false });
   });
+  // 提示窗跟着主窗口放（小窗里会变窄）：量出内容的自然高度报给主进程，窗口高度贴合内容（DESIGN.md §36.5）。
+  const fit = () => {
+    document.body.classList.add("is-measuring");
+    const h = document.querySelector("main").getBoundingClientRect().height + 20;
+    document.body.classList.remove("is-measuring");
+    window.chisa.invoke("update:fit", { height: h }).catch(() => {});
+  };
+  let last = 0;
+  window.addEventListener("resize", () => {
+    if (window.innerWidth === last) return;
+    last = window.innerWidth;
+    fit();
+  });
+  last = window.innerWidth;
+  fit();
   $("restart").focus();
 })();

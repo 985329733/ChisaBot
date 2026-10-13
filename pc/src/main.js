@@ -42,6 +42,8 @@ const auth = require("./agent/auth");
 const { ensureEnrolled } = require("./agent/enrollment");
 const { createUpdater } = require("./updater");
 const shellRefresh = require("./shell-refresh");
+const { createCompactController } = require("./compact-window");
+const { computeUpdateBounds } = require("./update-placement");
 const buildConfig = require("./build-config");
 const BUILD = buildConfig.load();
 const pkg = require("../package.json");
@@ -302,6 +304,16 @@ function openChat(pathname) {
     if (!win.isDestroyed()) win.webContents.send("window:maximized", win.isMaximized() || win.isFullScreen());
   };
   for (const name of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen"]) win.on(name, sendMaximized);
+  // 小窗模式（DESIGN.md §36）：Ctrl+Shift+M 在主窗口里随时可用（网页、离线页都一样，旧网页没有按钮也能切）。
+  compactWindows().watch(win);
+  // 「新版本已下载」提示窗挂在主窗口里，主窗口动了它跟着动（DESIGN.md §36.5）。
+  for (const name of ["move", "resize", "show", "hide", "minimize", "restore", "maximize", "unmaximize"]) win.on(name, () => placeUpdateWindow());
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || !(input.control || input.meta) || !input.shift || input.alt) return;
+    if (String(input.key).toLowerCase() !== "m") return;
+    event.preventDefault();
+    compactWindows().toggle(win);
+  });
   win.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
@@ -733,34 +745,54 @@ function startUpdater() {
 function openUpdateWindow() {
   if (!updater || updater.state.status !== "downloaded") return false;
   if (updateWindow && !updateWindow.isDestroyed()) {
+    placeUpdateWindow();
     updateWindow.show();
     updateWindow.focus();
     return true;
   }
-  const { workArea } = screen.getPrimaryDisplay();
-  const width = 440;
-  const height = updater.state.fullInstall ? 280 : 260;
+  updateContentHeight = updater.state.fullInstall ? 280 : 260;
   updateWindow = new BrowserWindow({
-    width,
-    height,
-    x: workArea.x + workArea.width - width - 16,
-    y: workArea.y + workArea.height - height - 16,
+    width: 440,
+    height: updateContentHeight,
     frame: false,
     resizable: false,
     minimizable: false,
     maximizable: false,
-    alwaysOnTop: true,
     show: false,
     title: "ChisaBot PC · 新版本",
     backgroundColor: windowBackground(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
+  placeUpdateWindow();
   updateWindow.loadFile(path.join(UI, "update.html"));
   updateWindow.once("ready-to-show", () => updateWindow?.showInactive());
   updateWindow.on("closed", () => {
     updateWindow = null;
   });
   return true;
+}
+
+/** 提示窗内容的实际高度（update.js 量好后报上来，update:fit）。 */
+let updateContentHeight = 260;
+
+/**
+ * 提示窗位置（DESIGN.md §36.5，update-placement.js）：主窗口看得见就挂在主窗口里（子窗口、顶栏下居中、跟着走）；
+ * 主窗口在托盘里 / 最小化就放到它所在显示器的右下角并置顶。主窗口移动、改大小、显示 / 隐藏、进出小窗时都会重新调用。
+ */
+function placeUpdateWindow() {
+  if (!updateWindow || updateWindow.isDestroyed()) return;
+  const chat = windows.chat && !windows.chat.isDestroyed() ? windows.chat : null;
+  const chatVisible = Boolean(chat && chat.isVisible() && !chat.isMinimized());
+  const workArea = (chat ? screen.getDisplayMatching(chat.getBounds()) : screen.getPrimaryDisplay()).workArea;
+  const b = computeUpdateBounds({ chat: chat ? chat.getBounds() : null, chatVisible, workArea, contentHeight: updateContentHeight });
+  if (b.attached) {
+    if (updateWindow.getParentWindow() !== chat) updateWindow.setParentWindow(chat);
+    updateWindow.setAlwaysOnTop(false);
+  } else {
+    if (updateWindow.getParentWindow()) updateWindow.setParentWindow(null);
+    updateWindow.setAlwaysOnTop(true);
+  }
+  updateWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
 }
 
 function installUpdateNow() {
@@ -893,6 +925,20 @@ function handleWeb(channel, fn) {
     if (!fromServerPage(event)) throw new Error("拒绝：只有已登录服务器的页面可以使用本机桥。");
     return fn(payload, event);
   });
+}
+
+/** 小窗模式控制器（主进程里只有一个，app ready 之后才能用 screen）。 */
+let compactController = null;
+function compactWindows() {
+  if (!compactController) {
+    compactController = createCompactController({
+      screen,
+      onChange: (win, compact) => {
+        if (!win.isDestroyed()) win.webContents.send("window:compact", compact);
+      },
+    });
+  }
+  return compactController;
 }
 
 /** 无边框主窗口的窗口控制：已登录服务器的顶层页面，或主窗口里的本机离线页。 */
@@ -1069,6 +1115,11 @@ function registerIpc() {
       ? { version: updater.state.version || "", currentVersion: pkg.version, fullInstall: !!updater.state.fullInstall }
       : null,
   );
+  handleLocal("update:fit", ({ height } = {}) => {
+    if (typeof height === "number" && Number.isFinite(height)) updateContentHeight = Math.ceil(height);
+    placeUpdateWindow();
+    return true;
+  });
   handleLocal("update:answer", ({ restart } = {}) => {
     if (restart === true) return installUpdateNow();
     updateWindow?.close();
@@ -1099,6 +1150,12 @@ function registerIpc() {
   });
   ipcMain.on("window:close", (event) => chatWin(event)?.close());
   handleChatWindow("window:is-maximized", () => Boolean(windows.chat && !windows.chat.isDestroyed() && windows.chat.isMaximized()));
+  // 小窗模式：网页右上角的「小窗模式 / 恢复窗口」按钮。
+  ipcMain.on("window:toggle-compact", (event) => {
+    const win = chatWin(event);
+    if (win) compactWindows().toggle(win);
+  });
+  handleChatWindow("window:is-compact", () => compactWindows().isCompact(windows.chat));
   handleWeb("pc:set", (patch) => setLocal(patch && typeof patch === "object" ? patch : {}));
   handleWeb("pc:pick-folders", async () => {
     const result = await dialog.showOpenDialog(windows.chat, {

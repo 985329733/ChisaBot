@@ -32,6 +32,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -1051,6 +1052,28 @@ function PanelLibrary({
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const keys = useRef(new Map<string, string>());
+  const titleId = useId();
+  // 关闭时先播完 150ms 的淡出再卸载；Esc 只关面板库（捕获阶段拦下，窄窗口外面那层抽屉不跟着关）。
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const t = window.setTimeout(() => setMounted(false), 160);
+    return () => window.clearTimeout(t);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, onOpenChange]);
   const installedSources = new Set(
     installed.map((i) => `${i.sourceLibraryId}:${i.sourceVersion}`),
   );
@@ -1082,30 +1105,37 @@ function PanelLibrary({
     .filter((e) => (tab === "mine" ? e.canManage : true))
     .filter((e) => !needle || e.definition.name.toLowerCase().includes(needle));
 
+  if (!mounted) return null;
+  const state = open ? "open" : "closed";
   return (
-    <Sheet onOpenChange={onOpenChange} open={open}>
-      <SheetContent
-        className="glass-drawer gap-3.5 p-5 data-[side=right]:sm:max-w-[440px] data-[side=right]:w-[min(440px,100vw)]"
-        side="right"
-      >
-        <div className="flex items-baseline gap-2 pr-10">
-          <SheetTitle className="font-semibold text-lg">{"面板库"}</SheetTitle>
-          <SheetDescription className="text-xs">
+    <>
+      {/* 面板库（DESIGN.md §36.4）：右栏卡片里的一层，和右栏同宽、高度随内容（最高到卡片底），不再是比右栏还宽的整屏抽屉。 */}
+      <div aria-hidden className="rail-lib-scrim" data-state={state} onClick={() => onOpenChange(false)} />
+      <div aria-labelledby={titleId} aria-modal="true" className="rail-lib" data-state={state} role="dialog">
+        <div className="rail-lib-head">
+          <h3 className="rail-lib-t" id={titleId}>{"面板库"}</h3>
+          <span className="rail-lib-sub">
             {"安装到 "}
             {botName ?? "当前 BOT"}
-          </SheetDescription>
+          </span>
+          <span className="flex-1" />
+          <button aria-label={"关闭面板库"} className="rail-head-btn rail-lib-x" onClick={() => onOpenChange(false)} title={"关闭"} type="button">
+            <IconX className="size-4" />
+          </button>
         </div>
-        <label className="flex h-10 items-center gap-2 rounded-full bg-foreground/5 px-4 text-muted-foreground">
+        <label className="flex h-9 shrink-0 items-center gap-2 rounded-full bg-foreground/5 px-4 text-muted-foreground">
           <IconSearch className="size-4" />
           <input
             aria-label={"搜索面板"}
+            // biome-ignore lint/a11y/noAutofocus: the layer is opened on purpose; typing to search is the first thing to do.
+            autoFocus
             className="h-full min-w-0 flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"
             onChange={(e) => setSearch(e.target.value)}
             placeholder={"搜索面板…"}
             value={search}
           />
         </label>
-        <div className="flex gap-1.5">
+        <div className="flex shrink-0 gap-1.5">
           {(
             [
               ["all", "共用面板库"],
@@ -1130,7 +1160,7 @@ function PanelLibrary({
             {error}
           </p>
         ) : null}
-        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-1 pb-2">
+        <div className="rail-lib-list -mx-1 flex min-h-0 flex-col gap-2 overflow-y-auto px-1 pb-1">
           {library.isPending ? (
             <p className="text-muted-foreground text-sm">{"加载面板库…"}</p>
           ) : library.isError ? (
@@ -1143,8 +1173,8 @@ function PanelLibrary({
             items.map((entry) => {
               const done = installedSources.has(`${entry.id}:${entry.version}`);
               return (
-                <div className="glass-li flex items-center gap-3 p-3.5" key={entry.id}>
-                  <div className="grid size-11 shrink-0 place-items-center rounded-[14px] bg-gradient-to-br from-sky-100 to-slate-50 font-semibold text-sky-700 dark:from-sky-900/40 dark:to-slate-800/40 dark:text-sky-300">
+                <div className="glass-li flex items-center gap-3 p-3" key={entry.id}>
+                  <div className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-gradient-to-br from-sky-100 to-slate-50 font-semibold text-sky-700 dark:from-sky-900/40 dark:to-slate-800/40 dark:text-sky-300">
                     {entry.definition.name.slice(0, 1)}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1197,11 +1227,11 @@ function PanelLibrary({
             })
           )}
         </div>
-        <p className="text-center text-muted-foreground text-xs">
+        <p className="shrink-0 text-center text-muted-foreground text-xs">
           {"每次安装复制固定版本；库更新不会改变已安装面板。"}
         </p>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }
 

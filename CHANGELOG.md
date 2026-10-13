@@ -10,6 +10,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 - 修复：机器人聊天里 AI 正在输出时，画面有时会突然跳到上面更早的聊天记录再滑回来（会话超过 50 条消息时最明显）。现在在底部时整轮都贴着底部；自己往上翻看记录时不会被拽回去。只改服务器网页，PC / Android 客户端不用更新（它们加载的就是服务器上的网页）。见 DESIGN.md §35。
 
+## 0.1.5（2026-10-13）
+
+- ChisaBot PC 小窗模式：右上角窗口按钮最左边新增「小窗模式」，一键把主窗口变成手机比例的竖长小窗（约 420×860，留在当前显示器、贴着原来的右上角），再点「恢复窗口」回到原来的大小、位置和最大化状态；快捷键 Ctrl+Shift+M。需要新版 PC 客户端（旧客户端不显示按钮）。
+- 窄窗口（< 768px，含小窗）整理：PC 顶栏标题按钮收窄、主导航改成图标 + 当前一项的字，不再被切掉；机器人聊天的「面板」入口移进输入框工具栏，右边缘竖把手不再压住消息和卡片；抽屉里的机器人 ⋯ 菜单改为向下弹出，不再跑出窗口。
+- ChisaBot PC「新版本已下载」提示窗（包括「此更新需要重新安装」）不再固定在主显示器右下角、压住别的程序和小窗：主窗口开着时挂在主窗口里、顶栏下面居中，跟着主窗口移动和进出小窗，宽度随窗口收窄；主窗口在托盘里时才放到右下角。
+- 面板库不再是比右栏还宽的整屏抽屉：改成右栏卡片里的一层，与右栏同宽、高度随内容，宽窗口和窄窗口一致。
+
 ## 0.1.4（2026-10-13）
 
 - 机器人浏览器不再被 Cloudflare 当成机器人封掉：托管浏览器在 Linux 上（镜像自带 Xvfb）默认改为在虚拟显示器里跑有界面 Chromium，不再用 headless。实测同一台服务器上 headless 打开 grok.com 的登录页 accounts.x.ai、x.ai 显示「Sorry, you have been blocked」、chatgpt.com 卡在「Just a moment...」，改后都能正常打开。想保留旧行为可设 `COMPUTER_BROWSER_MODE=headless`。
@@ -111,7 +118,6 @@ Bot's next turn reads it.
   the connection before reporting the refusal. The unread body could be as large as the whole
   download budget, so a computer reached through a proxy that re-chunks left a transfer running and a
   connection checked out of the pool on every attempt.
-
 
 
 - A conversation title cut at 60 characters no longer ends in half an emoji. `slice` counts UTF-16
