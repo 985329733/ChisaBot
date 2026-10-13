@@ -1,5 +1,6 @@
 import {
   IconDeviceDesktop,
+  IconHistory,
   IconMessagePlus,
   IconSettings,
 } from "@tabler/icons-react";
@@ -25,6 +26,8 @@ type RegisterProps = {
   computerOpen?: boolean;
   onComputerChange?: (open: boolean) => void;
   onNewTopic?: () => void;
+  /** 打开「历史对话」（DESIGN.md §42.6）。 */
+  onHistory?: () => void;
   /** Already on an empty topic: 新话题 has nothing to clear. */
   freshTopic?: boolean;
   /** Shown in the roster when the Bot is hidden from it (e.g. the browser Bot). */
@@ -44,6 +47,7 @@ export function RegisterBotChat({
   computerOpen = false,
   onComputerChange,
   onNewTopic,
+  onHistory,
   freshTopic = false,
   fallbackName,
 }: RegisterProps) {
@@ -53,8 +57,9 @@ export function RegisterBotChat({
     if (!freshTopic && onNewTopic) onNewTopic();
   });
   // Handlers change identity every render; the published snapshot only changes with the state.
-  const latest = useRef({ settingsOpen, onSettingsChange, computerOpen, onComputerChange, onNewTopic });
-  latest.current = { settingsOpen, onSettingsChange, computerOpen, onComputerChange, onNewTopic };
+  const latest = useRef({ settingsOpen, onSettingsChange, computerOpen, onComputerChange, onNewTopic, onHistory });
+  latest.current = { settingsOpen, onSettingsChange, computerOpen, onComputerChange, onNewTopic, onHistory };
+  const canHistory = Boolean(onHistory);
   const canSettings = Boolean(onSettingsChange);
   const canComputer = Boolean(onComputerChange);
   const canNewTopic = Boolean(onNewTopic) && !freshTopic;
@@ -71,12 +76,14 @@ export function RegisterBotChat({
             canSettings,
             canComputer,
             canNewTopic,
+            canHistory,
+            openHistory: () => latest.current.onHistory?.(),
             toggleSettings: () => latest.current.onSettingsChange?.(!latest.current.settingsOpen),
             toggleComputer: () => latest.current.onComputerChange?.(!latest.current.computerOpen),
             newTopic: () => latest.current.onNewTopic?.(),
           }
         : null,
-    [agentId, fallbackName, settingsOpen, computerOpen, needsYou, freshTopic, canSettings, canComputer, canNewTopic],
+    [agentId, fallbackName, settingsOpen, computerOpen, needsYou, freshTopic, canSettings, canComputer, canNewTopic, canHistory],
   );
   useEffect(() => (snapshot ? publishBotChat(snapshot) : undefined), [snapshot]);
   return null;
@@ -110,7 +117,7 @@ export function BotRowComputerChip({ chat }: { chat: BotChatContext | null }) {
 }
 
 /**
- * 机器人「⋯」菜单的上半部分（机器人设置 · 查看计算机 · 新话题）。
+ * 机器人「⋯」菜单的上半部分（机器人设置 · 查看计算机 · 新话题 · 历史对话）。
  *
  * 对正在打开的这个机器人：直接操作当前对话（切换设置窗格 / 计算机、清空上下文）。
  * 对其他机器人：先打开它最近的对话，并带上对应的窗格；没有对话时设置去资料页、新话题去空聊天。
@@ -179,6 +186,12 @@ export function BotChatMenuItems({
           </DropdownMenuShortcut>
         ) : null}
       </DropdownMenuItem>
+      {chat?.canHistory ? (
+        <DropdownMenuItem className="glass-mi" onClick={() => chat.openHistory?.()}>
+          <IconHistory className={icon} />
+          <span className="min-w-0 flex-1">{"历史对话"}</span>
+        </DropdownMenuItem>
+      ) : null}
     </>
   );
 }

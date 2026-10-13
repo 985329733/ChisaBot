@@ -35,6 +35,7 @@ mock.module("@/lib/copilot/bot-thread", () => ({
       history: "ready",
       onActivity: () => () => {},
       startNew: () => setRevision((value) => value + 1),
+      switchTo: () => {},
       threadId: `thread-${agentId}-${revision}`,
     };
   },

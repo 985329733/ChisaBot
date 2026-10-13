@@ -14,6 +14,9 @@ import type { Database } from "./db/client";
  * - `PUT  /api/bot-threads/:agentId`        `{ threadId, onlyIfNone? }` → 设成当前对话（「新对话」/ 迁移）。
  *   `onlyIfNone`：只有服务器还没有记录时才写（第一次打开时把这台浏览器原来的对话接过来；两台设备同时迁移，
  *   先到的赢，后到的拿回先到的那条）。
+ * - `GET  /api/bot-threads/:agentId/history` → 这个人和这个机器人的对话列表（「历史对话」，最近 30 条：
+ *   标题 = 对话名或第一条用户消息、消息数、最后更新时间）。共用一条当前对话后，一台设备原来的对话就看不到了，
+ *   从这里切回去（切换 = PUT 当前对话）。不含后台任务的隐藏对话（worker-*）和空对话。
  * - `GET  /api/bot-threads/:agentId/sync?threadId=` → 当前对话 + 这条对话的变化戳（事件序号、是否在回答、
  *   后台任务和收件箱最后更新时间）。打开的设备每 2 秒问一次（页面隐藏时不问，回到前台马上问），变了才去拉。
  *
@@ -36,6 +39,29 @@ export type BotThreadActivity = {
   /** 收件箱（排队消息）最后一次变化（ISO），没有为 null。 */
   inbox: string | null;
 };
+
+export type BotThreadSummary = {
+  threadId: string;
+  title: string;
+  messages: number;
+  updatedAt: string | null;
+};
+
+/** 用户消息的文字：字符串，或 [{type:"text", text}] 这样的分段。 */
+export function textOf(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content))
+    return content
+      .map((part) => (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : ""))
+      .join(" ");
+  return "";
+}
+
+/** 标题：压成一行，最多 60 个字。 */
+export function clipTitle(text: string | null | undefined): string {
+  const line = (text ?? "").replace(/\s+/g, " ").trim();
+  return line.length > 60 ? `${line.slice(0, 60)}…` : line;
+}
 
 type CurrentRow = { thread_id: string; updated_at: Date | string };
 
@@ -123,6 +149,29 @@ export async function createBotThreads(database: Database, control?: BotThreadRu
     return { threadId, seq, running: Boolean(control?.isActive(threadId)) || locked, workers, inbox };
   }
 
+  /** 「历史对话」（DESIGN.md §42.6）：最近 30 条有消息的对话，新的在前。 */
+  async function history(ownerUserId: string, agentId: string): Promise<BotThreadSummary[]> {
+    try {
+      const rows = await sql.unsafe<{ id: string; name: string | null; first: unknown; count: number; updated_at: Date | string }[]>(
+        `SELECT id, name, jsonb_array_length(messages) AS count, updated_at,
+           (SELECT m->'content' FROM jsonb_array_elements(messages) m WHERE m->>'role' = 'user' LIMIT 1) AS first
+         FROM openbot_local_threads
+         WHERE owner_user_id = $1 AND agent_id = $2 AND id NOT LIKE 'worker-%' AND jsonb_array_length(messages) > 0
+         ORDER BY updated_at DESC LIMIT 30`,
+        [ownerUserId, agentId],
+      );
+      return rows.map((row) => ({
+        threadId: row.id,
+        title: clipTitle(row.name) || clipTitle(textOf(row.first)) || "（没有文字的对话）",
+        messages: Number(row.count) || 0,
+        updatedAt: iso(row.updated_at),
+      }));
+    } catch {
+      // 不是本地会话模式：没有可列的对话。
+      return [];
+    }
+  }
+
   function routes(requireUser: MiddlewareHandler<{ Variables: AppVariables }>) {
     const app = new Hono<{ Variables: AppVariables }>();
     app.use("*", requireUser);
@@ -142,6 +191,12 @@ export async function createBotThreads(database: Database, control?: BotThreadRu
       const row = await setCurrent(c.var.actor.id, agentId, threadId, body?.onlyIfNone === true);
       return c.json(row ?? { threadId, updatedAt: null });
     });
+    app.get("/:agentId/history", async (c) => {
+      const agentId = c.req.param("agentId");
+      if (!AGENT_ID.test(agentId)) return c.json({ error: "机器人 id 不对" }, 400);
+      c.header("Cache-Control", "no-store");
+      return c.json({ threads: await history(c.var.actor.id, agentId) });
+    });
     app.get("/:agentId/sync", async (c) => {
       const agentId = c.req.param("agentId");
       if (!AGENT_ID.test(agentId)) return c.json({ error: "机器人 id 不对" }, 400);
@@ -156,5 +211,5 @@ export async function createBotThreads(database: Database, control?: BotThreadRu
     return app;
   }
 
-  return { routes, current, setCurrent, activity };
+  return { routes, current, setCurrent, activity, history };
 }

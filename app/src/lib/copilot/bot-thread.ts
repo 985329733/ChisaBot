@@ -189,6 +189,8 @@ export type BotThread = {
   history: "ready" | "unavailable";
   /** Mints a fresh thread and starts using it from now on — on every device (DESIGN.md §42). */
   startNew: () => void;
+  /** 切到这个机器人的另一条对话（「历史对话」），所有设备都换。 */
+  switchTo: (threadId: string) => void;
   /**
    * 订阅当前对话在服务器上的变化（每次同步都会回调，调用方自己比较）。返回取消函数。
    * 用它把别的设备发的消息、正在流式的回答、排队消息、后台任务卡片拉到这台设备（use-conversation-sync.ts）。
@@ -402,5 +404,30 @@ export function useBotThread(agentId: string): BotThread {
     };
   }, []);
 
-  return { threadId, history, startNew, onActivity };
+  /** 「历史对话」里点一条：切到它，所有设备都换（DESIGN.md §42.6）。 */
+  const switchTo = useCallback(
+    (next: string) => {
+      if (!next || next === threadRef.current || mintingRef.current) return;
+      startedNewRef.current = true;
+      use(next);
+      if (serverRef.current === "no") return;
+      const pending = { id: next, onlyIfNone: false };
+      pendingWriteRef.current = pending;
+      void writeServerThread(agentId, next, false).then((written) => {
+        if (written && pendingWriteRef.current === pending) pendingWriteRef.current = null;
+      });
+    },
+    [agentId, use],
+  );
+
+  return { threadId, history, startNew, switchTo, onActivity };
+}
+
+export type BotThreadSummary = { threadId: string; title: string; messages: number; updatedAt: string | null };
+
+/** 这个机器人的对话列表（「历史对话」）。旧服务器没有这个接口 → "unsupported"。 */
+export async function readThreadHistory(agentId: string): Promise<BotThreadSummary[] | "unsupported"> {
+  const body = await readJson<{ threads?: BotThreadSummary[] }>(await tryClient(`${botThreadsApi(agentId)}/history`));
+  if (body === "unsupported") return body;
+  return Array.isArray(body.threads) ? body.threads : [];
 }

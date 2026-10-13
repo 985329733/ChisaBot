@@ -6125,3 +6125,23 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 @media (pointer: fine) {
   html:has(> body .glass-shell) { overflow: hidden; }
 }
+
+/* §42.6 历史对话（机器人 ⋯ → 历史对话）：小弹窗里一列对话，点一条切换。行高 52、圆角 12、14/12 字号、4 的倍数间距；
+ * 悬停只换底色（不位移）。当前那条蓝色小标签。加载用三条骨架（反馈第 ② 级）。 */
+.bot-history-list { display: flex; flex-direction: column; gap: 4px; margin: 12px -8px 0; max-height: min(60vh, 420px); overflow-y: auto; overscroll-behavior: contain; padding: 0 4px; }
+.bot-history-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 12px; border-radius: 12px; text-align: left; color: var(--glass-ink-2); background: transparent; transition: background-color var(--dur-0, 120ms) linear; }
+.bot-history-row:hover, .bot-history-row:focus-visible { background: rgba(22, 24, 29, 0.05); color: var(--glass-ink); outline: none; }
+.bot-history-row:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.dark .bot-history-row:hover, .dark .bot-history-row:focus-visible { background: rgba(255, 255, 255, 0.07); }
+.bot-history-row.is-current { background: var(--accent-blue-soft); color: var(--glass-ink); }
+.bot-history-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+.bot-history-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.bot-history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 20px; }
+.bot-history-sub { font-size: 12px; line-height: 16px; color: var(--glass-ink-4); }
+.bot-history-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; line-height: 16px; color: var(--accent-blue-ink); background: var(--accent-blue-soft); }
+.bot-history-skel { height: 52px; border-radius: 12px; background: rgba(22, 24, 29, 0.05); animation: bot-history-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes bot-history-pulse { from { opacity: 1; } to { opacity: 0.45; } }
+.dark .bot-history-skel { background: rgba(255, 255, 255, 0.06); }
+.bot-history-empty { padding: 16px 12px; font-size: 14px; color: var(--glass-ink-4); }
+.bot-history-retry { margin-left: 8px; color: var(--accent-blue-ink); }
+@media (prefers-reduced-motion: reduce) { .bot-history-skel { animation: none; } }
