@@ -11,6 +11,7 @@ import { EscalationTool } from "./escalation-tool";
 import { GalleryTools } from "./gallery-tools";
 import { HandoffTool } from "./handoff-tool";
 import { RenderUiTool } from "./render-ui-tool";
+import { WorkerTool } from "./worker-tool";
 import { SandboxedTools } from "./sandboxed-tools";
 import { SkillTools } from "./skill-tools";
 
@@ -67,6 +68,8 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
           与服务器提供这个工具是同一个开关（/api/capabilities 的 generativeUi）。
         */}
         {capabilities?.generativeUi ? <RenderUiTool /> : null}
+        {/* 后台任务卡片（DESIGN.md §38.2）：`delegate_task` 在服务器上执行，这里只画。 */}
+        <WorkerTool />
         {/* The private sign-in request: a card whose form posts to the server, never to the Bot. */}
         <SignInTool />
         {/*

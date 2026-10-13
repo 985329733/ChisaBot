@@ -10,6 +10,9 @@ import {
   type MessageMedia,
   MessageRichPreviews,
 } from "@/components/rich-previews/rich-previews";
+import { WorkerResultRow } from "@/components/chat/worker-card";
+import { useReadMark } from "./thread-inbox";
+import { WORKER_RESULT_MARKER } from "./workers";
 import { renderUnvirtualizedMessageList } from "./message-list";
 import { ZH_MESSAGE_VIEW } from "./reasoning-zh";
 
@@ -94,6 +97,15 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
   const content = (props.message as { content?: unknown }).content;
   const media = useMemo(() => mediaOf(content), [content]);
   const text = textOf(content);
+  const justRead = useReadMark(props.message.id);
+  // 后台任务交回来的结果（DESIGN.md §38.2）：一行结果卡，不是用户气泡。
+  if (text.startsWith(WORKER_RESULT_MARKER)) {
+    return (
+      <div className="copilotKitMessage worker-result-msg cpk:pt-6" data-copilotkit="" data-testid="worker-result-message">
+        <WorkerResultRow messageId={props.message.id} text={text} />
+      </div>
+    );
+  }
   return (
     <CopilotChatUserMessage {...props}>
       {({ messageRenderer, toolbar, message }) => (
@@ -108,6 +120,8 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
           ) : null}
           {text.trim() ? messageRenderer : null}
           <MessageRichPreviews align="end" text={text} />
+          {/* 回答期间发的这条刚被机器人读到（DESIGN.md §38.1），几秒后淡出。 */}
+          {justRead ? <span className="queued-read-mark" data-testid="queued-read">{"已读取"}</span> : null}
           {toolbar}
         </div>
       )}

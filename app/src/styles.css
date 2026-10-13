@@ -5741,3 +5741,123 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 :is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="dialog-content"], [data-slot="sheet-content"])[data-ending-style] {
   backdrop-filter: none;
 }
+
+/* ── 回答期间也能发消息 + 后台任务卡片（DESIGN.md §38，2026-10-13）──────────────────────── */
+/* 「已排队」气泡：和用户气泡同位置同圆角，淡一点、虚线描边；被读到时从这里消失、出现在记录里。 */
+.queued-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; padding-top: 16px; }
+.queued-msg { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: min(80%, 560px); animation: queued-in var(--dur-2) var(--ease-out) both; }
+.queued-bubble {
+  padding: 8px 14px; border-radius: var(--r-bubble); white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 14px; line-height: 1.6; color: var(--ink-1);
+  background: var(--glass-2); border: 1px dashed var(--line-strong); box-shadow: var(--shadow-1);
+  backdrop-filter: blur(var(--blur-1)) saturate(1.2);
+}
+.queued-msg[data-status="failed"] .queued-bubble { border-color: color-mix(in oklch, var(--danger) 45%, transparent); }
+.queued-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 20px; color: var(--ink-3); }
+.queued-state { display: inline-flex; align-items: center; gap: 4px; }
+.queued-state.is-failed { color: var(--danger); }
+.queued-msg[data-status="sending"] .queued-state svg { animation: queued-pulse 1.2s ease-in-out infinite; }
+.queued-action {
+  display: inline-flex; align-items: center; gap: 2px; padding: 0 6px; border-radius: var(--r-pill); color: var(--ink-3);
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.queued-action:hover { color: var(--ink-1); background: var(--glass-hover); }
+.queued-read-mark { margin-top: 2px; margin-right: 4px; font-size: 12px; line-height: 18px; color: var(--ink-3); animation: queued-read 6s var(--ease-out) both; }
+@keyframes queued-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes queued-pulse { 50% { opacity: 0.35; } }
+@keyframes queued-read { 0% { opacity: 0; } 6% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+/* 回答期间输入框里有字：停止键变回发送键（墨色箭头），不打断当前回复。 */
+.bot-composer.is-running .bot-composer-send.is-queue { background: var(--ink-primary); color: var(--on-primary); }
+
+/* 后台任务卡片：紧凑玻璃卡（L1），在委派它的那条回复里。 */
+.worker-card {
+  position: relative; display: flex; flex-direction: column; gap: 6px; width: min(100%, 520px); margin: 8px 0 2px; padding: 10px 12px;
+  border-radius: var(--r-md); border: 1px solid var(--stroke); background: var(--glass-1);
+  box-shadow: var(--shadow-1), var(--inset-hl); backdrop-filter: blur(var(--blur-1)) saturate(1.2);
+  color: var(--ink-1); font-size: 13px; line-height: 1.5; container-type: inline-size;
+  animation: queued-in var(--dur-2) var(--ease-out) both;
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.worker-card.is-running, .worker-card.is-queued { border-color: color-mix(in oklch, var(--accent-blue) 28%, var(--stroke)); }
+.worker-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.worker-icon { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; }
+.worker-icon.is-running { color: var(--accent-blue); }
+.worker-icon.is-running svg { animation: btn-spin 1s linear infinite; }
+.worker-icon.is-done { color: var(--success); background: var(--success-soft); }
+.worker-icon.is-failed { color: var(--danger); background: var(--danger-soft); }
+.worker-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.worker-chip {
+  flex: none; padding: 0 8px; border-radius: var(--r-pill); font-size: 12px; line-height: 20px; color: var(--ink-2); background: var(--glass-2); border: 1px solid var(--line);
+}
+.worker-chip.is-running { color: var(--accent-blue-ink); background: var(--accent-blue-soft); border-color: transparent; }
+.worker-chip.is-waiting { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+.worker-chip.is-done { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.worker-chip.is-failed { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.worker-time { margin-left: auto; flex: none; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.worker-more { flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-xs); color: var(--ink-3); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.worker-more:hover { background: var(--glass-hover); color: var(--ink-1); }
+/* 当前步骤一行：原地换字，淡入（key 变了重挂载），不改高度。 */
+.worker-step { min-height: 20px; padding-left: 28px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: worker-step-in var(--dur-2) var(--ease-out) both; }
+@keyframes worker-step-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.worker-plan-wrap { padding-left: 28px; }
+.worker-plan-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 20px; color: var(--ink-3); border-radius: var(--r-xs); }
+.worker-plan-toggle:hover { color: var(--ink-1); }
+/* 展开 / 收起：grid 0fr → 1fr，只有这一块的高度在动。 */
+.worker-plan-collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--dur-collapse) var(--ease-out), opacity var(--dur-2) var(--ease-out); }
+.worker-plan-collapse[data-open] { grid-template-rows: 1fr; opacity: 1; }
+.worker-plan-collapse > * { min-height: 0; overflow: hidden; }
+.worker-plan { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
+.worker-plan-step { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 22px; color: var(--ink-3); }
+.worker-plan-mark { display: inline-grid; place-items: center; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-strong); font-size: 10px; font-weight: 700; transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out); }
+.worker-plan-step.is-done { color: var(--ink-2); }
+.worker-plan-step.is-done .worker-plan-mark { border-color: transparent; background: var(--success); color: #fff; }
+.worker-plan-step.is-current { color: var(--ink-1); font-weight: 500; }
+.worker-plan-step.is-current .worker-plan-mark { border-color: var(--accent-blue); background: radial-gradient(circle, var(--accent-blue) 0 3px, transparent 3.5px); }
+.worker-plan-step.is-blocked { color: var(--warn); }
+.worker-plan-step.is-blocked .worker-plan-mark { border-color: var(--warn); color: var(--warn); }
+.worker-actions { display: flex; align-items: center; gap: 6px; padding-left: 28px; padding-top: 2px; }
+.worker-btn {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); font-size: 12px; color: var(--ink-2);
+  border: 1px solid var(--line); background: var(--glass-2);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.worker-btn:hover:not(:disabled) { background: var(--glass-3); color: var(--ink-1); }
+.worker-btn:disabled { opacity: 0.55; }
+.worker-btn.is-primary { background: var(--ink-primary); color: var(--on-primary); border-color: transparent; }
+.worker-btn.is-primary:hover:not(:disabled) { background: var(--ink-primary-hover); color: var(--on-primary); }
+.worker-btn.is-danger:hover:not(:disabled) { color: var(--danger); border-color: color-mix(in oklch, var(--danger) 35%, transparent); }
+.worker-steer { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; animation: worker-step-in var(--dur-2) var(--ease-out) both; }
+.worker-steer-input {
+  flex: 1; min-width: 0; height: 28px; padding: 0 10px; border-radius: var(--r-pill); font-size: 13px; color: var(--ink-1);
+  border: 1px solid var(--line-strong); background: var(--glass-3); outline: none; transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.worker-steer-input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--focus); }
+.worker-error { padding-left: 28px; font-size: 12px; color: var(--danger); }
+/* 结束后收成一行：图标 · 标题 · 一句结果 · 用时；点它跳到结果消息。 */
+.worker-card.is-collapsed { flex-direction: row; align-items: center; gap: 4px; padding: 6px 8px 6px 10px; }
+.worker-line { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; text-align: left; border-radius: var(--r-xs); }
+.worker-line .worker-title { flex: none; max-width: 40%; font-size: 13px; }
+.worker-line-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.worker-line:hover .worker-line-text { color: var(--ink-1); }
+.worker-card.is-pending .worker-chip { color: var(--ink-3); }
+/* 窄（卡片 < 360px，PC 小窗 / 手机）：按钮只留图标，标题让位。 */
+@container (max-width: 360px) {
+  .worker-btn-label { display: none; }
+  .worker-btn { padding: 0 8px; }
+  .worker-step, .worker-plan-wrap, .worker-actions, .worker-error { padding-left: 0; }
+  .worker-line .worker-title { max-width: 50%; }
+}
+/* 交回来的结果：一行结果卡，点开看全文。 */
+.worker-result-msg { display: flex; justify-content: flex-start; }
+.worker-result { width: min(100%, 560px); border-radius: var(--r-md); border: 1px solid var(--line); background: var(--glass-1); backdrop-filter: blur(var(--blur-1)) saturate(1.2); transition: box-shadow var(--dur-2) var(--ease-out); }
+.worker-result.is-flash { box-shadow: 0 0 0 3px var(--focus); }
+.worker-result-line { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; text-align: left; font-size: 13px; color: var(--ink-2); border-radius: var(--r-md); }
+.worker-result-line:hover { color: var(--ink-1); }
+.worker-result-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worker-result-hint { flex: none; font-size: 12px; color: var(--ink-3); }
+.worker-result-body { padding: 0 12px 10px 38px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; color: var(--ink-2); max-height: 360px; overflow-y: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .queued-msg, .worker-card, .worker-step, .worker-steer { animation: none; }
+  .worker-plan-collapse { transition: none; }
+  .worker-icon.is-running svg { animation-duration: 2.4s; }
+}

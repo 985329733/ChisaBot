@@ -9,6 +9,7 @@ import {
   useContext,
   useImperativeHandle,
   useLayoutEffect,
+  useCallback,
   useRef,
   useState,
 } from "react";
@@ -16,13 +17,19 @@ import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { ContextMeter } from "@/components/agents/context-meter";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
 import { setPanelSheetOpen } from "@/lib/panels/rail-open";
+import { queueMessage } from "@/lib/copilot/thread-inbox";
 import { modelSelectionKeys } from "@/lib/model-selection/queries";
 import { cn } from "@/lib/utils";
 
 /** 页面给输入框的东西：机器人名字（占位文字）和「新话题」（上下文快满时的出口）。 */
 export const BotComposerContext = createContext<{ name?: string; onNewTopic?: () => void }>({});
 
-const InputModelContext = createContext({ agentId: "", running: false });
+const InputModelContext = createContext<{ agentId: string; running: boolean; queueable: boolean; submitQueued: () => void }>({
+  agentId: "",
+  running: false,
+  queueable: false,
+  submitQueued: () => {},
+});
 
 /** 最多长到 8 行再滚动（14.5px × 1.6 行高）。 */
 const MAX_LINES = 8;
@@ -32,17 +39,24 @@ const MAX_LINES = 8;
  * 这里只换外观、补上模型保存期间不许发送。
  */
 function ComposerSendButton({ children: _children, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { agentId, running } = useContext(InputModelContext);
+  const { agentId, running, queueable, submitQueued } = useContext(InputModelContext);
   const queryClient = useQueryClient();
   const saving = useModelSelectionSaving(agentId);
+  // 回答期间输入框里有字：这个键是「排队发送」（DESIGN.md §38.1），清空了才变回「停止」。
+  const stop = running && !queueable;
   return (
     <button
       {...props}
-      aria-label={running ? "停止机器人" : "发送消息"}
-      className={cn("glass-composer-send bot-composer-send", running && "is-stop")}
-      data-testid={running ? "composer-stop" : "copilot-send-button"}
-      disabled={props.disabled || (saving && !running)}
+      aria-label={stop ? "停止机器人" : queueable ? "发送（机器人在当前步骤结束后读到）" : "发送消息"}
+      className={cn("glass-composer-send bot-composer-send", stop && "is-stop", queueable && "is-queue")}
+      data-testid={stop ? "composer-stop" : queueable ? "composer-queue" : "copilot-send-button"}
+      disabled={queueable ? false : props.disabled || (saving && !running)}
       onClick={(event) => {
+        if (queueable) {
+          event.preventDefault();
+          submitQueued();
+          return;
+        }
         if (!running && queryClient.isMutating({ mutationKey: modelSelectionKeys.save(agentId) }) > 0) {
           event.preventDefault();
           event.stopPropagation();
@@ -50,10 +64,10 @@ function ComposerSendButton({ children: _children, className, ...props }: Button
         }
         props.onClick?.(event);
       }}
-      title={running ? "停止（Enter）" : "发送（Enter）· Shift + Enter 换行"}
+      title={stop ? "停止（输入框为空时按 Enter）" : queueable ? "发送（Enter）· 不会打断当前回复" : "发送（Enter）· Shift + Enter 换行"}
       type="button"
     >
-      <span className="bot-composer-send-icon" data-shown={running ? "stop" : "send"}>
+      <span className="bot-composer-send-icon" data-shown={stop ? "stop" : "send"}>
         <IconArrowUp className="is-send size-[18px]" stroke={2.25} />
         <IconPlayerStopFilled className="is-stop size-3" />
       </span>
@@ -125,10 +139,34 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
   const queryClient = useQueryClient();
   const running = props.isRunning ?? false;
   const [focused, setFocused] = useState(false);
+  const draft = typeof props.value === "string" ? props.value : "";
+  const queueable = running && Boolean(threadId) && draft.trim().length > 0;
+  const { onSubmitMessage, onChange } = props;
+  /*
+   * 机器人正在回答时发送：不等这一轮结束、也不打断它，放进这个对话的收件箱（thread-inbox.ts），
+   * 正在跑的那一轮在下一步读到。服务器说那一轮已经结束了，就照常发送。
+   */
+  const submit = useCallback(
+    (text: string) => {
+      const said = text.trim();
+      if (!said) return;
+      if (running && threadId) {
+        onChange?.("");
+        void queueMessage(threadId, said).then((outcome) => {
+          if (outcome === "send") onSubmitMessage?.(said);
+        });
+        return;
+      }
+      onSubmitMessage?.(text);
+    },
+    [running, threadId, onChange, onSubmitMessage],
+  );
+  const submitQueued = useCallback(() => submit(draft), [submit, draft]);
   return (
-    <InputModelContext.Provider value={{ agentId, running }}>
+    <InputModelContext.Provider value={{ agentId, running, queueable, submitQueued }}>
       <CopilotChatInput
         {...props}
+        onSubmitMessage={submit}
         addMenuButton="glass-composer-icon bot-composer-add"
         showDisclaimer={false}
         sendButton={ComposerSendButton}
