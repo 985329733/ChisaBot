@@ -21,7 +21,7 @@ import { takeHumanControlBlock } from "../computer/control-blocks";
 import { lintPanelSpec, PANEL_DESIGN_GUIDE } from "./design";
 import type { AppVariables } from "../auth/guards";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
-import { LivePanelError, type LivePanelRow, type LivePanelStore, MIN_REFRESH_MINUTES } from "./store";
+import { LivePanelError, type LivePanelRow, type LivePanelStore, MIN_REFRESH_MINUTES, normalizeRefreshAt } from "./store";
 
 export type LivePanelDto = {
   id: string;
@@ -32,6 +32,9 @@ export type LivePanelDto = {
   sources: { name: string; url: string }[];
   instruction: string;
   refreshMinutes: number | null;
+  /** 每天固定时刻刷新：「08:00」（时区见 refreshTimeZone）；null = 按间隔。 */
+  refreshAt: string | null;
+  refreshTimeZone: string | null;
   error: string | null;
   refreshedAt: string | null;
   nextRefreshAt: string | null;
@@ -50,6 +53,8 @@ export function toDto(row: LivePanelRow): LivePanelDto {
     sources: row.sources ?? [],
     instruction: row.instruction,
     refreshMinutes: row.refreshMinutes,
+    refreshAt: row.refreshAt?.split("@")[0] ?? null,
+    refreshTimeZone: row.refreshAt?.split("@")[1] ?? null,
     error: row.error,
     refreshedAt: row.refreshedAt?.toISOString() ?? null,
     nextRefreshAt: row.nextRefreshAt?.toISOString() ?? null,
@@ -59,7 +64,15 @@ export function toDto(row: LivePanelRow): LivePanelDto {
   };
 }
 
-const sourceSchema = z.object({ name: z.string().max(60).describe("来源名，如 CoinGecko"), url: z.string().max(500).describe("来源网址") });
+const sourceSchema = z.object({
+  name: z.string().max(60).describe("来源名，如 CoinGecko；本机命令就写「本机命令 top / df」"),
+  url: z.string().max(500).optional().describe("来源网址（刚刚读过的真实网址）。本机命令等没有网址的来源不填，不要编一个"),
+});
+const refreshAtSchema = z
+  .string()
+  .max(5)
+  .describe("每天固定时刻刷新，24 小时制「HH:MM」（如 \"08:00\"）。用户说「每天早上 8 点」「每天 18:30」时填；填了就是每天这个时刻刷新一次（不用再填 refreshMinutes）。");
+const timeZoneSchema = z.string().max(60).describe("refreshAt 的时区（IANA，如 Asia/Shanghai）。用户没说就不填，默认北京时间。");
 const createParameters = z.object({
   title: z.string().min(1).max(60).describe("面板标题，简短中文，如「比特币价格」"),
   instruction: z
@@ -74,6 +87,8 @@ const createParameters = z.object({
     .max(10080)
     .optional()
     .describe("自动刷新间隔（分钟）。行情、天气这类会变的数据填 60（最短 60）；用户说每天就填 1440；不会变的内容填 0 = 不刷新。默认 60。"),
+  refreshAt: refreshAtSchema.optional(),
+  timeZone: timeZoneSchema.optional(),
   duplicate: z.boolean().optional().describe("右栏已有同名面板、而用户确实要再做一个时才填 true"),
 });
 const updateParameters = z.object({
@@ -91,7 +106,9 @@ const updateParameters = z.object({
   sources: z.array(sourceSchema).min(1).max(6).describe("这次数据实际来自哪里（必须是你刚刚读过的网址）"),
   title: z.string().min(1).max(60).optional().describe("改标题时才填"),
   instruction: z.string().min(1).max(2000).optional().describe("用户要求修改面板时，填新的刷新说明（例如改成显示以太坊）"),
-  refreshMinutes: z.number().int().min(0).max(10080).optional().describe("改刷新间隔时才填"),
+  refreshMinutes: z.number().int().min(0).max(10080).optional().describe("改刷新间隔时才填（会取消每天固定时刻）"),
+  refreshAt: refreshAtSchema.nullable().optional().describe("改成每天固定时刻刷新时填「HH:MM」；取消固定时刻填 null"),
+  timeZone: timeZoneSchema.optional(),
 });
 const LINT_MAX_STRIKES = 3;
 /** 卡片上的说明：刷新没做成是因为有人接管着计算机（不是面板坏了）。 */
@@ -101,9 +118,9 @@ const failParameters = z.object({ id: z.string().min(1), reason: z.string().min(
 
 export const LIVE_PANEL_GUIDANCE = [
   "面板：用户要「面板 / 看板 / 卡片 / 小组件」或想长期盯着某个会变的东西（价格、天气、汇率、排行、倒计时）时，做成右栏面板，不要只在对话里画：",
-  "1) 先 panel_create（标题 + 刷新说明 + 刷新间隔），卡片会立刻出现在右栏；对话里只说一句「好的，正在做…面板」。",
+  "1) 先 panel_create（标题 + 刷新说明 + 刷新间隔），卡片会立刻出现在右栏；对话里只说一句「好的，正在做…面板」。用户说了每天几点刷新（「每天早上 8 点」）就填 refreshAt（\"08:00\"），会准点刷新，不要说做不到。",
   "2) 再用 web_search / web_fetch 取真实数据（优先公开 JSON 接口，例如 api.coingecko.com、api.open-meteo.com），绝不编造数字。",
-  "3) 用 panel_update 交上 json-render 规范 + 来源（数字、列表、表格都直接写成字面值：List 的 items / Table 的 rows 直接列出每一行，不要用 repeat 或 $state 绑定）；最后对话里一句话说做好了、多久刷新一次，并提一个有用的下一步。",
+  "3) 用 panel_update 交上 json-render 规范 + 来源（来源只写真实读过的网址；本机命令取的数据来源不带 url，不要编网址；数字、列表、表格都直接写成字面值：List 的 items / Table 的 rows 直接列出每一行，不要用 repeat 或 $state 绑定）；最后对话里一句话说做好了、多久刷新一次，并提一个有用的下一步。",
   PANEL_DESIGN_GUIDE,
   "要改已有面板（换内容、换城市、换币种、改刷新频率）时先 panel_list 找到它，取新数据后 panel_update（带新的 instruction / title），不要新建。",
   "实在取不到数据就 panel_fail 说明原因，并在对话里如实告诉用户。不要在对话里贴规范、JSON 或代码。",
@@ -159,6 +176,14 @@ export function emptyMetrics(source: string): string[] {
   return missing;
 }
 
+/** 「，之后每天 08:00 自动刷新」/「，之后每 1 小时自动刷新」 */
+function cadenceWords(row: LivePanelRow) {
+  if (row.refreshAt) return `，之后每天 ${row.refreshAt.split("@")[0]} 自动刷新`;
+  const m = row.refreshMinutes;
+  if (!m) return "";
+  return `，之后每 ${m >= 1440 ? `${Math.round(m / 1440)} 天` : m >= 60 ? `${Math.round(m / 60)} 小时` : `${m} 分钟`}自动刷新`;
+}
+
 export function createLivePanelService(deps: {
   store: LivePanelStore;
   /** 在一个用完即删的对话里，以面板主人的身份跑这个机器人的一个无头回合（工作流同一条路）。 */
@@ -194,6 +219,7 @@ export function createLivePanelService(deps: {
     const controller = new AbortController();
     running.set(id, controller);
     const timer = setTimeout(() => controller.abort(new Error("刷新超时")), 6 * 60_000);
+    const self: { job?: Promise<void> } = {};
     const job = (async () => {
       try {
         await deps.runHeadless({ ownerUserId, botId: row.botId, instruction: refreshPrompt(row, !row.spec), panelId: id, signal: controller.signal });
@@ -221,11 +247,13 @@ export function createLivePanelService(deps: {
         log({ type: "live-panel-refresh", id, ok: false, reason: reason.slice(0, 200) });
       } finally {
         clearTimeout(timer);
-        running.delete(id);
-        jobs.delete(id);
+        // 只清自己的登记（不要把后来那一次的清掉）。
+        if (running.get(id) === controller) running.delete(id);
+        if (jobs.get(id) === self.job) jobs.delete(id);
         await store.release(ownerUserId, id).catch(() => {});
       }
     })();
+    self.job = job;
     jobs.set(id, job);
     return { started: true };
   }
@@ -268,8 +296,24 @@ export function createLivePanelService(deps: {
   }
   let timer: ReturnType<typeof setInterval> | undefined;
 
+  /**
+   * 用户点了「交还」：因为「计算机正由你接管」而推迟的面板马上重刷（2026-10-13 实测：交还后卡片上
+   * 那句「正由你接管」还要挂 5 分钟，像是交还没生效）。
+   */
+  async function resumeAfterHandback(ownerUserId: string) {
+    try {
+      const rows = await store.dueNowIfNoted(ownerUserId, CONTROL_HELD_NOTE);
+      for (const row of rows.slice(0, 3)) await refreshNow(ownerUserId, row.id).catch(() => {});
+      if (rows.length) log({ type: "live-panel-resume-after-handback", ids: rows.map((r) => r.id) });
+    } catch (error) {
+      log({ type: "live-panel-resume-failed", reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
   function tools(actorId: string, botId: string, options: { refreshOf?: string } = {}): GrantedTool[] {
     const guard = async (id: string) => {
+      // 后台刷新的回合只能动它在刷新的那一张。
+      if (options.refreshOf && id !== options.refreshOf) throw new LivePanelError(`这是面板 ${options.refreshOf} 的后台刷新，只能更新这一张`, 404);
       const row = await store.get(actorId, id);
       if (row.botId !== botId) throw new LivePanelError("这个面板不属于当前机器人", 404);
       return row;
@@ -314,8 +358,15 @@ export function createLivePanelService(deps: {
             }
             lintStrikes.delete(parsed.data.id);
             const { data: _data, ...input } = parsed.data;
-            const row = await store.update(actorId, parsed.data.id, { ...input, spec: specText, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
-            return `面板「${row.title}」已更新${row.refreshMinutes ? `，之后每 ${row.refreshMinutes >= 1440 ? `${Math.round(row.refreshMinutes / 1440)} 天` : row.refreshMinutes >= 60 ? `${Math.round(row.refreshMinutes / 60)} 小时` : `${row.refreshMinutes} 分钟`}自动刷新` : ""}。${options.refreshOf ? "这是后台刷新，不需要回复。" : "对话里只用一句话告诉用户，不要贴面板内容或规范。"}`;
+            const { timeZone, refreshAt: rawAt, ...rest } = input;
+            let refreshAt: string | null | undefined = undefined;
+            if (rawAt === null) refreshAt = null;
+            else if (rawAt !== undefined) {
+              refreshAt = normalizeRefreshAt(rawAt, timeZone);
+              if (!refreshAt) return `${REFUSAL_MARKER} refreshAt 要写成 24 小时制「HH:MM」（如 "08:00"），timeZone 要是 IANA 时区（如 Asia/Shanghai）。`;
+            }
+            const row = await store.update(actorId, parsed.data.id, { ...rest, ...(refreshAt !== undefined ? { refreshAt } : {}), spec: specText, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
+            return `面板「${row.title}」已更新${cadenceWords(row)}。${options.refreshOf ? "这是后台刷新，不需要回复。" : "对话里只用一句话告诉用户，不要贴面板内容或规范。"}`;
           } catch (error) {
             return say(error);
           }
@@ -361,8 +412,10 @@ export function createLivePanelService(deps: {
                   next: "右栏已经有这张面板，没有新建。用户要的若是同一个东西，就取最新数据后 panel_update 这张（id 见 existing）；用户明确要再做一张时，才带 duplicate: true 重新 panel_create。",
                 });
             }
-            const { duplicate: _duplicate, ...input } = parsed.data;
-            const row = await store.create(actorId, botId, { ...input, refreshMinutes: input.refreshMinutes ?? MIN_REFRESH_MINUTES });
+            const { duplicate: _duplicate, refreshAt: rawAt, timeZone, ...input } = parsed.data;
+            const refreshAt = rawAt ? normalizeRefreshAt(rawAt, timeZone) : null;
+            if (rawAt && !refreshAt) return `${REFUSAL_MARKER} refreshAt 要写成 24 小时制「HH:MM」（如 "08:00"），timeZone 要是 IANA 时区（如 Asia/Shanghai）。`;
+            const row = await store.create(actorId, botId, { ...input, refreshAt, refreshMinutes: input.refreshMinutes ?? MIN_REFRESH_MINUTES });
             return JSON.stringify({ id: row.id, status: "building", next: "卡片已出现在右栏（正在搭建）。现在用 web_search / web_fetch 取真实数据，然后调用 panel_update 填好。" });
           } catch (error) {
             return say(error);
@@ -378,7 +431,7 @@ export function createLivePanelService(deps: {
           const rows = await store.list(actorId, botId);
           if (rows.length === 0) return "右栏还没有实时面板。";
           return rows
-            .map((r) => `- ${r.id}｜${r.title}｜${r.status}${r.error ? `（${r.error}）` : ""}｜每 ${r.refreshMinutes ?? 0} 分钟｜上次更新 ${r.refreshedAt?.toISOString() ?? "无"}｜说明：${r.instruction}`)
+            .map((r) => `- ${r.id}｜${r.title}｜${r.status}${r.error ? `（${r.error}）` : ""}｜${r.refreshAt ? `每天 ${r.refreshAt.replace("@", "（")}）` : `每 ${r.refreshMinutes ?? 0} 分钟`}｜上次更新 ${r.refreshedAt?.toISOString() ?? "无"}｜说明：${r.instruction}`)
             .join("\n");
         },
       },
@@ -456,8 +509,14 @@ export function createLivePanelService(deps: {
       }
     });
     app.patch("/:id", async (c) => {
-      const body = (await c.req.json().catch(() => ({}))) as { refreshMinutes?: number | null };
+      const body = (await c.req.json().catch(() => ({}))) as { refreshMinutes?: number | null; refreshAt?: string | null; timeZone?: string };
       try {
+        if (body.refreshAt) {
+          const current = await store.get(c.var.actor.id, c.req.param("id"));
+          const at = normalizeRefreshAt(body.refreshAt, body.timeZone ?? current.refreshAt?.split("@")[1] ?? "Asia/Shanghai");
+          if (!at) return c.json({ error: "时间格式不对" }, 400);
+          return c.json({ panel: toDto(await store.setRefresh(c.var.actor.id, c.req.param("id"), 1440, at)) });
+        }
         if (body.refreshMinutes === undefined) return c.json({ error: "没有要改的内容" }, 400);
         return c.json({ panel: toDto(await store.setRefresh(c.var.actor.id, c.req.param("id"), body.refreshMinutes)) });
       } catch (error) {
@@ -494,8 +553,13 @@ export function createLivePanelService(deps: {
     routes,
     refreshNow,
     refreshAndWait,
+    resumeAfterHandback,
     sweep,
     start() {
+      void store
+        .releaseOrphanLeases()
+        .then((n) => n && log({ type: "live-panel-orphan-leases", released: n }))
+        .catch(() => {});
       timer ??= setInterval(() => void sweep(), 60_000);
       setTimeout(() => void sweep(), 15_000);
     },

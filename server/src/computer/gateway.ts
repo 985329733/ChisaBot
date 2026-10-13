@@ -57,6 +57,7 @@ import {
   policyInitiator,
 } from "./policy";
 import type { ComputerProvider, ComputerUpdate } from "./provider";
+import { notifyControlReleased } from "./control-blocks";
 import type {
   ActionResult,
   ClickInput,
@@ -791,6 +792,7 @@ export function createComputerGateway(
         botId,
         actor,
       });
+      notifyControlReleased(actor.id);
       return state;
     },
 

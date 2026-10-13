@@ -400,6 +400,13 @@
       "when": 1791825591853,
       "tag": "0056_live_panels",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1791897741524,
+      "tag": "0057_live_panel_refresh_at",
+      "breakpoints": true
     }
   ]
 }

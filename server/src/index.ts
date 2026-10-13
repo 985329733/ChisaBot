@@ -130,6 +130,7 @@ import { createChannelTitler } from "./channels/titler";
 import { createSandboxedStore } from "./components/sandboxed";
 import { createComponentStore } from "./components/store";
 import { createComputerGateway } from "./computer/gateway";
+import { onControlReleased } from "./computer/control-blocks";
 import {
   createHeadlessComputerTools,
   HeadlessToolSuspension,
@@ -1304,7 +1305,11 @@ const loadToolsForActor =
     // 内置联网（web_search / web_fetch）：先搜、再读，浏览器留给需要点击 / 登录 / 给人看的时候。
     ...webTools(),
     // 实时面板（server/src/live-panels）：右栏会自己刷新的卡片，规范与 render_ui 同一套组件。
-    ...(config.generativeUi ? livePanelService.tools(actorId, botId) : []),
+    // 后台刷新面板的无头回合（initiator 是 lp_… 的 routine）只拿 panel_update / panel_fail / panel_list，且只能动那一张：
+    // 以前它也拿到 panel_refresh，刷新里又触发一次刷新，回合叠回合（2026-10-13 实测）。
+    ...(config.generativeUi
+      ? livePanelService.tools(actorId, botId, initiator.kind === "routine" && initiator.id.startsWith("lp_") ? { refreshOf: initiator.id } : {})
+      : []),
     // 工作流（docs/workflows.md）：在聊天和长期任务里运行工作流；工作流自己的步骤拿不到。
     ...workflowChatTools({
       store: workflowStore,
@@ -2236,6 +2241,8 @@ const livePanelService = createLivePanelService({
     }
   },
 });
+// 用户点「交还」：因为有人接管被推迟的面板马上重刷（control-blocks.ts onControlReleased）。
+onControlReleased((ownerUserId) => void livePanelService.resumeAfterHandback(ownerUserId));
 // CHISABOT_LIVE_PANEL_SWEEP=0：不跑后台刷新循环（只给并排的预览容器用，免得它替正式实例刷新面板）。
 if (process.env.CHISABOT_LIVE_PANEL_SWEEP !== "0") livePanelService.start();
 startInProcessRoutineSweep();

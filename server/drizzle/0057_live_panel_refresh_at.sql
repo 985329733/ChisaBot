@@ -1,0 +1,1 @@
+ALTER TABLE "live_panels" ADD COLUMN "refresh_at" text;
