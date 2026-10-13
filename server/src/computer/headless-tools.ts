@@ -431,7 +431,8 @@ export function createHeadlessComputerTools(options: {
     tool(
       "computer_navigate",
       "Open a web page and return its title and readable text. Use the returned content to answer. " +
-        "To open a page you wrote yourself, save it with computer_write_file (e.g. page.html) and open https://workspace.local/page.html (file:// does not work).",
+        "To open a page you wrote yourself, save it with computer_write_file (e.g. page.html) and open https://workspace.local/page.html (file:// does not work). " +
+        "If the result has siteBlock, the site refused this browser outright: do not retry that site; tell the user in Chinese what siteBlock.notice says.",
       z.strictObject({ url: text }),
       async ({ url }, { toolCallId }) => {
         const result = await gateway.navigate(botId, actor, url, toolCallId);

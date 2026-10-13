@@ -569,7 +569,7 @@ is still the record.
 | `COMPUTER_MAX_BROWSERS`              | How many Bots may hold a running browser at once. `8` by default; the least recently used is closed past it. |
 | `COMPUTER_BROWSER_IDLE_MS`           | How long an untouched browser is kept. 30 minutes by default; `0` keeps them resident.    |
 | `COMPUTER_BROWSER_BACKEND`           | `managed` by default (full bundled Chromium); `local-chrome` opts into installed Chrome with dedicated profiles and a loopback API. |
-| `COMPUTER_BROWSER_MODE`              | Managed defaults to `headless` (full Chromium's new headless mode). `headed` uses Xvfb on Linux and a native window on macOS/Windows. Local Chrome requires `headed`. |
+| `COMPUTER_BROWSER_MODE`              | Managed on Linux defaults to `headed` on a private Xvfb display when `Xvfb` is on PATH (the image installs it), otherwise `headless` (full Chromium's new headless mode). Headless is refused outright by some Cloudflare-protected sites (x.ai, chatgpt.com); set `headless` explicitly only if you accept that. `headed` uses a native window on macOS/Windows. Local Chrome requires `headed`. |
 | `OPENBOT_LOCAL_COMPUTER_DIR`         | Local startup helper's absolute data root. Defaults to the platform's OpenBot user-data directory; contains `profiles/` and `workspace/`. |
 | `COMPUTER_SUPERVISOR_URL`            | Supervisor URL for per-Bot computers. If absent, Bots share `AGENT_COMPUTER_URL`.         |
 | `SUPERVISOR_TOKEN`                   | Bearer token required by the supervisor.                                                  |
@@ -595,6 +595,17 @@ docker ps -aq --filter "label=openbot.namespace=openbot" | xargs -r docker rm -f
 ```
 
 The supervisor recreates each computer with the same named volumes on its next request.
+
+### 网站拦截机器人浏览器（「Sorry, you have been blocked」）
+
+ChisaBot 默认在 Xvfb 虚拟显示器里跑有界面 Chromium，而不是 headless：实测（2026-10-13）同一台服务器、同一个 IP，
+headless 打开 `x.ai` / `accounts.x.ai`（grok.com 的登录页）被 Cloudflare 直接封禁、`chatgpt.com` 卡在验证页，
+换成有界面模式三个站都正常。`navigator.webdriver` 和「受自动化软件控制」提示条本来就已关闭。
+
+如果某个网站仍然拦截，机器人会收到 `siteBlock` 说明（不再反复重试，会用中文告诉用户），拦截页顶部也会盖一条中文提示。
+这时先在「计算机」里点「接管控制」亲自试一次；亲自打开仍被拦，通常是服务器出口 IP 的信誉问题（机房 IP 段），
+只能给机器人浏览器配出口代理：在仓库根目录的 `egress.env` 写 `EGRESS_PROXY_DEFAULT=http://用户:密码@代理地址:端口`
+（或按机器人 `EGRESS_PROXY_<BOT_ID>`），然后重建容器。见下文「Egress」一节。
 
 ### Headed managed Chromium in Docker or Helm
 

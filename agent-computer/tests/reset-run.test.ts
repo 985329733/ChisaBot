@@ -85,6 +85,7 @@ beforeAll(async () => {
    * `../src/index` is whatever an earlier file already loaded, bound to that file's environment and
    * its port rather than this one's.
    */
+  // @ts-expect-error -- a query-suffixed specifier is resolved by Bun at runtime, not by tsc.
   await import("../src/index?reset-run");
 });
 

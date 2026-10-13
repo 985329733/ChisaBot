@@ -19,6 +19,7 @@ import { isPlainBotId } from "./bot-id";
 import { PreviewShotBusyError, PreviewShotRefusedError, previewShot } from "./preview-shot";
 import { browserRuntimeFromEnv } from "./browser-runtime";
 import { detectChallenge } from "./challenge";
+import { detectSiteBlock } from "./site-block";
 import {
   ControlError,
   ControlRequestError,
@@ -1136,12 +1137,15 @@ serve<StreamData>({
           // than fall through to a selector that matches nothing and read as a missing element.
           session.snapshotId += 1;
           const extract = await readablePageText(target);
+          // 硬拦截页（「Sorry, you have been blocked」）：告诉 BOT 别重试、照实转告，并在页面上盖中文提示。
+          const siteBlock = await detectSiteBlock(target);
           return json({
             url: target.url(),
             title: await target.title(),
             text: extract.text,
             truncated: extract.truncated,
             elapsedMs: Date.now() - startedAt,
+            ...(siteBlock ? { siteBlock } : {}),
             challenge: await detectChallenge(target, session.control, {
               cfMitigated: response
                 ? await response.headerValue("cf-mitigated")
@@ -1333,11 +1337,13 @@ serve<StreamData>({
         try {
           const target = await currentPage(botId);
           const extract = await readablePageText(target);
+          const siteBlock = await detectSiteBlock(target);
           return json({
             url: target.url(),
             title: await target.title(),
             text: extract.text,
             truncated: extract.truncated,
+            ...(siteBlock ? { siteBlock } : {}),
             challenge: await detectChallenge(target, session.control),
           });
         } catch (error) {

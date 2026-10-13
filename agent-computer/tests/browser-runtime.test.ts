@@ -3,9 +3,9 @@ import { browserRuntimeFromEnv } from "../src/browser-runtime";
 
 describe("the configured browser runtime", () => {
   test.each(["linux", "darwin", "win32"])(
-    "managed %s uses full headless Chromium",
+    "managed %s without Xvfb uses full headless Chromium",
     (platform) => {
-      expect(browserRuntimeFromEnv({}, platform)).toEqual({
+      expect(browserRuntimeFromEnv({}, platform, false)).toEqual({
         backend: "managed",
         channel: "chromium",
         mode: "headless",
@@ -14,6 +14,23 @@ describe("the configured browser runtime", () => {
       });
     },
   );
+
+  test("managed linux with Xvfb defaults to headed on the virtual display", () => {
+    expect(browserRuntimeFromEnv({}, "linux", true)).toEqual({
+      backend: "managed",
+      channel: "chromium",
+      mode: "headed",
+      useVirtualDisplay: true,
+      allowExec: true,
+    });
+  });
+
+  test("an explicit headless setting wins over the Xvfb default", () => {
+    expect(
+      browserRuntimeFromEnv({ COMPUTER_BROWSER_MODE: "headless" }, "linux", true)
+        .mode,
+    ).toBe("headless");
+  });
 
   test.each(["linux", "darwin", "win32"])(
     "headed %s needs Xvfb only on Linux",
