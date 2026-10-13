@@ -30,6 +30,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.Toast
+import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -42,6 +43,10 @@ import java.io.File
  * 先探测地址，再由本壳直接请求服务器登录网关（GatewayAuth），会话 Cookie 写进 CookieManager，然后载入网页。
  * 密码从不保存：记住登录 = 服务器发 30 天的会话 Cookie；不勾就是会话 Cookie，下次冷启动清掉。
  * 启动时会话仍有效就直接进入；网页被服务器跳到 /login（会话过期）时换回本机登录页。
+ * 扫码绑定（DESIGN.md §33）：登录页「扫码绑定」→ 相机（zxing-android-embedded，不依赖 Google Play 服务）扫网页
+ * 「设置 → 设备 → 绑定手机」的一次性二维码 → 用绑定码换设备令牌（存在本机，allowBackup=false）→ 用令牌向登录网关
+ * 换 30 天会话 → 直接进入主机器人。会话过期时用令牌静默续期；网页上撤销这台手机后续期被拒，回到登录页并提示。
+ * 系统相机扫到 chisabot://pair 链接也会打开本应用，先确认服务器再绑定。
  * 其余：文件上传 / 下载、返回键、外链交给浏览器、APK 在线更新（见 Updater）。网页本身的更新由网页横幅处理。
  */
 class MainActivity : Activity() {
@@ -110,6 +115,101 @@ class MainActivity : Activity() {
         when (intent?.action) {
             ACTION_SERVER -> showLogin("switch")
             ACTION_LOGOUT -> confirmLogout()
+            Intent.ACTION_VIEW -> intent.data?.let { confirmPairLink(it.toString()) }
+        }
+    }
+
+    /** 系统相机 / 其它应用打开的 chisabot://pair 链接：先让人确认服务器（防止被别的网页把手机绑到陌生服务器）。 */
+    private fun confirmPairLink(text: String) {
+        val link = Pairing.parse(text) ?: return Toast.makeText(this, "这不是 ChisaBot 的绑定二维码", Toast.LENGTH_SHORT).show()
+        AlertDialog.Builder(this)
+            .setTitle("绑定这台手机？")
+            .setMessage("将这台手机绑定到\n${link.server}\n\n绑定后会登录到生成二维码的账号，并出现在它的设备列表里。只在你自己刚生成二维码时继续。")
+            .setPositiveButton("绑定") { _, _ ->
+                Toast.makeText(this, "正在绑定…", Toast.LENGTH_SHORT).show()
+                Thread {
+                    val result = runCatching { pairWith(link) }
+                    runOnUiThread {
+                        result.onSuccess { openApp() }.onFailure { error ->
+                            AlertDialog.Builder(this)
+                                .setTitle("绑定失败")
+                                .setMessage(error.message ?: error.javaClass.simpleName)
+                                .setPositiveButton("知道了", null)
+                                .show()
+                        }
+                    }
+                }.start()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    // ---------- 扫码绑定 ----------
+
+    /** 本机保存的设备令牌（只属于 prefs 里的 server）。 */
+    private val deviceToken: String?
+        get() = prefs.getString("deviceToken", null)?.takeIf { it.startsWith("cbd_") && prefs.getString("deviceServer", null) == origin() }
+
+    private fun clearDeviceToken() {
+        prefs.edit().remove("deviceToken").remove("deviceServer").remove("deviceId").remove("deviceName").apply()
+    }
+
+    private fun setCookiesFor(o: String, setCookies: List<String>, clearOthers: Boolean) {
+        val cm = CookieManager.getInstance()
+        if (clearOthers) {
+            val latch = java.util.concurrent.CountDownLatch(1)
+            runOnUiThread { cm.removeAllCookies { latch.countDown() } }
+            latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        for (line in setCookies) cm.setCookie("$o/", line)
+        cm.flush()
+    }
+
+    /** 后台线程：绑定码 → 设备令牌 → 网关会话。成功后 prefs 指向这个服务器。 */
+    private fun pairWith(link: Pairing.Link): JSONObject {
+        val os = Pairing.osVersion()
+        val paired = GatewayAuth.pair(link.server, link.code, Pairing.deviceName(contentResolver), Pairing.model(), os)
+        // 之前绑定过（同一台手机重新扫码 / 换服务器）：旧令牌作废，设备列表里不留重复的手机。
+        val oldToken = prefs.getString("deviceToken", null)
+        val oldServer = prefs.getString("deviceServer", null)
+        if (oldToken != null && oldServer != null) GatewayAuth.unenroll(oldServer, oldToken)
+        prefs.edit()
+            .putString("deviceToken", paired.token)
+            .putString("deviceServer", link.server)
+            .putString("deviceId", paired.deviceId)
+            .putString("deviceName", paired.deviceName)
+            .apply()
+        val setCookies = GatewayAuth.deviceSession(link.server, paired.token, os)
+        val previous = origin()
+        setCookiesFor(link.server, setCookies, clearOthers = previous != null && previous != link.server)
+        prefs.edit()
+            .putString("server", link.server)
+            .putBoolean("remember", true)
+            .putBoolean("loggedIn", true)
+            .apply()
+        saveRecent(listOf(link.server) + recentServers().filter { it != link.server })
+        return JSONObject().put("origin", link.server).put("deviceName", paired.deviceName)
+    }
+
+    private var lastRenewAt = 0L
+
+    /**
+     * 后台线程：会话没了，用设备令牌静默换一个。true = 成功；false = 令牌被撤销（已清除）；null = 没有令牌 / 暂时失败。
+     * 60 秒内最多一次，避免服务器一直把网页带回 /login 时来回循环。
+     */
+    private fun renewWithDevice(o: String): Boolean? {
+        val token = deviceToken ?: return null
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastRenewAt != 0L && now - lastRenewAt < 60_000) return null
+        lastRenewAt = now
+        return try {
+            setCookiesFor(o, GatewayAuth.deviceSession(o, token, Pairing.osVersion()), clearOthers = false)
+            true
+        } catch (e: GatewayAuth.LoginError) {
+            if (e.kind == "revoked") {
+                clearDeviceToken()
+                false
+            } else null
         }
     }
 
@@ -161,11 +261,19 @@ class MainActivity : Activity() {
         val proceed = {
             Thread {
                 val status = runCatching { GatewayAuth.probe(o, cookieFor(o)) }
+                val needsLogin = status.getOrNull()?.let { it.gateway && it.authenticated != true } == true
+                // 扫码绑定过的手机：会话过期就用设备令牌静默续期。
+                val renewed = if (needsLogin) renewWithDevice(o) else null
                 runOnUiThread {
                     if (isFinishing) return@runOnUiThread
                     val session = status.getOrNull()
                     when {
                         session == null -> web.loadUrl(o)
+                        renewed == true -> {
+                            hasSession = true
+                            web.loadUrl(o)
+                        }
+                        renewed == false -> showLogin("revoked")
                         session.gateway && session.authenticated != true ->
                             showLogin(if (prefs.getBoolean("loggedIn", false)) "expired" else "")
                         else -> {
@@ -195,7 +303,7 @@ class MainActivity : Activity() {
             domStorageEnabled = false
             setSupportMultipleWindows(false)
         }
-        view.addJavascriptInterface(LoginBridge(), "ChisaLogin")
+        view.addJavascriptInterface(loginBridge, "ChisaLogin")
         view.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean =
                 !request.url.toString().startsWith(LOGIN_URL_PREFIX)
@@ -209,6 +317,7 @@ class MainActivity : Activity() {
     }
 
     private var pendingNotice = ""
+    private val loginBridge by lazy { LoginBridge() }
 
     private fun hideLogin() {
         val view = loginWeb ?: return
@@ -293,6 +402,10 @@ class MainActivity : Activity() {
             }
             for (line in setCookies) cm.setCookie("$o/", line)
             cm.flush()
+            if (prefs.getString("deviceServer", null).let { it != null && it != o }) {
+                prefs.getString("deviceToken", null)?.let { GatewayAuth.unenroll(prefs.getString("deviceServer", null)!!, it) }
+                clearDeviceToken()
+            }
             prefs.edit()
                 .putString("server", o)
                 .putString("username", username)
@@ -304,13 +417,52 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
-        fun open() = runOnUiThread {
-            hasSession = true
-            offlineShown = false
-            web.clearHistory()
-            web.loadUrl(server)
-            hideLogin()
+        fun open() = runOnUiThread { openApp() }
+
+        /** 打开相机扫码；回调 {server, code}，取消 = {cancelled:true}，不是绑定码 = 错误 [scan]。 */
+        @JavascriptInterface
+        fun scan(id: Int, @Suppress("UNUSED_PARAMETER") json: String) = runOnUiThread {
+            pendingScan?.let { reply(it, true, JSONObject().put("cancelled", true).toString()) }
+            pendingScan = id
+            try {
+                IntentIntegrator(this@MainActivity)
+                    .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+                    .setPrompt("对准电脑上「绑定手机」的二维码")
+                    .setBeepEnabled(false)
+                    .setOrientationLocked(false)
+                    .initiateScan()
+            } catch (e: Exception) {
+                pendingScan = null
+                reply(id, false, "[scan] 无法打开相机：${e.message ?: e.javaClass.simpleName}")
+            }
         }
+
+        fun scanned(id: Int, contents: String?) {
+            if (contents == null) return reply(id, true, JSONObject().put("cancelled", true).toString())
+            val link = Pairing.parse(contents)
+                ?: return reply(id, false, "[scan] 这不是 ChisaBot 的绑定二维码。请扫描网页「设置 → 设备 → 绑定手机」里的二维码。")
+            reply(id, true, JSONObject().put("server", link.server).put("code", link.code).toString())
+        }
+
+        @JavascriptInterface
+        fun pair(id: Int, json: String) = async(id) {
+            val input = JSONObject(json)
+            val link = Pairing.parse(Uri.Builder().scheme("chisabot").authority("pair")
+                .appendQueryParameter("server", input.optString("server"))
+                .appendQueryParameter("code", input.optString("code")).build().toString())
+                ?: throw GatewayAuth.LoginError("scan", "二维码内容无效，请重新扫码。")
+            pairWith(link)
+        }
+    }
+
+    private var pendingScan: Int? = null
+
+    private fun openApp() {
+        hasSession = true
+        offlineShown = false
+        web.clearHistory()
+        web.loadUrl(server)
+        hideLogin()
     }
 
     private fun isLoginPage(uri: Uri): Boolean =
@@ -318,18 +470,37 @@ class MainActivity : Activity() {
 
     /** 网页被服务器带到它自己的登录页（会话过期 / 被退出）：换成本机登录页。 */
     private fun sessionExpired() {
-        if (loginWeb != null) return
+        if (loginWeb != null || renewing) return
         hasSession = false
         web.stopLoading()
         web.loadUrl("about:blank")
-        showLogin("expired")
+        val o = origin()
+        if (o == null || deviceToken == null) return showLogin("expired")
+        // 扫码绑定的手机：先用设备令牌静默续期；被撤销则提示重新扫码。
+        renewing = true
+        Thread {
+            val renewed = renewWithDevice(o)
+            runOnUiThread {
+                renewing = false
+                when (renewed) {
+                    true -> openApp()
+                    false -> showLogin("revoked")
+                    null -> showLogin("expired")
+                }
+            }
+        }.start()
     }
+
+    private var renewing = false
 
     private fun confirmLogout() {
         if (origin() == null) return showLogin()
         AlertDialog.Builder(this)
             .setTitle("退出登录？")
-            .setMessage("会清除这台设备上的登录状态。服务器地址和账号会保留，方便下次登录。")
+            .setMessage(
+                if (deviceToken != null) "会清除这台手机上的登录状态，并在设备列表里解除这台手机的绑定（之后需要重新扫码）。服务器地址会保留。"
+                else "会清除这台设备上的登录状态。服务器地址和账号会保留，方便下次登录。",
+            )
             .setPositiveButton("退出登录") { _, _ -> logout() }
             .setNegativeButton("取消", null)
             .show()
@@ -338,16 +509,19 @@ class MainActivity : Activity() {
     private fun logout() {
         val o = origin() ?: return showLogin()
         val cookie = cookieFor(o)
+        val token = deviceToken
         Thread {
+            if (token != null) GatewayAuth.unenroll(o, token)
             GatewayAuth.logout(o, cookie)
             runOnUiThread {
+                if (token != null) clearDeviceToken()
                 CookieManager.getInstance().removeAllCookies(null)
                 CookieManager.getInstance().flush()
                 prefs.edit().putBoolean("loggedIn", false).apply()
                 hasSession = false
                 web.loadUrl("about:blank")
                 web.clearHistory()
-                showLogin("logout")
+                showLogin(if (token != null) "unbound" else "logout")
             }
         }.start()
     }
@@ -414,6 +588,13 @@ class MainActivity : Activity() {
 
     @Deprecated("startActivityForResult keeps the shell free of AndroidX activity")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == IntentIntegrator.REQUEST_CODE) {
+            val id = pendingScan ?: return
+            pendingScan = null
+            val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+            loginBridge.scanned(id, result?.contents)
+            return
+        }
         if (requestCode != REQ_FILE) return super.onActivityResult(requestCode, resultCode, data)
         val cb = fileCallback ?: return
         fileCallback = null

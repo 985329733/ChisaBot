@@ -3180,6 +3180,53 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .device-steps span { font-size: 13px; color: var(--ink-3); }
 .device-step-inline { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .device-steps + .sg-card, .sg-card + .device-steps { margin-top: 12px; }
+/* 绑定手机（DESIGN.md §33）：一次性二维码弹窗 + 设备页「添加一台手机」卡片。 */
+.device-cap-chip.is-mobile { color: var(--accent-blue-ink); background: var(--accent-blue-soft); border-color: transparent; }
+.pair-card-row { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+.pair-card-row b { display: block; font-size: 14px; font-weight: 500; color: var(--ink-1); }
+.pair-card-row span { display: block; margin-top: 2px; font-size: 13px; line-height: 1.55; color: var(--ink-3); }
+.pair-card-ic { display: inline-grid !important; place-items: center; flex: none; width: 40px; height: 40px; margin: 0 !important; border-radius: 14px; color: var(--accent-blue); background: var(--accent-blue-soft); }
+@media (max-width: 640px) {
+  .pair-card-row { flex-wrap: wrap; }
+  .pair-card-row > button { width: 100%; }
+}
+.pair-body { display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 4px; }
+.pair-qr {
+  position: relative; width: min(248px, 64vw); aspect-ratio: 1; padding: 12px; border-radius: 22px;
+  background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-1);
+}
+.pair-qr-svg { display: block; width: 100%; height: 100%; border-radius: 6px; animation: pair-in var(--dur-3, 260ms) var(--ease-out, ease-out); transition: opacity var(--dur-3, 260ms), filter var(--dur-3, 260ms); }
+.pair-qr-skeleton { width: 100%; height: 100%; border-radius: 10px; background: linear-gradient(110deg, #eef2f8 30%, #f8fafd 50%, #eef2f8 70%); background-size: 220% 100%; animation: pair-shimmer 1.4s linear infinite; }
+.pair-qr-skeleton.is-still { animation: none; background: #f1f4f9; }
+.pair-qr.is-bound .pair-qr-skeleton { opacity: .18; }
+.pair-qr-done {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 18px; border-radius: 22px; text-align: center; background: color-mix(in oklch, #fff 86%, transparent);
+  animation: pair-in var(--dur-3, 260ms) var(--ease-out, ease-out);
+}
+.pair-qr-done b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: #0b1220; }
+.pair-qr-done span { font-size: 12.5px; color: #4b5872; }
+.pair-qr-done.is-plain span { font-size: 13px; color: #4b5872; }
+.pair-qr-check {
+  display: inline-grid; place-items: center; width: 56px; height: 56px; margin-bottom: 4px; border-radius: 999px;
+  color: #fff; background: var(--success); box-shadow: 0 0 0 6px color-mix(in oklch, var(--success) 22%, transparent);
+  animation: pair-pop 320ms cubic-bezier(.2, .9, .3, 1.3);
+}
+.pair-meta { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; min-height: 24px; }
+.pair-dot { animation-duration: 1.6s; }
+.pair-countdown { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pair-steps { list-style: none; width: 100%; margin: 0; padding: 10px 14px; border-radius: 16px; background: var(--glass-2); border: 1px solid var(--line); }
+.pair-steps li { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.pair-steps li > svg { flex: none; margin-top: 3px; color: var(--accent-blue); }
+.pair-steps b { font-weight: 600; color: var(--ink-1); }
+.pair-server { max-width: min(220px, 52vw); }
+.pair-footer > button { min-width: 112px; }
+@keyframes pair-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes pair-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes pair-shimmer { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pair-qr-svg, .pair-qr-done, .pair-qr-check, .pair-qr-skeleton, .pair-dot { animation: none !important; }
+}
 .device-approvals { margin-top: 8px; border: 1px solid color-mix(in oklch, var(--warn) 35%, transparent); }
 .device-approval { display: flex; align-items: flex-start; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line); }
 .device-approval-ic { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; color: var(--warn); background: var(--warn-soft); flex: none; }

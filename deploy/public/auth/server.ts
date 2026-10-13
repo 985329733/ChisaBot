@@ -74,11 +74,25 @@ export type AuthConfig = {
   passwordHash: string;
   publicOrigin: string;
   now?: () => number;
+  /**
+   * 应用服务的本机地址（手机扫码绑定用，DESIGN.md §33）：网关用它校验手机的设备令牌、定期确认手机没被撤销。
+   * 默认 http://127.0.0.1:3001；必须是直连，不能经过公网 Nginx（应用只回答不带 X-Forwarded-For 的状态查询）。
+   */
+  appUrl?: string;
+  /** 测试注入用。 */
+  appFetch?: (input: string, init?: RequestInit) => Promise<Response>;
 };
+
+/** 手机会话每隔这么久向应用确认一次设备仍有效；应用暂时连不上时，最多沿用上次结果这么久。 */
+const DEVICE_RECHECK_MS = 30_000;
+const DEVICE_GRACE_MS = 10 * 60_000;
 
 export function createAuthApp(config: AuthConfig) {
   if (!config.username || !config.passwordHash.startsWith("$argon2id$") || new URL(config.publicOrigin).protocol !== "https:") throw new Error("Invalid authentication configuration");
   const now = config.now || Date.now;
+  const appUrl = (config.appUrl || "http://127.0.0.1:3001").replace(/\/+$/, "");
+  // globalThis.fetch：下面的请求处理函数也叫 fetch，直接写 fetch 会调用到它自己。
+  const appFetch = config.appFetch || ((input: string, init?: RequestInit) => globalThis.fetch(input, init));
   const credentialKey = digest(config.username + "\0" + config.passwordHash);
   const db = new Database(config.databasePath, { create: true, strict: true });
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
@@ -88,6 +102,10 @@ export function createAuthApp(config: AuthConfig) {
   ); CREATE TABLE IF NOT EXISTS attempts (
     client_key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL
   ); CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);`);
+  // 手机扫码绑定的会话：记下设备 id 和最后一次确认时间（旧库原地加列）。
+  const columns = new Set((db.query("PRAGMA table_info(sessions)").all() as { name: string }[]).map((column) => column.name));
+  if (!columns.has("device_id")) db.exec("ALTER TABLE sessions ADD COLUMN device_id TEXT");
+  if (!columns.has("verified_at")) db.exec("ALTER TABLE sessions ADD COLUMN verified_at INTEGER");
   if (config.databasePath !== ":memory:") chmodSync(config.databasePath, 0o600);
   let inFlight = 0;
   let cleanedAt = -Infinity;
@@ -106,11 +124,39 @@ export function createAuthApp(config: AuthConfig) {
     db.query("DELETE FROM attempts WHERE expires_at <= ?").run(time);
     cleanedAt = time;
   }
-  function authenticated(request: Request): boolean {
+  /** 问应用：这台手机还有效吗？true / false；连不上或回答异常 = null。 */
+  async function deviceActive(deviceId: string): Promise<boolean | null> {
+    try {
+      const response = await appFetch(`${appUrl}/api/devices/agent/state/${encodeURIComponent(deviceId)}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { active?: unknown };
+      return typeof body.active === "boolean" ? body.active : null;
+    } catch { return null; }
+  }
+  async function authenticated(request: Request): Promise<boolean> {
     clean();
     const token = sessionToken(request);
     if (!token) return false;
-    return !!db.query("SELECT 1 FROM sessions WHERE token_hash = ? AND credential_key = ? AND expires_at > ?").get(digest(token), credentialKey, now());
+    const hash = digest(token);
+    const row = db.query("SELECT device_id, verified_at FROM sessions WHERE token_hash = ? AND credential_key = ? AND expires_at > ?").get(hash, credentialKey, now()) as { device_id: string | null; verified_at: number | null } | null;
+    if (!row) return false;
+    if (!row.device_id) return true;
+    // 手机会话：撤销 / 删除设备后，最迟约 30 秒失效。
+    const verifiedAt = row.verified_at || 0;
+    if (now() - verifiedAt < DEVICE_RECHECK_MS) return true;
+    const active = await deviceActive(row.device_id);
+    if (active === true) {
+      db.query("UPDATE sessions SET verified_at = ? WHERE token_hash = ?").run(now(), hash);
+      return true;
+    }
+    if (active === false) {
+      db.query("DELETE FROM sessions WHERE device_id = ?").run(row.device_id);
+      return false;
+    }
+    return now() - verifiedAt < DEVICE_GRACE_MS;
   }
   function revoke(request: Request) {
     const token = sessionToken(request);
@@ -120,6 +166,55 @@ export function createAuthApp(config: AuthConfig) {
     db.query(`INSERT INTO attempts (client_key, count, expires_at) VALUES (?, 1, ?)
       ON CONFLICT(client_key) DO UPDATE SET count = count + 1`).run(key, now() + WINDOW);
   }
+  /**
+   * 手机扫码绑定后的登录（DESIGN.md §33）：手机带着设备令牌（X-Device-Token）来换网关会话。
+   * 网关把令牌交给应用 /api/devices/agent/session 校验（只认未撤销的手机设备），通过就签发 30 天会话，
+   * 会话上记下设备 id；之后每 30 秒左右确认一次设备仍有效，撤销即失效。和密码登录共用失败限速。
+   */
+  async function deviceSession(request: Request): Promise<Response> {
+    if (request.method !== "POST") return json({ ok: false, error: "请求方法不支持。" }, 405, { Allow: "POST" });
+    if (request.headers.get("Origin") !== config.publicOrigin) return json({ ok: false, error: "登录请求来源无效，请确认服务器地址。" }, 403);
+    clean();
+    const clientKey = digest(`client:${request.headers.get("X-OpenBot-Client") || "unknown"}`);
+    const failures = db.query("SELECT count FROM attempts WHERE client_key = ? AND expires_at > ?").get(clientKey, now()) as { count: number } | null;
+    if ((failures?.count || 0) >= 10) return json({ ok: false, error: "尝试次数过多，请稍后再试。" }, 429, { "Retry-After": "60" });
+    const deviceToken = (request.headers.get("X-Device-Token") || "").trim();
+    if (!/^cbd_[A-Za-z0-9_-]{43}$/.test(deviceToken)) {
+      attempt(clientKey);
+      return json({ ok: false, error: "设备令牌无效，请重新扫码绑定。" }, 401);
+    }
+    const text = await request.text();
+    if (Buffer.byteLength(text) > 1024) return json({ ok: false, error: "请求过长。" }, 413);
+    let facts: Record<string, unknown> = {};
+    try { const parsed = text ? JSON.parse(text) : {}; if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) facts = parsed; } catch { /* 附带信息可选 */ }
+    let reply: Response;
+    try {
+      reply = await appFetch(`${appUrl}/api/devices/agent/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json", "X-Device-Token": deviceToken },
+        body: JSON.stringify({ clientVersion: facts.clientVersion, osVersion: facts.osVersion }),
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch { return json({ ok: false, error: "服务器暂时不可用，请稍后重试。" }, 503); }
+    if (reply.status === 401 || reply.status === 403) {
+      attempt(clientKey);
+      const body = (await reply.json().catch(() => ({}))) as { revoked?: unknown };
+      return json({ ok: false, revoked: body.revoked === true, error: body.revoked === true ? "这台手机已在网页上被撤销，请重新扫码绑定。" : "设备令牌无效，请重新扫码绑定。" }, 401);
+    }
+    if (!reply.ok) return json({ ok: false, error: "服务器暂时不可用，请稍后重试。" }, 503);
+    const body = (await reply.json().catch(() => null)) as { device?: { id?: unknown; name?: unknown } } | null;
+    const deviceId = typeof body?.device?.id === "string" ? body.device.id : null;
+    if (!deviceId) return json({ ok: false, error: "服务器暂时不可用，请稍后重试。" }, 503);
+    db.query("DELETE FROM attempts WHERE client_key = ?").run(clientKey);
+    const token = randomBytes(32).toString("base64url");
+    db.transaction(() => {
+      revoke(request);
+      db.query("INSERT INTO sessions (token_hash, credential_key, expires_at, created_at, device_id, verified_at) VALUES (?, ?, ?, ?, ?, ?)").run(digest(token), credentialKey, now() + LONG_LIFETIME * 1000, now(), deviceId, now());
+      db.query("DELETE FROM sessions WHERE token_hash IN (SELECT token_hash FROM sessions ORDER BY created_at DESC LIMIT -1 OFFSET 100)").run();
+    })();
+    return json({ ok: true, device: { id: deviceId, name: typeof body?.device?.name === "string" ? body.device.name : null } }, 200, { "Set-Cookie": cookieHeader(token, LONG_LIFETIME) });
+  }
+
   async function fetch(request: Request): Promise<Response> {
     try {
       const path = new URL(request.url).pathname;
@@ -129,7 +224,7 @@ export function createAuthApp(config: AuthConfig) {
         cleanStartupReports();
         return json({ reports: startupReports });
       }
-      if (path === "/_internal/check" && request.method === "GET") return authenticated(request) ? json({ ok: true }) : unauthorized();
+      if (path === "/_internal/check" && request.method === "GET") return (await authenticated(request)) ? json({ ok: true }) : unauthorized();
       if (path === "/_internal/unauthorized") {
         const original = request.headers.get("X-Original-URI") || "/";
         const method = request.headers.get("X-Original-Method");
@@ -140,14 +235,14 @@ export function createAuthApp(config: AuthConfig) {
         return unauthorized();
       }
       if (path === "/auth/session" && request.method === "GET") {
-        const valid = authenticated(request);
+        const valid = await authenticated(request);
         return json(valid ? { authenticated: true, username: config.username } : { authenticated: false });
       }
       if (path === "/auth/startup-report") {
         if (request.method !== "POST") return json({ ok: false }, 405, { Allow: "POST" });
         if (request.headers.get("Origin") !== config.publicOrigin) return json({ ok: false }, 403);
         // A diagnostic refusal must not activate the workspace's login redirect interceptor.
-        if (!authenticated(request)) return json({ ok: false }, 401);
+        if (!(await authenticated(request))) return json({ ok: false }, 401);
         if ((request.headers.get("Content-Type") || "").split(";")[0]?.trim().toLowerCase() !== "application/json") return json({ ok: false }, 415);
         const text = await request.text();
         if (Buffer.byteLength(text) > 512) return json({ ok: false }, 413);
@@ -165,6 +260,7 @@ export function createAuthApp(config: AuthConfig) {
         while (startupReports.length > 100) startupReports.shift();
         return json({ ok: true }, 202);
       }
+      if (path === "/auth/device-session") return await deviceSession(request);
       if (path !== "/auth/login" && path !== "/auth/logout") return json({ ok: false, error: "页面不存在。" }, 404);
       if (request.method !== "POST") return json({ ok: false, error: "请求方法不支持。" }, 405, { Allow: "POST" });
       if (request.headers.get("Origin") !== config.publicOrigin) return json({ ok: false, error: "登录请求来源无效，请刷新页面重试。" }, 403);
@@ -222,7 +318,7 @@ export function createAuthApp(config: AuthConfig) {
 if (import.meta.main) {
   process.umask(0o077);
   const stored = await Bun.file(process.env.OPENBOT_AUTH_CONFIG || "/auth/config.json").json();
-  const app = createAuthApp({ ...stored, databasePath: process.env.OPENBOT_AUTH_DB || "/auth-data/sessions.sqlite" });
+  const app = createAuthApp({ ...stored, databasePath: process.env.OPENBOT_AUTH_DB || "/auth-data/sessions.sqlite", ...(process.env.OPENBOT_AUTH_APP_URL ? { appUrl: process.env.OPENBOT_AUTH_APP_URL } : {}) });
   const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.OPENBOT_AUTH_PORT || 3002), maxRequestBodySize: 4096, fetch: app.fetch });
   console.log("ChisaBot web authentication listening on loopback");
   const stop = () => { server.stop(true); app.close(); process.exit(0); };

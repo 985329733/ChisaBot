@@ -23,8 +23,8 @@ android {
         applicationId = "cn.ayase.chisabot"
         minSdk = 24
         targetSdk = 34
-        versionCode = 207        // 只增不减（已安装的 Android 按它判断更新）；2026-10-12 版本号重置为 0.1.0 时从 206 接着往上
-        versionName = "0.1.1"
+        versionCode = 208        // 只增不减（已安装的 Android 按它判断更新）；2026-10-12 版本号重置为 0.1.0 时从 206 接着往上
+        versionName = "0.1.2"
         buildConfigField("String", "DEFAULT_SERVER", quoted(defaultServer))
         buildConfigField("String", "UPDATE_FEED", quoted(updateFeed))
     }
@@ -60,4 +60,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    // 扫码绑定（DESIGN.md §33）：内嵌 ZXing 扫码界面，不依赖 Google Play 服务（国产手机也能用）。
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0") { isTransitive = false }
+    implementation("com.google.zxing:core:3.5.3")
 }

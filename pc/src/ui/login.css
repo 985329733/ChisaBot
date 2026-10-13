@@ -94,6 +94,16 @@ body.login-page { overflow: auto; }
 .step { min-height: 18px; margin: 10px 0 0; transition: opacity var(--dur-2) var(--ease-out); }
 .foot { margin: 14px 0 0; opacity: .85; }
 
+/* 扫码绑定（Android，DESIGN.md §33）：主按钮在上，账号密码在分隔线下（登录按钮降为描边样式）。 */
+.scan { width: 100%; margin-top: 22px; display: flex; flex-direction: column; }
+.scan .btn svg { width: 20px; height: 20px; }
+.scan-hint { margin: 10px 4px 0; line-height: 1.5; }
+.scan .alert { margin-top: 12px; line-height: 1.5; animation: enter var(--dur-2) var(--ease-out) both; }
+.scan .step { margin-top: 8px; }
+.divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 2px; font-size: var(--fs-12); color: var(--ink-3); }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.scan:not(.hidden) + .fields { margin-top: 14px; }
+
 @media (max-width: 440px) {
   .login { justify-content: flex-start; padding-top: max(32px, env(safe-area-inset-top)); }
   .login-card { padding: 24px 20px 14px; }

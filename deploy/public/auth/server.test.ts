@@ -137,3 +137,128 @@ describe("public cookie login", () => {
     service.close();
   });
 });
+
+describe("phone device sessions (QR pairing, DESIGN.md §33)", () => {
+  const phoneToken = `cbd_${"a".repeat(43)}`;
+  function phoneApp(state: { active: boolean | "down"; sessionStatus?: number; revoked?: boolean }, now?: () => number, file = ":memory:") {
+    const calls: string[] = [];
+    const service = createAuthApp({
+      databasePath: file, username: "admin", passwordHash, publicOrigin: origin, now, appUrl: "http://app.internal:3001/",
+      appFetch: async (url, init) => {
+        calls.push(`${init?.method || "GET"} ${url}`);
+        if (url.endsWith("/api/devices/agent/session")) {
+          const headers = new Headers(init?.headers);
+          if (headers.get("X-Device-Token") !== phoneToken || state.sessionStatus) return Response.json({ revoked: state.revoked === true }, { status: state.sessionStatus || 401 });
+          return Response.json({ device: { id: "dev_phone", name: "Pixel 8", ownerUserId: "u1" } });
+        }
+        if (url.includes("/api/devices/agent/state/")) {
+          if (state.active === "down") throw new Error("connection refused");
+          return Response.json({ active: state.active });
+        }
+        return new Response("not found", { status: 404 });
+      },
+    });
+    return { service, calls };
+  }
+  const exchange = (service: ReturnType<typeof app>, token = phoneToken, extra: Record<string, string> = {}) =>
+    service.fetch(new Request(`${origin}/auth/device-session`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "X-Device-Token": token, ...extra }, body: JSON.stringify({ clientVersion: "0.1.2" }) }));
+
+  test("a valid phone token gets a 30-day session tied to the device", async () => {
+    const { service, calls } = phoneApp({ active: true });
+    const response = await exchange(service);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, device: { id: "dev_phone", name: "Pixel 8" } });
+    expect(response.headers.get("Set-Cookie")).toContain("Max-Age=2592000");
+    expect(calls[0]).toBe("POST http://app.internal:3001/api/devices/agent/session");
+    const session = cookie(response);
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(200);
+    service.close();
+  });
+
+  test("revoking the device on the web logs the phone out within the recheck window", async () => {
+    let time = 1_000_000;
+    const state = { active: true as boolean | "down" };
+    const { service, calls } = phoneApp(state, () => time);
+    const session = cookie(await exchange(service));
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(200);
+    expect(calls.filter((call) => call.includes("/state/")).length).toBe(0); // 刚校验过，不再问
+    time += 31_000;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(200);
+    expect(calls.filter((call) => call.includes("/state/dev_phone")).length).toBe(1);
+    state.active = false;
+    time += 31_000;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(401);
+    // 会话已删除：即使设备「恢复」也不再有效。
+    state.active = true;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(401);
+    expect(await (await service.fetch(request("/auth/session", undefined, session))).json()).toEqual({ authenticated: false });
+    service.close();
+  });
+
+  test("app briefly unreachable keeps the phone signed in only within the grace period", async () => {
+    let time = 1_000_000;
+    const state = { active: "down" as boolean | "down" };
+    const { service } = phoneApp(state, () => time);
+    const session = cookie(await exchange(service));
+    time += 5 * 60_000;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(200);
+    time += 6 * 60_000;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(401);
+    service.close();
+  });
+
+  test("bad, revoked or cross-origin tokens get no session and count as failures", async () => {
+    const { service } = phoneApp({ active: true });
+    const malformed = await exchange(service, "cbd_short");
+    expect(malformed.status).toBe(401); expect(malformed.headers.has("Set-Cookie")).toBe(false);
+    const unknown = await exchange(service, `cbd_${"b".repeat(43)}`);
+    expect(unknown.status).toBe(401);
+    const cross = await exchange(service, phoneToken, { Origin: "https://evil.example" });
+    expect(cross.status).toBe(403); expect(cross.headers.has("Set-Cookie")).toBe(false);
+    for (let i = 0; i < 10; i++) await exchange(service, "cbd_short", { "X-OpenBot-Client": "198.51.100.7" });
+    expect((await exchange(service, phoneToken, { "X-OpenBot-Client": "198.51.100.7" })).status).toBe(429);
+    service.close();
+    const revoked = phoneApp({ active: false, sessionStatus: 401, revoked: true });
+    const response = await exchange(revoked.service);
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ ok: false, revoked: true });
+    revoked.service.close();
+  });
+
+  test("old session databases gain the device columns in place; password sessions are unaffected", async () => {
+    const file = join(directory, "legacy.sqlite");
+    const { Database } = await import("bun:sqlite");
+    const legacy = new Database(file, { create: true });
+    legacy.exec("CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, credential_key TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL); CREATE TABLE attempts (client_key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL);");
+    legacy.close();
+    const { service, calls } = phoneApp({ active: false }, undefined, file);
+    const password = cookie(await login(service));
+    expect((await service.fetch(request("/_internal/check", undefined, password))).status).toBe(200);
+    expect(calls.length).toBe(0);
+    expect((await exchange(service)).status).toBe(200);
+    service.close();
+  });
+});
+
+describe("phone sessions against a real HTTP app", () => {
+  test("the default app client reaches the app over HTTP (not the gateway's own handler)", async () => {
+    const appServer = Bun.serve({
+      hostname: "127.0.0.1", port: 0,
+      fetch: (request) => {
+        const url = new URL(request.url);
+        if (url.pathname === "/api/devices/agent/session" && request.headers.get("X-Device-Token") === `cbd_${"c".repeat(43)}`) return Response.json({ device: { id: "dev_http", name: "HTTP 手机" } });
+        if (url.pathname === "/api/devices/agent/state/dev_http") return Response.json({ active: false });
+        return Response.json({ error: "no" }, { status: 401 });
+      },
+    });
+    let time = 1_000_000;
+    const service = createAuthApp({ databasePath: ":memory:", username: "admin", passwordHash, publicOrigin: origin, now: () => time, appUrl: `http://127.0.0.1:${appServer.port}` });
+    const response = await service.fetch(new Request(`${origin}/auth/device-session`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "X-Device-Token": `cbd_${"c".repeat(43)}` }, body: "{}" }));
+    expect(response.status).toBe(200);
+    const session = cookie(response);
+    time += 31_000;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(401);
+    service.close();
+    appServer.stop(true);
+  });
+});

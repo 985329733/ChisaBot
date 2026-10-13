@@ -4,8 +4,9 @@
  *
  * 宿主：
  *  - PC：preload.js 的 window.chisa（login:probe / login:submit / login:forget / login:open）。
- *  - Android：MainActivity 的 window.ChisaLogin（state / forget / open 同步；probe / login 异步，
- *    结果回调 window.__chisaLoginReply(id, ok, payload)）。
+ *  - Android：MainActivity 的 window.ChisaLogin（state / forget / open 同步；probe / login / scan / pair 异步，
+ *    结果回调 window.__chisaLoginReply(id, ok, payload)）。Android 额外有「扫码绑定」（DESIGN.md §33）：
+ *    scan 打开相机扫网页「绑定手机」的二维码 → pair 用一次性绑定码换设备令牌和会话 → 直接进入主机器人。
  * 流程：规范化地址（补 https://、去掉末尾 /）→ 探测地址通不通 → 直接请求服务器登录网关（和网页登录表单同一个请求，
  * 会话 Cookie 写进客户端）→ 进入应用。错误前缀「[kind] 」决定提示放在哪个输入框旁。
  */
@@ -58,6 +59,8 @@
         login: (input) => call("login", input),
         forget: async (serverUrl) => JSON.parse(window.ChisaLogin.forget(serverUrl)),
         open: async () => window.ChisaLogin.open(),
+        scan: typeof window.ChisaLogin.scan === "function" ? () => call("scan") : null,
+        pair: (link) => call("pair", link),
         onNotice(callback) {
           window.__chisaLoginNotice = callback;
         },
@@ -70,6 +73,8 @@
     expired: "登录已过期，请重新登录。",
     logout: "已退出登录。",
     switch: "输入要连接的服务器地址，然后登录。",
+    revoked: "这台手机已在网页上被撤销绑定，请重新扫码绑定，或用账号密码登录。",
+    unbound: "已退出登录，并解除了这台手机的绑定。",
   };
 
   const server = $("server");
@@ -253,7 +258,54 @@
   const notice = new URLSearchParams(location.search).get("notice") || state.notice || "";
   showNotice(notice);
   Host.onNotice(showNotice);
-  if (notice !== "switch") (!server.value ? server : !user.value ? user : pass).focus();
+  // 有扫码绑定（Android）时不自动聚焦输入框：主操作是扫码，不要一打开就弹出键盘。
+  if (notice !== "switch" && !Host.scan) (!server.value ? server : !user.value ? user : pass).focus();
+
+  // ---------- 扫码绑定（Android）----------
+  if (Host.scan) {
+    $("scanBlock").classList.remove("hidden");
+    $("submit").classList.add("outline");
+    const scanRun = asyncButton($("scanBtn"), { pending: "绑定中…", success: "已绑定", error: "绑定失败" });
+    const scanStep = (text) => {
+      $("scanStep").textContent = text || "\u00a0";
+      $("scanStep").classList.toggle("hidden", !text);
+    };
+    const scanFail = (error) => {
+      const raw = cleanError(error);
+      const match = raw.match(/^(?:Error: )?\[(\w+)\]\s*([\s\S]*)$/);
+      $("scanError").textContent = match ? match[2] : raw;
+      $("scanError").classList.remove("hidden");
+    };
+    $("scanBtn").addEventListener("click", async () => {
+      if ($("scanBtn").dataset.state === "pending") return;
+      $("scanError").classList.add("hidden");
+      clearErrors();
+      closeHistory();
+      let link;
+      try {
+        link = await Host.scan();
+      } catch (error) {
+        return scanFail(error);
+      }
+      if (!link || link.cancelled) return;
+      server.value = link.server;
+      try {
+        await scanRun(
+          async () => {
+            scanStep(`正在绑定到 ${link.server.replace(/^https:\/\//, "")}…`);
+            const result = await Host.pair(link);
+            scanStep(`已绑定为「${(result && result.deviceName) || "这台手机"}」，正在进入…`);
+            return result;
+          },
+          { keepSuccess: true },
+        );
+        setTimeout(() => Host.open(), 750);
+      } catch (error) {
+        scanStep("");
+        scanFail(error);
+      }
+    });
+  }
 
   // ---------- 登录 ----------
   const run = asyncButton($("submit"), { pending: "登录中…", success: "已登录", error: "登录失败" });

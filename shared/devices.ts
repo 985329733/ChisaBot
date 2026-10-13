@@ -79,6 +79,22 @@ export function normalizeCapabilities(value: unknown): DeviceCapabilities {
   return result;
 }
 
+/**
+ * 手机扫码绑定（DESIGN.md §33）：二维码内容 `chisabot://pair?server=<https 源>&code=<一次性绑定码>`。
+ * Android 端 Pairing.kt 解析同一格式。
+ */
+export function pairingUri(server: string, code: string): string {
+  return `chisabot://pair?server=${encodeURIComponent(server)}&code=${encodeURIComponent(code)}`;
+}
+
+/** 手机设备只用来登录聊天，不是机器人可操作的节点（不进设备工具、不接 /agent/ws）。 */
+export const MOBILE_PLATFORMS: readonly string[] = ["android", "ios"];
+export function isMobilePlatform(platform: string | null | undefined): boolean {
+  return !!platform && MOBILE_PLATFORMS.includes(platform);
+}
+/** 手机最近一次会话校验在这个时间内 = 显示「在线」（网关约每 30 秒校验一次）。 */
+export const MOBILE_ONLINE_WINDOW_MS = 3 * 60_000;
+
 /** 每个设备操作需要的能力；system_info 为 null（始终可用）。 */
 export const OPERATION_CAPABILITY: Record<DeviceOperation, DeviceCapability | null> = {
   system_info: null,

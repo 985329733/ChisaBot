@@ -35,6 +35,7 @@ import {
   type DeviceCapabilities,
   type DeviceCapability,
   type DeviceView,
+  isMobilePlatform,
   OPERATION_LABEL,
 } from "../../../../shared/devices";
 import { useAsyncAction } from "@/components/ui/async-action";
@@ -78,6 +79,7 @@ import {
 } from "@/lib/devices";
 import { type PcLocalPatch, type PcLocalState, type PcUpdateState, pcBridge } from "@/lib/pc-bridge";
 import { cn } from "@/lib/utils";
+import { PairPhoneButton } from "./pair-phone";
 
 const CAP_ICON: Record<DeviceCapability, typeof IconTerminal2> = {
   shell: IconTerminal2,
@@ -156,6 +158,7 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
   const caps = enabledCaps(device.capabilities);
+  const mobile = isMobilePlatform(device.platform);
   const refresh = () => queryClient.invalidateQueries({ queryKey: deviceKeys.all });
   const revoke = useAsyncAction(
     async () => {
@@ -206,6 +209,8 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
               <span className="device-row-meta">
                 {device.revoked ? (
                   <span className="device-cap-chip is-off">{"令牌已作废"}</span>
+                ) : mobile ? (
+                  <span className="device-cap-chip is-mobile">{"扫码绑定 · 用于登录聊天"}</span>
                 ) : caps.length ? (
                   caps.map((cap) => (
                     <span className={cn("device-cap-chip", device.capabilities[cap] === "ask" && "is-ask")} key={cap}>
@@ -246,15 +251,17 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
           </DropdownMenuItem>
           {!device.revoked ? (
             <>
-              <DropdownMenuItem
-                className="glass-mi"
-                onClick={() =>
-                  void navigate({ to: "/settings/devices/$deviceId", params: { deviceId: device.id }, search: { tab: "permissions" } })
-                }
-              >
-                <IconShieldCheck className="size-[18px] shrink-0 opacity-80" />
-                <span className="min-w-0 flex-1">{"能力与权限"}</span>
-              </DropdownMenuItem>
+              {mobile ? null : (
+                <DropdownMenuItem
+                  className="glass-mi"
+                  onClick={() =>
+                    void navigate({ to: "/settings/devices/$deviceId", params: { deviceId: device.id }, search: { tab: "permissions" } })
+                  }
+                >
+                  <IconShieldCheck className="size-[18px] shrink-0 opacity-80" />
+                  <span className="min-w-0 flex-1">{"能力与权限"}</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem className="glass-mi" onClick={() => setRenaming(true)}>
                 <IconPencil className="size-[18px] shrink-0 opacity-80" />
                 <span className="min-w-0 flex-1">{"重命名…"}</span>
@@ -268,7 +275,9 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
               onClick={async () => {
                 const ok = await confirmDialog({
                   title: `撤销「${device.name}」？`,
-                  description: "这台设备会立即断开，所有机器人都不能再使用它。客户端需要重新登录才能再次关联。",
+                  description: mobile
+                    ? "这台手机会在半分钟内退出登录，回到登录页。需要重新扫码才能再次绑定。"
+                    : "这台设备会立即断开，所有机器人都不能再使用它。客户端需要重新登录才能再次关联。",
                   confirmLabel: "撤销",
                   destructive: true,
                 });
@@ -588,10 +597,28 @@ export function AddDeviceCard() {
   );
 }
 
+/** 「添加一台手机」：扫码绑定（DESIGN.md §33）。 */
+export function AddPhoneCard() {
+  return (
+    <Card className="device-steps pair-card">
+      <div className="pair-card-row">
+        <span aria-hidden className="pair-card-ic">
+          <IconDeviceMobile className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <b>{"用手机扫码登录"}</b>
+          <span>{"在 ChisaBot 安卓 App 的登录页点「扫码绑定」，扫一下就登录到这个账号并直接进入主机器人，不用输入地址和密码。二维码 5 分钟有效、只能用一次；随时可以在这里撤销，手机会自动退出登录。"}</span>
+        </div>
+        <PairPhoneButton variant="default" />
+      </div>
+    </Card>
+  );
+}
+
 export function NoDevices() {
   return (
     <EmptyState
-      description="在电脑上安装 ChisaBot PC 客户端，用这个账号登录，它就会出现在这里。关联后你的每个机器人都能在你开启的能力范围内使用它；能力默认全部关闭。（安卓客户端目前只是聊天窗口，还不能作为设备关联。）"
+      description="在电脑上安装 ChisaBot PC 客户端并用这个账号登录，或用安卓 App 扫「绑定手机」的二维码，它就会出现在这里。电脑关联后你的每个机器人都能在你开启的能力范围内使用它（能力默认全部关闭）；手机只用来登录聊天。"
       icon={<IconDeviceDesktop className="size-6" />}
       title="还没有关联的设备"
     />

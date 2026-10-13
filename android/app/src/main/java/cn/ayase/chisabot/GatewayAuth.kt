@@ -16,8 +16,10 @@ import javax.net.ssl.SSLException
  *  - probe：/auth/session（登录网关，不需要登录）→ /health → /api/version，有 HTTP 回应就算连得上；
  *  - login：直接 POST 服务器登录网关 /auth/login（和网页登录表单同一个请求，带 Origin），
  *    不是网关的部署退回 Better Auth（/api/auth/sign-in/email）；返回服务器下发的 Set-Cookie 原文；
- *  - logout：POST /auth/logout。
- * 错误统一成 LoginError(kind, 中文说明)，kind = unreachable | cert | auth | rate | invalid | server。
+ *  - logout：POST /auth/logout；
+ *  - 扫码绑定（DESIGN.md §33）：pair = 用一次性绑定码换设备令牌（/api/devices/agent/pair）；
+ *    deviceSession = 用设备令牌向登录网关换 30 天会话（/auth/device-session）；unenroll = 手机自己解除绑定。
+ * 错误统一成 LoginError(kind, 中文说明)，kind = unreachable | cert | auth | rate | invalid | server | scan | revoked。
  */
 object GatewayAuth {
 
@@ -58,7 +60,15 @@ object GatewayAuth {
 
     private class Reply(val status: Int, val body: String, val setCookies: List<String>)
 
-    private fun request(url: String, method: String, origin: String?, cookie: String?, json: String?, timeoutMs: Int = 10000): Reply {
+    private fun request(
+        url: String,
+        method: String,
+        origin: String?,
+        cookie: String?,
+        json: String?,
+        timeoutMs: Int = 10000,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): Reply {
         val conn = try {
             URL(url).openConnection() as HttpURLConnection
         } catch (e: IOException) {
@@ -74,6 +84,7 @@ object GatewayAuth {
             conn.setRequestProperty("User-Agent", "ChisaBotAndroid/${BuildConfig.VERSION_NAME}")
             if (origin != null) conn.setRequestProperty("Origin", origin)
             if (!cookie.isNullOrBlank()) conn.setRequestProperty("Cookie", cookie)
+            for ((key, value) in extraHeaders) conn.setRequestProperty(key, value)
             if (json != null) {
                 val bytes = json.toByteArray(Charsets.UTF_8)
                 conn.doOutput = true
@@ -132,6 +143,64 @@ object GatewayAuth {
         }
         if (reply.setCookies.isEmpty()) throw LoginError("invalid", "登录成功但服务器没有返回会话，请检查服务器地址。")
         return reply.setCookies
+    }
+
+    class Paired(val token: String, val deviceId: String, val deviceName: String)
+
+    /** 扫码后：一次性绑定码 → 设备令牌（只返回一次，存在本机）。 */
+    fun pair(origin: String, code: String, name: String, model: String, osVersion: String): Paired {
+        val body = JSONObject()
+            .put("code", code)
+            .put("name", name)
+            .put("model", model)
+            .put("osVersion", osVersion)
+            .put("platform", "android")
+            .put("clientVersion", BuildConfig.VERSION_NAME)
+            .toString()
+        val reply = request("$origin/api/devices/agent/pair", "POST", origin, null, body)
+        when {
+            reply.status == 429 -> throw LoginError("rate", "尝试次数过多，请稍后再试。")
+            reply.status == 404 || reply.status == 405 ->
+                throw LoginError("invalid", "这个服务器还不支持扫码绑定，请先把 ChisaBot 服务器更新到最新版本，或用账号密码登录。")
+            reply.status == 410 || reply.status == 400 -> throw LoginError("scan", error(reply, "二维码无效或已过期，请在网页上刷新二维码后重新扫码。"))
+            reply.status == 401 || reply.status == 403 -> throw LoginError("invalid", error(reply, "服务器拒绝了这次绑定（${reply.status}）。"))
+            reply.status >= 500 -> throw LoginError("server", error(reply, "服务器暂时不可用（${reply.status}），请稍后再试。"))
+            reply.status !in 200..299 -> throw LoginError("invalid", error(reply, "绑定失败（${reply.status}）。"))
+        }
+        val json = runCatching { JSONObject(reply.body) }.getOrNull()
+            ?: throw LoginError("invalid", "服务器返回的内容无法识别，请检查地址。")
+        val token = json.optString("token")
+        val device = json.optJSONObject("device")
+        if (!token.startsWith("cbd_") || device == null) throw LoginError("invalid", "服务器返回的内容无法识别，请检查地址。")
+        return Paired(token, device.optString("id"), device.optString("name", name))
+    }
+
+    /**
+     * 用设备令牌换登录网关的会话 Cookie（30 天）。撤销过的令牌 → LoginError("revoked")。
+     * 不是网关部署（没有 /auth/device-session）→ LoginError("invalid")，提示改用账号密码。
+     */
+    fun deviceSession(origin: String, deviceToken: String, osVersion: String): List<String> {
+        val body = JSONObject().put("clientVersion", BuildConfig.VERSION_NAME).put("osVersion", osVersion).toString()
+        val reply = request("$origin/auth/device-session", "POST", origin, null, body, extraHeaders = mapOf("X-Device-Token" to deviceToken))
+        when {
+            reply.status == 429 -> throw LoginError("rate", "尝试次数过多，请稍后再试。")
+            reply.status == 401 -> {
+                val revoked = runCatching { JSONObject(reply.body).optBoolean("revoked") }.getOrDefault(false)
+                throw LoginError("revoked", if (revoked) "这台手机已在网页上被撤销，请重新扫码绑定。" else "绑定已失效，请重新扫码绑定。")
+            }
+            reply.status == 404 || reply.status == 405 ->
+                throw LoginError("invalid", "这个服务器的登录网关还不支持扫码登录，请更新服务器或用账号密码登录。")
+            reply.status == 403 -> throw LoginError("invalid", error(reply, "服务器拒绝了这次登录（来源不匹配），请确认服务器地址。"))
+            reply.status >= 500 -> throw LoginError("server", error(reply, "服务器暂时不可用（${reply.status}），请稍后再试。"))
+            reply.status !in 200..299 -> throw LoginError("invalid", error(reply, "登录失败（${reply.status}）。"))
+        }
+        if (reply.setCookies.isEmpty()) throw LoginError("invalid", "服务器没有返回会话，请检查服务器地址。")
+        return reply.setCookies
+    }
+
+    /** 手机上退出登录：作废自己的设备令牌（设备列表里显示为已撤销）。失败不影响本机退出。 */
+    fun unenroll(origin: String, deviceToken: String) {
+        runCatching { request("$origin/api/devices/agent/unenroll", "POST", origin, null, "{}", 6000, mapOf("X-Device-Token" to deviceToken)) }
     }
 
     fun logout(origin: String, cookie: String?) {

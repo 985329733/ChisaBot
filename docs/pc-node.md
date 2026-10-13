@@ -111,3 +111,20 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 - 安装包未签名（Windows SmartScreen 会提示「未知发布者」）；无自动更新。
 - 网页的审批是轮询（5 秒），不是推送；审批也还没并入 `/approvals` 审批页。
 - 网关之外的部署（Better Auth 多用户）登录路径已实现但没有实际测过。
+
+## 10. 手机扫码绑定（2026-10-13，界面见 DESIGN.md §33）
+
+安卓 App 不输入地址和密码也能登录：网页上生成一次性二维码，手机扫码后成为账号下的一台设备（`platform = android`），并拿到登录网关的会话。
+
+**流程**
+1. 网页「设置 → 设备 → 绑定手机」→ `POST /api/devices/pairing`（需登录）签发绑定码 `cbp_<32 位 base64url>`（192 bit，只存 SHA-256，5 分钟有效，一次性，每人最多 3 个未用码，放在服务进程内存里；重启后旧码失效，网页自动换新码）。二维码内容 `chisabot://pair?server=<网页的 https 源>&code=<绑定码>`（`shared/devices.ts` 的 `pairingUri`）。网页每 2 秒 `GET /api/devices/pairing/:id` 看状态（pending / bound / expired / cancelled，只有签发人能看），关窗 `DELETE` 作废。
+2. 手机 `POST /api/devices/agent/pair {code, name, model, osVersion, clientVersion}`（公开路径，和 PC 节点同一个 Nginx 例外 `location ^~ /api/devices/agent/`）→ 码立即作废 → 在**签发人**名下登记一台安卓设备 → 返回一次性明文设备令牌 `cbd_…`（和 PC 同一张表、同一种令牌）。失败按 IP 计数（与设备令牌共用：10 分钟 20 次失败），另外每 IP 10 分钟最多 30 次尝试。
+3. 手机 `POST /auth/device-session`（登录网关，带 `Origin` 和 `X-Device-Token`）→ 网关把令牌交给应用 `POST /api/devices/agent/session`（只认未撤销的手机设备，顺便记最后在线）→ 签发 30 天网关会话，会话行记下 `device_id`。之后 App 和浏览器一样带 Cookie 打开网页，直接进入主机器人。会话过期时 App 用设备令牌静默续期。
+4. 撤销 / 删除：网关每 30 秒左右（有请求时）问一次应用 `GET /api/devices/agent/state/:id`，答 `active:false` 就删除这台手机的所有会话，下一次请求 401，App 回到登录页并提示已撤销；续期也会被拒。应用暂时连不上时最多沿用上次结果 10 分钟。App 里「退出登录」会先 `POST /api/devices/agent/unenroll` 作废自己的令牌。
+
+**边界**
+- `state` 只回答直连应用的请求：经过公网 Nginx 的请求都带 `X-Forwarded-For`，一律 404；网关在本机直连 `127.0.0.1:3001`（`OPENBOT_AUTH_APP_URL` 可改，必须是直连）。反向代理必须设置 `X-Forwarded-For`（模板里已设置）。
+- 手机设备不是机器人可操作的节点：不进 `device_*` 工具和「用户的电脑」提示（`forOwner` 排除 `android` / `ios`），不能连 `/api/devices/agent/ws`（403），能力保持全关。
+- 绑定码只换得到签发人自己的设备和会话；网关会话和密码登录是同一种（单用户网关部署下就是这个账号）。
+- 只支持本仓库的登录网关部署（`deploy/public/`）。不经网关、用 Better Auth 多用户登录的部署还没有手机会话（App 会提示改用账号密码，`/auth/device-session` 不存在时）。
+- 升级已有部署：更新应用镜像，再把 `deploy/public/auth/server.ts` 复制到网关目录并重启 `openbot-web-auth`（会话库原地加两列，已有登录不受影响）；Nginx 需要有 `/api/devices/agent/` 例外（新模板已带；以前手工加过 PC 节点例外的部署不用改）。

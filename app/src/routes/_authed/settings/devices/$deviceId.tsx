@@ -10,6 +10,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { isMobilePlatform } from "../../../../../../shared/devices";
 import { ApprovalsCard, AuditList, DeviceIcon, DevicePermissions, StatusBadge, ThisPcBadge, ThisPcPanel } from "@/components/devices/devices";
 import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
@@ -112,8 +113,12 @@ function DevicePage() {
   }
   const d = device.data;
   const isThisPc = !!local && local.deviceId === d.id && !d.revoked;
-  const tabs = TABS.filter((item) => !item.thisPcOnly || isThisPc);
-  const activeTab: Tab = tab === "local" && !isThisPc ? "permissions" : tab;
+  // 扫码绑定的手机只用来登录聊天：没有能力 / 测试连接 / 紧急停止，只有操作记录和设备（重命名、撤销）。
+  const mobile = isMobilePlatform(d.platform);
+  const tabs = TABS.filter((item) => (!item.thisPcOnly || isThisPc) && !(mobile && item.id === "permissions"));
+  const activeTab: Tab = mobile
+    ? tab === "settings" ? "settings" : "audit"
+    : tab === "local" && !isThisPc ? "permissions" : tab;
   const approvals = (list.data?.approvals ?? []).filter((approval) => approval.deviceId === d.id);
   return (
     <PageShell backButton={back} title={d.name}>
@@ -132,7 +137,7 @@ function DevicePage() {
               .join(" · ")}
           </p>
         </div>
-        {!d.revoked ? (
+        {!d.revoked && !mobile ? (
           <div className="device-hero-actions">
             <Button disabled={!d.online || d.paused} feedback="test" onClick={() => void test.run()} size="sm" state={test.state} variant="outline">
               <IconPlugConnected />
@@ -165,7 +170,7 @@ function DevicePage() {
         ) : null}
       </div>
 
-      {d.paused && !d.revoked ? (
+      {d.paused && !d.revoked && !mobile ? (
         <div className="device-stopbar" role="status">
           <IconPlayerStopFilled className="size-4" />
           {isThisPc
