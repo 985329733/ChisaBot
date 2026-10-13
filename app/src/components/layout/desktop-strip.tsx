@@ -17,7 +17,7 @@ export function DesktopStrip() {
         desktop.bridge.toggleMaximize();
       }}
     >
-      <WindowControls bridge={desktop.bridge} maximized={desktop.maximized} />
+      <WindowControls bridge={desktop.bridge} compact={desktop.compact} maximized={desktop.maximized} />
     </div>
   );
 }

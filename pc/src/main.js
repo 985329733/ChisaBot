@@ -42,6 +42,7 @@ const auth = require("./agent/auth");
 const { ensureEnrolled } = require("./agent/enrollment");
 const { createUpdater } = require("./updater");
 const shellRefresh = require("./shell-refresh");
+const { createCompactController } = require("./compact-window");
 const buildConfig = require("./build-config");
 const BUILD = buildConfig.load();
 const pkg = require("../package.json");
@@ -302,6 +303,14 @@ function openChat(pathname) {
     if (!win.isDestroyed()) win.webContents.send("window:maximized", win.isMaximized() || win.isFullScreen());
   };
   for (const name of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen"]) win.on(name, sendMaximized);
+  // 小窗模式（DESIGN.md §36）：Ctrl+Shift+M 在主窗口里随时可用（网页、离线页都一样，旧网页没有按钮也能切）。
+  compactWindows().watch(win);
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || !(input.control || input.meta) || !input.shift || input.alt) return;
+    if (String(input.key).toLowerCase() !== "m") return;
+    event.preventDefault();
+    compactWindows().toggle(win);
+  });
   win.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
@@ -895,6 +904,20 @@ function handleWeb(channel, fn) {
   });
 }
 
+/** 小窗模式控制器（主进程里只有一个，app ready 之后才能用 screen）。 */
+let compactController = null;
+function compactWindows() {
+  if (!compactController) {
+    compactController = createCompactController({
+      screen,
+      onChange: (win, compact) => {
+        if (!win.isDestroyed()) win.webContents.send("window:compact", compact);
+      },
+    });
+  }
+  return compactController;
+}
+
 /** 无边框主窗口的窗口控制：已登录服务器的顶层页面，或主窗口里的本机离线页。 */
 function handleChatWindow(channel, fn) {
   ipcMain.handle(channel, (event, payload) => {
@@ -1099,6 +1122,12 @@ function registerIpc() {
   });
   ipcMain.on("window:close", (event) => chatWin(event)?.close());
   handleChatWindow("window:is-maximized", () => Boolean(windows.chat && !windows.chat.isDestroyed() && windows.chat.isMaximized()));
+  // 小窗模式：网页右上角的「小窗模式 / 恢复窗口」按钮。
+  ipcMain.on("window:toggle-compact", (event) => {
+    const win = chatWin(event);
+    if (win) compactWindows().toggle(win);
+  });
+  handleChatWindow("window:is-compact", () => compactWindows().isCompact(windows.chat));
   handleWeb("pc:set", (patch) => setLocal(patch && typeof patch === "object" ? patch : {}));
   handleWeb("pc:pick-folders", async () => {
     const result = await dialog.showOpenDialog(windows.chat, {

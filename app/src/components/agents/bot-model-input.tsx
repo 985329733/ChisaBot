@@ -1,5 +1,5 @@
 import { CopilotChatInput, type CopilotChatInputProps, useCopilotChatConfiguration } from "@copilotkit/react-core/v2";
-import { IconArrowUp, IconPlayerStopFilled, IconPlus } from "@tabler/icons-react";
+import { IconArrowUp, IconLayoutSidebarRightExpand, IconPlayerStopFilled, IconPlus } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   type ButtonHTMLAttributes,
@@ -15,6 +15,7 @@ import {
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { ContextMeter } from "@/components/agents/context-meter";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
+import { setPanelSheetOpen } from "@/lib/panels/rail-open";
 import { modelSelectionKeys } from "@/lib/model-selection/queries";
 import { cn } from "@/lib/utils";
 
@@ -164,6 +165,17 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
                       <IconPlus className="size-[18px]" />
                     </span>
                   )}
+                  {/* 窄窗口（< 768px，含 PC 小窗）：「面板」入口从右边缘的竖把手挪到这里，不再压住消息（DESIGN.md §36.3）。 */}
+                  <button
+                    aria-controls={"chisabot-panel-sheet"}
+                    aria-label={"打开面板"}
+                    className="glass-composer-icon bot-composer-panels"
+                    onClick={() => setPanelSheetOpen(true)}
+                    title={"打开面板"}
+                    type="button"
+                  >
+                    <IconLayoutSidebarRightExpand className="size-[18px]" />
+                  </button>
                 </div>
                 <div className="bot-composer-right">
                   {agentId ? <BotModelSelector agentId={agentId} compact /> : null}

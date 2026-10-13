@@ -14,6 +14,13 @@ export type DesktopWindowBridge = {
   close(): void;
   isMaximized(): Promise<boolean>;
   onMaximizedChange(callback: (maximized: boolean) => void): () => void;
+  /**
+   * 小窗模式（DESIGN.md §36）：手机比例的竖长小窗 ↔ 原来的大小和位置。PC 0.1.3 起才有；
+   * 旧客户端没有这三个方法，网页就不显示小窗按钮（快捷键 Ctrl+Shift+M 由主进程处理，也要新客户端）。
+   */
+  toggleCompact?(): void;
+  isCompact?(): Promise<boolean>;
+  onCompactChange?(callback: (compact: boolean) => void): () => void;
 };
 
 declare global {
@@ -26,13 +33,19 @@ export function desktopWindow(): DesktopWindowBridge | null {
   return typeof window !== "undefined" && window.chisabotWindow ? window.chisabotWindow : null;
 }
 
+/** 这台 PC 客户端支持小窗模式吗（旧客户端没有）。 */
+export function canCompact(bridge: DesktopWindowBridge | null): boolean {
+  return Boolean(bridge && typeof bridge.toggleCompact === "function" && typeof bridge.isCompact === "function");
+}
+
 /**
- * 在 PC 客户端里返回 { maximized }，并把 `data-desktop` / `data-maximized` 写到 <html> 上，
- * 让样式表给整页加圆角（最大化时去掉）；在浏览器里返回 null，什么都不改。
+ * 在 PC 客户端里返回 { maximized, compact }，并把 `data-desktop` / `data-maximized` / `data-compact` 写到 <html> 上，
+ * 让样式表按窗口状态调整（小窗时标题按钮变窄等）；在浏览器里返回 null，什么都不改。
  */
-export function useDesktopWindow(): { bridge: DesktopWindowBridge; maximized: boolean } | null {
+export function useDesktopWindow(): { bridge: DesktopWindowBridge; maximized: boolean; compact: boolean } | null {
   const bridge = desktopWindow();
   const [maximized, setMaximized] = useState(false);
+  const [compact, setCompact] = useState(false);
   useEffect(() => {
     if (!bridge) return;
     const root = document.documentElement;
@@ -43,14 +56,27 @@ export function useDesktopWindow(): { bridge: DesktopWindowBridge; maximized: bo
       .then((value) => alive && setMaximized(value))
       .catch(() => {});
     const off = bridge.onMaximizedChange((value) => setMaximized(value));
+    let offCompact = () => {};
+    if (canCompact(bridge)) {
+      void bridge
+        .isCompact?.()
+        .then((value) => alive && setCompact(Boolean(value)))
+        .catch(() => {});
+      offCompact = bridge.onCompactChange?.((value) => setCompact(value)) ?? offCompact;
+    }
     return () => {
       alive = false;
       off();
+      offCompact();
     };
   }, [bridge]);
   useEffect(() => {
     if (!bridge) return;
     document.documentElement.dataset.maximized = maximized ? "true" : "false";
   }, [bridge, maximized]);
-  return bridge ? { bridge, maximized } : null;
+  useEffect(() => {
+    if (!bridge) return;
+    document.documentElement.dataset.compact = compact ? "true" : "false";
+  }, [bridge, compact]);
+  return bridge ? { bridge, maximized, compact } : null;
 }

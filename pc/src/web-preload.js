@@ -11,7 +11,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 const isLocalPage = location.protocol === "file:";
 
-/** 无边框主窗口的窗口控制：网页顶栏 / 离线页右上角的 最小化 · 最大化 · 关闭。 */
+/** 无边框主窗口的窗口控制：网页顶栏 / 离线页右上角的 小窗 · 最小化 · 最大化 · 关闭。 */
 function exposeWindowControls() {
   contextBridge.exposeInMainWorld("chisabotWindow", {
     platform: process.platform,
@@ -23,6 +23,14 @@ function exposeWindowControls() {
       const listener = (_event, value) => callback(Boolean(value));
       ipcRenderer.on("window:maximized", listener);
       return () => ipcRenderer.removeListener("window:maximized", listener);
+    },
+    // 小窗模式（DESIGN.md §36）：手机比例的竖长小窗 ↔ 原来的大小和位置。
+    toggleCompact: () => ipcRenderer.send("window:toggle-compact"),
+    isCompact: () => ipcRenderer.invoke("window:is-compact"),
+    onCompactChange(callback) {
+      const listener = (_event, value) => callback(Boolean(value));
+      ipcRenderer.on("window:compact", listener);
+      return () => ipcRenderer.removeListener("window:compact", listener);
     },
   });
 }
