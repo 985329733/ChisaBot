@@ -462,6 +462,31 @@ export async function createLocalConversations(database: Database): Promise<Loca
     if (!messages.length) return null;
     return { tokens: estimateTokens(messages), source: "estimate" };
   };
+  /**
+   * 「已停止」标记（2026-10-13 第四轮）：用户按停止的那些轮次，用开启那一轮的用户消息 id 表示。
+   * 一轮里用到浏览器时会拆成好几次运行（前端工具要回到浏览器执行），被停的那次运行输入里可能只有工具
+   * 结果，所以往回找它前面最近的一条用户消息。只读，不改历史；标记本身不进对话（不会发给模型）。
+   */
+  const stoppedTurns = async (threadId: string, messages: readonly Message[]): Promise<string[]> => {
+    const runs = await database.$client.unsafe<{ run_id: string }[]>(
+      "SELECT run_id FROM openbot_local_runs WHERE thread_id = $1 AND status = 'stopped' ORDER BY created_at DESC LIMIT 50", [threadId],
+    );
+    if (!runs.length) return [];
+    const started = await database.$client.unsafe<{ event: { input?: { messages?: { id?: string }[] } } }[]>(
+      `SELECT event FROM openbot_local_events WHERE thread_id = $1 AND run_id = ANY($2::text[])
+       AND event->>'type' = 'RUN_STARTED'`, [threadId, runs.map((run) => run.run_id)],
+    );
+    const position = new Map(messages.map((message, index) => [message.id, index]));
+    const ids = new Set<string>();
+    for (const { event } of started) {
+      const indexes = (event.input?.messages ?? []).map((message) => position.get(String(message.id))).filter((index): index is number => index !== undefined);
+      if (!indexes.length) continue;
+      for (let at = Math.min(...indexes); at >= 0; at--) {
+        if (messages[at]?.role === "user") { ids.add(messages[at]!.id); break; }
+      }
+    }
+    return [...ids];
+  };
   const runner = new PostgresAgentRunner(store, client);
 
   const handle = async (request: Request, actorId: string): Promise<Response | undefined> => {
@@ -500,6 +525,7 @@ export async function createLocalConversations(database: Database): Promise<Loca
         if (operation === "messages") return Response.json({ messages: row.messages });
         if (operation === "state") return Response.json({ state: row.state });
         if (operation === "context") return Response.json({ context: await contextReading(threadId, row.messages) });
+        if (operation === "stopped") return Response.json({ userMessageIds: await stoppedTurns(threadId, row.messages) });
         if (operation === "events") return Response.json({ events: compactEvents((await store.events(threadId)).map((event) => event.event)) });
         if (!operation) return Response.json({ thread: record(row) });
       }

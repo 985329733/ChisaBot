@@ -8,6 +8,7 @@ import {
   RENDER_UI_TOOL,
   sanitizeRenderUiSpec,
 } from "../../../../shared/json-render/catalog";
+import { pruneEmptySections } from "../../../../shared/json-render/empty-sections";
 import { ToolLine } from "@/components/channels/tool-line";
 import { useConversation } from "@/lib/copilot/conversation";
 import { jsonRenderRegistry } from "@/lib/copilot/json-render/registry";
@@ -56,7 +57,11 @@ const RenderUiCall = memo(function RenderUiCall({
 }) {
   // 先宽容处理（跳过坏节点、修正参数别名），与服务器校验的是同一份。
   const spec = useMemo(
-    () => (source ? (sanitizeRenderUiSpec(parseRenderUiSpec(source, streaming))?.spec ?? null) : null),
+    // 流式时还没写完的列表本来就是空的，只在写完后剪掉空区块。
+    () => {
+      const parsed = source ? (sanitizeRenderUiSpec(parseRenderUiSpec(source, streaming))?.spec ?? null) : null;
+      return streaming ? parsed : pruneEmptySections(parsed);
+    },
     [source, streaming],
   );
   const verdict = useMemo(

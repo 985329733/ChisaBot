@@ -43,6 +43,16 @@ export function stoppedReason(reported: unknown): string {
  * should stay until there is something newer to look at, and the person deciding when that is is the
  * one who sends the next message.
  */
+let userStoppedAt = 0;
+/**
+ * 用户自己按了停止（2026-10-13 第四轮）。停止会以「运行失败（中止）」的形式回来，以前顶上就冒一条红色
+ * 「…停止了」——可那不是出错，是人让它停的；对话里那一轮末尾已经挂了「已停止」。之后 15 秒内的失败不报。
+ */
+export function markUserStop(): void {
+  userStoppedAt = Date.now();
+}
+const stoppedByUser = () => Date.now() - userStoppedAt < 15_000;
+
 export function useStoppedTurn(agentId: string): string | null {
   const { agent } = useAgent({ agentId });
   const [stopped, setStopped] = useState<string | null>(null);
@@ -50,8 +60,12 @@ export function useStoppedTurn(agentId: string): string | null {
   useEffect(() => {
     const subscription = agent.subscribe?.({
       onRunInitialized: () => setStopped(null),
-      onRunErrorEvent: ({ event }) => setStopped(stoppedReason(event?.message)),
-      onRunFailed: ({ error }) => setStopped(stoppedReason(error)),
+      onRunErrorEvent: ({ event }) => {
+        if (!stoppedByUser()) setStopped(stoppedReason(event?.message));
+      },
+      onRunFailed: ({ error }) => {
+        if (!stoppedByUser()) setStopped(stoppedReason(error));
+      },
     });
     return () => subscription?.unsubscribe();
   }, [agent]);

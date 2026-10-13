@@ -83,3 +83,18 @@ export function onComputerStatus(listener: (s: ComputerStatus | null) => void): 
     statusListeners.delete(listener);
   };
 }
+
+/**
+ * 聊天这一轮是否还在跑（2026-10-13 第四轮）。状态行据此在两步之间不退回空闲提示：模型想下一步要
+ * 十几秒，以前 6 秒后状态行就闪回「机器人用浏览器时…」，下一步一来又跳回来。
+ * 机器人聊天由 turn-compaction 写，频道聊天由 channel-chat 写；同一个 `chisabot-chat-running` 事件。
+ */
+let chatRunning = false;
+export function isChatRunning(): boolean {
+  return chatRunning;
+}
+export function reportChatRunning(running: boolean): void {
+  if (running === chatRunning) return;
+  chatRunning = running;
+  window.dispatchEvent(new CustomEvent("chisabot-chat-running", { detail: running }));
+}

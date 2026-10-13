@@ -10,6 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useEffect, useMemo, useState } from "react";
 import { parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../../shared/json-render/catalog";
+import { pruneEmptySections } from "../../../../shared/json-render/empty-sections";
 import { client } from "@/lib/client";
 import { jsonRenderRegistry } from "@/lib/copilot/json-render/registry";
 
@@ -90,7 +91,8 @@ function cadence(minutes: number | null): string {
 }
 
 const LiveBody = memo(function LiveBody({ spec: source }: { spec: string }) {
-  const spec = useMemo(() => sanitizeRenderUiSpec(parseRenderUiSpec(source, false))?.spec ?? null, [source]);
+  // 空列表 / 空重复区块不画，免得只剩一个孤零零的小标题（shared/json-render/empty-sections.ts）。
+  const spec = useMemo(() => pruneEmptySections(sanitizeRenderUiSpec(parseRenderUiSpec(source, false))?.spec ?? null), [source]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: one store per spec version.
   const store = useMemo(() => createStateStore({ ...((spec as Spec | null)?.state ?? {}) }), [source]);
   const handlers = useMemo(

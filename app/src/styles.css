@@ -4921,3 +4921,17 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .bot-chat-sky .copilotKitAssistantMessage[data-cb-turn="step"] > .cpk\:prose :is(p, li) { color: var(--ink-3); }
 .bot-chat-sky .copilotKitAssistantMessage:is([data-cb-turn="step"], [data-cb-turn="lead"]) [data-testid="copilot-assistant-toolbar"] { display: none; }
 .bot-chat-sky [data-cb-hidden] { display: none !important; }
+
+/* ── 第四轮（2026-10-13）：有了结果就收起过程话；用户停掉的那一轮末尾挂「已停止」 ── */
+.bot-chat-sky .copilotKitAssistantMessage[data-cb-folded] > .cpk\:prose { display: none; }
+.bot-chat-sky [data-cb-stopped]::after,
+.chat-stopped-mark {
+  content: "已停止"; display: flex; align-items: center; gap: 6px; width: fit-content; margin: 6px 0 0 4px; padding: 2px 10px 2px 8px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--glass-1); font-size: 12px; line-height: 20px; color: var(--ink-3);
+}
+.bot-chat-sky [data-cb-stopped]::after { content: "◼ 已停止"; }
+.bot-chat-sky .copilotKitUserMessage[data-cb-stopped]::after,
+.bot-chat-sky [data-cb-stopped]:has(> .copilotKitUserMessage)::after { margin-left: auto; margin-right: 4px; }
+/* 频道聊天：过程话一行淡色小字（chat-transcript.tsx TranscriptMessage tone="step"） */
+.chat-step-line { padding: 0 4px; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+.chat-step-line :is(p, li) { margin: 0; color: var(--ink-3); }

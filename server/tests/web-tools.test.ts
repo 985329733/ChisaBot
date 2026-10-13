@@ -35,3 +35,27 @@ test("面板 Metric 没有数值会被拦下", () => {
   expect(emptyMetrics(ok)).toEqual([]);
   expect(emptyMetrics(bad)).toEqual(["现价"]);
 });
+
+import { emptySections, pruneEmptySections } from "../../shared/json-render/empty-sections";
+test("空的列表 / 重复区块：服务器报出来，浏览器剪掉（连同小标题）", () => {
+  const spec = {
+    root: "c",
+    state: { days: [] as unknown[] },
+    elements: {
+      c: { type: "Card", props: { title: "香港天气" }, children: ["now", "h", "rep", "h2", "list"] },
+      now: { type: "Metric", props: { label: "气温", value: "24.8°C" }, children: [] },
+      h: { type: "Heading", props: { text: "未来 5 天" }, children: [] },
+      rep: { type: "Stack", props: {}, repeat: { statePath: "/days" }, children: ["d"] },
+      d: { type: "Text", props: { text: { $item: "label" } }, children: [] },
+      h2: { type: "Heading", props: { text: "提醒" }, children: [] },
+      list: { type: "List", props: { items: [{ title: "带伞" }] }, children: [] },
+    },
+  };
+  expect(emptySections(spec as never)).toEqual(["未来 5 天"]);
+  const pruned = pruneEmptySections(spec as never) as typeof spec;
+  expect(pruned.elements.c.children).toEqual(["now", "h2", "list"]);
+  const full = { ...spec, state: { days: [{ label: "周二" }] } };
+  expect(emptySections(full as never)).toEqual([]);
+  const emptyList = { root: "c", elements: { c: { type: "Stack", props: {}, children: ["h", "l"] }, h: { type: "Heading", props: { text: "新闻" }, children: [] }, l: { type: "List", props: { items: { $state: "/news" } }, children: [] } } };
+  expect(emptySections(emptyList as never)).toContain("新闻");
+});

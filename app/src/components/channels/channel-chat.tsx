@@ -9,7 +9,7 @@ import {
 import { observeApprovalAgent } from "@/lib/copilot/approval-context";
 import { panelAuthoringForwardedProps, panelKeys } from "@/lib/panels/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HandoffResumeNotice } from "@/components/computer/handoff-resume-notice";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
@@ -40,6 +40,8 @@ import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
+import { useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
+import { reportChatRunning } from "@/lib/copilot/computer-activity";
 import {
   HISTORY_RETRY_DELAYS_MS,
   readThreadMessages,
@@ -930,7 +932,13 @@ export function ChannelChat({
       return answer;
     },
   });
+  // 「已停止」（2026-10-13 第四轮）：本机刚按停止的那一轮 + 服务器记下的（刷新、换设备也在）。
+  const [localStops, setLocalStops] = useState<ReadonlySet<string>>(() => new Set());
+  const serverStops = useStoppedTurnIds(channel.threadId);
+  const stoppedTurns = useMemo(() => new Set([...serverStops, ...localStops]), [serverStops, localStops]);
   const stopTask = () => {
+    const lastUser = [...agent.messages].reverse().find((message) => message.role === "user");
+    if (lastUser) setLocalStops((previous) => new Set([...previous, lastUser.id]));
     awaitingReply.current = false;
     stopEpoch.current++;
     copilotkit.stopAgent({ agent });
@@ -971,6 +979,12 @@ export function ChannelChat({
 
   // 机器人还在回复时，「有新版本」的刷新先确认（lib/activity.ts）。
   useReportBusy(`chat:${channel.id}`, agent.isRunning || turnsInFlight > 0);
+  // 计算机状态行在两步之间不退回空闲提示（use-status.ts）。
+  const chatBusy = agent.isRunning || turnsInFlight > 0;
+  useEffect(() => {
+    reportChatRunning(chatBusy);
+    return () => reportChatRunning(false);
+  }, [chatBusy]);
 
   return (
     // Activity renderers resolve their agent through this SDK context. It must match useAgent's
@@ -1134,6 +1148,7 @@ export function ChannelChat({
              * run before closing it; see server/src/channels/stall-guard.ts.
              */
             stopped={runError ?? undefined}
+            stoppedTurns={stoppedTurns}
             /*
              * The retry resends the restored draft, which adds the message again. Take the failed
              * turn's copy out first, but only when nothing came back under it: a partial answer is

@@ -16,6 +16,7 @@ import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 import { inspectRenderUiSpec, parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../shared/json-render/catalog";
+import { emptySections } from "../../../shared/json-render/empty-sections";
 import type { AppVariables } from "../auth/guards";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
 import { LivePanelError, type LivePanelRow, type LivePanelStore, MIN_REFRESH_MINUTES } from "./store";
@@ -92,7 +93,7 @@ export const LIVE_PANEL_GUIDANCE = [
   "面板：用户要「面板 / 看板 / 卡片 / 小组件」或想长期盯着某个会变的东西（价格、天气、汇率、排行、倒计时）时，做成右栏面板，不要只在对话里画：",
   "1) 先 panel_create（标题 + 刷新说明 + 刷新间隔），卡片会立刻出现在右栏；对话里只说一句「好的，正在做…面板」。",
   "2) 再用 web_search / web_fetch 取真实数据（优先公开 JSON 接口，例如 api.coingecko.com、api.open-meteo.com），绝不编造数字。",
-  "3) 用 panel_update 交上 json-render 规范 + 来源；最后对话里一句话说做好了、多久刷新一次，并提一个有用的下一步。",
+  "3) 用 panel_update 交上 json-render 规范 + 来源（数字、列表、表格都直接写成字面值：List 的 items / Table 的 rows 直接列出每一行，不要用 repeat 或 $state 绑定）；最后对话里一句话说做好了、多久刷新一次，并提一个有用的下一步。",
   "要改已有面板（换内容、换城市、换币种、改刷新频率）时先 panel_list 找到它，取新数据后 panel_update（带新的 instruction / title），不要新建。",
   "实在取不到数据就 panel_fail 说明原因，并在对话里如实告诉用户。不要在对话里贴规范、JSON 或代码。",
 ].join("\n");
@@ -220,6 +221,10 @@ export function createLivePanelService(deps: {
             if (!verdict.ok) return [`${REFUSAL_MARKER} 面板规范无效，没有保存。修正后再调用 panel_update：`, ...verdict.issues.map((i) => `- ${i}`)].join("\n");
             const empty = emptyMetrics(parsed.data.spec);
             if (empty.length) return `${REFUSAL_MARKER} 面板没有保存：${empty.map((l) => `「${l}」`).join("、")}没有数值。把取到的数字直接写进 Metric 的 value（字符串，例如 "$82,407"），不要用 $state 绑定，然后再调用 panel_update。`;
+            // 空列表 / 空重复区块（2026-10-13 第三轮实测：香港天气「未来 5 天」只剩标题）：退回去让机器人把数据写进去。
+            const hollow = emptySections(sanitizeRenderUiSpec(parseRenderUiSpec(parsed.data.spec, false))?.spec ?? null);
+            if (hollow.length)
+              return `${REFUSAL_MARKER} 面板没有保存：${hollow.map((l) => `「${l}」`).join("、")}下面是空的（List 的 items / Table 的 rows 是空的，或 repeat.statePath 指向的 state 数组不存在或为空）。把取到的每一行直接写进 List 的 items（或 Table 的 rows），不要用 repeat 和 $state，然后再调用 panel_update；确实没有数据就把这一节连同标题一起删掉。`;
             const row = await store.update(actorId, parsed.data.id, { ...parsed.data, edit: Boolean(parsed.data.instruction || parsed.data.title) && !options.refreshOf });
             return `面板「${row.title}」已更新${row.refreshMinutes ? `，之后每 ${row.refreshMinutes >= 1440 ? `${Math.round(row.refreshMinutes / 1440)} 天` : row.refreshMinutes >= 60 ? `${Math.round(row.refreshMinutes / 60)} 小时` : `${row.refreshMinutes} 分钟`}自动刷新` : ""}。${options.refreshOf ? "这是后台刷新，不需要回复。" : "对话里只用一句话告诉用户，不要贴面板内容或规范。"}`;
           } catch (error) {

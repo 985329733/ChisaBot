@@ -193,6 +193,7 @@ import { executeRenderUi, renderUiTools } from "./generative-ui/render-ui";
 import { RENDER_UI_TOOL } from "../../shared/json-render/catalog";
 import { createIntelligenceClient } from "./intelligence-client";
 import { createLocalConversations } from "./local-conversations";
+import { createChatShots } from "./chat-shots";
 import { clearLearningRevisionFallback } from "./learning/runtime";
 import { createLearningSettingsStore } from "./learning/settings";
 import { createMemoryIngestion } from "./memory/ingestion";
@@ -2129,6 +2130,8 @@ workflowEngineInstance = createWorkflowEngine({
  * 实时面板：store + 工具 + 每分钟一次的刷新循环。刷新 = 同一个机器人在一个用完即删的对话里跑一个
  * 无头回合（与工作流同一条 governedTurnRunner），用 web_search / web_fetch 取数后 panel_update。
  */
+// 对话里的截图缩略图按人存在服务器上，换设备也看得到（chat-shots.ts）。
+const chatShots = await createChatShots(database);
 const livePanelStore = createLivePanelStore(database);
 const livePanelService = createLivePanelService({
   store: livePanelStore,
@@ -3632,6 +3635,7 @@ const app = createApp(
         }),
       ],
       ["/api/live-panels", livePanelService.routes(requireUser)],
+      ["/api/chat-shots", chatShots.routes(requireUser)],
       [
         "/api/workflows",
         createWorkflowRoutes({
