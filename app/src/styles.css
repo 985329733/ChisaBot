@@ -5655,3 +5655,16 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 
 /* 「有新版本」提示放在顶栏下面，不再盖住主导航。 */
 .update-banner { top: 64px; }
+
+/*
+ * §35 机器人聊天消息列表（不虚拟化，lib/copilot/message-list.tsx）。
+ * 所有消息都挂载，所以屏幕外的旧消息用 content-visibility 跳过样式 / 布局 / 绘制：流式时每帧只算看得见的。
+ * `contain-intrinsic-size: auto …` 记住每条消息上次真实渲染的高度，已经显示过的消息离开视口后高度不变，
+ * 贴底时视口上方不会凭空变高（这正是虚拟化估算行高带来的跳动）。最后 6 条始终正常渲染；
+ * 高度记录（contain-intrinsic-size: auto）对所有消息都开着，这样一条消息从「最后 6 条」退出去时用的是它的真实高度，不是 240px。
+ * 从没显示过的旧消息先占 240px，往上翻到它时才换成真实高度——那时它在视口上边缘之外，浏览器的
+ * 滚动锚定把正在看的内容钉住，不会跳。每条消息自成独立格式化上下文（和 flex 子项一样，外边距不穿透）。
+ */
+.cb-message-list { display: flex; flex-direction: column; }
+.cb-message-list > * { contain: layout style; contain-intrinsic-size: auto 240px; }
+.cb-message-list > :not(:nth-last-child(-n + 6)) { content-visibility: auto; }
