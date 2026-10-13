@@ -8,6 +8,9 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 机器人浏览器不再被 Cloudflare 当成机器人封掉：托管浏览器在 Linux 上（镜像自带 Xvfb）默认改为在虚拟显示器里跑有界面 Chromium，不再用 headless。实测同一台服务器上 headless 打开 grok.com 的登录页 accounts.x.ai、x.ai 显示「Sorry, you have been blocked」、chatgpt.com 卡在「Just a moment...」，改后都能正常打开。想保留旧行为可设 `COMPUTER_BROWSER_MODE=headless`。
+- 网站仍然拦截时（「Sorry, you have been blocked」「Access denied / Error 1020」），机器人会收到中文说明，不再反复重试，会告诉你可以「接管控制」亲自试或让管理员配置出口代理（`EGRESS_PROXY_DEFAULT`）；「计算机」里的拦截页顶部也会盖一条中文提示。见 `docs/configuration.md`「网站拦截机器人浏览器」。
+
 ## 0.1.3（2026-10-13）
 
 - ChisaBot PC：更新换了图标后，桌面 / 开始菜单 / 任务栏还显示旧图标的问题修好了。PC 更新一直是下载完整安装包，但以「覆盖更新」模式运行时会保留旧快捷方式、不刷新 Windows 图标缓存。现在：每个安装包装完都会重写快捷方式并刷新图标缓存；新版本第一次启动再兜底一次（包括任务栏固定的图标）；`latest.yml` 新增 `chisabotShell`（外壳指纹：图标、安装脚本、Electron 版本等），和本机不同时弹「此更新需要重新安装，以更新图标/组件」，点「重新安装」后卸载旧版再全新安装（数据保留）。已装 0.1.2 的电脑在下次更新时自动换上新图标，不用手动重装。发布者：打包前 `npm run fingerprint`（CI 已自动），见 `docs/online-update.md` §2.1。

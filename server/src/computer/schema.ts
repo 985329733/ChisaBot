@@ -76,6 +76,11 @@ export type NavigateResult = {
   /** The untrusted-content notice for the page's own fields. See untrusted-content.ts. */
   untrusted?: string;
   challenge?: BrowserChallenge;
+  /**
+   * 网站直接拦截了机器人浏览器（Cloudflare「Sorry, you have been blocked」、Access denied 等）。
+   * `notice` 是给 BOT 的中文说明：别重试，照实告诉用户可以「接管控制」或让管理员配出口代理。
+   */
+  siteBlock?: { kind: string; site: string; notice: string };
   url: string;
   title: string;
   /**
