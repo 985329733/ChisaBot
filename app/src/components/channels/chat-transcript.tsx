@@ -1813,7 +1813,7 @@ export function ChatTranscript({
             {items.map((item, index) =>
               compact.hidden.has(item.id) ? null : compact.stoppedAfter === item.id ? (
                 [renderRow(item, index), (
-                  <MessageScrollerItem data-row="activity" key={`${item.id}:stopped`} messageId={`${item.id}:stopped`}>
+                  <MessageScrollerItem key={`${item.id}:stopped`} messageId={`${item.id}:stopped`}>
                     <div className="chat-stopped-mark" data-testid="turn-stopped">{"◼ 已停止"}</div>
                   </MessageScrollerItem>
                 )]
