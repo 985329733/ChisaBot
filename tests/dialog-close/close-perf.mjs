@@ -69,7 +69,7 @@ const cdp = await ctx.newCDPSession(page);
 if (CPU > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU });
 
 async function openDialog() {
-  await page.mouse.click(640, 30).catch(() => {});
+  await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
   await page.keyboard.press("Shift+N");
   try { await page.waitForSelector('[data-slot="dialog-content"]', { timeout: 4000 }); }
   catch {
