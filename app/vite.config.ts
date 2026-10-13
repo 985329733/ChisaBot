@@ -185,6 +185,12 @@ export const routeBuildRollupOutputOptions = {
   manualChunks: selectOpenBotManualChunk,
 };
 
+export const BUNDLE_STUBS = [
+  { find: /^@copilotkit\/a2ui-renderer$/, replacement: path.resolve(__dirname, "./src/lib/bundle-stubs/a2ui-renderer.ts") },
+  { find: /^@ag-ui\/proto$/, replacement: path.resolve(__dirname, "./src/lib/bundle-stubs/ag-ui-proto.ts") },
+  { find: /^rehype-katex$/, replacement: path.resolve(__dirname, "./src/lib/bundle-stubs/rehype-katex.ts") },
+];
+
 export default defineConfig({
   envDir: path.resolve(__dirname, ".."),
   plugins: [
@@ -198,9 +204,11 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      // 首屏包瘦身（DESIGN.md §41.4）：只被引用、在浏览器里从不执行的依赖换成小桩，说明见各文件。
+      ...BUNDLE_STUBS,
+    ],
   },
   server: serving,
   preview: serving,
