@@ -193,7 +193,9 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
   /** 结果回到主对话。 */
   const deliver = async (worker: WorkerRow) => {
     const messageId = `worker-result-${worker.id}`;
-    const body = worker.status === "done" ? worker.result || "（没有文字结果）" : worker.error || "（没有说明原因）";
+    // 工人和主机器人读同一份提示词，见过标记的样子，偶尔会在自己的结果里也写一个「⟦chisabot:…⟧」：
+    // 剥掉，免得界面把它原样画出来、主机器人把它当成又一条结果（实测 2026-10-13）。
+    const body = stripWorkerMarkers(worker.status === "done" ? worker.result || "（没有文字结果）" : worker.error || "（没有说明原因）") || "（没有文字结果）";
     const message = {
       id: messageId, role: "user",
       content: `${WORKER_RESULT_MARKER}${worker.id}:${worker.status}⟧\n后台任务「${worker.title}」${statusZh(worker.status)}。\n\n${clip(body, RESULT_LIMIT)}`,
@@ -453,7 +455,7 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
           ),
           guidance: [
             "后台任务：耗时较长、可以独立完成的事（多来源调研、大量整理、多步骤网上操作）用 delegate_task 交给后台并行做，主对话保持能聊；每个任务给一个几个字的标题和完整说明（后台看不到这段对话）。",
-            `同时最多 ${PER_USER_RUNNING} 个在跑；后台任务和你共用同一个浏览器，所以同一时间最多委派一个需要用浏览器的任务，而且它在用浏览器时你自己不要用。`,
+            `同时最多 ${PER_USER_RUNNING} 个在跑；多出来的会自动排队（卡片显示「排队中」），前面的做完就自动开始，最多 ${PER_USER_BACKLOG} 个没结束的。所以用户要几个就照常委派几个，不要自己设提醒等空位再补开。后台任务和你共用同一个浏览器，所以同一时间最多委派一个需要用浏览器的任务，而且它在用浏览器时你自己不要用。`,
             "用户想给某个后台任务补充要求就用 worker_message；想取消就用 worker_cancel；问进度用 worker_status。结果回来时会是一条以「⟦chisabot:worker-result:」开头的消息。",
           ].join("\n"),
         },
@@ -488,6 +490,11 @@ export function createWorkerService(options: WorkerServiceOptions): WorkerServic
     },
   };
   return service;
+}
+
+/** 去掉文本里混进来的结果标记（「⟦chisabot:worker-result:…⟧」之类）。 */
+export function stripWorkerMarkers(text: string): string {
+  return text.replace(/⟦chisabot:[^⟧\n]{0,200}⟧[ \t]*/gu, "").trim();
 }
 
 function textOfContent(message: Message): string {

@@ -75,7 +75,9 @@ export function parseWorkerResult(text: string): { workerId: string; status: str
   const [workerId = "", status = ""] = text.slice(WORKER_RESULT_MARKER.length, end).split(":");
   const rest = text.slice(end + 1).replace(/^\n/, "");
   const [headline = "", ...lines] = rest.split("\n");
-  return { workerId, status, headline: headline.trim(), body: lines.join("\n").trim() };
+  // 旧结果里工人自己写进去的标记（服务器现在会剥掉）也不显示。
+  const body = lines.join("\n").replace(/⟦chisabot:[^⟧\n]{0,200}⟧[ \t]*/gu, "").trim();
+  return { workerId, status, headline: headline.trim(), body };
 }
 
 export function formatElapsed(ms: number): string {

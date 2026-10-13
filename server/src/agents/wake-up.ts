@@ -368,9 +368,23 @@ export function wakeUpTools(options: {
       "cancel_follow_up",
       "Cancel a follow-up you scheduled that has not started yet.",
       z.object({ id: z.string().min(1).max(400) }).strict(),
-      async ({ id }) => ({
-        cancelled: await store.cancel(ownerUserId, agentId, id, initiator),
-      }),
+      async ({ id }) => {
+        if (await store.cancel(ownerUserId, agentId, id, initiator))
+          return { cancelled: true };
+        // schedule_follow_up 回的 id 形如 `wake:["user","agent"]:<uuid>`，模型常常只抄最后的 uuid
+        // （实测 2026-10-13：抄短了就 cancelled:false，提醒照样到点叫醒）。只认这个人、这个机器人
+        // 自己还没开始的提醒里唯一一条以它结尾的。
+        const tail = id.trim();
+        const matches = tail.length >= 8
+          ? (await store.list(ownerUserId, agentId)).filter(
+              (record) => record.state !== "done" && record.id !== tail && record.id.endsWith(`:${tail}`),
+            )
+          : [];
+        if (matches.length !== 1) return { cancelled: false };
+        return {
+          cancelled: await store.cancel(ownerUserId, agentId, matches[0]!.id, initiator),
+        };
+      },
     ),
   ];
 }
