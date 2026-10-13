@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
 import { GlassTopBar, type ShellScope } from "@/components/layout/glass-topbar";
+import { PhoneGestures } from "@/components/layout/phone-gestures";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { TopBarOwnsSidebarToggle } from "@/components/layout/sidebar-toggle";
 import { ShellBoundary } from "@/components/startup-status";
@@ -32,6 +33,7 @@ export function GlassShell({
       <SidebarShell className="glass-shell h-svh overflow-hidden" iconWidth="80px" width="276px">
         <GlassTopBar scope={scope} />
         <SearchHotkey scope={scope} />
+        <PhoneGestures />
         {sidebar}
         <div className="glass-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-scope={scope}>
           <main className="glass-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

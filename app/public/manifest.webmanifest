@@ -1,14 +1,25 @@
 {
+  "id": "/",
   "name": "ChisaBot",
   "short_name": "ChisaBot",
+  "description": "ChisaBot：你的中文 AI 机器人工作台——和机器人聊天、看面板、跑长期任务和工作流。",
   "lang": "zh-CN",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#e4ecf3",
+  "orientation": "any",
+  "background_color": "#c9dbeb",
   "theme_color": "#9dbddc",
+  "categories": ["productivity", "utilities"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/pwa-any-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-any-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/pwa-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "聊天", "url": "/", "icons": [{ "src": "/pwa-any-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "设置", "url": "/settings", "icons": [{ "src": "/pwa-any-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

@@ -1,21 +1,26 @@
 import * as React from "react";
+import { isPhone, NARROW_QUERY } from "@/lib/device";
 
-const MOBILE_BREAKPOINT = 768;
-
+/**
+ * 窄（竖屏）布局：手机永远是（横过来也是，DESIGN.md §40），其它设备看窗口是否 < 768px。
+ * 首帧就给出正确值，左栏不会先画成宽窗口再收进抽屉。
+ */
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
-    undefined,
+  const [isMobile, setIsMobile] = React.useState<boolean>(() =>
+    typeof window === "undefined" ? false : isPhone() || window.matchMedia(NARROW_QUERY).matches,
   );
 
   React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    };
+    if (isPhone()) {
+      setIsMobile(true);
+      return;
+    }
+    const mql = window.matchMedia(NARROW_QUERY);
+    const onChange = () => setIsMobile(mql.matches);
     mql.addEventListener("change", onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    onChange();
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  return !!isMobile;
+  return isMobile;
 }

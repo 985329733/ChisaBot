@@ -5901,3 +5901,199 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   .worker-plan-collapse { transition: none; }
   .worker-icon.is-running svg { animation-duration: 2.4s; }
 }
+
+/* ==========================================================================================
+ * §40 手机竖屏体验 + 安装成应用（2026-10-13，DESIGN.md §40）。
+ * <html data-phone> 由 index.html 的内联脚本写（触屏 + 屏幕短边 < 600，或 UA-CH 说是手机）；横屏手机也带它。
+ * 窄窗口的 @media (max-width: 767px) 规则在手机上由 lib/device.ts 改成永远成立，这里只放手机独有的东西：
+ * 安全区、可视高度（键盘）、≥44px 点按区、16px 输入字号（iOS 不自动放大）、横屏收紧。
+ * ========================================================================================== */
+html[data-phone] {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 外壳本身不滚：根上不回弹、不下拉刷新（消息列表自己滚）。 */
+html[data-phone],
+html[data-phone] body { overscroll-behavior: none; }
+/* 高度 = 看得见的那块（键盘弹出时跟着变矮，lib/device.ts 写 --app-h），没有就用 100dvh，绝不用 100vh。 */
+html[data-phone] .glass-shell { height: var(--app-h, 100dvh); min-height: 0; }
+html[data-phone] .glass-shell [data-slot="sidebar-wrapper"],
+html[data-phone] [data-slot="sidebar-wrapper"].glass-shell { min-height: 0; }
+
+/* 顶栏让开状态栏 / 刘海；左右让开横屏时的刘海。 */
+html[data-phone] .glass-topbar {
+  height: calc(var(--glass-top) + var(--safe-t));
+  padding-top: var(--safe-t);
+  padding-left: calc(12px + var(--safe-l));
+  padding-right: calc(12px + var(--safe-r));
+}
+html[data-phone] .glass-body {
+  padding-top: calc(var(--glass-top) + var(--safe-t));
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+}
+html[data-phone] .glass-menu-btn { width: 44px; height: 44px; }
+html[data-phone] .glass-topbar { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+html[data-phone] .glass-topbar-start { width: 44px; }
+html[data-phone] .glass-seg-item { min-height: 40px; display: inline-flex; align-items: center; }
+/* 手机上没有键盘快捷键。 */
+html[data-phone] .side-search-kbd { display: none; }
+html[data-phone] .update-banner { top: calc(64px + var(--safe-t)); }
+
+/* 左栏抽屉、面板抽屉：让开状态栏、底部横条和横屏刘海。 */
+html[data-phone] .glass-shell [data-slot="sidebar"][data-mobile="true"],
+html[data-phone] [data-slot="sidebar"][data-mobile="true"] {
+  padding: calc(12px + var(--safe-t)) 12px calc(12px + var(--safe-b)) calc(12px + var(--safe-l));
+  width: min(300px, calc(100vw - 56px)) !important;
+  max-width: none;
+}
+html[data-phone] .glass-drawer[data-slot="sheet-content"] {
+  top: calc(12px + var(--safe-t));
+  right: calc(12px + var(--safe-r));
+  bottom: calc(12px + var(--safe-b));
+}
+@media (max-width: 640px) {
+  html[data-phone] .glass-drawer[data-slot="sheet-content"] {
+    top: 0; right: 0; bottom: 0;
+    padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) 12px;
+  }
+}
+
+/* 机器人聊天：内容列两侧 12px；输入框贴底、让开底部横条，键盘弹出时只留 8px。 */
+html[data-phone] .bot-chat-sky .copilotKitChat .cpk\:max-w-3xl,
+html[data-phone] .bot-chat-sky .bot-composer-wrap { max-width: min(42rem, calc(100% - 24px)); }
+html[data-phone] .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] { padding-bottom: max(12px, var(--safe-b)); }
+html[data-phone][data-keyboard] .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] { padding-bottom: 8px; }
+/* 输入框最多长到 6 行（键盘开着 4 行），剩下的在框里滚，不把消息挤没。 */
+html[data-phone] .bot-composer-textarea { max-height: calc(1.6em * 6 + 2px); overflow-y: auto; }
+html[data-phone][data-keyboard] .bot-composer-textarea { max-height: calc(1.6em * 4 + 2px); }
+
+/* iOS 聚焦字号 < 16px 的输入框会把整页放大：手机上输入一律 16px。 */
+html[data-phone] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select, [contenteditable="true"]) {
+  font-size: 16px !important;
+}
+html[data-phone] [data-slot="input"],
+html[data-phone] [data-slot="select-trigger"] { min-height: 44px; }
+
+/* 点按区 ≥ 44px：小图标按钮外观不变，用一层看不见的伪元素把可点范围撑到 44×44（居中）。 */
+/* position 放在 base 层：按钮自己写了 absolute / fixed（Tailwind 工具类）时以它为准。 */
+@layer base {
+  html[data-phone] :is(.glass-composer-icon, .glass-composer-send, .model-pill, .context-meter, .glass-list-add, .glass-sec-link, .glass-bot-more,
+    .rail-head-btn, .rail-head-icon, .model-popover-refresh, .sg-segmented-item, .update-banner-x, .install-hint-x,
+    [data-slot="button"], .copilotKitAssistantMessage button, .copilotKitUserMessage button) { position: relative; }
+}
+html[data-phone] :is(.glass-composer-icon, .glass-composer-send, .model-pill, .context-meter, .glass-list-add, .glass-sec-link, .glass-bot-more,
+  .rail-head-btn, .rail-head-icon, .model-popover-refresh, .sg-segmented-item, .update-banner-x, .install-hint-x,
+  [data-slot="button"], .copilotKitAssistantMessage button, .copilotKitUserMessage button)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+/* 菜单项、下拉选项在手机上 44px 高。 */
+html[data-phone] :is([data-slot="dropdown-menu-item"], [data-slot="dropdown-menu-radio-item"], [data-slot="dropdown-menu-checkbox-item"], [data-slot="select-item"], [data-slot="context-menu-item"], [data-slot="command-item"]) {
+  min-height: 44px;
+}
+/* 菜单、弹层、对话框不超出屏幕（含安全区），内容多就在里面滚。 */
+/* 高度由弹层库按可用空间算（--available-height），这里只管宽度。 */
+html[data-phone] :is([data-slot="dropdown-menu-content"], [data-slot="popover-content"], [data-slot="select-content"]) {
+  max-width: calc(100vw - 16px - var(--safe-l) - var(--safe-r));
+}
+html[data-phone] [data-slot="dropdown-menu-shortcut"] { display: none; }
+html[data-phone] [data-slot="dialog-content"] {
+  max-width: calc(100vw - 24px - var(--safe-l) - var(--safe-r));
+  max-height: calc(var(--app-h, 100dvh) - 24px - var(--safe-t) - var(--safe-b));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* 页面不横向滚动：内容区里超宽的东西（表格、代码）自己横向滚。 */
+html[data-phone] .glass-main { overflow-x: hidden; }
+html[data-phone] .bot-chat-sky pre { max-width: 100%; }
+
+/* 横屏手机（高度只有 ~390）：顶栏收矮、输入框最多 3 行；键盘开着时顶栏让位给消息。 */
+@media (orientation: landscape) {
+  html[data-phone] .glass-shell { --glass-top: 52px; }
+  html[data-phone] .glass-seg-item { min-height: 36px; }
+  html[data-phone] .glass-menu-btn { width: 40px; height: 40px; }
+  html[data-phone] .bot-composer-textarea { max-height: calc(1.6em * 3 + 2px); }
+  html[data-phone] .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] { padding-bottom: max(8px, var(--safe-b)); }
+  html[data-phone][data-keyboard] .glass-topbar { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+  html[data-phone][data-keyboard] .glass-body { padding-top: var(--safe-t); }
+}
+html[data-phone] .glass-topbar { transition: transform var(--dur-2, 200ms) var(--ease-out, ease-out), opacity var(--dur-2, 200ms) linear; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-phone] .glass-topbar { transition: none; }
+}
+
+/* §40.3「安装 ChisaBot 应用」：与「有新版本」同一种玻璃胶囊，顶栏下面居中；「有新版本」在时让位。 */
+.install-hint {
+  position: fixed;
+  z-index: 100;
+  top: calc(64px + var(--safe-t, 0px));
+  left: 50%;
+  translate: -50% 0;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 4px;
+  border-radius: 22px;
+  background: var(--glass-3);
+  border: 1px solid var(--stroke, rgba(255, 255, 255, 0.72));
+  backdrop-filter: saturate(160%) blur(36px);
+  box-shadow: var(--shadow-2), var(--inset-hl, inset 0 1px 0 rgba(255, 255, 255, 0.6));
+  color: var(--ink-1);
+  animation: install-hint-in var(--dur-3, 300ms) var(--ease-out, ease-out) both;
+}
+.install-hint[data-state="closed"] { animation: install-hint-out var(--dur-1, 150ms) var(--ease-in, ease-in) both; pointer-events: none; }
+body:has(.update-banner) .install-hint { display: none; }
+.install-hint-row { display: flex; align-items: center; gap: 2px; }
+.install-hint-main {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  height: 36px; padding: 0 4px 0 6px; border-radius: 999px;
+  font-size: 14px; font-weight: 500; color: inherit; cursor: pointer; white-space: nowrap;
+  transition: background var(--dur-1, 150ms) linear;
+}
+.install-hint-main:hover { background: var(--glass-2); }
+.install-hint-logo { width: 24px; height: 24px; border-radius: 7px; flex: none; }
+.install-hint-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.install-hint-go {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 12px 0 10px; margin-left: 4px;
+  border-radius: 999px; background: var(--ink-primary); color: var(--on-primary); font-size: 13px; font-weight: 500;
+}
+.install-hint-x {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; flex: none;
+  color: var(--ink-3); cursor: pointer; transition: background var(--dur-1, 150ms) linear, color var(--dur-1, 150ms) linear;
+}
+.install-hint-x:hover { background: var(--glass-2); color: var(--ink-1); }
+.install-hint-main:focus-visible, .install-hint-x:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+.install-hint-ios {
+  margin: 4px 4px 4px; padding: 10px 12px 10px 30px; border-radius: 16px; background: var(--glass-2);
+  display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink-2);
+  list-style: decimal; white-space: normal; max-width: 320px;
+  animation: install-hint-in var(--dur-2, 220ms) var(--ease-out, ease-out) both;
+}
+.install-hint-ios li { padding-left: 2px; }
+.install-hint-key {
+  display: inline-flex; align-items: center; gap: 3px; margin: 0 4px; padding: 0 8px; height: 24px; vertical-align: middle;
+  border-radius: 999px; background: var(--glass-3); border: 1px solid var(--line-strong, rgba(0, 0, 0, 0.08)); color: var(--ink-1); font-weight: 500;
+}
+@keyframes install-hint-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes install-hint-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) {
+  .install-hint, .install-hint-ios { animation-name: rail-lib-fade; }
+  .install-hint[data-state="closed"] { animation-name: rail-lib-fade-out; }
+}
+/* 手机上列表缩进收窄（默认 prose 的 1.6em 缩进 + 气泡内边距在 390px 宽里太浪费）。 */
+html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(ol, ul) { padding-inline-start: 1.25em; }
+html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(ol, ul) :is(ol, ul) { padding-inline-start: 1em; }
+/* 手机上表格不再把短列挤成一字一行：每格至少 4 个字宽（表格单元格不认 min-width，用一条 0 高的伪元素撑），
+ * 放不下时由外面的表格容器横向滚动（Streamdown 自带 overflow-x: auto）。 */
+html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(th, td)::after { content: ""; display: block; width: 4em; height: 0; }
+html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="table-wrapper"] > div { overscroll-behavior-x: contain; }

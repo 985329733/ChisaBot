@@ -15,6 +15,7 @@ def crop(x, y, s):
 MAIN = crop(10, 14, 600)      # face + red ribbon + choker, ocean behind
 FACE = crop(220, 120, 420)    # tighter, for <= 64 px
 WIDE = crop(70, 60, 560)      # adaptive-icon foreground (outer third is masked away)
+PWA_MASK = crop(0, 6, 690)    # PWA maskable: face + ribbon inside the 80% safe circle
 
 RIBBON = (212, 32, 44)        # ribbon red, sampled (brightest ribbon tones ~#d4202c)
 OCEAN = (102, 180, 212)       # #66b4d4 ocean, sampled from upper-left sea
@@ -82,7 +83,13 @@ save(icon(16, "rounded"), "app/public/favicon-16.png")
 save(icon(180, "square").convert("RGB"), "app/public/apple-touch-icon.png")
 save(icon(192, "square"), "app/public/icon-192.png")
 save(icon(512, "square"), "app/public/icon-512.png")
-save(icon(96, "circle"), "app/src/assets/brand/chisa-mark.png")      # sidebar/topbar brand avatar (bundled, hashed)
+save(icon(96, "circle"), "app/src/assets/brand/chisa-mark.png")
+# PWA（DESIGN.md §40）：any = 圆角透明边（Windows/macOS 安装后的应用图标）；maskable = 满版（系统按圆 / 圆角 / 水滴裁切，
+# 安全区是中间 80%，用 WIDE 裁切让脸留在安全区里）。
+save(icon(192, "rounded"), "app/public/pwa-any-192.png")
+save(icon(512, "rounded"), "app/public/pwa-any-512.png")
+save(icon(192, "square", PWA_MASK), "app/public/pwa-maskable-192.png")
+save(icon(512, "square", PWA_MASK), "app/public/pwa-maskable-512.png")      # sidebar/topbar brand avatar (bundled, hashed)
 
 # ---- login gateway (public, no session needed) ----
 ico("deploy/public/auth-web/brand/favicon.ico", [16, 32, 48], "rounded")
