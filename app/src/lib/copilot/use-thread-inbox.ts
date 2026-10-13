@@ -57,14 +57,27 @@ export function useThreadInbox(threadId: string | null | undefined, agent: Abstr
     let alive = true;
     let serverRunning = false;
     let busy = false;
+    /** 有任务交回来的那条消息（结果，或用户在卡片上停掉后的「已停止」）还没出现在这边。 */
+    const resultMissing = () => {
+      const workers = queryClient.getQueryData<WorkerView[]>(workerKeys.thread(threadId)) ?? [];
+      const have = new Set(agent.messages.map((message) => message.id));
+      return workers.some(
+        (worker) =>
+          Boolean(worker.resultMessageId) && !have.has(worker.resultMessageId!) &&
+          Date.now() - Date.parse(worker.finishedAt ?? worker.createdAt) < 10 * 60_000,
+      );
+    };
     const workersNeedSync = () => {
       const workers = queryClient.getQueryData<WorkerView[]>(workerKeys.thread(threadId)) ?? [];
       const have = new Set(agent.messages.map((message) => message.id));
       return workers.some(
         (worker) =>
           ACTIVE_WORKER.includes(worker.status) ||
-          (worker.status !== "cancelled" && Date.now() - Date.parse(worker.finishedAt ?? worker.createdAt) < 10 * 60_000 &&
-            (!worker.resultMessageId || !have.has(worker.resultMessageId))),
+          // 停掉的任务：只有用户在卡片上停的才有交回的「已停止」消息（有 resultMessageId），要等它出现。
+          (Date.now() - Date.parse(worker.finishedAt ?? worker.createdAt) < 10 * 60_000 &&
+            (worker.status === "cancelled"
+              ? Boolean(worker.resultMessageId) && !have.has(worker.resultMessageId!)
+              : !worker.resultMessageId || !have.has(worker.resultMessageId))),
       );
     };
     const pull = async () => {
@@ -84,7 +97,8 @@ export function useThreadInbox(threadId: string | null | undefined, agent: Abstr
         const state = await inboxState(threadId);
         const wasRunning = serverRunning;
         serverRunning = Boolean(state?.running);
-        if (serverRunning || wasRunning) await pull();
+        // 交付那一轮很短时可能两次轮询之间就跑完了：交回的消息还没到，也拉一次。
+        if (serverRunning || wasRunning || resultMissing()) await pull();
       } finally {
         busy = false;
       }

@@ -54,7 +54,17 @@ export function WorkerCard({ workerId, pendingTitle }: { workerId?: string; pend
       </div>
     );
   }
-  return <WorkerCardBody threadId={threadId!} worker={worker} />;
+  // 同时有不止一个任务在跑：在跑的卡片默认收成一行（点开看清单和按钮），四张展开的卡片会占满一屏。
+  const running = workers.data?.filter((item) => ACTIVE_WORKER.includes(item.status)).length ?? 0;
+  return <WorkerCardBody compact={running > 1} threadId={threadId!} worker={worker} />;
+}
+
+/** 当前步骤那一行：服务器给的；还没有就用清单里正在做的那一步。 */
+function stepLine(worker: WorkerView): string {
+  if (worker.status === "queued") return "排队中，前面的任务做完就开始";
+  if (worker.step) return worker.step;
+  const current = worker.plan.find((step) => step.status === "current") ?? worker.plan.find((step) => step.status === "pending");
+  return current?.text || "正在看任务要求";
 }
 
 function useNow(active: boolean) {
@@ -67,11 +77,13 @@ function useNow(active: boolean) {
   return now;
 }
 
-function WorkerCardBody({ threadId, worker }: { threadId: string; worker: WorkerView }) {
+function WorkerCardBody({ compact, threadId, worker }: { compact: boolean; threadId: string; worker: WorkerView }) {
   const active = ACTIVE_WORKER.includes(worker.status);
   const now = useNow(active);
   const [planOpen, setPlanOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  // 在跑时的展开 / 收起：没点过就跟着「是不是不止一个在跑」走。
+  const [runningOpen, setRunningOpen] = useState<boolean | null>(null);
   const [steering, setSteering] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState<"" | "steer" | "cancel">("");
@@ -116,13 +128,32 @@ function WorkerCardBody({ threadId, worker }: { threadId: string; worker: Worker
     } else setExpanded((value) => !value);
   };
 
+  // 不止一个在跑：一行（图标 · 标题 · 当前步骤 · 用时 · 展开）。
+  if (active && !(runningOpen ?? !compact) && !steering) {
+    return (
+      <div className={cn("worker-card is-collapsed", `is-${worker.status}`)} data-status={worker.status} data-testid="worker-card" data-compact="">
+        <button className="worker-line" onClick={() => setRunningOpen(true)} title={"展开"} type="button">
+          <span className="worker-icon is-running">
+            <IconLoader2 className="size-3.5" />
+          </span>
+          <span className="worker-title">{worker.title}</span>
+          <span className="worker-line-text" data-testid="worker-step" key={worker.step ?? worker.status}>{stepLine(worker)}</span>
+          <span className="worker-time">{elapsed}</span>
+        </button>
+        <button aria-expanded={false} aria-label={"展开"} className="worker-more" onClick={() => setRunningOpen(true)} title={"展开"} type="button">
+          <IconChevronDown className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
+
   // 结束了：收成一行（点「详情」再展开清单看过程）。
   if (!active && !expanded) {
     const ok = worker.status === "done";
     return (
       <div className={cn("worker-card is-collapsed", `is-${worker.status}`)} data-status={worker.status} data-testid="worker-card">
         <button className="worker-line" onClick={openResult} title={worker.resultMessageId ? "跳到结果" : "展开"} type="button">
-          <span className={cn("worker-icon", ok ? "is-done" : "is-failed")}>
+          <span className={cn("worker-icon", ok ? "is-done" : worker.status === "cancelled" ? "is-stopped" : "is-failed")}>
             {ok ? <IconCheck className="size-3.5" stroke={2.5} /> : worker.status === "cancelled" ? <IconPlayerStopFilled className="size-3" /> : <IconAlertTriangle className="size-3.5" />}
           </span>
           <span className="worker-title">{worker.title}</span>
@@ -151,17 +182,22 @@ function WorkerCardBody({ threadId, worker }: { threadId: string; worker: Worker
           {WORKER_STATUS_ZH[worker.status]}
         </span>
         <span className="worker-time">{elapsed}</span>
-        {!active ? (
-          <button aria-label={"收起"} className="worker-more" onClick={() => setExpanded(false)} title={"收起"} type="button">
+        {!active || compact ? (
+          <button
+            aria-expanded
+            aria-label={"收起"}
+            className="worker-more"
+            onClick={() => (active ? setRunningOpen(false) : setExpanded(false))}
+            title={"收起"}
+            type="button"
+          >
             <IconChevronDown className="size-3.5 rotate-180" />
           </button>
         ) : null}
       </div>
       <div className="worker-step" data-testid="worker-step" key={worker.step ?? worker.status}>
         {active
-          ? worker.status === "queued"
-            ? "排队中，前面的任务做完就开始"
-            : worker.step || "正在准备"
+          ? stepLine(worker)
           : worker.status === "done"
             ? worker.summary || "已完成"
             : worker.error || WORKER_STATUS_ZH[worker.status]}
@@ -251,14 +287,15 @@ export function WorkerResultRow({ messageId, text }: { messageId: string; text: 
   const [open, setOpen] = useState(false);
   if (!parsed) return null;
   const ok = parsed.status === "done";
+  const stopped = parsed.status === "cancelled";
   return (
-    <div className={cn("worker-result", ok ? "is-done" : "is-failed")} data-message-id={messageId} data-testid="worker-result">
+    <div className={cn("worker-result", ok ? "is-done" : stopped ? "is-stopped" : "is-failed")} data-message-id={messageId} data-testid="worker-result">
       <button aria-expanded={open} className="worker-result-line" onClick={() => setOpen((value) => !value)} type="button">
-        <span className={cn("worker-icon", ok ? "is-done" : "is-failed")}>
-          {ok ? <IconCheck className="size-3.5" stroke={2.5} /> : <IconAlertTriangle className="size-3.5" />}
+        <span className={cn("worker-icon", ok ? "is-done" : stopped ? "is-stopped" : "is-failed")}>
+          {ok ? <IconCheck className="size-3.5" stroke={2.5} /> : stopped ? <IconPlayerStopFilled className="size-3" /> : <IconAlertTriangle className="size-3.5" />}
         </span>
         <span className="worker-result-head">{parsed.headline.replace(/。$/, "")}</span>
-        <span className="worker-result-hint">{open ? "收起" : "查看结果"}</span>
+        <span className="worker-result-hint">{open ? "收起" : stopped ? "详情" : "查看结果"}</span>
         <IconChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
       </button>
       <div className="worker-plan-collapse" data-open={open || undefined}>

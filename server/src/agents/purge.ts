@@ -20,6 +20,8 @@
  *      Otherwise it stays a tombstone so the shared conversation remains readable, and is finished
  *      off by a later purge once that conversation is gone.
  *   4. Its browser profile directory, best effort.
+ *   Background tasks (chisabot_workers, DESIGN.md §38) are stopped first and their rows, hidden
+ *   worker-* threads and thread inbox rows go with the local threads in step 3.
  *
  * The audit trail (`audit_events`, `action_records`, `model_usage`) is deliberately kept: it is a
  * record of what happened, not data belonging to the Bot.
@@ -75,6 +77,8 @@ export function createAgentPurge(options: {
   reset: BotReset;
   /** Where the computer keeps one browser profile per Bot. */
   profilesDir?: string;
+  /** 停掉这个机器人还在跑 / 排队的后台任务（DESIGN.md §38），在删它的数据之前。 */
+  stopWorkers?: (agentId: string) => Promise<unknown>;
 }): AgentPurge {
   const { database, reset } = options;
   const profilesDir = options.profilesDir ?? process.env.PROFILES_DIR ?? "/profiles";
@@ -172,10 +176,25 @@ export function createAgentPurge(options: {
       const [local] = await tx.execute<{ present: boolean }>(
         sql`select to_regclass('public.openbot_local_threads') is not null as present`,
       );
-      if ((local as { present?: boolean } | undefined)?.present)
+      if ((local as { present?: boolean } | undefined)?.present) {
+        // 对话的收件箱（排队消息 / 后台结果）跟着对话走；后台任务的记录和它们隐藏的 worker-* 对话也是
+        // 这个机器人的（以前删机器人会留下 chisabot_workers 行和收件箱行，2026-10-13 实测）。
+        const [inbox] = await tx.execute<{ present: boolean }>(
+          sql`select to_regclass('public.chisabot_thread_inbox') is not null as present`,
+        );
+        if ((inbox as { present?: boolean } | undefined)?.present)
+          await tx.execute(
+            sql`delete from chisabot_thread_inbox where thread_id in (select id from openbot_local_threads where agent_id = ${agentId})`,
+          );
         await tx.execute(
           sql`delete from openbot_local_threads where agent_id = ${agentId}`,
         );
+      }
+      const [workers] = await tx.execute<{ present: boolean }>(
+        sql`select to_regclass('public.chisabot_workers') is not null as present`,
+      );
+      if ((workers as { present?: boolean } | undefined)?.present)
+        await tx.execute(sql`delete from chisabot_workers where agent_id = ${agentId}`);
 
       // Everything else hangs off `agents` with ON DELETE CASCADE.
       // 部署包机器人的 agents 行要留着：它带着「已被删除」的标记（override.removedAt），删掉它的话
@@ -223,6 +242,9 @@ export function createAgentPurge(options: {
     report.mainBotCleared = await clearMainBot(agentId);
     report.sharedConversationsKept = await liveConversations(agentId);
     if (report.sharedConversationsKept === 0) {
+      await options.stopWorkers?.(agentId).catch((error: unknown) =>
+        console.warn(`[agents] stopping background tasks of ${agentId} failed:`, error instanceof Error ? error.message : error),
+      );
       report.panelsRemoved = await removeForGood(agentId);
       report.removed = true;
       await removeProfileDir(agentId);

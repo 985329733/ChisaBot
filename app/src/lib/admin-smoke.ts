@@ -8,6 +8,8 @@ export type AdminSmokeResult = {
   model: string;
   agentId: string | null;
   latencyMs: number;
+  /** 答对了测试题（有回复但答错也算通过）。旧服务器没有这个字段。 */
+  answered?: boolean;
   echoed: boolean;
   reply: string;
   message: string;

@@ -1932,6 +1932,15 @@ if (localBackend) {
   } catch (error) {
     console.warn("marking interrupted workers failed", error);
   }
+  // 删机器人以前不清后台任务记录和收件箱：开机顺手清掉孤儿行（幂等；CHISABOT_WORKER_ORPHAN_SWEEP=0 关掉）。
+  if (process.env.CHISABOT_WORKER_ORPHAN_SWEEP !== "0") {
+    try {
+      const swept = await workerService.sweepOrphans();
+      if (swept.workers || swept.inbox) console.log(JSON.stringify({ type: "worker-orphans-swept", ...swept }));
+    } catch (error) {
+      console.warn("sweeping orphaned worker rows failed", error);
+    }
+  }
   localBackend.setWorkers(workerService);
 }
 /** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
@@ -3684,7 +3693,11 @@ const app = createApp(
     lifecycle: {
       lifecycle: createBotLifecycleStore(database),
       reset: botReset,
-      purge: createAgentPurge({ database, reset: botReset }),
+      purge: createAgentPurge({
+        database,
+        reset: botReset,
+        stopWorkers: async (agentId) => workerService?.stopForAgent(agentId),
+      }),
       activity: createActivityStore(database),
       wakeUps: wakeUpStore,
       profiles: agentProfileStore,

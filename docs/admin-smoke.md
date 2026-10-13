@@ -9,19 +9,20 @@
   `server/tests/admin-smoke.test.ts`。
 - 请求体可选：`{ "agentId": "<机器人 id>" }`。不给时用部署默认的模型连接；给了时走这个机器人自己的模型覆盖
   （和它聊天时完全一样的 `resolveRuntimeConnectionForAgent`）。
-- 做的事：生成随机口令 `CHISA-xxxxxxxx`，让模型「只回复这个口令」；用和聊天**同一个** AI SDK 客户端
-  （`connectionLanguageModel`，同样的接口地址、密钥、`useApiKey`、不跟随重定向）非流式请求一次，45 秒超时。
-  回复里有口令才算通过。
+- 做的事：问模型一道随机的两位数加法（「37 + 48 等于多少？只回复结果数字。」，每次数字不同）；用和聊天**同一个**
+  AI SDK 客户端（`connectionLanguageModel`，同样的接口地址、密钥、`useApiKey`、不跟随重定向）非流式请求一次，
+  45 秒超时。**模型有非空回复就算通过**（证明配置 → 模型服务 → 回复整条往返是通的）；答对了另记 `answered: true`。
+  以前是让模型「原样回一个口令」，但 mimo 等模型会把它当成提示注入拒绝，自检时好时坏（2026-10-13 起换成算术题）。
 - **不落库**：不建频道、不写消息、不写记忆、不写审计行、不触发投递。响应里固定 `persisted: false`。
-  服务器日志只有一行 `[admin-smoke] ok=… model=… agent=… <毫秒>ms`，口令、回复、密钥都不进日志。
+  服务器日志只有一行 `[admin-smoke] ok=… answered=… model=… agent=… <毫秒>ms`，题目、回复、密钥都不进日志。
 - 响应：
 
   ```json
   { "ok": true, "persisted": false, "provider": "openai", "model": "…", "agentId": null,
-    "latencyMs": 1234, "echoed": true, "reply": "CHISA-1A2B3C4D", "message": "自检通过：模型按要求回复了口令。" }
+    "latencyMs": 1234, "answered": true, "echoed": true, "reply": "85", "message": "自检通过：模型正确回答了测试题。" }
   ```
 
-  通过是 200；模型没回口令、空回复、超时、连接或密钥失败是 502（同样的结构，`message` 说原因，不含秘密）；
+  `echoed` 是旧字段，和 `answered` 相同。通过是 200；空回复、超时、连接或密钥失败是 502（同样的结构，`message` 说原因，不含秘密）；
   读不到模型配置 503；非管理员 403；`agentId` 格式不对 400。
 
 ## 三种用法
