@@ -1,0 +1,180 @@
+// 发送时聊天跳动的回归测试（DESIGN.md §35.4）。逐帧记录：滚动区在屏幕上的位置（sTop）、scrollTop、发送那一刻视口里
+// 一条消息（anchor）的屏幕位置。发送之后任何相邻两帧：滚动区移动、scrollTop 回退 > 24px、anchor 往下跳 > 24px
+// 或往上跳 > 120px（比贴底弹簧快）都算跳。ASSERT=1 时不过退出码 1。
+// 用法（ChisaBot 镜像里跑 playwright-core，--network host）：
+//   BASE=http://127.0.0.1:3092 BOT=<机器人 id> THREAD=<要打开的会话 id，建议用真实长会话的副本> ASSERT=1 node send-jump.mjs
+//   场景：W/H（默认 1280×800；窄窗 W=420 H=860）、SCROLLUP=700（发送前上滑）、PROMPT=…（长回复 / 多行）、CPU=4、
+//         FAIL=1 TWICE=1（第一轮模拟失败让提示出现，第二轮正常发送让提示消失）、VIDEO=1。输出在 /out。
+import { chromium } from "playwright-core";
+import fs from "node:fs";
+const exe = fs.readdirSync("/ms-playwright").find((d) => d.startsWith("chromium-") && !d.includes("headless"));
+const browser = await chromium.launch({ executablePath: `/ms-playwright/${exe}/chrome-linux64/chrome`, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+const BASE = process.env.BASE || "http://127.0.0.1:3092";
+const BOT = process.env.BOT || "knowledge";
+const THREAD = process.env.THREAD || "";
+const W = Number(process.env.W || 1280), H = Number(process.env.H || 800);
+const log = (...a) => console.log(new Date().toISOString().slice(11, 23), ...a);
+const vp = { width: W, height: H };
+const ctx = await browser.newContext({
+  viewport: vp, deviceScaleFactor: 1, locale: "zh-CN", timezoneId: "Asia/Shanghai",
+  ...(process.env.VIDEO ? { recordVideo: { dir: "/out/video", size: vp } } : {}),
+});
+await ctx.addInitScript(({ bot, thread }) => {
+  try {
+    localStorage.setItem("openbot-theme", "light");
+    if (thread) localStorage.setItem(`openbot.bot-thread.${bot}`, thread);
+  } catch {}
+  const w = window;
+  w.__samples = [];
+  w.__events = [];
+  w.__findScroller = () => {
+    const list = document.querySelector(".bot-chat-sky .copilotKitMessages");
+    let el = list?.parentElement;
+    while (el && el !== document.body) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 2) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+  const topLevel = (s) => [...s.querySelectorAll("[data-message-id]")].filter((e) => !e.parentElement.closest("[data-message-id]"));
+  let anchorId = null; // message id pinned at send time (the one at the viewport middle)
+  let anchorRef = null;
+  let lastList = null, lastScroller = null;
+  w.__arm = () => {
+    const s = w.__findScroller();
+    const sr = s.getBoundingClientRect();
+    const mid = sr.top + sr.height * 0.35;
+    let best = Infinity;
+    for (const e of topLevel(s)) { const r = e.getBoundingClientRect(); if (r.height <= 0) continue; const d = r.top <= mid && r.bottom >= mid ? 0 : Math.min(Math.abs(r.top - mid), Math.abs(r.bottom - mid)); if (d < best) { best = d; anchorId = e.dataset.messageId; anchorRef = e; } }
+    w.__anchorId = anchorId;
+    lastList = document.querySelector(".bot-chat-sky .copilotKitMessages"); lastScroller = s;
+    const mo = new MutationObserver((recs) => {
+      if (!w.__sampling) return;
+      let removedMsgs = 0, addedMsgs = 0;
+      for (const r of recs) {
+        for (const n of r.removedNodes) if (n.nodeType === 1 && (n.matches?.("[data-message-id]") || n.querySelector?.("[data-message-id]"))) removedMsgs += n.matches?.("[data-message-id]") ? 1 : n.querySelectorAll("[data-message-id]").length;
+        for (const n of r.addedNodes) if (n.nodeType === 1 && (n.matches?.("[data-message-id]") || n.querySelector?.("[data-message-id]"))) addedMsgs += n.matches?.("[data-message-id]") ? 1 : n.querySelectorAll("[data-message-id]").length;
+      }
+      if (removedMsgs || addedMsgs) w.__events.push({ t: Math.round(performance.now()), kind: "dom", removedMsgs, addedMsgs });
+    });
+    mo.observe(document.querySelector(".bot-chat-sky"), { childList: true, subtree: true });
+  };
+  const tick = () => {
+    if (w.__sampling) {
+      const s = w.__findScroller();
+      const list = document.querySelector(".bot-chat-sky .copilotKitMessages");
+      if (s && lastScroller && s !== lastScroller) w.__events.push({ t: Math.round(performance.now()), kind: "scroller-replaced" });
+      if (list && lastList && list !== lastList) w.__events.push({ t: Math.round(performance.now()), kind: "list-replaced" });
+      lastScroller = s || lastScroller; lastList = list || lastList;
+      if (s) {
+        const sr = s.getBoundingClientRect();
+        const a = anchorId ? s.querySelector(`[data-message-id="${CSS.escape(anchorId)}"]`) : null;
+        if (a && a !== anchorRef) { w.__events.push({ t: Math.round(performance.now()), kind: "anchor-remounted" }); anchorRef = a; }
+        const ar = a?.getBoundingClientRect();
+        // first message whose bottom is inside the viewport
+        const all = topLevel(s);
+        let firstVis = null, firstVisTop = null;
+        for (let i = 0; i < all.length; i++) { const r = all[i].getBoundingClientRect(); if (r.height > 0 && r.bottom > sr.top + 1 && r.top < sr.bottom) { firstVis = i; firstVisTop = Math.round(r.top - sr.top); break; } }
+        w.__samples.push({
+          t: Math.round(performance.now()), top: Math.round(s.scrollTop), h: s.scrollHeight, ch: s.clientHeight,
+          gap: Math.round(s.scrollHeight - s.scrollTop - s.clientHeight),
+          aTop: ar ? Math.round(ar.top - sr.top) : null, aScr: ar ? Math.round(ar.top) : null, sTop: Math.round(sr.top), aH: ar ? Math.round(ar.height) : null,
+          n: all.length, firstVis, firstVisTop,
+          running: Boolean(document.querySelector('[data-testid="composer-stop"]')),
+        });
+      }
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}, { bot: BOT, thread: THREAD });
+const page = await ctx.newPage();
+let failLeft = process.env.FAIL === "1" ? 1 : 0;
+if (failLeft) {
+  await page.route(/\/api\/copilotkit/, async (route) => {
+    const req = route.request();
+    if (failLeft > 0 && req.method() === "POST" && /\/run\b|"runId"/.test(req.url() + (req.postData() || "").slice(0, 400)) && !/connect/.test(req.url())) {
+      failLeft--;
+      log("FAILING", req.url());
+      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "模拟上游出错：这一轮没有回答。" }) });
+    }
+    return route.continue();
+  });
+}
+page.on("pageerror", (e) => log("pageerror", String(e).slice(0, 200)));
+page.on("console", (m) => { if (m.type() === "error") log("console", m.text().slice(0, 200)); });
+if (Number(process.env.CPU || 1) > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU) }); }
+
+await page.goto(`${BASE}/bot?agent=${BOT}`, { waitUntil: "domcontentloaded" });
+await page.waitForSelector('textarea[data-testid="copilot-chat-textarea"]', { timeout: 40000 });
+await page.waitForFunction(() => document.querySelectorAll(".bot-chat-sky [data-message-id]").length > 0, null, { timeout: 40000 }).catch(() => log("no messages rendered"));
+await page.waitForTimeout(Number(process.env.WAIT || 6000));
+const box = await page.evaluate(() => { const r = window.__findScroller().getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+if (process.env.SCROLLUP) {
+  await page.mouse.move(box.x, box.y);
+  const px = Number(process.env.SCROLLUP);
+  for (let i = 0; i < Math.ceil(px / 100); i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(40); }
+  await page.waitForTimeout(1500);
+}
+const s0 = await page.evaluate(() => { const s = window.__findScroller(); return { top: s.scrollTop, h: s.scrollHeight, ch: s.clientHeight, n: document.querySelectorAll(".bot-chat-sky [data-message-id]").length }; });
+log("BEFORE", JSON.stringify(s0));
+await page.screenshot({ path: "/out/0-before.png" });
+await page.evaluate(() => { window.__arm(); window.__sampling = true; });
+await page.waitForTimeout(300);
+const RUNMS = Number(process.env.RUNMS || 60000);
+async function sendOnce(prompt, tag) {
+  const ta = page.locator('textarea[data-testid="copilot-chat-textarea"]').first();
+  await ta.click();
+  await ta.fill(prompt);
+  const at = await page.evaluate(() => performance.now());
+  await page.keyboard.press("Enter");
+  for (const ms of [40, 120, 250, 500, 900, 1500, 2500]) {
+    const now = await page.evaluate(() => performance.now());
+    const d = at + ms - now; if (d > 0) await page.waitForTimeout(d);
+    await page.screenshot({ path: `/out/${tag}s-${String(ms).padStart(4, "0")}.png` });
+  }
+  const t0 = Date.now(); let idle = 0;
+  while (Date.now() - t0 < RUNMS && idle < 4) { idle = (await page.locator('[data-testid="composer-stop"]').count()) ? 0 : idle + 1; await page.waitForTimeout(500); }
+  return at;
+}
+const PROMPT = process.env.PROMPT_B64 ? Buffer.from(process.env.PROMPT_B64, "base64").toString("utf8") : process.env.PROMPT;
+const tSend = await sendOnce(PROMPT || "用一句话回答：1+1 等于几？", "");
+if (process.env.TWICE === "1") {
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: "/out/5-between.png" });
+  log("BETWEEN", JSON.stringify(await page.evaluate(() => ({ notice: Boolean(document.querySelector('[data-testid="bot-chat-stopped"]')) }))));
+  await sendOnce(process.env.PROMPT2 || "再用一句话回答：2+2 等于几？", "b-");
+}
+await page.waitForTimeout(1500);
+await page.screenshot({ path: "/out/9-end.png" });
+const { samples, events, anchorId } = await page.evaluate(() => ({ samples: window.__samples, events: window.__events, anchorId: window.__anchorId }));
+const pre = samples.filter((x) => x.t < tSend);
+const post = [...(pre.length ? [pre[pre.length - 1]] : []), ...samples.filter((x) => x.t >= tSend)];
+fs.writeFileSync("/out/samples.json", JSON.stringify({ tSend, anchorId, samples, events }));
+// Analysis (no user input after send): fail if, between two consecutive frames, scrollTop drops > 24px, the anchor message
+// moves DOWN on screen > 24px (older history slides into view) or UP > 120px (faster than the stick-to-bottom spring ever
+// moves), or the scroller itself moves on screen (sTop changes: something above it appeared / vanished).
+const ups = [], anchorDowns = [];
+for (let i = 1; i < post.length; i++) {
+  const a = post[i - 1], b = post[i];
+  if (a.top - b.top > 24) ups.push({ dt: b.t - tSend, from: a.top, to: b.top, h0: a.h, h1: b.h });
+  if (a.aTop != null && b.aTop != null && b.aTop - a.aTop > 40) anchorDowns.push({ dt: b.t - tSend, from: a.aTop, to: b.aTop, top0: a.top, top1: b.top, h0: a.h, h1: b.h });
+}
+const scr = [];
+for (let i = 1; i < post.length; i++) {
+  const a = post[i - 1], b = post[i];
+  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > 120 || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
+}
+log("SCREENJUMPS", JSON.stringify(scr.slice(0, 15)));
+const minTop = Math.min(...post.map((x) => x.top));
+const minFirstVis = Math.min(...post.filter((x) => x.firstVis != null).map((x) => x.firstVis));
+log("RESULT", JSON.stringify({ frames: post.length, anchorId, before: pre[pre.length - 1] ?? s0, upJumps: ups.length, screenJumps: scr.length, screenDownJumps: scr.filter((x) => x.to > x.from).length, anchorDownJumps: anchorDowns.length, minTopAfterSend: minTop, firstVisAtSend: post[0]?.firstVis, minFirstVis, endGap: post[post.length - 1]?.gap }));
+log("UPS", JSON.stringify(ups.slice(0, 15)));
+log("ANCHORDOWN", JSON.stringify(anchorDowns.slice(0, 15)));
+log("EVENTS", JSON.stringify(events.slice(0, 30).map((e) => ({ ...e, dt: e.t - tSend }))));
+const bad = scr.length + ups.length;
+log(bad ? "FAIL send-jump" : "PASS send-jump", JSON.stringify({ screenJumps: scr.length, upJumps: ups.length }));
+await ctx.close();
+await browser.close();
+process.exit(bad && process.env.ASSERT === "1" ? 1 : 0);

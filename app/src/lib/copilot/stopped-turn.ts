@@ -53,20 +53,32 @@ export function markUserStop(): void {
 }
 const stoppedByUser = () => Date.now() - userStoppedAt < 15_000;
 
+/** 订阅者本身（纯函数，便于测试）：每一轮开始清掉，出错 / 失败记下原因（用户自己按停止的除外）。 */
+export function stoppedTurnSubscriber(setStopped: (reason: string | null) => void) {
+  return {
+    onRunInitialized: () => setStopped(null),
+    /*
+     * 打开会话时，CopilotKit 把这条线程的历史事件（每一轮的 RUN_STARTED … RUN_ERROR / RUN_FINISHED）
+     * 重放一遍，订阅者都会收到。以前只在本页自己发起的一轮开始时清掉提示，于是一小时前出过一次错、
+     * 之后已经好好回答了几轮的会话，一打开顶上还挂着那条旧错误（2026-10-13 实测）。历史里后面又开始
+     * 了一轮，那条错误就不是「上一轮」的了：任何一轮开始都清掉。
+     */
+    onRunStartedEvent: () => setStopped(null),
+    onRunErrorEvent: ({ event }: { event?: { message?: unknown } }) => {
+      if (!stoppedByUser()) setStopped(stoppedReason(event?.message));
+    },
+    onRunFailed: ({ error }: { error?: unknown }) => {
+      if (!stoppedByUser()) setStopped(stoppedReason(error));
+    },
+  };
+}
+
 export function useStoppedTurn(agentId: string): string | null {
   const { agent } = useAgent({ agentId });
   const [stopped, setStopped] = useState<string | null>(null);
 
   useEffect(() => {
-    const subscription = agent.subscribe?.({
-      onRunInitialized: () => setStopped(null),
-      onRunErrorEvent: ({ event }) => {
-        if (!stoppedByUser()) setStopped(stoppedReason(event?.message));
-      },
-      onRunFailed: ({ error }) => {
-        if (!stoppedByUser()) setStopped(stoppedReason(error));
-      },
-    });
+    const subscription = agent.subscribe?.(stoppedTurnSubscriber(setStopped));
     return () => subscription?.unsubscribe();
   }, [agent]);
 

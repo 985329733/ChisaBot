@@ -2,7 +2,7 @@ import { RouteSkeleton } from "@/components/startup-status";
 import { CopilotChat, useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { BotComposerContext, BotModelInput } from "@/components/agents/bot-model-input";
 import { defaultAgentId } from "@/lib/agents/default-agent";
@@ -234,38 +234,19 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           fallbackName={name}
           onNewTopic={startNew}
         />
-        {/*
-         * Both banners render as plain siblings in this fixed order, never one nested inside the
-         * other, so either can appear alone or both together without the layout jumping around
-         * depending on which conditions are true.
-         */}
-        {history === "unavailable" ? (
-          <p
-            className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm"
-            data-testid="bot-chat-history-unavailable"
-            role="alert"
-          >
-            {"此会话中的较早消息无法加载，机器人正在没有它们的情况下回答。"}
-          </p>
-        ) : null}
-        {/*
-         * Under the header rather than at the end of the transcript, which is where the missing answer
-         * was going to be and where the channel draws its own version of this. The packaged chat owns
-         * that list (not virtualised since DESIGN.md §35, still its own), so reaching into it means replacing the whole message view and
-         * taking on its scrolling. The cost of putting the sentence here instead is that it is not
-         * beside the gap it explains; what it buys is that it is always on screen, whatever the
-         * transcript has been scrolled to, and that it survives the next release of the chat.
-         */}
-        {stopped ? (
-          <p
-            className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm"
-            data-testid="bot-chat-stopped"
-            role="alert"
-          >
-            {stopped}
-          </p>
-        ) : null}
-        <div className="bot-chat-sky min-h-0 flex-1" ref={skyRef}>
+        <div className="bot-chat-sky relative min-h-0 flex-1" ref={skyRef}>
+          {/*
+           * 两条提示浮在聊天上面，不占版面（2026-10-13，修「发送消息，聊天记录往回跳」；DESIGN.md §35.4）。
+           * 以前它们是聊天列里的普通块，排在滚动区上面：发一条消息时「停止」提示消失，滚动区顶边一下子
+           * 上移 137px（窄窗口 217px），scrollTop 不变，整段聊天记录在同一帧里跳一截；下一轮出错时提示
+           * 又出现，滚动区变矮，最新一条被挤到视口外，眼前换成更早的记录。浮层不改变滚动区的大小和位置，
+           * 出现 / 消失都不会让消息动。
+           *
+           * Under the header rather than at the end of the transcript, which is where the missing answer
+           * was going to be: it is always on screen, whatever the transcript has been scrolled to, and it
+           * survives the next release of the packaged chat (which owns the list and its scrolling).
+           */}
+          <BotChatNotices history={history} stopped={stopped} />
           {/*
            * Keyed on the thread as well as the agent. Switching agents was already handled by
            * `agentId`, but `startNew` changes only the thread while the agent stays put, and the
@@ -293,5 +274,60 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           ) : null}
         </div>
       </div>
+  );
+}
+
+/**
+ * 机器人聊天顶上的提示（较早消息没加载到 / 上一轮没有回答的原因）：浮层，不占版面（DESIGN.md §35.4）。
+ * 可以手动关掉；同一句话关掉后不再出现，换了一句（新的一轮又出错）才再显示。
+ */
+function BotChatNotices({
+  history,
+  stopped,
+}: {
+  history: "ready" | "unavailable";
+  stopped: string | null;
+}) {
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  const dismiss = useCallback(
+    (key: string) => setDismissed((previous) => new Set(previous).add(key)),
+    [],
+  );
+  const historyKey = "history";
+  const stoppedKey = stopped ? `stopped:${stopped}` : "";
+  const showHistory = history === "unavailable" && !dismissed.has(historyKey);
+  const showStopped = Boolean(stopped) && !dismissed.has(stoppedKey);
+  if (!showHistory && !showStopped) return null;
+  return (
+    <div className="bot-chat-notices">
+      {showHistory ? (
+        <div className="bot-chat-notice" data-testid="bot-chat-history-unavailable" role="alert">
+          <p className="bot-chat-notice-text">
+            {"此会话中的较早消息无法加载，机器人正在没有它们的情况下回答。"}
+          </p>
+          <button
+            aria-label="关闭提示"
+            className="bot-chat-notice-x"
+            onClick={() => dismiss(historyKey)}
+            type="button"
+          >
+            {"×"}
+          </button>
+        </div>
+      ) : null}
+      {showStopped ? (
+        <div className="bot-chat-notice" data-testid="bot-chat-stopped" role="alert">
+          <p className="bot-chat-notice-text">{stopped}</p>
+          <button
+            aria-label="关闭提示"
+            className="bot-chat-notice-x"
+            onClick={() => dismiss(stoppedKey)}
+            type="button"
+          >
+            {"×"}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
