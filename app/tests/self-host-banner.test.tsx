@@ -32,6 +32,8 @@ beforeEach(() => {
         messageListEmphasis: "thread",
         selfHostBannerDismissed: true,
         mainBotId: null,
+        brandAccent: "Chisa",
+        brandRest: "Bot",
       },
     });
   globalThis.fetch = Object.assign(
@@ -86,6 +88,8 @@ function setup({
     messageListEmphasis: "thread",
     selfHostBannerDismissed: dismissed,
     mainBotId: null,
+    brandAccent: "Chisa",
+    brandRest: "Bot",
   };
   client.setQueryData(
     userPreferencesQueryOptions("alice").queryKey,
