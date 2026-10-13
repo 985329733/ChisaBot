@@ -3269,8 +3269,6 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .jr-card-h h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.4; color: var(--ink-1); }
 .jr-card-h p { margin: 2px 0 0; font-size: 13px; color: var(--ink-3); }
 .jr-card-b { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
-.jr-card .jr-card .jr-card-h { padding: 12px 16px 0; }
-.jr-card .jr-card .jr-card-b { padding: 10px 16px 14px; }
 .jr-stack { display: flex; }
 .jr-stack.is-col { flex-direction: column; }
 .jr-stack.is-row { flex-direction: row; align-items: center; }
@@ -3279,9 +3277,10 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .jr-stack.align-end { align-items: flex-end; } .jr-stack.align-stretch { align-items: stretch; }
 .jr-stack.justify-start { justify-content: flex-start; } .jr-stack.justify-center { justify-content: center; }
 .jr-stack.justify-end { justify-content: flex-end; } .jr-stack.justify-between { justify-content: space-between; }
-.jr-stack.gap-sm, .jr-grid.gap-sm { gap: 8px; } .jr-stack.gap-md, .jr-grid.gap-md { gap: 12px; } .jr-stack.gap-lg, .jr-grid.gap-lg { gap: 20px; }
-.jr-grid { display: grid; grid-template-columns: repeat(var(--jr-cols, 2), minmax(0, 1fr)); }
-@media (max-width: 560px) { .jr-grid { grid-template-columns: minmax(0, 1fr); } }
+.jr-stack.gap-sm { gap: 8px; } .jr-stack.gap-md { gap: 12px; } .jr-stack.gap-lg { gap: 20px; }
+/* 列数是上限不是硬性：每格至少 --jr-min（88px），放不下就自动少一列（窄面板里 3 列 → 2 列，DESIGN.md §29）。 */
+.jr-grid { --jr-gap: 12px; --jr-min: 88px; display: grid; column-gap: var(--jr-gap); row-gap: var(--jr-row-gap, var(--jr-gap)); grid-template-columns: repeat(auto-fit, minmax(max(var(--jr-min), calc((100% - (var(--jr-cols, 2) - 1) * var(--jr-gap)) / var(--jr-cols, 2))), 1fr)); }
+.jr-grid.gap-sm { --jr-gap: 8px; } .jr-grid.gap-lg { --jr-gap: 20px; }
 .jr-heading { margin: 0; font-weight: 600; line-height: 1.3; color: var(--ink-1); }
 .jr-heading.is-l1 { font-size: 20px; } .jr-heading.is-l2 { font-size: 16px; } .jr-heading.is-l3 { font-size: 14px; }
 .jr-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-1); }
@@ -3289,15 +3288,38 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .jr-text.is-warn { color: var(--warn); } .jr-text.is-danger { color: var(--danger); }
 .jr-text.is-sm { font-size: 13px; } .jr-text.is-medium { font-weight: 500; } .jr-text.is-bold { font-weight: 600; }
 .jr-metric { padding: 14px 16px; border-radius: var(--r-md); background: var(--glass-2); border: 1px solid var(--line); }
-.jr-metric-k { font-size: 13px; color: var(--ink-3); }
-.jr-metric-v { margin-top: 4px; font-size: 26px; font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--ink-1); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.jr-metric { min-width: 0; }
+.jr-metric-k { font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 数字永远一行：nowrap + registry.tsx FitLine 放不下就缩字号；单位小一号、淡一点。 */
+.jr-metric-v { margin-top: 4px; font-size: 26px; font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--ink-1); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.jr-metric-u { margin-left: 2px; font-size: 0.6em; font-weight: 500; letter-spacing: 0; color: var(--ink-3); }
 .jr-metric-v.is-accent { color: var(--accent-blue); } .jr-metric-v.is-success { color: var(--success); }
 .jr-metric-v.is-warn { color: var(--warn); } .jr-metric-v.is-danger { color: var(--danger); }
-.jr-metric-d { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+.jr-metric-d { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; color: var(--ink-3); min-width: 0; white-space: nowrap; }
 .jr-metric-d.is-up { color: var(--success); } .jr-metric-d.is-down { color: var(--danger); }
+/* 表格：容器宽 ≥ 440px 是表格，窄了换成简表 .jr-rows（registry.tsx CompactRows）；单元格永不一字一行。 */
+.jr-tbl { container-type: inline-size; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.jr-stack.is-row > .jr-tbl { flex: 1 1 260px; }
+.jr-tbl-cap { font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.jr-rows { display: none; grid-template-columns: minmax(5.5em, 1fr) repeat(var(--jr-rest, 1), minmax(2.5em, max-content)); column-gap: 0; font-size: 13px; line-height: 1.35; font-variant-numeric: tabular-nums; overflow-x: auto; }
+@container (max-width: 440px) { .jr-tbl > .jr-table-wrap { display: none; } .jr-tbl > .jr-rows { display: grid; } }
+.jr-rows-h, .jr-rows-r { display: contents; }
+.jr-rows-h > span + span, .jr-rows-r > span + span { padding-left: 10px; }
+.jr-rows-h > span { padding-bottom: 6px; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; text-align: right; }
+.jr-rows-h > span:first-child { text-align: left; overflow: hidden; text-overflow: ellipsis; }
+.jr-rows-r > span { padding-top: 9px; padding-bottom: 9px; border-top: 1px solid var(--line); white-space: nowrap; }
+.jr-rows-p { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.jr-rows-t { font-weight: 500; color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; }
+.jr-rows-s { margin-top: 1px; font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+.jr-rows-v { display: flex; align-items: center; justify-content: flex-end; min-width: 0; color: var(--ink-1); }
+/* 太长的数值格在窄卡里收成省略号（完整值在 title 里），不再被卡片边缘切掉。 */
+.jr-rows-v > .jr-rows-x { overflow: hidden; text-overflow: ellipsis; }
+.jr-rows-h > span { overflow: hidden; text-overflow: ellipsis; }
+.jr-rows-v + .jr-rows-v { color: var(--ink-2); }
 .jr-table-wrap { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--glass-2); }
 .jr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .jr-table caption { caption-side: top; text-align: left; padding: 10px 14px 0; font-size: 12px; color: var(--ink-3); }
+.jr-table td { white-space: nowrap; }
 .jr-table th { padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 500; color: var(--ink-3); white-space: nowrap; border-bottom: 1px solid var(--line); }
 .jr-table td { padding: 10px 14px; color: var(--ink-1); font-variant-numeric: tabular-nums; }
 .jr-table tbody tr + tr td { border-top: 1px solid var(--line); }
@@ -3309,9 +3331,12 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .jr-list-row + .jr-list-row { border-top: 1px solid var(--line); }
 .jr-list-row:hover { background: var(--glass-hover); }
 .jr-list-n { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: var(--r-pill); background: var(--accent-blue-soft); color: var(--accent-blue-ink); font-size: 12px; font-weight: 600; }
-.jr-list-t { font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
-.jr-list-s { margin-top: 2px; font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; }
-.jr-list-m { flex: none; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* 窄容器里右边的 meta 放不下就整段换到下一行（靠右），左边文字不再被挤成一字一行。 */
+.jr-list-row { flex-wrap: wrap; row-gap: 2px; }
+.jr-list-row > .min-w-0 { flex: 1 1 7.5em; }
+.jr-list-t { font-weight: 500; line-height: 1.4; overflow-wrap: break-word; }
+.jr-list-s { margin-top: 2px; font-size: 13px; color: var(--ink-3); overflow-wrap: break-word; }
+.jr-list-m { flex: 0 1 auto; margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .jr-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--r-pill); font-size: 12px; font-weight: 500; white-space: nowrap; background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-2); width: fit-content; }
 .jr-badge.is-accent { background: var(--accent-blue-soft); color: var(--accent-blue-ink); border-color: transparent; }
 .jr-badge.is-success { background: var(--success-soft); color: var(--success); border-color: transparent; }
@@ -3349,6 +3374,23 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .jr-image figcaption { margin-top: 6px; font-size: 12px; color: var(--ink-3); }
 .jr-image-blocked { padding: 16px; border-radius: var(--r-md); border: 1px dashed var(--line-strong); font-size: 13px; color: var(--ink-3); text-align: center; }
 .jr-sep { margin: 2px 0; border: 0; border-top: 1px solid var(--line); }
+/*
+ * 一层外壳（DESIGN.md §29，用户 2026-10-13：「整个面板嵌套了 N 个外壳」）：外壳只有一层——对话里是最外层的
+ * Card，右栏里是面板卡片本身。外壳里面的 Card 变成平铺的小节（只剩一行淡色小标题），Metric / 表格 / 列表
+ * 也不再各自带底色、边框和圆角。
+ */
+:is(.jr-card, .live-panel-body) .jr-card { border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; overflow: visible; }
+:is(.jr-card, .live-panel-body) .jr-card .jr-card-h { padding: 0 0 8px; }
+.jr-card .jr-card .jr-card-h h3 { font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+:is(.jr-card, .live-panel-body) .jr-card .jr-card-b { padding: 0; gap: 12px; }
+:is(.jr-card, .live-panel-body) .jr-metric { padding: 0; border: 0; border-radius: 0; background: none; }
+:is(.jr-card, .live-panel-body) .jr-table-wrap { border: 0; border-radius: 0; background: none; }
+:is(.jr-card, .live-panel-body) .jr-table th:first-child, :is(.jr-card, .live-panel-body) .jr-table td:first-child { padding-left: 0; }
+:is(.jr-card, .live-panel-body) .jr-table th:last-child, :is(.jr-card, .live-panel-body) .jr-table td:last-child { padding-right: 0; }
+:is(.jr-card, .live-panel-body) .jr-list { border: 0; border-radius: 0; background: none; overflow: visible; }
+:is(.jr-card, .live-panel-body) .jr-list-row { padding: 9px 0; min-height: 0; }
+:is(.jr-card, .live-panel-body) .jr-list-row:hover, :is(.jr-card, .live-panel-body) .jr-table tbody tr:hover { background: none; }
+.jr-card .jr-metric-v { font-size: 24px; }
 .jr-placeholder { position: relative; }
 .jr-placeholder-label { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-3); }
 .jr-skel-title, .jr-skel-line {
@@ -4896,7 +4938,19 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .live-panel-spin { color: var(--ink-3); animation: live-panel-spin 1s linear infinite; }
 @keyframes live-panel-spin { to { transform: rotate(360deg); } }
 .live-panel-body.jr-surface { margin: 0; max-width: none; }
-.live-panel-body .jr-card { box-shadow: none; background: transparent; border: 0; padding: 0; }
+/* 面板里：卡片本身就是外壳，规范里最外层的 Card 也平铺（上面「一层外壳」规则），标题小一号。 */
+.live-panel-body { font-size: 13.5px; line-height: 1.55; }
+.live-panel-body .jr-card-h h3 { font-size: 13.5px; }
+.live-panel-body .jr-card-h p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-3); }
+.live-panel-body > .jr-card > .jr-card-h:has(> p:only-child) { padding-bottom: 10px; }
+.live-panel-body .jr-heading.is-l1 { font-size: 16px; } .live-panel-body .jr-heading.is-l2 { font-size: 13.5px; }
+.live-panel-body .jr-heading.is-l3 { font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+.live-panel-body .jr-grid { --jr-min: 84px; --jr-row-gap: 14px; }
+.live-panel-body .jr-metric-k { font-size: 12px; }
+.live-panel-body .jr-metric-v { margin-top: 2px; font-size: 22px; }
+/* 强调色只留给有意义的状态（涨跌、预警）；蓝色强调在面板里只是装饰，回到正文色。 */
+.live-panel-body .jr-metric-v.is-accent { color: var(--ink-1); }
+.live-panel-body .jr-sep { margin: 0; }
 .live-panel-skeleton { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 6px; }
 .live-panel-note { font-size: 12px; color: var(--ink-3); }
 .live-panel-error { display: flex; align-items: flex-start; gap: 6px; margin: 0; padding: 6px 10px; border-radius: 10px; font-size: 12px; color: #9a3412; background: rgba(251, 146, 60, 0.12); }
@@ -4954,6 +5008,3 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 /* 频道聊天：过程话一行淡色小字（chat-transcript.tsx TranscriptMessage tone="step"） */
 .chat-step-line { padding: 0 4px; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
 .chat-step-line :is(p, li) { margin: 0; color: var(--ink-3); }
-/* 窄面板（340px）：三列小格里的大数字不再一字一行折；表格单元格不折行，宽了就横向滚动（实测香港天气「10 月 13 日 今 天」竖排）。 */
-.live-panel-body .jr-grid .jr-metric-v { font-size: 20px; overflow-wrap: normal; word-break: keep-all; }
-.live-panel-body .jr-table th, .live-panel-body .jr-table td { padding: 8px 10px; white-space: nowrap; }

@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useEffect, useMemo, useState } from "react";
 import { parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../../shared/json-render/catalog";
 import { pruneEmptySections } from "../../../../shared/json-render/empty-sections";
+import { dropDuplicateTitle } from "../../../../shared/json-render/panel-title";
 import { client } from "@/lib/client";
 import { jsonRenderRegistry } from "@/lib/copilot/json-render/registry";
 
@@ -90,9 +91,13 @@ function cadence(minutes: number | null): string {
   return `每 ${minutes} 分钟刷新`;
 }
 
-const LiveBody = memo(function LiveBody({ spec: source }: { spec: string }) {
-  // 空列表 / 空重复区块不画，免得只剩一个孤零零的小标题（shared/json-render/empty-sections.ts）。
-  const spec = useMemo(() => pruneEmptySections(sanitizeRenderUiSpec(parseRenderUiSpec(source, false))?.spec ?? null), [source]);
+const LiveBody = memo(function LiveBody({ spec: source, title }: { spec: string; title: string }) {
+  // 空列表 / 空重复区块不画，免得只剩一个孤零零的小标题（shared/json-render/empty-sections.ts）；
+  // 和卡片头同名的标题也不再画第二遍（shared/json-render/panel-title.ts）。
+  const spec = useMemo(
+    () => dropDuplicateTitle(pruneEmptySections(sanitizeRenderUiSpec(parseRenderUiSpec(source, false))?.spec ?? null), title),
+    [source, title],
+  );
   // biome-ignore lint/correctness/useExhaustiveDependencies: one store per spec version.
   const store = useMemo(() => createStateStore({ ...((spec as Spec | null)?.state ?? {}) }), [source]);
   const handlers = useMemo(
@@ -224,7 +229,7 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
           <span className="live-panel-note">{"正在搭建，机器人在取数据…"}</span>
         </div>
       ) : panel.spec ? (
-        <LiveBody spec={panel.spec} />
+        <LiveBody spec={panel.spec} title={panel.title} />
       ) : null}
 
       {panel.error && !building ? (
@@ -240,7 +245,7 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
           {panel.sources.length ? (
             <span className="live-panel-sources">
               {"来源 "}
-              {panel.sources.map((s, i) => (
+              {panel.sources.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s, i) => (
                 <a href={s.url} key={s.url} rel="noopener noreferrer" target="_blank" title={s.url}>
                   {i > 0 ? "、" : ""}
                   {s.name}
