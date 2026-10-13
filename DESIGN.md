@@ -835,7 +835,8 @@
 ### 44.1 推理只在「思考了 N 秒」点开时存在
 - 推理走独立的 reasoning 消息（服务器把模型的 thinking 块转成 REASONING_* 事件，不进正文）。2026-10-13 实测 muse-spark-1.3 / mimo-v2.6-flash / step-5-preview 都用标准 thinking 块，solar-mini4 / gpt-5.6 不给推理，没有一个把推理写进正文（也没有 `<think>` 标签），所以服务器不剥正文。
 - 但 CopilotKit 自带的折叠只是 grid 0fr + overflow:hidden：英文推理一直在 DOM 里，Ctrl+F 搜得到、全选复制夹在回答中间、读屏会念、读 innerText 的脚本（我们自己的 e2e）当成回答——这就是「推理混进聊天正文」。
-- 规则：`reasoningMessage.toggle = ReasoningToggleZh`（lib/copilot/reasoning-zh.tsx）。收起时 `inert` + `aria-hidden`，收起动画（200ms）结束后把内容卸掉；点开才挂上。流式时照旧只显示「正在思考…」。回归测试 app/tests/reasoning-hidden.test.tsx。
+- 而且 CopilotKit 的思考消息在流式时会自动展开、结束后靠 effect 再关；生产实测（muse-spark 建面板，一轮里多次「思考 → 工具」）出现过关不上：「思考了 5 秒」下面直接摊开一段英文，就在正文里。
+- 规则：`messageView.reasoningMessage = ReasoningMessageZh`（lib/copilot/reasoning-zh.tsx，整条自己渲染）。只有用户点了才展开，永远不会自己打开；流式时只显示「正在思考…」。收起时 `inert` + `aria-hidden`，收起动画（200ms）结束后把内容卸掉。回归测试 app/tests/reasoning-hidden.test.tsx。
 - e2e 检查「正文里有没有推理」时读 `.copilotKitMessages` 的 innerText 即可（收起的推理不在里面）。
 
 ### 44.2 删机器人 = 它的面板也没了

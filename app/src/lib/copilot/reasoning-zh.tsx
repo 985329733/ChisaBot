@@ -1,5 +1,5 @@
 import { IconChevronRight } from "@tabler/icons-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { SmoothMarkdownRenderer } from "@/components/chat/smooth-markdown";
 
 /**
@@ -93,8 +93,65 @@ export function ReasoningToggleZh({ isOpen, children }: { isOpen?: boolean; chil
   );
 }
 
+function durationLabel(seconds: number): string {
+  if (seconds < 5) return "Thought for a few seconds";
+  if (seconds < 60) return `Thought for ${Math.round(seconds)} seconds`;
+  const m = Math.floor(seconds / 60);
+  const r = Math.round(seconds % 60);
+  return r ? `Thought for ${m}m ${r}s` : `Thought for ${m} minute${m === 1 ? "" : "s"}`;
+}
+
+type ReasoningMsg = { id: string; content?: string | null };
+
+/**
+ * 整条「思考」消息自己来渲染，不用 CopilotKit 的 CopilotChatReasoningMessage（DESIGN.md §44.1）。
+ *
+ * CopilotKit 的那个在流式时自动 `setIsOpen(true)`，结束后靠一个 effect 再关上；2026-10-13 生产实测
+ * （muse-spark，建面板时一轮里多次「思考 → 工具」）关不上的情况真实存在：「思考了 5 秒」下面直接摊开
+ * 一段英文推理，就在正文里。这里的规则只有一条：只有用户点了才展开，永远不会自己打开。
+ */
+export function ReasoningMessageZh({
+  message,
+  messages,
+  isRunning,
+  isLatest: isLatestProp,
+}: {
+  message: ReasoningMsg;
+  messages?: ReasoningMsg[];
+  isRunning?: boolean;
+  isLatest?: boolean;
+}) {
+  const isLatest = isLatestProp ?? messages?.[messages.length - 1]?.id === message.id;
+  const isStreaming = Boolean(isRunning && isLatest);
+  const hasContent = Boolean(message.content && message.content.length > 0);
+  const [open, setOpen] = useState(false);
+  const startRef = useRef<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (isStreaming && startRef.current === null) startRef.current = Date.now();
+    if (!isStreaming && startRef.current !== null) setElapsed((Date.now() - startRef.current) / 1000);
+  }, [isStreaming]);
+  const expanded = open && hasContent && !isStreaming;
+  return (
+    <div className="cpk:my-1" data-message-id={message.id}>
+      <ReasoningHeaderZh
+        hasContent={hasContent}
+        isOpen={expanded}
+        isStreaming={isStreaming}
+        label={durationLabel(elapsed)}
+        onClick={() => setOpen((value) => !value)}
+      />
+      <ReasoningToggleZh isOpen={expanded}>
+        <ReasoningContentZh hasContent={hasContent} isStreaming={isStreaming}>
+          {message.content ?? ""}
+        </ReasoningContentZh>
+      </ReasoningToggleZh>
+    </div>
+  );
+}
+
 export const ZH_MESSAGE_VIEW = {
-  reasoningMessage: { header: ReasoningHeaderZh, contentView: ReasoningContentZh, toggle: ReasoningToggleZh },
+  reasoningMessage: ReasoningMessageZh,
   // 流式回复按帧匀速放字，不再一批一批地蹦（components/chat/smooth-markdown.tsx，DESIGN.md §28）。
   assistantMessage: { markdownRenderer: SmoothMarkdownRenderer },
 } as const;
