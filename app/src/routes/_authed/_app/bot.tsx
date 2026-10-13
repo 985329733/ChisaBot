@@ -15,7 +15,7 @@ import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { useBotThread } from "@/lib/copilot/bot-thread";
-import { BotThreadHistoryDialog } from "@/components/agents/bot-thread-history";
+import { LazyBotThreadHistoryDialog } from "@/components/agents/bot-thread-history-lazy";
 import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { queueMessage } from "@/lib/copilot/thread-inbox";
@@ -243,7 +243,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           onNewTopic={startNew}
           onHistory={openHistory}
         />
-        <BotThreadHistoryDialog
+        <LazyBotThreadHistoryDialog
           agentId={agentId}
           currentThreadId={threadId}
           onOpenChange={setHistoryOpen}
