@@ -76,7 +76,7 @@ function ComboboxInput({
              * call site here that draws a link. See the note in `button.tsx`. */
             nativeButton
             data-slot="input-group-button"
-            className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
+            className="[[data-slot=input-group]:has([data-slot=combobox-clear])_&]:hidden data-pressed:bg-transparent"
             disabled={disabled}
           />
         )}

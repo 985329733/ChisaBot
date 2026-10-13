@@ -766,3 +766,14 @@
 - iOS：`apple-mobile-web-app-capable`、状态栏 `black-translucent`（内容铺到状态栏下面，顶栏用安全区让开）、`apple-touch-icon`。
 
 **40.5 Service worker**（`app/public/sw.js`）：导航永远先走网络（navigation preload；登录网关的跳转原样给），断网才给「网络不可用」卡片，**从不缓存 index.html**；`/assets/*` 缓存优先、只存 200，缺失分包的 404 原样转交，PR #64 的「分包过期自动刷新一次」（`lib/stale-chunk.ts`）照常工作。其它请求不拦。`/sw.js` 和清单回 `no-cache`，注册用 `updateViaCache: "none"`。PC / 安卓客户端里不注册（已注册的注销）。退路见 `docs/pwa.md`。
+
+## 41. 交互跟手：一次点击不重算整页样式，打开菜单不锁整页（2026-10-13，全面性能审计）
+
+用户：「全面检查全部操作。进行全面优化。」——4× CPU 降速下量了约 40 个操作（`input → 下一帧`、长任务、渲染组件数）。
+最大的共同根因不是 React，而是样式重算：几乎每次点击（复制、菜单、⋯、发送、切右栏标签）都有 1–2 次 130–230ms 的「Recalculate Style」，每次涉及约 4000 个元素。
+
+- **根因 ①**：Tailwind 的 `group-has-*` / `peer-has-*` 生成 `.group:has(…) *` 这种「`:has()` 后面跟任意后代」的规则。Chromium 把所有 `:has` 规则的失效集合并，只要有一条主体是 `*`，任何 `data-*` / `aria-*` 属性变化（菜单开合、按钮 state、Base UI 的 data-open）都会让整个应用重算样式。
+- **规则 ①**：**不许写 `group-has-*` / `peer-has-*`**。要按祖先里有没有某个子元素改样式，写成 `[[data-slot=祖先]:has(…)_&]:工具类` —— 右边是元素自己的类，只失效它自己。`app/tests/no-group-has.test.ts` 会拦住新写的。手写 CSS 同理：`:has()` 规则的主体必须是具体的类 / 属性，不能是 `*` 或裸元素。
+- **根因 ②**：Base UI 打开菜单 / 弹窗 / 下拉时会「锁页面滚动」：改 `html`/`body` 的内联样式（overflow、padding-right、scrollbar-gutter），整页重排 + 天空背景重画，关闭时再来一次。可应用外壳本来就不让整页滚动（`GlassShell` 是 `h-svh overflow-hidden`）。
+- **规则 ②**：**不锁整页滚动**。`styles.css` §41 段在鼠标设备上给有 `.glass-shell` 的页面的根元素设 `overflow:hidden`，Base UI 看到页面本来就不能滚，就不再改 `html/body`。要滚的只有各自的滚动容器。触屏不加（手机打开菜单本来就不锁，也不影响下拉刷新）。不要再给 `html`/`body` 加打开时才出现的样式。
+- **效果**（4× CPU，侧边预览同一份数据，INP 中位数）：见仓库外的审计报告；复制 184→76ms、账号菜单 456→216ms、机器人 ⋯ 400→208ms、发送 240→132ms、切右栏标签最长任务 476→0ms。
