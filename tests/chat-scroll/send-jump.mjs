@@ -89,6 +89,8 @@ await ctx.addInitScript(({ bot, thread }) => {
   };
   requestAnimationFrame(tick);
 }, { bot: BOT, thread: THREAD });
+// 全端同步（DESIGN.md §42）以后打开哪条对话由服务器决定，localStorage 只是缓存：把要测的会话设成当前对话。
+if (THREAD) await ctx.request.put(`${BASE}/api/bot-threads/${encodeURIComponent(BOT)}`, { data: { threadId: THREAD } }).catch(() => {});
 const page = await ctx.newPage();
 let failLeft = process.env.FAIL === "1" ? 1 : 0;
 if (failLeft) {

@@ -18,6 +18,9 @@ export type BotChatContext = {
   canSettings: boolean;
   canComputer: boolean;
   canNewTopic: boolean;
+  /** 「历史对话」（DESIGN.md §42.6）：只有正在打开的机器人对话页登记了才有。 */
+  canHistory?: boolean;
+  openHistory?: () => void;
   toggleSettings: () => void;
   toggleComputer: () => void;
   newTopic: () => void;

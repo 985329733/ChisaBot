@@ -195,6 +195,12 @@ export function createAgentPurge(options: {
       );
       if ((workers as { present?: boolean } | undefined)?.present)
         await tx.execute(sql`delete from chisabot_workers where agent_id = ${agentId}`);
+      // 全端同步的「当前对话」指针（bot-threads.ts，DESIGN.md §42）。
+      const [pointers] = await tx.execute<{ present: boolean }>(
+        sql`select to_regclass('public.chisabot_bot_threads') is not null as present`,
+      );
+      if ((pointers as { present?: boolean } | undefined)?.present)
+        await tx.execute(sql`delete from chisabot_bot_threads where agent_id = ${agentId}`);
 
       // Everything else hangs off `agents` with ON DELETE CASCADE.
       // 部署包机器人的 agents 行要留着：它带着「已被删除」的标记（override.removedAt），删掉它的话

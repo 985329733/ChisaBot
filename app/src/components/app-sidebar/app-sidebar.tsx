@@ -74,6 +74,7 @@ import {
 } from "../bot-profile/attention";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { lazyDialog } from "@/components/ui/lazy-dialog";
+import { LazyBotThreadHistoryDialog } from "@/components/agents/bot-thread-history-lazy";
 
 // 每个机器人行都带这两个弹窗：用到才加载、打开过才挂载（DESIGN.md §41.3）。「电脑操作」以前把整个设备页拖进了左栏的包。
 const DeleteBotDialog = lazyDialog(() => import("@/components/agents/delete-bot-dialog").then((m) => m.DeleteBotDialog));
@@ -82,6 +83,7 @@ const BotComputerAccessDialog = lazyDialog(() =>
 );
 function preloadBotDialogs() {
   DeleteBotDialog.preload();
+  LazyBotThreadHistoryDialog.preload();
   BotComputerAccessDialog.preload();
 }
 import { Channel } from "./channel";
