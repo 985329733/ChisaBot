@@ -809,3 +809,8 @@
 
 
 **42.6 历史对话**：共用一条当前对话后，一台设备原来的那条（迁移时没被采用的、点「新对话」之前的）就看不到了，所以机器人 ⋯ 菜单最后一项是「历史对话」（只在正在打开的机器人对话页里出现）。小弹窗（宽 440）列出你和这个机器人最近 30 条有消息的对话：标题 = 对话名或第一条用户消息（压成一行、最多 60 字）、「N 条消息 · 3 分钟前」，当前那条蓝底 +「当前」标签；加载是三条骨架（只动 opacity）。点一条 = `PUT` 当前对话（所有设备一起换，和「新对话」同一条路），弹窗关闭。只切换，不删、不改名。弹窗按 §41.3 用到才加载（`bot-thread-history-lazy.ts`，⋯ 菜单打开时 preload）。接口 `GET /api/bot-threads/:agentId/history`（不含后台任务的 `worker-*` 隐藏对话和空对话；不是本地会话模式返回空列表）。
+### 41.4 首屏不带从不执行的库（构建时换成小桩）
+
+- `app/vite.config.ts` 的 `BUNDLE_STUBS`（`resolve.alias`）把三个「只被引用、从不执行」的包换成 `app/src/lib/bundle-stubs/` 里的小桩：`@copilotkit/a2ui-renderer`（A2UI 早被 json-render 取代，服务器 `a2ui: { enabled: false }`）、`@ag-ui/proto`（浏览器只收 SSE，从不解 protobuf）、`rehype-katex`（只有 CopilotKit 自带的旧 streamdown 引用；ChisaBot 的回复走自己的 streamdown，本来就不渲染公式）。
+- 效果（4× CPU 侧边预览，打开长对话）：加载的 JS 4.00→3.43 MB，宽屏到消息 2904→2584 ms。聊天、代码块、表格、json-render 卡片、思考过程、mermaid 代码块与换之前逐项一致（同一份假模型回复对比）。
+- 桩万一被调用会在控制台说明原因（A2UI）或直接报错（protobuf），不会悄悄吞掉。以后真要启用 A2UI / protobuf / 公式，先从 `BUNDLE_STUBS` 删掉对应条目。
