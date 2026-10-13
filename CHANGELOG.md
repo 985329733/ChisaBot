@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 修复：机器人聊天里 AI 正在输出时，画面有时会突然跳到上面更早的聊天记录再滑回来（会话超过 50 条消息时最明显）。现在在底部时整轮都贴着底部；自己往上翻看记录时不会被拽回去。只改服务器网页，PC / Android 客户端不用更新（它们加载的就是服务器上的网页）。见 DESIGN.md §35。
+
 ## 0.1.4（2026-10-13）
 
 - 机器人浏览器不再被 Cloudflare 当成机器人封掉：托管浏览器在 Linux 上（镜像自带 Xvfb）默认改为在虚拟显示器里跑有界面 Chromium，不再用 headless。实测同一台服务器上 headless 打开 grok.com 的登录页 accounts.x.ai、x.ai 显示「Sorry, you have been blocked」、chatgpt.com 卡在「Just a moment...」，改后都能正常打开。想保留旧行为可设 `COMPUTER_BROWSER_MODE=headless`。

@@ -10,6 +10,7 @@ import {
   type MessageMedia,
   MessageRichPreviews,
 } from "@/components/rich-previews/rich-previews";
+import { renderUnvirtualizedMessageList } from "./message-list";
 import { ZH_MESSAGE_VIEW } from "./reasoning-zh";
 
 /**
@@ -156,4 +157,6 @@ export const RICH_MESSAGE_VIEW = {
     markdownRenderer: RICH_MARKDOWN,
   },
   userMessage: RichUserMessage,
+  // 不虚拟化：长会话里流式回复时视口不再跳回更早的记录（message-list.tsx，DESIGN.md §35）。
+  children: renderUnvirtualizedMessageList,
 } as const;

@@ -237,7 +237,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
         {/*
          * Under the header rather than at the end of the transcript, which is where the missing answer
          * was going to be and where the channel draws its own version of this. The packaged chat owns
-         * that list and virtualises it, so reaching into it means replacing the whole message view and
+         * that list (not virtualised since DESIGN.md §35, still its own), so reaching into it means replacing the whole message view and
          * taking on its scrolling. The cost of putting the sentence here instead is that it is not
          * beside the gap it explains; what it buys is that it is always on screen, whatever the
          * transcript has been scrolled to, and that it survives the next release of the chat.
