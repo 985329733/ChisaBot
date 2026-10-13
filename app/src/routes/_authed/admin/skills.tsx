@@ -88,7 +88,7 @@ function RouteComponent() {
   return (
     <PageShell
       action={
-        <Button onClick={() => setWriting(true)} size="lg" type="button">
+        <Button onClick={() => setWriting(true)} type="button">
           <IconPlus />
           {"编写技能"}
         </Button>

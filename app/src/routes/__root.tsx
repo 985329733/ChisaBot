@@ -3,6 +3,7 @@ import {
   Navigate,
   Outlet,
 } from "@tanstack/react-router";
+import { MotionConfig } from "motion/react";
 import { useEffect } from "react";
 import { StartupFailure } from "@/components/startup-status";
 import { SkyBackground } from "@/components/sky-background";
@@ -128,6 +129,8 @@ function RootComponent() {
   useUnclaimedDropGuard();
   return (
     <div className="min-h-dvh w-full antialiased">
+      {/* 系统「减少动态效果」打开时，所有 motion 动画只留淡入淡出（DESIGN.md §34.5）。 */}
+      <MotionConfig reducedMotion="user">
       <ThemeProvider>
         <SkyBackground />
         <DesktopStrip />
@@ -139,6 +142,7 @@ function RootComponent() {
           <UpdateBanner />
         </TooltipProvider>
       </ThemeProvider>
+      </MotionConfig>
     </div>
   );
 }

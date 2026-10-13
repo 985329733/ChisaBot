@@ -69,7 +69,7 @@ function Entry({ entry }: { entry: ComputerActivity }) {
         <code className="min-w-0 break-all font-mono text-xs">
           {entry.subject}
         </code>
-        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground tabular-nums">
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
           {timeOf(entry.at)}
         </span>
       </div>

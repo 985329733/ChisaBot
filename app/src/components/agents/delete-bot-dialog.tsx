@@ -1,5 +1,5 @@
 import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
-import { MIN_PENDING_MS, useAsyncAction } from "@/components/ui/async-action";
+import { useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -110,7 +110,8 @@ export function DeleteBotDialog({
   const settling = removeAction.state !== "idle";
   const confirmDelete = async () => {
     if (!(await removeAction.run())) return;
-    await new Promise((resolve) => window.setTimeout(resolve, MIN_PENDING_MS + 650));
+    // ✓ 已删除 画完（约 300ms）就关，不再多停（DESIGN.md §34.6）。
+    await new Promise((resolve) => window.setTimeout(resolve, 450));
     onOpenChange(false);
     if (showsBot) {
       const fallbackBot = !isMain && mainBotId ? mainBotId : null;

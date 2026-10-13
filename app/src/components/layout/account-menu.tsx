@@ -11,7 +11,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, type RefObject, useRef, useState } from "react";
 import { PairPhoneDialog } from "@/components/devices/pair-phone";
 import { GlassAvatar } from "@/components/layout/glass-topbar";
 import { ProfileDialog } from "@/components/layout/profile-dialog";
@@ -43,7 +43,14 @@ import { cn } from "@/lib/utils";
  * 菜单只放「我」的事：个人资料 · 设置 · 审批 · 通知 ‖ 绑定手机 · 设备管理（DESIGN.md §33）‖ 管理后台（管理员）‖ 暗色外观 ‖ 退出登录。
  * 其余设置项（已连接账号、密码、模型、凭据…）在偏好设置 / 管理后台的左栏里，不在这里重复。
  */
-export function AccountMenu({ compact = false }: { compact?: boolean }) {
+export function AccountMenu({
+  compact = false,
+  anchorRef,
+}: {
+  compact?: boolean;
+  /** 展开时菜单贴着这张账号卡：左右边与卡片齐平、同宽（DESIGN.md §34.2）。 */
+  anchorRef?: RefObject<HTMLElement | null>;
+}) {
   const { data: user } = useQuery(currentUserQueryOptions());
   const approvals = useQuery(approvalInboxOptions());
   const { dark, setDark } = useTheme();
@@ -90,7 +97,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   // 只显示头像 + 名称 + 版本号；不显示邮箱和身份。
   const name = user?.name || user?.email || "";
   const sub = version;
-  const icon = "size-[18px] shrink-0 opacity-80";
+  const icon = "size-[18px] shrink-0";
 
   const trigger = compact ? (
     <button aria-label={"账号与设置"} className="acct-mini" type="button" />
@@ -131,18 +138,19 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
       )}
       <DropdownMenuContent
         align={compact ? "end" : "start"}
-        className="glass-pop acct-pop w-[264px] p-1.5"
+        anchor={compact ? undefined : anchorRef}
+        className={cn("glass-pop acct-pop", compact ? "w-[264px]" : "is-flush")}
         side={compact ? "right" : "top"}
         sideOffset={compact ? 12 : 8}
       >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center gap-3 px-2.5 pt-2 pb-2.5 font-normal">
-            <GlassAvatar ring={false} size={36} />
-            <span className="min-w-0">
-              <b className="block truncate font-medium text-foreground text-sm">{name}</b>
-              {version ? (
-                <span className="block truncate text-muted-foreground text-xs">{version}</span>
-              ) : null}
+          <DropdownMenuLabel className="acct-pop-head">
+            <span className="mi-lead">
+              <GlassAvatar ring={false} size={32} />
+            </span>
+            <span className="acct-text">
+              <span className="acct-name">{name}</span>
+              {version ? <span className="acct-sub">{version}</span> : null}
             </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
@@ -182,7 +190,9 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
         <DropdownMenuSeparator className="glass-sep" />
         <DropdownMenuGroup className="py-1">
           <DropdownMenuItem className="glass-mi" closeOnClick={false} onClick={() => setDark(!dark)}>
-            <IconMoon className={icon} />
+            <span className="mi-lead">
+              <IconMoon className={icon} />
+            </span>
             <span className="min-w-0 flex-1">{"暗色外观"}</span>
             <Switch
               aria-label={"暗色外观"}
@@ -228,7 +238,7 @@ function Row({
       onClick={onClick}
       variant={danger ? "destructive" : "default"}
     >
-      {icon}
+      <span className="mi-lead">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {hint ? <span className="glass-mi-hint">{hint}</span> : null}
     </DropdownMenuItem>
@@ -237,9 +247,10 @@ function Row({
 
 /** 左栏底部的账号卡（展开时）。 */
 export function AccountCard() {
+  const card = useRef<HTMLDivElement>(null);
   return (
-    <div className="glass-card acct-card">
-      <AccountMenu />
+    <div className="glass-card acct-card" ref={card}>
+      <AccountMenu anchorRef={card} />
     </div>
   );
 }

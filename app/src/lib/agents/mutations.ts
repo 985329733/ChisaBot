@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { channelKeys } from "@/lib/channels/queries";
 import { forgetStoredPanelBot } from "@/lib/panels/active-bot";
 import {
   type AgentProfile,
@@ -126,7 +127,10 @@ export async function forgetDeletedBot(
           (typeof part === "string" && part.includes(agentId)),
       ),
   });
-  await queryClient.invalidateQueries();
+  // 只刷新跟机器人列表 / 会话有关的数据，而且不等它回来（DESIGN.md §34.6）：以前这里让整个缓存全部重取，
+  // 删一个机器人会同时打出几十个请求、主线程忙一阵，看起来像「卡了一下」。
+  void queryClient.invalidateQueries({ queryKey: agentKeys.all });
+  void queryClient.invalidateQueries({ queryKey: channelKeys.all });
 }
 
 /**
