@@ -1088,6 +1088,7 @@ magpie.onChange(() => modelCatalog.invalidate());
  */
 const systemUpdate = createSystemUpdateService({
   dir: process.env.CHISABOT_UPDATER_DIR,
+  sourceDir: process.env.CHISABOT_SOURCE_DIR,
   running: readRunningBuild(),
 });
 const modelCatalogRefreshMinutes = (() => {

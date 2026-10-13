@@ -4,6 +4,13 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.zh
+      # start.sh 填：镜像记下来源提交（/api/version、管理后台 → 系统更新 据此显示当前版本和落后的提交）。
+      args:
+        CHISABOT_COMMIT: ${CHISABOT_COMMIT:-}
+        CHISABOT_VERSION: ${CHISABOT_VERSION:-0.0.0}
+        CHISABOT_BUILD: ${CHISABOT_BUILD:-dev}
+        CHISABOT_BUILT_AT: ${CHISABOT_BUILT_AT:-}
+        CHISABOT_IMAGE: ${CHISABOT_IMAGE:-local/chisabot:latest}
     container_name: openbot-zh
     restart: unless-stopped
     env_file: .env
@@ -13,6 +20,10 @@ services:
       - database:/var/lib/postgresql
       - workspace:/workspace
       - profiles:/profiles
+      # 管理后台 → 系统更新：和宿主机更新服务 chisabot-updater 共用的两个目录（deploy/install-updater.sh 安装；
+      # docs/online-update.md）。没装时这两个目录是空的，页面显示怎么安装。
+      - ${CHISABOT_UPDATER_HOME:-/opt/chisabot-updater}/spool/requests:/var/lib/chisabot-updater/requests
+      - ${CHISABOT_UPDATER_HOME:-/opt/chisabot-updater}/spool/state:/var/lib/chisabot-updater/state:ro
     networks:
       - default
       - magpie
@@ -35,6 +46,7 @@ services:
       MAGPIE_ADMIN_URL: ${MAGPIE_ADMIN_URL:-}
       MAGPIE_WEB_KEY_FILE: ${MAGPIE_WEB_KEY_FILE:-}
       MODEL_CATALOG_REFRESH_MINUTES: ${MODEL_CATALOG_REFRESH_MINUTES:-10}
+      CHISABOT_UPDATER_DIR: /var/lib/chisabot-updater
     logging:
       driver: json-file
       options:

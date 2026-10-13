@@ -17,6 +17,27 @@ export type BuildVersion = {
 };
 
 export const SYSTEM_UPDATE_ACTIONS = ["check", "update", "rollback"] as const;
+
+/**
+ * 页面要求的宿主机更新程序版本（deploy/updater/chisabot-updater.py 的 VERSION，state.json 的 updaterVersion）。
+ * 低于它就提示「更新程序是旧版本」和升级命令。两边一起改。
+ */
+export const SYSTEM_UPDATE_UPDATER_VERSION = 3;
+
+/** 宿主机报告的配置问题（只给代号；文字在页面上，`SYSTEM_UPDATE_WARNING_TEXT`）。不阻止更新。 */
+export const SYSTEM_UPDATE_WARNINGS = [
+  "health_url_missing",
+  "health_url_example",
+  "compose_missing",
+  "buildx_missing",
+] as const;
+export type SystemUpdateWarning = (typeof SYSTEM_UPDATE_WARNINGS)[number];
+
+/** 老部署 / 没装更新程序时，在服务器上运行一次的命令（仓库检出在 `sourceDir`，不知道时按 README 的 /opt/chisabot-src）。 */
+export function installUpdaterCommand(sourceDir?: string) {
+  const dir = sourceDir && /^\/[A-Za-z0-9._/-]{1,200}$/u.test(sourceDir) ? sourceDir : "/opt/chisabot-src";
+  return `cd ${dir} && git pull && sudo sh deploy/install-updater.sh`;
+}
 export type SystemUpdateAction = (typeof SYSTEM_UPDATE_ACTIONS)[number];
 
 export type SystemUpdateCommit = {
@@ -74,6 +95,14 @@ export type SystemUpdateOverview = {
   updaterOnline: boolean;
   /** 部署里根本没挂更新程序的目录。 */
   configured: boolean;
+  /** 宿主机更新程序报告的版本（state.json 的 updaterVersion）；从没写过状态时没有。 */
+  updaterVersion?: number;
+  /** 更新程序比页面要求的旧（SYSTEM_UPDATE_UPDATER_VERSION），需要在服务器上升级一次。 */
+  updaterOutdated: boolean;
+  /** 宿主机报告的配置问题。 */
+  warnings: SystemUpdateWarning[];
+  /** 宿主机上仓库检出的路径（容器环境变量 CHISABOT_SOURCE_DIR，deploy/start.sh 写进 .env），给升级命令用。 */
+  sourceDir?: string;
   updatedAt?: string;
   running: BuildVersion & { image?: string };
   current?: { image: string; commit?: string; deployedAt?: string };
@@ -277,6 +306,8 @@ export function projectSystemUpdateState(
   const base: SystemUpdateOverview = {
     updaterOnline: false,
     configured: true,
+    updaterOutdated: false,
+    warnings: [],
     running,
     behind: null,
     commits: [],
@@ -293,6 +324,18 @@ export function projectSystemUpdateState(
     base.updatedAt = updatedAt;
     base.updaterOnline = now - Date.parse(updatedAt) < 2 * 60_000;
   }
+  const version =
+    typeof raw.updaterVersion === "string" && /^[0-9]{1,4}$/u.test(raw.updaterVersion)
+      ? Number(raw.updaterVersion)
+      : typeof raw.updaterVersion === "number" && Number.isInteger(raw.updaterVersion)
+        ? raw.updaterVersion
+        : undefined;
+  if (version !== undefined) base.updaterVersion = version;
+  // 写过状态却没有版本号的是最早的更新程序，同样算旧。
+  base.updaterOutdated = !!updatedAt && (version ?? 0) < SYSTEM_UPDATE_UPDATER_VERSION;
+  base.warnings = Array.isArray(raw.warnings)
+    ? SYSTEM_UPDATE_WARNINGS.filter((code) => (raw.warnings as unknown[]).includes(code))
+    : [];
   if (record(raw.current)) {
     const image = safeImage(raw.current.image);
     if (image)

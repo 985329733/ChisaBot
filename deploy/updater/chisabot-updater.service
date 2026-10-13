@@ -5,7 +5,8 @@ Requires=docker.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python2 /opt/chisabot-updater/chisabot-updater.py
+# install.sh 换成本机的解释器：优先 python3，没有时 python2。
+ExecStart=/usr/bin/python3 /opt/chisabot-updater/chisabot-updater.py
 Restart=always
 RestartSec=5
 # An update script survives a restart of this service; the new process picks its log up again.

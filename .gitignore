@@ -62,3 +62,9 @@ venv/
 /deploy/**/*.pem
 /deploy/**/*.sqlite*
 /deploy/public/nginx.generated.conf
+# Written next to deploy/compose.yaml by the host updater (deploy/updater/update.sh) and deploy scripts.
+/deploy/.deploy.lock
+/deploy/.image.before-*
+/deploy/rollback-to-*.sh
+/deploy/compose.yaml.before-*
+/deploy/compose.yaml.rolledback-*

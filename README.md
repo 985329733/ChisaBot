@@ -51,7 +51,7 @@ bun run typecheck
 | 公网网关（容器 `openbot-public-gateway`，nginx，host 网络） | `CHISABOT_HTTPS_PORT`（默认 8443）TLS | ChisaBot 入口 `https://<域名>:<端口>`（端口为 443 时就是 `https://<域名>`） |
 | 同一网关的 Magpie 管理入口 | `CHISABOT_MAGPIE_PORT`（默认 2053）TLS | 备用入口；日常用「管理后台 → 模型平台 Magpie」（同源 `/magpie-admin/`） |
 | Magpie 模型网关（Compose 项目 `magpie`，可选） | `127.0.0.1:3425`（API）、`127.0.0.1:3430`（管理） | 应用经 Docker 网络 `http://magpie:3425/v1` 访问 |
-| 宿主机更新服务 `chisabot-updater`（systemd，python2） | 无端口 | 读 `/opt/chisabot-updater/spool/requests` 请求文件 |
+| 宿主机更新服务 `chisabot-updater`（systemd，python3） | 无端口 | 读 `/opt/chisabot-updater/spool/requests` 请求文件 |
 | 客户端（PC / Android）更新源 | 无（可选任意静态 HTTPS 目录） | 默认用本仓库的 GitHub Releases；自建见第 8 步 |
 
 两个公网端口都可以改。**用 Cloudflare 代理（橙色云）**时只能选它支持的 HTTPS 端口：443、2053、2083、2087、2096、8443；
@@ -67,12 +67,12 @@ bun run typecheck
   （`fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`），把 `deploy/updater/config.env`
   的 `BUILD_MEMORY` 调小，必要时在别的机器上构建镜像后 `docker save | ssh <主机> docker load`；不装 Magpie 也能省几百 MB。
 - 磁盘剩余 ≥ 2.5 GB（更新脚本会检查）。
-- Docker Engine + Docker Compose v2、git、curl、python2（只有第 7 步的 `chisabot-updater` 用）、Bun 1.3.14（构建前端）。
+- Docker Engine + Docker Compose v2（+ buildx 插件）、git、curl、python3（3.6+，第 7 步的 `chisabot-updater` 用；没有 python3 的老系统也能用 python2.7）、systemd、Bun 1.3.14（构建前端）。
 - 域名（A / AAAA 记录指向服务器）与证书：默认在 `/etc/letsencrypt/live/<域名>/{fullchain.pem,privkey.pem}`；
   别的位置就在 `deploy/.env` 设 `CHISABOT_CERT_DIRECTORY`（挂成容器里的 `/etc/letsencrypt`）和 `CHISABOT_CERT_NAME`。
 
 ```sh
-docker --version && docker compose version && git --version && python2 --version && bun --version
+docker --version && docker compose version && docker buildx version && git --version && python3 --version && bun --version
 ```
 
 ### 2. 获取代码
@@ -108,7 +108,7 @@ bun -e 'let t=await Bun.file("deploy/.env").text();for(const n of ["KEY_ENCRYPTI
 | `SL_ENABLED`、`COPILOTKIT_TELEMETRY_DISABLED`、`DO_NOT_TRACK` | 否 | 关闭上游遥测 |
 | `DEPLOYMENT_ID`、`VITE_MAGPIE_MANAGEMENT_URL` | 否 | 部署标识；后者已不用于导航 |
 
-Compose 里固定写好的：`EMBEDDED_POSTGRES=on`（数据库在容器内，卷 `database`）、`OPENBOT_SINGLE_USER=true`（**只因为前面有登录网关才安全**）、`TENANT_PACKAGE_DIR=../examples/zh-CN`；启用在线更新后再加 `CHISABOT_UPDATER_DIR`（见第 7 步）。
+Compose 里固定写好的：`EMBEDDED_POSTGRES=on`（数据库在容器内，卷 `database`）、`OPENBOT_SINGLE_USER=true`（**只因为前面有登录网关才安全**）、`TENANT_PACKAGE_DIR=../examples/zh-CN`、在线更新的两个挂载和 `CHISABOT_UPDATER_DIR`（见第 7 步）。`CHISABOT_SOURCE_DIR`（仓库路径）由 `start.sh` 自动写进 `.env`。
 其他私密文件：`deploy/private/magpie.env`（`MAGPIE_WEB_KEY`）、`deploy/public/auth/config.json`、`deploy/public/magpie-private.conf`。都被 Git 忽略，不要提交。
 
 ### 4. 构建并启动应用
@@ -116,7 +116,7 @@ Compose 里固定写好的：`EMBEDDED_POSTGRES=on`（数据库在容器内，�
 ```sh
 cd /opt/chisabot-src
 TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build     # start.sh 要求 app/dist 已存在
-sh deploy/start.sh                                                # 建 Magpie 网络，build + up --wait openbot
+sudo sh deploy/start.sh                                           # 装在线更新服务（第 7 步）、建 Magpie 网络，build + up --wait openbot
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/health   # 期望 200
 curl -s http://127.0.0.1:3001/api/version                               # {version, commit, buildId, builtAt}
 ```
@@ -164,17 +164,21 @@ sh /opt/chisabot-updater/smoke.sh [机器人 id]     # 失败时退出码非 0
 
 ### 7. 在线更新服务（管理后台 → 系统更新）
 
-在宿主机安装一次（详见 [`docs/online-update.md`](docs/online-update.md)）：
+**默认已经装好**：第 4 步的 `sh deploy/start.sh`（用 root 运行）会顺带运行 `deploy/install-updater.sh`：
+
+- 按这份部署生成 `/opt/chisabot-updater/config.env`：`COMPOSE_DIR` = 仓库的 `deploy/`，`PUBLIC_HEALTH_URL` = `https://<CHISABOT_DOMAIN>:<CHISABOT_HTTPS_PORT>/login`（`deploy/.env` 里还没填域名时留空 = 健康检查跳过公网登录页，填好后重跑一次自动补上），`GITHUB_REPO` 取 `git remote`，`FULL_BUILD_MEMORY` 按本机内存；
+- 从 GitHub 拉 `main` 到 `/opt/chisabot-updater/mirror.git`，安装并启动 systemd 服务 `chisabot-updater`（python3，没有时退回 python2.7）；
+- `deploy/compose.yaml` 自带两个挂载和 `CHISABOT_UPDATER_DIR`，不用手改。
+
+以后每次一键更新成功，更新服务会用新提交里的 `deploy/updater/` 自动升级自己；可以反复运行 `sudo sh deploy/install-updater.sh`（幂等）。
 
 ```sh
-cd /opt/chisabot-src/deploy/updater
-docker buildx version                                  # 完整构建要用 buildx 插件
-vi config.env        # COMPOSE_DIR、PUBLIC_HEALTH_URL=https://<域名>:<端口>/login、GITHUB_REPO（你的 fork）、FULL_BUILD_MEMORY（小内存机器调小并加 swap）等
-bash install.sh                                        # 建 /opt/chisabot-updater，从 GitHub 拉 main，安装并启动 systemd 服务 chisabot-updater
-systemctl is-active chisabot-updater                   # active
+docker buildx version                    # 完整构建要用 buildx 插件（Debian/Ubuntu：apt install docker-buildx-plugin）
+systemctl is-active chisabot-updater     # active
+sh deploy/install-updater.sh --check     # 只检查：已是最新 / 会做什么（不改任何东西）
 ```
 
-再给 compose 的 `openbot` 服务加挂载与变量，然后 `docker compose up -d --wait`：
+不是 root / 没有 systemd 时 `start.sh` 只提示、照常启动，系统更新页会显示安装命令。自己写的 compose（不是仓库的 `deploy/compose.yaml`）要手动给 `openbot` 服务加：
 
 ```yaml
     volumes:
@@ -183,6 +187,16 @@ systemctl is-active chisabot-updater                   # active
     environment:
       CHISABOT_UPDATER_DIR: /var/lib/chisabot-updater
 ```
+
+#### 老部署怎么升级到可一键更新
+
+2026-10-13 之前部署的、或当时跳过了这一步的：系统更新页是空的或显示「未安装」，**收不到任何更新**。在服务器上运行一次：
+
+```sh
+cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh
+```
+
+它安装（或升级）更新服务，把 `PUBLIC_HEALTH_URL` 从示例域名改成 `deploy/.env` 里的真实域名，并用**现在正在运行的镜像**重建一次容器挂上更新目录（不重新构建，断开十几秒）。然后打开 管理后台 → 系统更新 →「检查更新」→「一键完整更新」：第一次是完整构建（老镜像没有记录来源提交，也还没有快速更新的底座），之后都能一键更新。
 
 新提交怎么到服务器：
 
@@ -268,6 +282,8 @@ sh /opt/chisabot-updater/smoke.sh                                               
 - **忘了先构建前端**：`start.sh` 直接报 `Build the frontend first`。
 - **镜像层数**：反复在旧镜像上叠层会撞到 127 层上限；一键更新基于压平的底座只加固定层，手动发布也应在压平底座上构建。
 - **改了依赖却点一键更新**：会停在「需要完整构建」，这是预期行为，不是故障。
+- **系统更新页是空的 / 显示「未安装」/「更新程序是旧版本」**：老部署，运行一次 `cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh`（第 7 步「老部署怎么升级」）。
+- **一键更新总是「已自动回滚」、日志里公网检查不是 200**：`/opt/chisabot-updater/config.env` 的 `PUBLIC_HEALTH_URL` 不对（老版本默认是示例域名 `chisabot.example.com`）。填好 `deploy/.env` 的域名后 `sudo sh deploy/install-updater.sh` 会自动改。
 - **系统更新页看不到新提交**：仓库私有且宿主机没有令牌时，必须同步 `mirror.git`（第 7 步）。
 - **小内存机器构建 OOM**：加 swap，调小 `BUILD_MEMORY`；构建期间更新脚本会暂停 `PROTO_CONTAINERS` 里列出的容器腾内存；客户端安装包交给 GitHub Actions 打，不要在服务器上打。
 - **客户端版本号没变**：客户端认为没有新版本；`latest.yml` / `latest.json` 先于安装包上线：客户端会下载失败。

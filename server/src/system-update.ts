@@ -53,6 +53,8 @@ const MAX_STATE_BYTES = 512 * 1024;
 
 export function createSystemUpdateService(options: {
   dir?: string;
+  /** 宿主机上仓库检出的路径（CHISABOT_SOURCE_DIR），只用来在页面上拼升级命令。 */
+  sourceDir?: string;
   running: RunningBuild;
   now?: () => number;
 }): SystemUpdateService {
@@ -93,14 +95,18 @@ export function createSystemUpdateService(options: {
     return out;
   }
 
+  const sourceDir = options.sourceDir?.trim();
+  const source = sourceDir && /^\/[A-Za-z0-9._/-]{1,200}$/u.test(sourceDir) ? { sourceDir } : {};
+
   function overview(): SystemUpdateOverview {
     if (!configured) {
       return {
         ...projectSystemUpdateState(null, options.running, [], now()),
         configured: false,
+        ...source,
       };
     }
-    return projectSystemUpdateState(readState(), options.running, pending(), now());
+    return { ...projectSystemUpdateState(readState(), options.running, pending(), now()), ...source };
   }
 
   return {
@@ -131,8 +137,13 @@ export function createSystemUpdateService(options: {
         ...(action === "update" && (options?.full || state.depsChanged) ? { mode: "full" } : {}),
       };
       const tmp = path.join(requestsDir, `.${id}.tmp`);
-      writeFileSync(tmp, JSON.stringify(body), { mode: 0o600 });
-      renameSync(tmp, path.join(requestsDir, `${id}.json`));
+      try {
+        writeFileSync(tmp, JSON.stringify(body), { mode: 0o600 });
+        renameSync(tmp, path.join(requestsDir, `${id}.json`));
+      } catch {
+        // 目录是 Docker 自己建的（root 所有）= 宿主机更新服务没装：页面上有安装命令。
+        return { error: "无法写入更新请求：宿主机更新服务没有安装好。", status: 503 };
+      }
       return { id };
     },
     async pollFinishedJobs(record) {
