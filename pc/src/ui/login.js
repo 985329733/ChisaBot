@@ -258,7 +258,8 @@
   const notice = new URLSearchParams(location.search).get("notice") || state.notice || "";
   showNotice(notice);
   Host.onNotice(showNotice);
-  if (notice !== "switch") (!server.value ? server : !user.value ? user : pass).focus();
+  // 有扫码绑定（Android）时不自动聚焦输入框：主操作是扫码，不要一打开就弹出键盘。
+  if (notice !== "switch" && !Host.scan) (!server.value ? server : !user.value ? user : pass).focus();
 
   // ---------- 扫码绑定（Android）----------
   if (Host.scan) {

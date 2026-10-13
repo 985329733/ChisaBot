@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AddDeviceCard, AddPhoneCard, ApprovalsCard, ConnectionCard, DeviceRow, NoDevices } from "@/components/devices/devices";
 import { PairPhoneButton } from "@/components/devices/pair-phone";
+import { isMobilePlatform } from "../../../../../../shared/devices";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, ErrorCard } from "@/components/ui/skyglass";
@@ -57,7 +58,8 @@ function DevicesPage() {
       ) : (
         <>
           <ApprovalsCard approvals={list.data.approvals} />
-          <ConnectionCard devices={active} local={local} onLocal={setLocal} />
+          {/* 「机器人能用的电脑」只算电脑：扫码绑定的手机只用来登录聊天（DESIGN.md §33）。 */}
+          <ConnectionCard devices={active.filter((device) => !isMobilePlatform(device.platform))} local={local} onLocal={setLocal} />
           <PageSection
             description={active.length ? `共 ${active.length} 台，${online ? `${online} 台在线` : "都不在线"}。点一行查看详情、改能力和看操作记录；右侧 ⋯ 可以重命名、撤销或删除。` : undefined}
             title="设备列表"

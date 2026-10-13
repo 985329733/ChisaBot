@@ -239,3 +239,26 @@ describe("phone device sessions (QR pairing, DESIGN.md §33)", () => {
     service.close();
   });
 });
+
+describe("phone sessions against a real HTTP app", () => {
+  test("the default app client reaches the app over HTTP (not the gateway's own handler)", async () => {
+    const appServer = Bun.serve({
+      hostname: "127.0.0.1", port: 0,
+      fetch: (request) => {
+        const url = new URL(request.url);
+        if (url.pathname === "/api/devices/agent/session" && request.headers.get("X-Device-Token") === `cbd_${"c".repeat(43)}`) return Response.json({ device: { id: "dev_http", name: "HTTP 手机" } });
+        if (url.pathname === "/api/devices/agent/state/dev_http") return Response.json({ active: false });
+        return Response.json({ error: "no" }, { status: 401 });
+      },
+    });
+    let time = 1_000_000;
+    const service = createAuthApp({ databasePath: ":memory:", username: "admin", passwordHash, publicOrigin: origin, now: () => time, appUrl: `http://127.0.0.1:${appServer.port}` });
+    const response = await service.fetch(new Request(`${origin}/auth/device-session`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "X-Device-Token": `cbd_${"c".repeat(43)}` }, body: "{}" }));
+    expect(response.status).toBe(200);
+    const session = cookie(response);
+    time += 31_000;
+    expect((await service.fetch(request("/_internal/check", undefined, session))).status).toBe(401);
+    service.close();
+    appServer.stop(true);
+  });
+});

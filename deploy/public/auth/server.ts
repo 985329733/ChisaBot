@@ -91,7 +91,8 @@ export function createAuthApp(config: AuthConfig) {
   if (!config.username || !config.passwordHash.startsWith("$argon2id$") || new URL(config.publicOrigin).protocol !== "https:") throw new Error("Invalid authentication configuration");
   const now = config.now || Date.now;
   const appUrl = (config.appUrl || "http://127.0.0.1:3001").replace(/\/+$/, "");
-  const appFetch = config.appFetch || ((input: string, init?: RequestInit) => fetch(input, init));
+  // globalThis.fetch：下面的请求处理函数也叫 fetch，直接写 fetch 会调用到它自己。
+  const appFetch = config.appFetch || ((input: string, init?: RequestInit) => globalThis.fetch(input, init));
   const credentialKey = digest(config.username + "\0" + config.passwordHash);
   const db = new Database(config.databasePath, { create: true, strict: true });
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
