@@ -33,10 +33,12 @@ const {
   Notification,
   nativeTheme,
   net,
+  powerMonitor,
 } = require("electron");
 const { pathToFileURL, fileURLToPath } = require("node:url");
 const { createConfig } = require("./config");
 const { createNodeAgent } = require("./agent/core");
+const { parseProxyList, describeProxy, createProxyAgent, createAgentFetch } = require("./agent/proxy");
 const { createOps } = require("./agent/ops");
 const auth = require("./agent/auth");
 const { ensureEnrolled } = require("./agent/enrollment");
@@ -162,6 +164,28 @@ function sessionExpired() {
   openLogin("expired");
 }
 
+// ---------- 主进程网络走系统代理（agent/proxy.js） ----------
+// 聊天窗口（Chromium）自动用系统代理；节点 WebSocket 和登记请求在 Node 里，以前直连，直连不通时窗口能聊天、
+// 设备却一直离线。这里问 Chromium 对这个地址用什么代理，再让 Node 走同一条路。DIRECT 时行为和以前一样。
+const proxyAgents = new Map();
+let proxyRoute = "";
+async function proxyAgentFor(url) {
+  let answer = "DIRECT";
+  try {
+    answer = await session.fromPartition(PARTITION).resolveProxy(String(url));
+  } catch {}
+  const secure = /^(https|wss):/i.test(String(url));
+  const key = `${secure ? "s" : "p"}|${answer}`;
+  if (!proxyAgents.has(key)) {
+    const list = parseProxyList(answer);
+    proxyAgents.set(key, createProxyAgent(list, { secure, onRoute: (proxy) => (proxyRoute = describeProxy(proxy)) }));
+  }
+  const agent = proxyAgents.get(key);
+  if (!agent) proxyRoute = "直连";
+  return agent;
+}
+const netFetch = createAgentFetch((url) => proxyAgentFor(url.toString()));
+
 async function cookieHeaderFor(origin) {
   const cookies = await session.fromPartition(PARTITION).cookies.get({ url: `${origin}/` });
   return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
@@ -172,7 +196,7 @@ async function sessionStatus() {
   const origin = serverOrigin();
   if (!origin) return "login";
   try {
-    const result = await auth.probe({ serverUrl: origin, cookieHeader: await cookieHeaderFor(origin), timeoutMs: 6000 });
+    const result = await auth.probe({ fetchImpl: netFetch, serverUrl: origin, cookieHeader: await cookieHeaderFor(origin), timeoutMs: 6000 });
     if (result.gateway) return result.authenticated ? "ok" : "login";
     return "ok";
   } catch {
@@ -286,6 +310,8 @@ function openChat(pathname) {
     if (isServerUrl(url)) {
       chatOffline = false;
       clearInterval(chatRetryTimer);
+      // 网页刚从服务器加载成功 = 网络和服务器都通：节点如果还在退避等待，马上重连（服务器重启 / 更新之后尤其如此）。
+      agent?.reconnectNow();
     }
   });
   win.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
@@ -377,8 +403,11 @@ function statusText() {
       return "正在连接…";
     case "revoked":
       return agentDetail === "设备令牌无效" ? "设备令牌无效，请重新登记这台电脑" : "已被撤销，请重新登记这台电脑";
-    default:
-      return "离线（自动重连中）";
+    default: {
+      // 把真实原因写出来（以前一律「离线（自动重连中）」，看不出是被拦、超时还是代理问题）。
+      const why = agent?.lastError || agentDetail;
+      return why ? `离线（自动重连中）：${String(why).slice(0, 120)}` : "离线（自动重连中）";
+    }
   }
 }
 
@@ -475,8 +504,8 @@ function repairDevice({ force = false, manual = false } = {}) {
     force,
     sessionStatus,
     cookieHeader: () => cookieHeaderFor(serverOrigin()),
-    enroll: (input) => auth.enroll(input),
-    checkToken: (input) => auth.checkToken(input),
+    enroll: (input) => auth.enroll({ ...input, fetchImpl: netFetch }),
+    checkToken: (input) => auth.checkToken({ ...input, fetchImpl: netFetch }),
     info: { ...clientInfo(), name: config.get().deviceName || os.hostname() },
   })
     .then((result) => {
@@ -530,6 +559,7 @@ function startAgent() {
     getToken: () => config.getToken(),
     ops,
     clientInfo: clientInfo(),
+    getAgent: (url) => proxyAgentFor(url),
     approve: (request) => askApproval(request),
     local: () => ({ paused: config.get().localPaused, forceLocalApproval: config.get().forceLocalApproval }),
   });
@@ -823,6 +853,8 @@ function publicState() {
     status: statusKind(),
     statusText: statusText(),
     agentState: agent?.state ?? "offline",
+    /** 节点这次连接走的路线（直连 / HTTP 代理 127.0.0.1:7890 …），排查「窗口能用、设备离线」用。 */
+    networkRoute: proxyRoute,
     device: agent?.device ?? null,
     appearance: local.appearance,
     local: { autoStart: local.autoStart, forceLocalApproval: local.forceLocalApproval, localPaused: local.localPaused, startHidden: local.startHidden },
@@ -840,6 +872,7 @@ function webLocalState() {
     deviceId: local.deviceId,
     agentState: agent?.state ?? "offline",
     statusText: statusText(),
+    networkRoute: proxyRoute,
     /** 本机有没有设备令牌；false = 已登录但没登记（网页设备页显示「登记这台电脑」）。 */
     enrolled: !!config.getToken(),
     /** 需要用户点「重新登记这台电脑」（没登记 / 令牌无效 / 被撤销）。 */
@@ -957,7 +990,7 @@ async function dropDevice(serverUrl) {
   const token = config.getToken();
   agent?.stop();
   agent = null;
-  if (token && serverUrl) await auth.unenroll({ serverUrl, token }).catch(() => false);
+  if (token && serverUrl) await auth.unenroll({ fetchImpl: netFetch, serverUrl, token }).catch(() => false);
   config.setToken(null);
   config.set({ deviceId: "", deviceName: "", localPaused: false });
 }
@@ -967,7 +1000,7 @@ async function logout() {
   const local = config.get();
   if (local.serverUrl) {
     const origin = serverOrigin();
-    await auth.logoutSession({ serverUrl: origin, cookieHeader: await cookieHeaderFor(origin).catch(() => "") }).catch(() => false);
+    await auth.logoutSession({ fetchImpl: netFetch, serverUrl: origin, cookieHeader: await cookieHeaderFor(origin).catch(() => "") }).catch(() => false);
   }
   await dropDevice(local.serverUrl);
   config.appendAudit({ at: new Date().toISOString(), actor: "本机", operation: "logout", outcome: "succeeded", summary: "退出登录（会话和设备令牌已作废）" });
@@ -997,7 +1030,7 @@ async function submitLogin(input) {
   const serverUrl = auth.normalizeServerUrl(input.serverUrl);
   const username = String(input.username || "").trim();
   const remember = input.remember === true;
-  const sessionInfo = await auth.login({ serverUrl, username, password: String(input.password || ""), remember });
+  const sessionInfo = await auth.login({ fetchImpl: netFetch, serverUrl, username, password: String(input.password || ""), remember });
   const prev = config.get();
   const ses = session.fromPartition(PARTITION);
   if (prev.serverUrl && prev.serverUrl !== serverUrl) {
@@ -1014,13 +1047,14 @@ async function submitLogin(input) {
   let warning = "";
   const token = config.getToken();
   if (token) {
-    const check = await auth.checkToken({ serverUrl, token }).catch(() => ({ ok: false }));
+    const check = await auth.checkToken({ fetchImpl: netFetch, serverUrl, token }).catch(() => ({ ok: false }));
     if (check.ok) device = check.device;
     else if (check.revoked || check.invalid) config.setToken(null);
   }
   if (!config.getToken()) {
     try {
       const result = await auth.enroll({
+        fetchImpl: netFetch,
         serverUrl,
         cookieHeader: sessionInfo.cookieHeader,
         info: { ...clientInfo(), name: config.get().deviceName || os.hostname() },
@@ -1084,7 +1118,7 @@ function registerIpc() {
     }
   };
   handleLocal("login:probe", tagged(async ({ serverUrl }) => {
-    const result = await auth.probe({ serverUrl });
+    const result = await auth.probe({ fetchImpl: netFetch, serverUrl });
     return { origin: result.origin, gateway: result.gateway };
   }));
   handleLocal("login:submit", tagged((input) => submitLogin(input)));
@@ -1179,6 +1213,16 @@ function registerIpc() {
     const result = await repairDevice({ force: true, manual: true });
     return { status: result.status, message: result.message, state: webLocalState() };
   });
+  // 设备页「重新连接」：没登记就补登记，否则跳过退避立刻重连。
+  handleWeb("pc:reconnect", async () => {
+    if (needsEnroll() && agent?.state !== "revoked") {
+      const result = await repairDevice({ manual: false });
+      return { status: result.status, message: result.message, state: webLocalState() };
+    }
+    if (!agent) startAgent();
+    else agent.reconnectNow();
+    return { status: "reconnecting", message: "正在重新连接…", state: webLocalState() };
+  });
   handleWeb("pc:check-update", async () => (updater ? updater.check() : { supported: false, status: "idle" }));
   // 网页只能把「新版本已下载」的本机窗口叫出来；立即重启要在那个窗口里由本人点。
   handleWeb("pc:install-update", () => openUpdateWindow());
@@ -1248,6 +1292,9 @@ function refreshShellIfChanged() {
 }
 
 app.whenReady().then(() => {
+  // 休眠唤醒 / 解锁后网络往往刚恢复，旧连接可能已经半死：立刻重连，不等退避和看门狗。
+  powerMonitor.on("resume", () => agent?.reconnectNow());
+  powerMonitor.on("unlock-screen", () => agent?.reconnectNow());
   config = createConfig({ dir: app.getPath("userData"), safeStorage });
   const appearance = config.get().appearance || {};
   nativeTheme.themeSource = typeof appearance.dark === "boolean" ? (appearance.dark ? "dark" : "light") : "system";
