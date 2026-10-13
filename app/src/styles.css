@@ -4398,7 +4398,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 /* 2026-10-13「计算机3个字完犊子了」：标签固定 74px，图标+「计算机」+琥珀点超宽，字被挤成「计算 / 机」两行。
    标签文字永不换行；「需要你」圆点浮在标签右上角，不占宽度（DESIGN.md §23）。 */
 .rail-tabs .rail-tabs-item { white-space: nowrap; }
-.rail-tabs .rail-tabs-dot { position: absolute; top: 4px; right: 6px; }
+.rail-tabs .rail-tabs-dot { position: absolute; top: 4px; left: 19px; } /* 角标：压在显示器图标右上角，不碰文字 */
 .rail-pane[data-active="true"] { animation: rail-pane-in var(--dur-2) var(--ease-out); }
 @keyframes rail-pane-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .computer-rail { padding: 0 2px; }

@@ -201,7 +201,7 @@ export function createLivePanelService(deps: {
         const updated = after.refreshedAt && after.refreshedAt.getTime() >= startedAt;
         if (!updated && takeHumanControlBlock(id, startedAt)) {
           // 不是面板坏了：有人接管着计算机，命令被拒。写清楚、不算失败，5 分钟后再试（control-blocks.ts）。
-          await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000);
+          await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000, row.failures);
           log({ type: "live-panel-refresh", id, ok: false, reason: "human-has-control", ms: Date.now() - startedAt });
           return;
         }
@@ -211,10 +211,10 @@ export function createLivePanelService(deps: {
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         if (takeHumanControlBlock(id, startedAt) || /A person has control|Take a fresh browser snapshot/.test(reason)) {
-          await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000).catch(() => {});
+          await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000, row.failures).catch(() => {});
         } else if (controller.signal.aborted && String(controller.signal.reason?.message ?? controller.signal.reason) === "服务器重启") {
           // 部署 / 重启打断的刷新不算失败，重启后 2 分钟内重来。
-          await store.defer(ownerUserId, id, "刷新被服务器重启打断，马上会重新刷新。", 2 * 60_000).catch(() => {});
+          await store.defer(ownerUserId, id, "刷新被服务器重启打断，马上会重新刷新。", 2 * 60_000, row.failures).catch(() => {});
         } else {
           await store.fail(ownerUserId, id, `刷新失败：${reason.slice(0, 200)}`).catch(() => {});
         }

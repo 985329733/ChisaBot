@@ -145,13 +145,15 @@ export function createLivePanelStore(db: Database) {
      * 这次没刷成，但不是面板的错（有人接管着计算机、服务器重启）：卡片写明原因，保留旧数据，
      * 不计失败次数、不退避，几分钟后再试。
      */
-    async defer(owner: string, id: string, reason: string, retryMs: number) {
+    async defer(owner: string, id: string, reason: string, retryMs: number, failures?: number) {
       const current = await get(owner, id);
       await db
         .update(livePanels)
         .set({
           status: current.spec ? "ready" : "failed",
           error: reason.slice(0, 300),
+          // 这一轮里机器人可能已经 panel_fail 过（会 +1），恢复成刷新前的次数。
+          ...(failures !== undefined ? { failures } : {}),
           leaseUntil: null,
           nextRefreshAt: new Date(Date.now() + retryMs),
           updatedAt: new Date(),
