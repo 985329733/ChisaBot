@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.3（2026-10-13）
+
 - ChisaBot PC：更新换了图标后，桌面 / 开始菜单 / 任务栏还显示旧图标的问题修好了。PC 更新一直是下载完整安装包，但以「覆盖更新」模式运行时会保留旧快捷方式、不刷新 Windows 图标缓存。现在：每个安装包装完都会重写快捷方式并刷新图标缓存；新版本第一次启动再兜底一次（包括任务栏固定的图标）；`latest.yml` 新增 `chisabotShell`（外壳指纹：图标、安装脚本、Electron 版本等），和本机不同时弹「此更新需要重新安装，以更新图标/组件」，点「重新安装」后卸载旧版再全新安装（数据保留）。已装 0.1.2 的电脑在下次更新时自动换上新图标，不用手动重装。发布者：打包前 `npm run fingerprint`（CI 已自动），见 `docs/online-update.md` §2.1。
 
 ## 0.1.2（2026-10-13）
