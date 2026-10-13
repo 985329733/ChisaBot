@@ -12,9 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useRef, useState } from "react";
-import { PairPhoneDialog } from "@/components/devices/pair-phone";
 import { GlassAvatar } from "@/components/layout/glass-topbar";
-import { ProfileDialog } from "@/components/layout/profile-dialog";
 import { useTheme } from "@/components/theme-provider";
 import {
   DropdownMenu,
@@ -25,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { lazyDialog } from "@/components/ui/lazy-dialog";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,6 +34,14 @@ import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { PROTO_PREVIEW } from "@/lib/proto-preview";
 import { fetchServedVersion } from "@/lib/version";
 import { cn } from "@/lib/utils";
+
+// 用到才加载、打开过才挂载（DESIGN.md §41.3）。
+const PairPhoneDialog = lazyDialog(() => import("@/components/devices/pair-phone").then((m) => m.PairPhoneDialog));
+const ProfileDialog = lazyDialog(() => import("@/components/layout/profile-dialog").then((m) => m.ProfileDialog));
+function preloadAccountDialogs() {
+  PairPhoneDialog.preload();
+  ProfileDialog.preload();
+}
 
 /**
  * 账号（DESIGN-v4）：左栏最底下一张小玻璃卡 —— 头像 + 名字 + 版本号，点开账号菜单（向上弹出）。
@@ -125,7 +132,13 @@ export function AccountMenu({
 
   return (
     <>
-    <DropdownMenu onOpenChange={setOpen} open={open}>
+    <DropdownMenu
+      onOpenChange={(next) => {
+        if (next) preloadAccountDialogs();
+        setOpen(next);
+      }}
+      open={open}
+    >
       {compact ? (
         <Tooltip>
           <TooltipTrigger render={<DropdownMenuTrigger render={trigger} />}>{triggerBody}</TooltipTrigger>

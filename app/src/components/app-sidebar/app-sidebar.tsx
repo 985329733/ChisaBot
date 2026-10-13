@@ -21,7 +21,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { PresenceItem, PresenceList } from "@/components/ui/presence";
 import { openTriggerByLabel, snapAnchor } from "@/components/ui/snap-anchor";
 import type * as React from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
 import { SidebarSearchField } from "@/components/layout/sidebar-search-field";
 import {
@@ -45,8 +45,6 @@ import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { ChannelAvatar } from "@/components/channels/avatar";
-import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
-import { BotComputerAccessDialog } from "@/components/devices/bot-computer-access";
 import { showPanels } from "@/lib/panels/rail-open";
 import { BotChatMenuItems, BotRowComputerChip } from "@/components/agents/bot-chat-actions";
 import { useBotChat, useCurrentBotChat } from "@/lib/agents/bot-chat-context";
@@ -75,6 +73,17 @@ import {
   useAttentionNotifications,
 } from "../bot-profile/attention";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
+import { lazyDialog } from "@/components/ui/lazy-dialog";
+
+// 每个机器人行都带这两个弹窗：用到才加载、打开过才挂载（DESIGN.md §41.3）。「电脑操作」以前把整个设备页拖进了左栏的包。
+const DeleteBotDialog = lazyDialog(() => import("@/components/agents/delete-bot-dialog").then((m) => m.DeleteBotDialog));
+const BotComputerAccessDialog = lazyDialog(() =>
+  import("@/components/devices/bot-computer-access").then((m) => m.BotComputerAccessDialog),
+);
+function preloadBotDialogs() {
+  DeleteBotDialog.preload();
+  BotComputerAccessDialog.preload();
+}
 import { Channel } from "./channel";
 import {
   Tooltip,
@@ -249,6 +258,9 @@ function BotRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [computerOpen, setComputerOpen] = useState(false);
+  useEffect(() => {
+    if (menuOpen) preloadBotDialogs();
+  }, [menuOpen]);
   const resume = useMutation(setBotPausedMutationOptions(queryClient));
   const waiting = attention ? needsInput(attention) : 0;
   const unread = !selected && attention ? attention.unread > 0 : false;
@@ -817,6 +829,9 @@ function MiniBot({
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [computerOpen, setComputerOpen] = useState(false);
+  useEffect(() => {
+    if (menuOpen) preloadBotDialogs();
+  }, [menuOpen]);
   const resume = useMutation(setBotPausedMutationOptions(queryClient));
   const chat = useBotChat(bot.id);
   const waiting = attention ? needsInput(attention) : 0;
