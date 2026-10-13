@@ -1,12 +1,66 @@
-# ChisaBot
+<p align="center">
+  <img src="docs/images/logo.png" width="132" height="132" alt="ChisaBot 标志">
+</p>
 
-**中文、自托管、可配置模型的 AI 助手平台。**
+<h1 align="center">ChisaBot</h1>
 
-ChisaBot 基于 [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) 的开源代码开发，保留 AG-UI、多 BOT、工具权限和审计能力，加入中文界面、独立的网页登录、本地会话持久化，以及 Magpie 模型目录与 BOT 模型选择。
+<p align="center"><b>中文、自托管、可配置模型的 AI 助手平台。</b><br>网页 · Windows PC 客户端 · Android 客户端，连同一台你自己的服务器。</p>
 
-本分支可通过 `OPENBOT_RUNTIME_MODE=local` 将会话保存在自己的 PostgreSQL 中，无需 CopilotKit Intelligence 项目。模型由管理员接入，可以是自托管模型、兼容 API 或自部署的 [Magpie](https://github.com/yetone/magpie) 网关。使用第三方模型时，推理仍由所选模型服务处理。
+<p align="center">
+  <a href="docs/README.md">文档首页</a> ·
+  <a href="docs/getting-started.md">快速开始</a> ·
+  <a href="docs/models.md">模型配置与切换</a> ·
+  <a href="docs/magpie.md">Magpie 深度集成</a> ·
+  <a href="deploy/README.zh-CN.md">自托管部署</a> ·
+  <a href="https://github.com/ChisaAlter/ChisaBot/releases">下载客户端</a>
+</p>
 
-**开始使用：** [文档首页](docs/README.md) · [快速开始](docs/getting-started.md) · [模型配置与切换](docs/models.md) · [Magpie 深度集成](docs/magpie.md) · [自托管部署](deploy/README.zh-CN.md)
+ChisaBot 基于 [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) 的开源代码开发，保留 AG-UI、多 BOT、工具权限和审计能力，加入中文界面、独立的网页登录、本地会话持久化，以及 Magpie 模型目录与 BOT 模型选择。本分支可通过 `OPENBOT_RUNTIME_MODE=local` 将会话保存在自己的 PostgreSQL 中，无需 CopilotKit Intelligence 项目。模型由管理员接入，可以是自托管模型、兼容 API 或自部署的 [Magpie](https://github.com/yetone/magpie) 网关。使用第三方模型时，推理仍由所选模型服务处理。
+
+## 截图
+
+> 以下截图来自一个全新的演示实例（演示账号、演示机器人，没有任何真实对话）。
+
+### 网页（服务器）
+
+浅色：左边是机器人列表，中间是对话，右栏是机器人做的面板。
+
+![ChisaBot 网页 · 浅色](docs/images/web-desktop-light.webp)
+
+<details>
+<summary>深色模式</summary>
+
+![ChisaBot 网页 · 深色](docs/images/web-desktop-dark.webp)
+
+</details>
+
+<details>
+<summary>登录页（认证网关）</summary>
+
+![ChisaBot 登录页](docs/images/web-login.webp)
+
+</details>
+
+### PC 客户端（Windows）
+
+ChisaBot PC 是无边框窗口，打开后直接进入你服务器上的 ChisaBot，右上角是窗口按钮；首次运行先在本机的「登录 ChisaBot」页填写服务器地址。
+
+![ChisaBot PC 客户端](docs/images/pc-client.webp)
+
+<sub>说明：截图在 Linux 服务器上渲染，不是在 Windows 上截的——客户端窗口里显示的就是这套网页（桌面窗口模式，带窗口按钮），外框阴影是后加的。</sub>
+
+<details>
+<summary>PC / Android 客户端的本机登录页</summary>
+
+![ChisaBot 客户端登录页](docs/images/pc-login.webp)
+
+</details>
+
+### 手机
+
+手机浏览器（390×844）里的对话和面板，以及 Android 客户端的登录页。
+
+![ChisaBot 手机端](docs/images/mobile.webp)
 
 ## 已有功能
 
@@ -17,6 +71,8 @@ ChisaBot 基于 [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) 的�
 - **Magpie 模型目录**：读取网关实际开放的完整模型列表，保留供应商前缀，支持搜索和刷新。
 - **每 BOT 独立选择**：聊天输入框与 BOT 设置修改同一个持久化值，两处及跨标签页同步，下一轮使用新模型。
 - **工具与权限**：继承上游的 AG-UI 接入、BOT 电脑、MCP 工具、审批与审计，按部署配置启用。
+- **面板与云端浏览器**：机器人可以在右栏建面板（可定时刷新），也可以在服务器上的云端浏览器里打开和操作网页，右栏「面板 | 计算机」切换查看。
+- **客户端与在线更新**：Windows PC（Electron）和 Android 客户端连接你自己的服务器；服务器在「管理后台 → 系统更新」一键更新，网页和客户端各自提示新版本。
 
 目录表示当前网关连接向 ChisaBot 开放的模型，不表示全部供应商缓存，也不保证每个上游模型均可调用。具体权限、额度和服务状态由上游决定。
 
@@ -305,7 +361,8 @@ sh /opt/chisabot-updater/smoke.sh                                               
 | `.github/workflows/release.yml` | 推 `v*` 标签时用 GitHub Actions 构建 PC + Android 安装包并发布到 Releases |
 | `deploy/updater/` | 宿主机在线更新服务（管理后台 → 系统更新） |
 | `desktop/`、`mobile/` | 继承上游的桌面和移动客户端源码（未作为 ChisaBot 客户端发布，没有在线更新） |
-| `docs/` | 中文使用指南、模型集成与上游技术参考 |
+| `docs/` | 中文使用指南、模型集成与上游技术参考；`docs/images/` 是 README 截图 |
+| `assets/brand/` | 品牌头像原图与生成脚本（`python3 assets/brand/generate.py` 生成网页、登录页、PC、Android 的全部图标），规则见 `DESIGN.md` §28 |
 
 上游 Intelligence、第三方连接器与发布流程按需使用。桌面和移动源码保留上游的安装、OAuth 和发布集成，分发前需按自己的环境配置并构建；本仓库不提供 ChisaBot 公共镜像。PC（`pc/`）和 Android（`android/`）客户端的通用安装包在本仓库的 GitHub Releases（CI 构建，首次运行填自己的服务器地址）；也可以自己构建并放到自己的更新源（见上文第 8 步）。
 

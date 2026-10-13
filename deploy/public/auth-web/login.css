@@ -48,6 +48,7 @@ button:focus-visible, a:focus-visible {
   letter-spacing: .15em;
 }
 .brand-mark svg { width: 36px; height: 36px; }
+.brand-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
 .brand-content { z-index: 1; margin-top: clamp(90px, 13vh, 150px); }
 .eyebrow, .section-label { margin: 0; color: #596653; font-size: 13px; letter-spacing: .07em; }
 .brand h1 {
@@ -187,7 +188,7 @@ button:focus-visible, a:focus-visible {
   .login-page { display: block; }
   .brand { min-height: 0; padding: 28px 26px 30px; border-right: 0; border-bottom: 1px solid #dfe4da; }
   .brand-mark { font-size: 11px; gap: 10px; }
-  .brand-mark svg { width: 30px; height: 30px; }
+  .brand-mark svg, .brand-logo { width: 30px; height: 30px; }
   .brand-content { margin-top: 32px; }
   .brand h1 { margin: 12px 0; font-size: 56px; }
   .eyebrow { font-size: 11px; }
@@ -244,9 +245,16 @@ body.chisabot .brand-mark svg {
   width: 40px; height: 40px; padding: 7px; border-radius: 13px; color: #fff;
   background: linear-gradient(145deg, #5b9bf0, #2f6fd6 60%, #2457b8); box-shadow: 0 6px 18px rgba(36, 87, 184, .35);
 }
+/* 品牌头像（assets/brand/）与它的两种颜色：发带红点缀、海蓝只留在头像里（DESIGN.md §28） */
+body.chisabot { --brand-ribbon: #d4202c; }
+body.chisabot .brand-logo {
+  width: 40px; height: 40px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .9), 0 0 0 4px color-mix(in srgb, var(--brand-ribbon) 35%, transparent), 0 6px 18px rgba(36, 87, 184, .28);
+}
+body.chisabot .orbit-node-accent { fill: var(--brand-ribbon); stroke: rgba(255, 255, 255, .9); }
 body.chisabot .eyebrow { color: var(--ink-2); }
 body.chisabot .brand h1 { color: var(--ink-1); letter-spacing: -.05em; text-shadow: 0 1px 24px rgba(255, 255, 255, .25); }
-body.chisabot .brand-dot { color: #2f6fd6; }
+body.chisabot .brand-dot { color: var(--brand-ribbon); }
 body.chisabot .brand-description, body.chisabot .brand-footer { color: var(--ink-2); }
 body.chisabot .orbit { color: rgba(255, 255, 255, .55); }
 body.chisabot .orbit-center { fill: rgba(255, 255, 255, .35); stroke: rgba(255, 255, 255, .8); }
@@ -254,8 +262,10 @@ body.chisabot .orbit-glyph { stroke: #2f6fd6; }
 body.chisabot .orbit-node { fill: #ffffff; stroke: rgba(47, 111, 214, .45); stroke-width: 3; }
 @media (prefers-color-scheme: dark) {
   body.chisabot .brand h1 { text-shadow: none; }
-  body.chisabot .brand-dot, body.chisabot .orbit-glyph { color: #60a5fa; stroke: #60a5fa; }
-  body.chisabot .brand-dot { color: #60a5fa; }
+  body.chisabot { --brand-ribbon: #ff4d5a; }
+  body.chisabot .orbit-glyph { color: #60a5fa; stroke: #60a5fa; }
+  body.chisabot .brand-logo { box-shadow: 0 0 0 2px rgba(255, 255, 255, .2), 0 0 0 4px color-mix(in srgb, var(--brand-ribbon) 40%, transparent), 0 6px 18px rgba(0, 0, 0, .4); }
+  body.chisabot .orbit-node-accent { stroke: rgba(7, 13, 28, .8); }
   body.chisabot .orbit { color: rgba(140, 170, 230, .28); }
   body.chisabot .orbit-center { fill: rgba(255, 255, 255, .05); stroke: rgba(140, 170, 230, .5); }
   body.chisabot .orbit-node { fill: #93b4e8; stroke: rgba(7, 13, 28, .8); }

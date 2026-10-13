@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
+import brandAvatar from "@/assets/brand/chisa-mark.png";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +21,7 @@ import { DEFAULT_USER_PREFERENCES } from "../../../../shared/user-preferences";
  *
  * 每个人可以自己改（点品牌名 → 修改名称），存在个人偏好里，换设备也跟着走。两段都留空时回到默认。
  * 字体是随应用打包的 Sora（几何无衬线，只含拉丁字母；中文自动落到系统黑体），不依赖外网字体。
+ * 名字前面是品牌头像（assets/brand/，DESIGN.md §28），只是标志，不随名字改。
  */
 export function useBrandName() {
   const { data } = useUserPreferences();
@@ -51,6 +53,22 @@ export function BrandWordmark({ accent, rest }: { accent: string; rest: string }
   );
 }
 
+/** 品牌头像：红发带黑长发的圆形头像，顶栏和登录页用同一张。 */
+export function BrandAvatar({ size = 28 }: { size?: number }) {
+  return (
+    <img
+      alt=""
+      aria-hidden
+      className="brand-avatar"
+      decoding="async"
+      draggable={false}
+      height={size}
+      src={brandAvatar}
+      width={size}
+    />
+  );
+}
+
 /** 顶栏里的品牌名，点一下就能改。 */
 export function BrandMark() {
   const { accent, rest } = useBrandName();
@@ -68,6 +86,7 @@ export function BrandMark() {
             />
           }
         >
+          <BrandAvatar />
           <BrandWordmark accent={accent} rest={rest} />
         </TooltipTrigger>
         <TooltipContent>{"点击修改名称"}</TooltipContent>

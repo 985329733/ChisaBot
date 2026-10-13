@@ -4370,9 +4370,24 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   font-style: normal;
   font-display: swap;
 }
+/* 品牌色（DESIGN.md §28）：从品牌头像取色——发带红、海蓝。只用在品牌位置（顶栏头像、登录页、README），
+   不进组件主题；界面主色仍是 --accent-blue。 */
+:root { --brand-ribbon: #d4202c; --brand-ocean: #66b4d4; }
+.dark { --brand-ribbon: #ff4d5a; --brand-ocean: #4f9fc4; }
+.brand-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 0 0 3px color-mix(in srgb, var(--brand-ribbon) 38%, transparent), 0 2px 8px rgba(30, 60, 100, 0.18);
+  user-select: none;
+}
+.dark .brand-avatar { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.18), 0 0 0 3px color-mix(in srgb, var(--brand-ribbon) 45%, transparent), 0 2px 8px rgba(0, 0, 0, 0.4); }
 .brand-mark-btn {
   display: inline-flex;
   align-items: center;
+  gap: 9px;
   padding: 2px 6px;
   margin-left: -6px;
   border-radius: 10px;

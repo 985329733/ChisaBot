@@ -7,6 +7,9 @@
     <meta name="theme-color" content="#9dbddc" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1730" media="(prefers-color-scheme: dark)">
     <title>登录 · ChisaBot</title>
+    <link rel="icon" href="/auth/brand/favicon.ico" sizes="16x16 32x32 48x48">
+    <link rel="icon" type="image/png" href="/auth/brand/favicon-32.png" sizes="32x32">
+    <link rel="apple-touch-icon" href="/auth/brand/apple-touch-icon.png">
     <link rel="stylesheet" href="/auth/login.css">
     <script src="/auth/login.js" defer></script>
   </head>
@@ -14,12 +17,7 @@
     <main class="login-page">
       <section class="brand" aria-label="ChisaBot">
         <a class="brand-mark" href="/login" aria-label="ChisaBot 登录首页">
-          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-            <path d="M24 7v6M19 7h10M12 18h24a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
-            <path d="M2 26v6m44-6v6M17 33h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
-            <circle cx="17" cy="26" r="2" fill="currentColor"/>
-            <circle cx="31" cy="26" r="2" fill="currentColor"/>
-          </svg>
+          <img class="brand-logo" src="/auth/brand/logo.png" alt="" width="40" height="40">
           <span>CHISABOT</span>
         </a>
         <div class="brand-content">
@@ -31,10 +29,11 @@
           <ellipse cx="282" cy="218" rx="231" ry="110" transform="rotate(-23 282 218)"/>
           <ellipse cx="282" cy="218" rx="184" ry="81" transform="rotate(-23 282 218)"/>
           <path d="M103 281 282 218l179-64M224 124l58 94 57 96"/>
-          <circle class="orbit-center" cx="282" cy="218" r="32"/>
-          <path class="orbit-glyph" d="M270 211h24v16h-24zM282 205v6M276 221h12"/>
+          <defs><clipPath id="orbit-avatar"><circle cx="282" cy="218" r="44"/></clipPath></defs>
+          <circle class="orbit-center" cx="282" cy="218" r="50"/>
+          <image class="orbit-avatar" href="/auth/brand/logo.png" x="238" y="174" width="88" height="88" clip-path="url(#orbit-avatar)"/>
           <circle class="orbit-node" cx="103" cy="281" r="7"/>
-          <circle class="orbit-node" cx="461" cy="154" r="7"/>
+          <circle class="orbit-node orbit-node-accent" cx="461" cy="154" r="7"/>
           <circle class="orbit-node" cx="224" cy="124" r="5"/>
           <circle class="orbit-node" cx="339" cy="314" r="5"/>
         </svg>
