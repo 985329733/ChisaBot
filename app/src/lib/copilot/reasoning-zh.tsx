@@ -1,5 +1,5 @@
 import { IconChevronRight } from "@tabler/icons-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { SmoothMarkdownRenderer } from "@/components/chat/smooth-markdown";
 
 /**
@@ -60,8 +60,41 @@ export function ReasoningContentZh({ isStreaming, hasContent, children }: { isSt
   return <div className="pt-1 pb-2 text-muted-foreground text-sm whitespace-pre-wrap">{typeof children === "string" ? children : null}</div>;
 }
 
+/**
+ * 折叠区：收起时思考内容根本不在页面里（DESIGN.md §44）。
+ *
+ * CopilotKit 自带的 Toggle 收起时只是把一个 grid 行压成 0fr + overflow:hidden，英文推理其实一直在
+ * DOM 里：看不见，但 Ctrl+F 搜得到、全选复制会把它夹在回答中间、读屏会念出来、任何读文字的脚本
+ * （包括我们自己的 e2e）都会把它当成回答——这就是「推理混进聊天正文」。这里收起后（等收起动画
+ * 200ms 走完）把内容卸掉，并在收起期间 `inert` + `aria-hidden`；点开时再挂上。
+ */
+export const REASONING_CLOSE_MS = 220;
+export function ReasoningToggleZh({ isOpen, children }: { isOpen?: boolean; children?: ReactNode }) {
+  const open = Boolean(isOpen);
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const t = setTimeout(() => setMounted(false), REASONING_CLOSE_MS);
+    return () => clearTimeout(t);
+  }, [open]);
+  return (
+    <div
+      aria-hidden={open ? undefined : true}
+      className="reasoning-toggle grid transition-[grid-template-rows] duration-200 ease-in-out"
+      data-open={open || undefined}
+      inert={open ? undefined : true}
+      style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+    >
+      <div className="overflow-hidden">{mounted ? children : null}</div>
+    </div>
+  );
+}
+
 export const ZH_MESSAGE_VIEW = {
-  reasoningMessage: { header: ReasoningHeaderZh, contentView: ReasoningContentZh },
+  reasoningMessage: { header: ReasoningHeaderZh, contentView: ReasoningContentZh, toggle: ReasoningToggleZh },
   // 流式回复按帧匀速放字，不再一批一批地蹦（components/chat/smooth-markdown.tsx，DESIGN.md §28）。
   assistantMessage: { markdownRenderer: SmoothMarkdownRenderer },
 } as const;

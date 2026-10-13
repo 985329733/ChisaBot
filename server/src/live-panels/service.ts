@@ -184,6 +184,9 @@ function cadenceWords(row: LivePanelRow) {
   return `，之后每 ${m >= 1440 ? `${Math.round(m / 1440)} 天` : m >= 60 ? `${Math.round(m / 60)} 小时` : `${m} 分钟`}自动刷新`;
 }
 
+/** 删机器人时中止刷新用的原因（不算失败、不写卡片）。 */
+export const BOT_DELETED = "机器人已删除";
+
 export function createLivePanelService(deps: {
   store: LivePanelStore;
   /** 在一个用完即删的对话里，以面板主人的身份跑这个机器人的一个无头回合（工作流同一条路）。 */
@@ -193,6 +196,8 @@ export function createLivePanelService(deps: {
   const { store } = deps;
   const log = deps.log ?? ((event) => console.info(JSON.stringify(event)));
   const running = new Map<string, AbortController>();
+  /** 正在刷新的面板属于哪个机器人（删机器人时停掉它的刷新）。 */
+  const runningBot = new Map<string, string>();
   /** 正在跑的刷新（panel_refresh 等它结束再回答）。 */
   const jobs = new Map<string, Promise<void>>();
   /** 每张面板连续被设计检查退回的次数（只在内存里，重启清零）。 */
@@ -218,6 +223,7 @@ export function createLivePanelService(deps: {
     const startedAt = Date.now();
     const controller = new AbortController();
     running.set(id, controller);
+    runningBot.set(id, row.botId);
     const timer = setTimeout(() => controller.abort(new Error("刷新超时")), 6 * 60_000);
     const self: { job?: Promise<void> } = {};
     const job = (async () => {
@@ -238,6 +244,8 @@ export function createLivePanelService(deps: {
         const reason = error instanceof Error ? error.message : String(error);
         if (takeHumanControlBlock(id, startedAt) || /A person has control|Take a fresh browser snapshot/.test(reason)) {
           await store.defer(ownerUserId, id, CONTROL_HELD_NOTE, 5 * 60_000, row.failures).catch(() => {});
+        } else if (controller.signal.aborted && String(controller.signal.reason?.message ?? controller.signal.reason) === BOT_DELETED) {
+          // 机器人被删了：面板已经软删除，什么都不用写。
         } else if (controller.signal.aborted && String(controller.signal.reason?.message ?? controller.signal.reason) === "服务器重启") {
           // 部署 / 重启打断的刷新不算失败，重启后 2 分钟内重来。
           await store.defer(ownerUserId, id, "刷新被服务器重启打断，马上会重新刷新。", 2 * 60_000, row.failures).catch(() => {});
@@ -248,7 +256,10 @@ export function createLivePanelService(deps: {
       } finally {
         clearTimeout(timer);
         // 只清自己的登记（不要把后来那一次的清掉）。
-        if (running.get(id) === controller) running.delete(id);
+        if (running.get(id) === controller) {
+          running.delete(id);
+          runningBot.delete(id);
+        }
         if (jobs.get(id) === self.job) jobs.delete(id);
         await store.release(ownerUserId, id).catch(() => {});
       }
@@ -548,14 +559,36 @@ export function createLivePanelService(deps: {
     return app;
   }
 
+  /**
+   * 删机器人（agents/purge.ts）：先把它的面板软删除、停掉调度，再中止它正在跑的刷新。
+   * 返回软删除的面板 id。
+   */
+  async function retireBot(botId: string): Promise<string[]> {
+    const ids = await store.retireForBot(botId);
+    for (const [id, owner] of runningBot) {
+      if (owner !== botId) continue;
+      running.get(id)?.abort(new Error(BOT_DELETED));
+    }
+    for (const id of ids) lintStrikes.delete(id);
+    if (ids.length) log({ type: "live-panel-bot-deleted", botId, retired: ids.length });
+    return ids;
+  }
+
   return {
     tools,
     routes,
+    retireBot,
     refreshNow,
     refreshAndWait,
     resumeAfterHandback,
     sweep,
     start() {
+      // 删机器人以前不清面板：开机把机器人已不在的面板删掉（幂等；CHISABOT_PANEL_ORPHAN_SWEEP=0 关掉）。
+      if (process.env.CHISABOT_PANEL_ORPHAN_SWEEP !== "0")
+        void store
+          .sweepOrphans()
+          .then((ids) => ids.length && log({ type: "live-panel-orphans-removed", removed: ids.length, ids }))
+          .catch((error) => log({ type: "live-panel-orphan-sweep-failed", reason: error instanceof Error ? error.message : String(error) }));
       void store
         .releaseOrphanLeases()
         .then((n) => n && log({ type: "live-panel-orphan-leases", released: n }))

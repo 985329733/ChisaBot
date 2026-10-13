@@ -110,6 +110,10 @@ function nextFor(refreshMinutes: number | null, refreshAt: string | null | undef
   return refreshMinutes ? new Date(from + refreshMinutes * 60_000) : null;
 }
 
+/** 面板的机器人已经不在：agents 行没了，或 agent_profiles 标了删除（删除中 / 墓碑 / 部署包机器人）。 */
+const ORPHAN_BOT = sql`(not exists (select 1 from agents a where a.id = ${livePanels.botId})
+  or exists (select 1 from agent_profiles p where p.agent_id = ${livePanels.botId} and p.deleted_at is not null))`;
+
 export function createLivePanelStore(db: Database) {
   const own = (owner: string, id: string) => and(eq(livePanels.id, id), eq(livePanels.ownerUserId, owner));
   async function get(owner: string, id: string): Promise<LivePanelRow> {
@@ -322,6 +326,30 @@ export function createLivePanelStore(db: Database) {
         .returning({ id: livePanels.id });
       return rows.length;
     },
+    /**
+     * 删机器人时（agents/purge.ts）：它的面板先软删除、停掉刷新（next_refresh_at / 租约清空），
+     * 机器人真正删掉时再连行删除。以前删机器人不碰 live_panels，面板行留着、到点还会刷新（2026-10-13）。
+     */
+    async retireForBot(botId: string): Promise<string[]> {
+      const now = new Date();
+      const rows = await db
+        .update(livePanels)
+        .set({ removed: true, removedAt: now, leaseUntil: null, nextRefreshAt: null, updatedAt: now })
+        .where(and(eq(livePanels.botId, botId), eq(livePanels.removed, false)))
+        .returning({ id: livePanels.id });
+      return rows.map((row) => row.id);
+    },
+    /**
+     * 启动时：机器人已经不在（agents 行没了，或资料已标删除）的面板一律删掉，幂等。
+     * 修复以前删机器人留下的孤儿面板；CHISABOT_PANEL_ORPHAN_SWEEP=0 关掉。
+     */
+    async sweepOrphans(): Promise<string[]> {
+      const rows = await db
+        .delete(livePanels)
+        .where(sql`${ORPHAN_BOT}`)
+        .returning({ id: livePanels.id });
+      return rows.map((row) => row.id);
+    },
     async release(owner: string, id: string) {
       await db.update(livePanels).set({ leaseUntil: null }).where(own(owner, id));
     },
@@ -334,6 +362,8 @@ export function createLivePanelStore(db: Database) {
         .where(
           and(
             eq(livePanels.removed, false),
+            // 机器人已删（或正在删）的面板不刷新，哪怕行还没清掉。
+            sql`not (${ORPHAN_BOT})`,
             isNotNull(livePanels.refreshMinutes),
             isNotNull(livePanels.nextRefreshAt),
             lte(livePanels.nextRefreshAt, now),
