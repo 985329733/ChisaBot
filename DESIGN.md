@@ -838,6 +838,7 @@
 - 而且 CopilotKit 的思考消息在流式时会自动展开、结束后靠 effect 再关；生产实测（muse-spark 建面板，一轮里多次「思考 → 工具」）出现过关不上：「思考了 5 秒」下面直接摊开一段英文，就在正文里。
 - 规则：`messageView.reasoningMessage = ReasoningMessageZh`（lib/copilot/reasoning-zh.tsx，整条自己渲染）。只有用户点了才展开，永远不会自己打开；流式时只显示「正在思考…」。收起时 `inert` + `aria-hidden`，收起动画（200ms）结束后把内容卸掉。回归测试 app/tests/reasoning-hidden.test.tsx。
 - e2e 检查「正文里有没有推理」时读 `.copilotKitMessages` 的 innerText 即可（收起的推理不在里面）。
+- 兜底（2026-10-14）：模型若把推理写进正文、用 `<think>…</think>` / `<thinking>…</thinking>` 包着（MiniMax、R1 系等 OpenAI 兼容模型常见；AI SDK 的 OpenAI chat 客户端不认，`reasoning_content` 字段它直接丢弃、不会泄漏），服务器在模型层（server/src/agents/think-tags.ts，`connectionLanguageModel` 两种协议都包）把标签内的内容改成 reasoning 片段，照样走 REASONING_* 事件进「思考」。标签可跨流片段，没闭合的算思考；没标签的输出一字不改。纯文本、无标签的「推理」不猜、不剥（生产历史里没出现过）。测试 server/tests/think-tags.test.ts。
 
 ### 44.2 删机器人 = 它的面板也没了
 - 删机器人（agents/purge.ts）在清主机器人设置之后立刻把它的 live_panels 软删除、清掉 next_refresh_at 和租约，并中止它正在跑的刷新（中止不算失败、不写卡片）；机器人真正删掉时连行删除。留成墓碑（还有和别人共享的对话）时面板也已经停了。
