@@ -1070,6 +1070,26 @@ describe("what a Bot is told it holds", () => {
       prompt.indexOf("BROWSER GUIDANCE HERE"),
     );
   });
+
+  test("guidance a tool carries (the person's linked PC) lands after the browser prose, once", () => {
+    const pc = {
+      name: "device_list",
+      ref: "devices/list",
+      description: "List devices.",
+      parameters: z.object({}),
+      execute: async () => "{}",
+      guidance: "THE PERSON'S PC IS ONLINE",
+    };
+    const prompt = builtInAgentConfiguration(
+      { id: "knowledge", name: "知识助手", type: "built_in", systemPrompt: "Help." },
+      { provider: "openai", defaultModel: "gpt-5.6-terra" },
+      "openai-secret",
+      [pc, { ...pc, name: "device_system_info", ref: "devices/system_info" }],
+      "BROWSER GUIDANCE HERE",
+    ).prompt as string;
+    expect(prompt.indexOf("THE PERSON'S PC IS ONLINE")).toBeGreaterThan(prompt.indexOf("BROWSER GUIDANCE HERE"));
+    expect(prompt.split("THE PERSON'S PC IS ONLINE")).toHaveLength(2);
+  });
 });
 
 /**

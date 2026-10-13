@@ -67,7 +67,7 @@ import {
   selectTools,
 } from "./plugins/selection";
 import type { GrantedTool } from "./plugins/tools";
-import { grantedToolGuidance, parametersFor } from "./plugins/tools";
+import { grantedToolGuidance, parametersFor, toolCarriedGuidance } from "./plugins/tools";
 import { UNTRUSTED_GUIDANCE } from "./untrusted-content";
 
 /**
@@ -484,6 +484,12 @@ export function builtInAgentConfiguration(
         ? [grantedToolGuidance(tools, connectedVendors)]
         : []),
       ...(computerGuidance ? [computerGuidance] : []),
+      /*
+       * Guidance carried by the offered tools themselves (today: the person's linked PCs). After the
+       * computer prose on purpose: that prose says "you have your own browser", and a Bot that read
+       * it last answered "I can't see your computer" while holding device_* tools for it.
+       */
+      ...toolCarriedGuidance(tools),
       ...(learnedSkills?.catalog ? [learnedSkills.catalog] : []),
     ].join("\n\n"),
     ...(planModel ? {} : { apiKey: apiKey ?? undefined }),

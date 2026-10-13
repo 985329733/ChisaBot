@@ -1,7 +1,7 @@
 import { IconDownload } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { AddDeviceCard, ApprovalsCard, DeviceRow, NoDevices } from "@/components/devices/devices";
+import { AddDeviceCard, ApprovalsCard, ConnectionCard, DeviceRow, NoDevices } from "@/components/devices/devices";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, ErrorCard } from "@/components/ui/skyglass";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authed/settings/devices/")({
  */
 function DevicesPage() {
   const list = useQuery(deviceListQueryOptions());
-  const [local] = usePcLocal();
+  const [local, setLocal] = usePcLocal();
   const download = useQuery(pcDownloadQueryOptions());
   const installer = download.data?.files.find((file) => file.kind === "installer");
   const devices = list.data?.devices ?? [];
@@ -53,6 +53,7 @@ function DevicesPage() {
       ) : (
         <>
           <ApprovalsCard approvals={list.data.approvals} />
+          <ConnectionCard devices={active} local={local} onLocal={setLocal} />
           <PageSection
             description={active.length ? `共 ${active.length} 台，${online ? `${online} 台在线` : "都不在线"}。点一行查看详情、改能力和看操作记录；右侧 ⋯ 可以重命名、撤销或删除。` : undefined}
             title="设备列表"

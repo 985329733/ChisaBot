@@ -34,7 +34,8 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 3. 用会话 Cookie 调 `POST /api/devices/enroll` → 服务器生成设备 `dev_…` 和令牌 `cbd_<32 字节 base64url>`，**令牌只返回这一次**，库里只存 SHA-256。
 4. 令牌在 PC 上用 Electron `safeStorage`（Windows DPAPI，绑定当前 Windows 用户）加密保存；会话 Cookie 注入聊天窗口的独立分区，聊天窗口因此免登录。
 5. 密码不落盘。之后节点连接只用设备令牌；网关会话过期只影响聊天窗口（会跳到登录页），不影响节点。
-6. 换服务器 / 退出登录（托盘菜单「切换服务器…」「退出登录…」）：退出登录时调 `POST /auth/logout` 和 `POST /api/devices/agent/unenroll`，清除 Cookie，回到登录页（地址和账号保留）；切换服务器在新服务器登录成功后才作废旧服务器上的令牌。
+6. **已登录却没登记时自动补登记**（PC 0.1.1 起，`pc/src/agent/enrollment.js`）：启动时网页会话还有效但本机没有设备令牌（重装、DPAPI 解不开、旧版配置），客户端用这份会话 Cookie 自动调 `POST /api/devices/enroll`，连不上就每分钟重试；以前这种情况会打开聊天窗口但节点永远不连。托盘「重新登记这台电脑」/ 网页设备页「登记这台电脑」（桥 `enroll()`）在令牌无效或被撤销时也能用：令牌仍有效就只重连，不重复登记；被撤销的电脑从网页发起要先在本机确认；自动路径从不替换已有令牌。
+7. 换服务器 / 退出登录（托盘菜单「切换服务器…」「退出登录…」）：退出登录时调 `POST /auth/logout` 和 `POST /api/devices/agent/unenroll`，清除 Cookie，回到登录页（地址和账号保留）；切换服务器在新服务器登录成功后才作废旧服务器上的令牌。
 
 ## 4. 设备登记表（迁移 `0054_pc_devices`）
 
@@ -57,7 +58,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 
 每项三态：**关闭 / 询问（每次审批）/ 允许（直接执行，仍审计）**。文件类能力还受**允许的文件夹**约束：相对路径相对第一个文件夹；解析符号链接后比较前缀（Windows 不区分大小写），防止 `..` 和链接逃逸；没有文件夹时一律拒绝。
 
-机器人工具（`server/src/devices/tools.ts`）：`device_list`、`device_system_info`、`device_run_shell`、`device_list_files`、`device_read_file`、`device_write_file`、`device_screenshot`、`device_input`、`device_open`、`device_clipboard`。**设备属于账号，不属于某个机器人**（2026-10-12 起）：这次运行的人名下的每台在线设备，他的任何机器人都能用；只有别人发布的团队机器人（`agent_profiles` 的主人是另一个人）拿不到。至少一台在线时才给工具；某能力在所有在线设备上都关闭时对应工具不出现。安全边界不变：每台设备的能力默认全关、允许的文件夹、审批、紧急停止、审计都在 hub 里逐台生效。`deviceId` 可以是设备 id、设备名称或主机名；只有一台在线时可以省略，多台在线时必须指定（`resolveDevice`）。旧的 `device_bot_access` 表和 `botIds` 字段保留但不再参与授权（便于回滚）。上游桌面宿主的文件夹授权（host_* 工具）同样改为按人共用：发给桌面的操作仍带授权时的机器人 id（桌面端按它校验），真正发起的机器人在审批与审计里。截图原图留在服务器内存 30 分钟，工具返回 `/api/devices/<id>/screenshots/<sid>`，机器人可以在回复里用 Markdown 展示。
+机器人工具（`server/src/devices/tools.ts`）：`device_list`、`device_system_info`、`device_run_shell`、`device_list_files`、`device_read_file`、`device_write_file`、`device_screenshot`、`device_input`、`device_open`、`device_clipboard`。**设备属于账号，不属于某个机器人**（2026-10-12 起）：这次运行的人名下的每台在线设备，他的任何机器人都能用；只有别人发布的团队机器人（`agent_profiles` 的主人是另一个人）拿不到。至少一台在线时才给操作类工具；某能力在所有在线设备上都关闭时对应工具不出现。**有关联设备但都离线时只给只读的 `device_list`**，并且不论在线与否，机器人提示词里都有一段「用户的电脑」说明（`deviceGuidance`，挂在 `device_list` 的 `guidance` 上、放在计算机提示词之后）：在线 → 如实说能用、能力没开就让用户去 设置 → 设备 → 权限；离线 → 说已关联但没连上、最后在线多久前、请打开 ChisaBot PC（2026-10-13：以前离线或能力全关时机器人只会说「我只有隔离的浏览器」）。安全边界不变：每台设备的能力默认全关、允许的文件夹、审批、紧急停止、审计都在 hub 里逐台生效。`deviceId` 可以是设备 id、设备名称或主机名；只有一台在线时可以省略，多台在线时必须指定（`resolveDevice`）。旧的 `device_bot_access` 表和 `botIds` 字段保留但不再参与授权（便于回滚）。上游桌面宿主的文件夹授权（host_* 工具）同样改为按人共用：发给桌面的操作仍带授权时的机器人 id（桌面端按它校验），真正发起的机器人在审批与审计里。截图原图留在服务器内存 30 分钟，工具返回 `/api/devices/<id>/screenshots/<sid>`，机器人可以在回复里用 Markdown 展示。
 
 ## 6. 安全
 

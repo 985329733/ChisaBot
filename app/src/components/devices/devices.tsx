@@ -464,6 +464,101 @@ export function DownloadCard({ download }: { download: PcDownload | null | undef
   );
 }
 
+/**
+ * 设备页顶部的「连接状态」（2026-10-13，用户：「我安装了 Windows 端，但是 bot 还是识别不到我的电脑」）。
+ * 一眼说清三件事：机器人现在能不能用到你的电脑（在线几台 / 都离线时怎么办）、谁能用（你的所有机器人）、
+ * 能力是不是全关着。在 PC 客户端里再加一行「这台电脑」：没登记 / 令牌失效时给「登记这台电脑」按钮。
+ */
+export function ConnectionCard({
+  devices,
+  local,
+  onLocal,
+}: {
+  devices: DeviceView[];
+  local: PcLocalState | null;
+  onLocal: (next: PcLocalState) => void;
+}) {
+  const bridge = pcBridge();
+  const enroll = useAsyncAction(async () => {
+    if (!bridge?.enroll) return;
+    const result = await bridge.enroll();
+    onLocal(result.state);
+    if (result.status === "enrolled" || result.status === "already") toast.success(result.message);
+    else if (result.status !== "cancelled") throw new Error(result.message);
+  }, { errorToast: (error) => error.message });
+  const online = devices.filter((device) => device.online);
+  const thisPc = local ? devices.find((device) => device.id === local.deviceId) : undefined;
+  const pcConnected = local ? local.agentState === "online" : false;
+  const allOff = online.length > 0 && online.every((device) => enabledCaps(device.capabilities).length === 0);
+  // 网页里看不到 PC 就不显示（没有设备时「添加一台电脑」已经说清楚了）。
+  if (!devices.length && !local) return null;
+  const summary = online.length
+    ? `${online.map((device) => `「${device.name}」`).join("、")}在线：你的所有机器人都能使用，范围是每台开启的能力和允许的文件夹。`
+    : devices.length
+      ? "都不在线，机器人现在用不了你的电脑。在电脑上打开 ChisaBot PC，托盘图标变蓝就是在线；问机器人时它也会如实告诉你。"
+      : "这台电脑还没有关联到你的账号。";
+  return (
+    <Card className="device-connection">
+      <SettingRow description={summary} title="机器人能用的电脑">
+        <span className={cn("device-badge", online.length ? "is-ok" : "is-warn")}>
+          <span aria-hidden className={cn("device-dot", online.length && "is-ok")} />
+          {online.length ? `${online.length} 台在线` : "没有在线设备"}
+        </span>
+      </SettingRow>
+      {allOff ? (
+        <SettingRow
+          description="机器人现在只能看到电脑在线、读系统信息。要让它截图、读写文件或操作鼠标键盘，进入设备详情 → 权限，把需要的能力设为「询问」或「允许」。"
+          title="能力全部关闭"
+        >
+          {online[0] ? (
+            <Button
+              nativeButton={false}
+              render={<Link params={{ deviceId: online[0].id }} search={{ tab: "permissions" }} to="/settings/devices/$deviceId" />}
+              size="sm"
+              variant="outline"
+            >
+              {"打开权限"}
+            </Button>
+          ) : null}
+        </SettingRow>
+      ) : null}
+      {local ? (
+        <SettingRow
+          description={
+            pcConnected
+              ? `已连接${thisPc ? `为「${thisPc.name}」` : ""} · 客户端 ${local.version}`
+              : local.needsEnroll
+                ? `${local.statusText}。点「登记这台电脑」用当前登录重新关联，所有能力仍默认关闭。`
+                : `${local.statusText} · 客户端 ${local.version}`
+          }
+          title={
+            <span className="device-cap-t">
+              <IconDeviceDesktop className="size-4" />
+              {"这台电脑"}
+            </span>
+          }
+        >
+          {local.needsEnroll && bridge?.enroll ? (
+            <Button
+              feedback={{ pending: "登记中…", success: "已登记", error: "失败" }}
+              onClick={() => void enroll.run()}
+              size="sm"
+              state={enroll.state}
+            >
+              {"登记这台电脑"}
+            </Button>
+          ) : (
+            <span className={cn("device-badge", pcConnected ? "is-ok" : local.localPaused ? "is-danger" : "is-warn")}>
+              {pcConnected ? <span aria-hidden className="device-dot is-ok" /> : null}
+              {pcConnected ? "在线" : local.statusText}
+            </span>
+          )}
+        </SettingRow>
+      ) : null}
+    </Card>
+  );
+}
+
 export function AddDeviceCard() {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const download = useQuery(pcDownloadQueryOptions());

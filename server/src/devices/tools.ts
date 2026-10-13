@@ -12,8 +12,10 @@ import type { DeviceRecord, DeviceStore } from "./store";
 /**
  * 把设备节点的能力变成机器人工具（docs/pc-node.md §7）。
  *
- * 设备属于账号，不属于某个机器人：这次运行的人名下的每台在线设备，这个人的任何机器人都能用
- * （调用方 index.ts 只在至少一台在线时才给工具）。不再有「按机器人勾选」这一层；安全边界仍是每台设备
+ * 设备属于账号，不属于某个机器人：这次运行的人名下的每台在线设备，这个人的任何机器人都能用。
+ * 调用方 index.ts 传入这个人名下全部未撤销的设备：一台都没有 → 不给工具；有但都离线 → 只给 device_list
+ * （只读，用来如实回答「电脑离线」）；至少一台在线 → 全套。不论哪种，都带一段提示词（{@link deviceGuidance}），
+ * 告诉机器人用户的电脑已关联、现在是否在线、开了哪些能力。不再有「按机器人勾选」这一层；安全边界仍是每台设备
  * 自己的能力开关（默认全关）、允许的文件夹、审批、紧急停止和审计，全部在 hub 里。
  * 每次执行都重新读设备（开关可能刚被改过）。多台在线时用 deviceId 选（id 或名称）；只有一台在线时可省略。
  */
@@ -111,6 +113,64 @@ function clip(text: string, max: number) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+/** 「3 分钟前」「约 15 小时前」「2 天前」；没有记录时「从未连接过」。服务器不知道用户时区，所以只说相对时间。 */
+export function agoText(iso: string | null, now = Date.now()) {
+  if (!iso) return "从未连接过";
+  const ms = now - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return "刚刚";
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `约 ${hours} 小时前`;
+  return `${Math.round(hours / 24)} 天前`;
+}
+
+function platformName(platform: string) {
+  return platform === "win32" ? "Windows" : platform === "darwin" ? "macOS" : platform === "linux" ? "Linux" : platform;
+}
+
+/**
+ * 给机器人的「用户的电脑」提示词。没有这一段时，计算机那段很长的提示词（「你有自己的浏览器」）说了算，
+ * 机器人手里拿着 device_* 工具也会回答「我看不到你的电脑，只有隔离的浏览器」（2026-10-13 用户报告）。
+ * 设备列表为空时返回空字符串（什么都不说，和以前一样）。
+ */
+export function deviceGuidance(
+  devices: readonly Pick<DeviceRecord, "id" | "name" | "platform" | "osVersion" | "paused" | "capabilities" | "lastSeenAt">[],
+  isOnline: (id: string) => boolean,
+  now = Date.now(),
+): string {
+  if (!devices.length) return "";
+  const describe = (device: (typeof devices)[number]) => {
+    const enabled = Object.entries(device.capabilities)
+      .filter(([, policy]) => policy !== "off")
+      .map(([cap, policy]) => `${CAPABILITY_INFO[cap as keyof typeof CAPABILITY_INFO]?.label ?? cap}${policy === "ask" ? "（每次需用户批准）" : ""}`);
+    const state = isOnline(device.id)
+      ? device.paused
+        ? "online but on emergency stop (紧急停止): every remote action is refused until the person lifts it"
+        : "ONLINE now"
+      : `offline (last connected ${agoText(device.lastSeenAt, now)})`;
+    return `- 「${device.name}」 (${device.osVersion || platformName(device.platform)}, deviceId ${device.id}): ${state}; enabled capabilities: ${enabled.length ? enabled.join("、") : "none yet (只能读系统信息)"}.`;
+  };
+  const online = devices.filter((device) => isOnline(device.id));
+  const lines = [
+    "The person's own computers. Besides your own cloud browser (the computer_* tools), the person has linked these computers of theirs to their account through the ChisaBot PC client. They are shared by all of the person's Bots, including you:",
+    ...devices.map(describe),
+  ];
+  if (online.length) {
+    lines.push(
+      "When the person asks whether you can see, reach or use their computer, the answer is yes for the online one(s): say so plainly and use the device_* tools (device_* acts on THEIR computer; computer_* acts on your cloud browser). Never claim you only have an isolated browser.",
+      "Each capability (命令行、读取文件、写入文件、截图、鼠标键盘、打开应用 / 网址、剪贴板) is off until the person turns it on. If a request needs one that is off, say which one and tell them to turn it on in 设置 → 设备 → the computer → 权限, then try again; do not pretend to have done it.",
+    );
+  } else {
+    lines.push(
+      "None of them is online right now, so you cannot operate them at this moment. If the person asks about their computer, say it is linked but not connected, give the name and when it was last online, and ask them to open ChisaBot PC on it (the tray icon turns blue when it is connected). If ChisaBot PC is open but it still shows offline, they can use the tray menu 「重新登记这台电脑」 or sign out and sign in again in ChisaBot PC.",
+    );
+  }
+  return lines.join("\n");
+}
+
+
 export function deviceTools(options: {
   store: DeviceStore;
   hub: DeviceHub;
@@ -123,6 +183,8 @@ export function deviceTools(options: {
   const { store, hub, botId, actorId } = options;
   if (!options.devices.length) return [];
   const botName = options.botName ?? null;
+  const onlineDevices = options.devices.filter((device) => hub.isOnline(device.id));
+  const guidance = deviceGuidance(options.devices, (id) => hub.isOnline(id));
 
   const roster = options.devices
     .map((device) => {
@@ -171,14 +233,14 @@ export function deviceTools(options: {
 
   const enabledAnywhere = (operation: DeviceOperation) => {
     const capability = OPERATION_CAPABILITY[operation];
-    return !capability || options.devices.some((device) => device.capabilities[capability] !== "off");
+    return !capability || onlineDevices.some((device) => device.capabilities[capability] !== "off");
   };
 
   const tools: GrantedTool[] = [
     {
       name: "device_list",
       ref: "devices/list",
-      description: `列出用户账号下关联的全部设备（ChisaBot PC / 手机客户端）及其在线状态和已开启的能力。这些设备由用户的所有机器人共用。当前在线：${roster}`,
+      description: `列出用户账号下关联的全部设备（ChisaBot PC / 手机客户端）及其在线状态和已开启的能力。这些设备由用户的所有机器人共用。被问到「能不能看到 / 用我的电脑」时先调用它。当前：${roster}`,
       parameters: schemas.list,
       execute: async () => {
         const fresh = await store.forOwner(actorId);
@@ -190,6 +252,8 @@ export function deviceTools(options: {
             clientVersion: device.clientVersion,
             hostname: device.hostname,
             online: hub.isOnline(device.id),
+            lastSeenAt: device.lastSeenAt,
+            lastSeen: hub.isOnline(device.id) ? "在线" : agoText(device.lastSeenAt),
             paused: device.paused,
             allowedRoots: device.allowedRoots,
             capabilities: device.capabilities,
@@ -211,6 +275,13 @@ export function deviceTools(options: {
       },
     },
   ];
+
+  // 有关联设备但都不在线：只留 device_list（只读），让机器人能如实说「电脑已关联，但现在离线」，
+  // 而不是因为什么工具都没有就说「我看不到你的电脑」。操作类工具等设备上线后才出现。
+  if (!onlineDevices.length)
+    return tools
+      .filter((tool) => tool.name === "device_list")
+      .map((tool) => ({ ...tool, guidance, initiator: options.initiator }));
 
   if (enabledAnywhere("shell"))
     tools.push({
@@ -338,5 +409,10 @@ export function deviceTools(options: {
       },
     });
 
-  return tools.map((tool) => ({ ...tool, initiator: options.initiator }));
+  // 提示词只挂在 device_list 上：工具被筛掉时提示也跟着消失，不会告诉机器人它没拿到的东西。
+  return tools.map((tool) => ({
+    ...tool,
+    ...(tool.name === "device_list" ? { guidance } : {}),
+    initiator: options.initiator,
+  }));
 }

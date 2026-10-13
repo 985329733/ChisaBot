@@ -254,7 +254,8 @@ export function createDeviceRoutes(options: {
     const tools = await toolsFor(actor.id, botId);
     const list = tools.find((tool) => tool.name === "device_list");
     const devices = list ? JSON.parse(String(await list.execute({}))).devices : [];
-    return context.json({ botId, tools: tools.map((tool) => tool.name), devices });
+    // guidance = 这次运行里机器人会读到的「用户的电脑」提示词（在线 / 离线 / 开了哪些能力）。
+    return context.json({ botId, tools: tools.map((tool) => tool.name), devices, guidance: list?.guidance ?? null });
   });
 
   routes.post("/bot-tools/:botId/probe", userGuard, async (context) => {

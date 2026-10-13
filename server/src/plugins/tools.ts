@@ -79,7 +79,26 @@ export type GrantedTool = {
    * the two forms are converted (`toolNameFor`) and no second parser to drift from it.
    */
   ref: string;
+  /**
+   * Prompt text this tool brings with it, added to a built-in Bot's prompt only when the tool is
+   * actually offered (so a narrowed run is never told about something it was not handed).
+   *
+   * Used by the device tools to tell the Bot that the person's own computer is linked and whether it
+   * is online right now: without it the long computer prose ("you have your own browser") wins and
+   * the Bot tells the person it cannot see their PC while holding the tools for it.
+   */
+  guidance?: string;
 };
+
+/** The prompt text the offered tools carry ({@link GrantedTool.guidance}), each text once, in tool order. */
+export function toolCarriedGuidance(tools: readonly GrantedTool[]): string[] {
+  const seen = new Set<string>();
+  for (const tool of tools) {
+    const text = tool.guidance?.trim();
+    if (text) seen.add(text);
+  }
+  return [...seen];
+}
 
 /**
  * A vendor's JSON Schema as something the model can be handed.

@@ -1176,9 +1176,9 @@ const deviceToolsFor = async (
     // 例外：别人发布的团队机器人（agent_profiles 的主人是另一个人）不能碰这个人的电脑。
     const owner = await pluginStore.agentOwner(botId).catch(() => undefined);
     if (typeof owner === "string" && owner !== actorId) return [];
-    const devices = (await deviceStore.forOwner(actorId)).filter((device) =>
-      deviceHub.isOnline(device.id),
-    );
+    // 全部未撤销的设备（含离线的）：都离线时 deviceTools 只给只读的 device_list + 「电脑离线」提示，
+    // 机器人才能如实回答，而不是说「我看不到你的电脑」。操作类工具仍只在设备在线时出现。
+    const devices = await deviceStore.forOwner(actorId);
     if (!devices.length) return [];
     const botName = await agentProfileStore
       .get(await actorFor(actorId), botId)
@@ -3507,7 +3507,7 @@ const app = createApp(
       ).find((candidate) => candidate.name === name);
       if (!deviceTool) {
         return {
-          text: `${REFUSAL_MARKER} 这个机器人现在不能使用这项设备工具。`,
+          text: `${REFUSAL_MARKER} 这项设备工具现在不可用：用户的电脑不在线，或这项能力在所有在线设备上都是关闭的（设置 → 设备 → 权限）。`,
           isError: true,
         };
       }
