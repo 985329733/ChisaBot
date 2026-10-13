@@ -164,7 +164,7 @@ export function ModelPicker({ agentId, disabled = false }: { agentId: string; di
         {saving ? <IconRefresh className="size-3 shrink-0 animate-spin opacity-60" /> : <IconChevronDown className="model-pill-chevron" />}
       </ComboboxPrimitive.Trigger>
       <ComboboxPrimitive.Portal>
-        <ComboboxPrimitive.Positioner align="end" className="isolate z-50" side="top" sideOffset={10}>
+        <ComboboxPrimitive.Positioner align="end" className="isolate z-50" side="top" sideOffset={8}>
           <ComboboxPrimitive.Popup className="model-popover">
             <div className="model-popover-search">
               <IconSearch className="size-4 shrink-0 opacity-50" />

@@ -98,6 +98,7 @@ export function PageShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const area = areaOf(pathname);
   const resolvedWidth: ShellWidth = width ?? (pathname.startsWith("/admin") ? "wide" : "prose");
+  const sharedRail = pathname.startsWith("/settings") || pathname.startsWith("/admin");
 
   /*
    * The back link is a breadcrumb now, not a band of chrome above the page: "管理后台 / 插件 /"
@@ -137,6 +138,15 @@ export function PageShell({
           WIDTHS[resolvedWidth],
           className,
         )}
+        /*
+         * 设置和管理后台共用一条左栏（DESIGN.md §34.2）：880 宽的页和 1080 宽的页左边必须在同一条线上，
+         * 否则在左栏里切换分区时标题和卡片会左右跳。窄页按 1080 的左边对齐，右边留空。
+         */
+        style={
+          sharedRail && resolvedWidth === "prose"
+            ? { marginLeft: "max(0px, calc((100% - 1080px) / 2))", marginRight: "auto" }
+            : undefined
+        }
       >
         <PageHeader action={action} description={description} eyebrow={crumbs} title={title} />
         {children}

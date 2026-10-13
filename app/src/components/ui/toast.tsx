@@ -11,7 +11,8 @@ import { useSyncExternalStore } from "react";
  * context through; `<Toaster />` is mounted once at the root.
  */
 type ToastKind = "success" | "error" | "info";
-type ToastItem = { id: number; kind: ToastKind; text: string; leaving?: boolean };
+type ToastAction = { label: string; onClick: () => void };
+type ToastItem = { id: number; kind: ToastKind; text: string; leaving?: boolean; action?: ToastAction };
 
 let items: ToastItem[] = [];
 let nextId = 1;
@@ -29,10 +30,10 @@ function dismiss(id: number) {
   }, 180);
 }
 
-function push(kind: ToastKind, text: string, duration = kind === "error" ? 5200 : 2600) {
+function push(kind: ToastKind, text: string, duration = kind === "error" ? 5200 : 2600, action?: ToastAction) {
   const id = nextId++;
   // Same sentence twice in a row is one toast, not a stack of identical ones.
-  items = [...items.filter((item) => item.text !== text), { id, kind, text }].slice(-4);
+  items = [...items.filter((item) => item.text !== text), { id, kind, text, action }].slice(-4);
   emit();
   window.setTimeout(() => dismiss(id), duration);
   return id;
@@ -42,6 +43,21 @@ export const toast = {
   success: (text: string) => push("success", text),
   error: (text: string) => push("error", text),
   info: (text: string) => push("info", text),
+  /**
+   * 撤销型提示（DESIGN.md §34.6）：删除等操作先在界面上完成，再给一个带「撤销」的提示，默认 8 秒。
+   * 不往列表里插一张「已删除」卡片——那会把下面的内容整体挤下去。
+   */
+  undo: (text: string, onUndo: () => void, duration = 8000) => {
+    let id = 0;
+    id = push("info", text, duration, {
+      label: "撤销",
+      onClick: () => {
+        dismiss(id);
+        onUndo();
+      },
+    });
+    return id;
+  },
   dismiss,
 };
 
@@ -73,6 +89,11 @@ export function Toaster() {
           >
             <Icon className="glass-toast-icon size-4 shrink-0" />
             <span className="min-w-0 flex-1">{item.text}</span>
+            {item.action ? (
+              <button className="glass-toast-action" onClick={item.action.onClick} type="button">
+                {item.action.label}
+              </button>
+            ) : null}
             <button
               aria-label={"关闭通知"}
               className="glass-toast-close"

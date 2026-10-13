@@ -1,4 +1,6 @@
 import { FEEDBACK_PRESETS, useMutationFeedback } from "@/components/ui/async-action";
+import { PresenceItem, PresenceList } from "@/components/ui/presence";
+import { toast } from "@/components/ui/toast";
 import { AsyncContent } from "@/components/ui/button";
 import { LivePanelList, useLivePanels } from "./live-panels";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -555,7 +557,7 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
         </div>
       ) : null}
 
-      <div className="glass-rail-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      <div className="glass-rail-scroll relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {!botId ? (
           <RailNote>{"还没有可用的 BOT。"}</RailNote>
         ) : list.isPending ? (
@@ -585,15 +587,19 @@ function PanelRailBody({ onCollapse }: { onCollapse?: () => void } = {}) {
           </p>
           ) : null
         ) : (
-          items.map((instance) => (
-            <PanelCard
-              canManage={canManage}
-              instance={instance}
-              key={`${instance.id}:${instance.instanceVersion}`}
-              onEdit={() => begin.mutate(instance.id)}
-              onError={setError}
-            />
-          ))
+          <PresenceList>
+            {items.map((instance) => (
+              <PresenceItem key={instance.id}>
+                <PanelCard
+                  canManage={canManage}
+                  instance={instance}
+                  key={`${instance.id}:${instance.instanceVersion}`}
+                  onEdit={() => begin.mutate(instance.id)}
+                  onError={setError}
+                />
+              </PresenceItem>
+            ))}
+          </PresenceList>
         )}
           </>
         )}
@@ -767,11 +773,25 @@ function PanelCard({
     onSuccess: invalidate,
     onError: (e) => onError(panelErrorText(e)),
   });
+  // 乐观移除（DESIGN.md §34.6）：确认后卡片立刻淡出、下面的补位；失败放回并提示。
   const remove = useMutation({
     mutationFn: () =>
       panelsApi.remove(instance.botId, instance.id, instance.instanceVersion),
-    onSuccess: invalidate,
-    onError: (e) => onError(panelErrorText(e)),
+    onMutate: async () => {
+      const key = panelKeys.list(instance.botId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const before = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (old: { items?: PanelInstance[] } | undefined) =>
+        old?.items ? { ...old, items: old.items.filter((i) => i.id !== instance.id) } : old,
+      );
+      return { before };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.before) queryClient.setQueryData(panelKeys.list(instance.botId), ctx.before);
+      onError(panelErrorText(e));
+    },
+    onSuccess: () => toast.success(`已移除「${instance.title}」`),
+    onSettled: invalidate,
   });
   const tasks = useQuery({
     queryKey: panelKeys.tasks(instance.botId, instance.id),
@@ -928,7 +948,7 @@ function PanelCard({
           ))}
         </div>
       ) : null}
-      <div className="mt-2.5 flex justify-between px-0.5 text-[11px] text-muted-foreground/80">
+      <div className="mt-2.5 flex justify-between px-0.5 text-xs text-muted-foreground">
         <span>
           {"面板 v"}
           {instance.instanceVersion}
@@ -1143,7 +1163,7 @@ function PanelLibrary({
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <button
                       className={cn(
-                        "rounded-full px-3.5 py-1.5 text-[12.5px]",
+                        "rounded-full px-3.5 py-1.5 text-[13px]",
                         done ? "bg-foreground/5 text-muted-foreground" : "glass-dark",
                       )}
                       disabled={!canManage || install.isPending}
@@ -1154,7 +1174,7 @@ function PanelLibrary({
                     </button>
                     {entry.canManage && canManage ? (
                       <button
-                        className="text-[11px] text-muted-foreground hover:text-destructive"
+                        className="text-xs text-muted-foreground hover:text-destructive"
                         disabled={archive.isPending}
                         onClick={() => {
                           void confirmDialog({

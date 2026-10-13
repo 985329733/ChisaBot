@@ -80,7 +80,7 @@ export function GalleryPreview({
         >
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="font-medium text-sm">{component.title}</h3>
-            <span className="shrink-0 text-[11px] text-muted-foreground uppercase tracking-wider">
+            <span className="shrink-0 text-xs text-muted-foreground uppercase tracking-wider">
               {component.kind}
             </span>
           </div>

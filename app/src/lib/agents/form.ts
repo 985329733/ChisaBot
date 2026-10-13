@@ -8,18 +8,18 @@ export const agentFormSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(1, "Name is required.")
-    .max(80, "Name must be 80 characters or fewer."),
+    .min(1, "请填写名称。")
+    .max(80, "名称最多 80 个字。"),
   title: z
     .string()
     .trim()
-    .min(1, "Title is required.")
-    .max(120, "Title must be 120 characters or fewer."),
+    .min(1, "请填写职责。")
+    .max(120, "职责最多 120 个字。"),
   roleDescription: z
     .string()
     .trim()
-    .min(1, "Role description is required.")
-    .max(1000, "Role description must be 1000 characters or fewer."),
+    .min(1, "请填写角色说明。")
+    .max(1000, "角色说明最多 1000 个字。"),
   visibility: z.enum(["public", "private"]),
   /**
    * The AG-UI endpoint this coworker runs on. Empty means the Bot in the box.
@@ -31,7 +31,7 @@ export const agentFormSchema = z.object({
     .trim()
     .refine(
       (value) => value === "" || /^https?:\/\/\S+$/.test(value),
-      "Enter a web address starting with http:// or https://.",
+      "请输入以 http:// 或 https:// 开头的网址。",
     ),
   /**
    * A key the agent sits behind. WRITE-ONLY: it is never sent back from the server, so this field is

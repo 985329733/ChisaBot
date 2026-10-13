@@ -18,8 +18,10 @@ import {
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { PresenceItem, PresenceList } from "@/components/ui/presence";
+import { openTriggerByLabel, snapAnchor } from "@/components/ui/snap-anchor";
 import type * as React from "react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
 import { SidebarSearchField } from "@/components/layout/sidebar-search-field";
 import {
@@ -382,6 +384,15 @@ function BotMenuContent({
   const icon = "size-[18px] shrink-0 opacity-80";
   const navigate = useNavigate();
   const { botId: panelBotId } = usePanelBot();
+  // 菜单离左栏卡片右边 8px、顶边与机器人行齐平（DESIGN.md §34.3），而不是挨着 ⋯ 小按钮压在卡片上。
+  const anchor = useMemo(
+    () =>
+      snapAnchor(openTriggerByLabel(`${bot.name} 机器人菜单`), {
+        x: ".glass-side-card, .glass-mini-card",
+        y: ".glass-bot-row, .glass-mini-slot",
+      }),
+    [bot.name],
+  );
   // 面板跟着「当前机器人」走：不是当前的就先进入它的对话，再打开面板（宽窗口右栏，窄窗口抽屉）。
   const openPanels = async () => {
     if (panelBotId !== bot.id) {
@@ -391,7 +402,13 @@ function BotMenuContent({
     showPanels();
   };
   return (
-    <DropdownMenuContent align="start" className="glass-pop w-[288px] p-1.5" side="right" sideOffset={10}>
+    <DropdownMenuContent
+      align="start"
+      anchor={anchor}
+      className="glass-pop bot-menu-pop"
+      side="right"
+      sideOffset={8}
+    >
       <BotChatMenuItems agentId={bot.id} chat={chat} latest={latest} />
       <DropdownMenuItem className="glass-mi" onClick={() => void openPanels()}>
         <IconLayoutDashboard className={icon} />
@@ -432,7 +449,7 @@ function BotMenuContent({
       {canDeleteBot(bot) ? (
         <>
           <DropdownMenuSeparator className="glass-sep" />
-          <DropdownMenuItem className="glass-mi text-destructive focus:text-destructive" onClick={onDelete}>
+          <DropdownMenuItem className="glass-mi is-danger" onClick={onDelete} variant="destructive">
             <IconTrash className={icon} />
             <span className="min-w-0 flex-1">{"删除机器人…"}</span>
           </DropdownMenuItem>
@@ -660,8 +677,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     ) : null}
                   </>
                 ) : null}
-                <div className="glass-bot-list">
-                  {others.map((bot) => row(bot, false))}
+                <div className="glass-bot-list relative">
+                  <PresenceList>
+                    {others.map((bot) => (
+                      <PresenceItem key={bot.id}>{row(bot, false)}</PresenceItem>
+                    ))}
+                  </PresenceList>
                   {roster.length === 0 && agents.isSuccess ? (
                     <button className="glass-list-empty" onClick={openCreateBot} type="button">
                       <IconPlus className="size-4" />

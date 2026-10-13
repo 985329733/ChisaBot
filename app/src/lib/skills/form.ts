@@ -15,25 +15,25 @@ export const skillFormSchema = z.object({
   slug: z
     .string()
     .trim()
-    .min(1, "A command is required.")
+    .min(1, "请填写命令名。")
     .regex(
       /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/,
-      "Lower-case letters, numbers and hyphens, 2 to 40 characters.",
+      "只能用小写字母、数字和连字符，2–40 个字符。",
     ),
   title: z
     .string()
     .trim()
-    .min(1, "A title is required.")
-    .max(120, "Title must be 120 characters or fewer."),
+    .min(1, "请填写标题。")
+    .max(120, "标题最多 120 个字。"),
   /** Optional on the server too, which is why there is no minimum here. */
   summary: z
     .string()
     .trim()
-    .max(200, "The one-liner must be 200 characters or fewer."),
+    .max(200, "一句话简介最多 200 个字。"),
   instructions: z
     .string()
     .trim()
-    .min(1, "Instructions are required — this is what the Bot follows."),
+    .min(1, "请填写说明——机器人会照着它做。"),
   /**
    * The tools this skill says it needs, as `<serverId>/<toolName>` refs.
    *

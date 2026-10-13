@@ -120,7 +120,7 @@ export function ContextMeter({
         </TooltipContent>
       </Tooltip>
       <Popover.Portal>
-        <Popover.Positioner align="end" className="isolate z-50" side="top" sideOffset={10}>
+        <Popover.Positioner align="end" className="isolate z-50" side="top" sideOffset={8}>
           <Popover.Popup className="context-popover">
             <div className="context-popover-head">
               <span className="context-popover-title">上下文</span>

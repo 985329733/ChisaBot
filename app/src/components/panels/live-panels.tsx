@@ -9,6 +9,19 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PresenceItem, PresenceList } from "@/components/ui/presence";
+import { toast } from "@/components/ui/toast";
 import { parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../../shared/json-render/catalog";
 import { pruneEmptySections } from "../../../../shared/json-render/empty-sections";
 import { dropDuplicateTitle } from "../../../../shared/json-render/panel-title";
@@ -151,14 +164,21 @@ function UpdatedAgo({ at }: { at: string | null }) {
   return <>{ago(at, now)}</>;
 }
 
-function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: LivePanel) => void }) {
+function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: LivePanel) => void }) {
   const queryClient = useQueryClient();
-  const [menu, setMenu] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: livePanelKeys.list(panel.botId) });
+  const key = livePanelKeys.list(panel.botId);
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: key });
+  // 乐观更新（DESIGN.md §34.6）：先改界面，请求失败再退回并说明原因。
+  const patchLocal = (patch: Partial<LivePanel>) =>
+    queryClient.setQueryData<LivePanel[]>(key, (old) => old?.map((p) => (p.id === panel.id ? { ...p, ...patch } : p)));
   const refresh = useMutation({
     mutationFn: () => client(`/api/live-panels/${panel.id}/refresh`, { method: "POST", fallback: "刷新失败" }),
-    onSuccess: invalidate,
+    onMutate: () => {
+      setProblem(null);
+      patchLocal({ refreshing: true });
+    },
+    onSettled: invalidate,
     onError: (e) => setProblem(e instanceof Error ? e.message : "刷新失败"),
   });
   const undoEdit = useMutation({
@@ -168,22 +188,18 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
   });
   const setCadence = useMutation({
     mutationFn: (minutes: number | null) => client(`/api/live-panels/${panel.id}`, { method: "PATCH", body: { refreshMinutes: minutes }, fallback: "修改失败" }),
-    onSuccess: invalidate,
-  });
-  const remove = useMutation({
-    mutationFn: () => client(`/api/live-panels/${panel.id}`, { method: "DELETE", fallback: "删除失败" }),
-    onSuccess: () => {
-      onRemoved(panel);
-      void invalidate();
+    onMutate: (minutes) => {
+      const before = panel.refreshMinutes;
+      patchLocal({ refreshMinutes: minutes });
+      return { before };
     },
-    onError: (e) => setProblem(e instanceof Error ? e.message : "删除失败"),
+    onError: (e, _m, ctx) => {
+      if (ctx) patchLocal({ refreshMinutes: ctx.before });
+      setProblem(e instanceof Error ? e.message : "修改失败");
+    },
+    onSettled: invalidate,
   });
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [menu]);
+  const icon = "size-[18px] shrink-0";
 
   const busy = panel.refreshing || refresh.isPending;
   const building = panel.status === "building" || (!panel.spec && busy);
@@ -208,58 +224,51 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
             {"可能已过期"}
           </span>
         ) : null}
-        <div className="relative ml-auto">
-          <button
-            aria-expanded={menu}
-            aria-label={`「${panel.title}」的更多操作`}
-            className="rail-head-icon size-7"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenu((v) => !v);
-            }}
-            type="button"
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<button aria-label={`「${panel.title}」的更多操作`} className="rail-head-icon live-panel-more ml-auto" type="button" />}
           >
             <IconDots className="size-4" />
-          </button>
-          {menu ? (
-            <div className="live-panel-menu glass-card" role="menu">
-              <button disabled={busy} onClick={() => refresh.mutate()} role="menuitem" type="button">
-                <IconRefresh className="size-4" />
-                {busy ? "正在刷新…" : "立即刷新"}
-              </button>
-              <div className="live-panel-menu-sep" />
-              <span className="live-panel-menu-label">{"自动刷新"}</span>
-              {[
-                [60, "每小时"],
-                [360, "每 6 小时"],
-                [1440, "每天"],
-                [null, "不自动刷新"],
-              ].map(([m, label]) => (
-                <button
-                  aria-checked={panel.refreshMinutes === m}
-                  key={String(m)}
-                  onClick={() => setCadence.mutate(m as number | null)}
-                  role="menuitemradio"
-                  type="button"
-                >
-                  <span className="live-panel-check">{panel.refreshMinutes === m ? "✓" : ""}</span>
-                  {label}
-                </button>
-              ))}
-              <div className="live-panel-menu-sep" />
-              {panel.canUndoEdit ? (
-                <button onClick={() => undoEdit.mutate()} role="menuitem" type="button">
-                  <IconArrowBackUp className="size-4" />
-                  {"撤销上次修改"}
-                </button>
-              ) : null}
-              <button className="is-danger" onClick={() => remove.mutate()} role="menuitem" type="button">
-                <IconTrash className="size-4" />
-                {"删除面板"}
-              </button>
-            </div>
-          ) : null}
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="glass-pop sg-menu w-[208px]" side="bottom" sideOffset={6}>
+            <DropdownMenuItem className="glass-mi" disabled={busy} onClick={() => refresh.mutate()}>
+              <IconRefresh className={icon} />
+              <span className="min-w-0 flex-1">{busy ? "正在刷新…" : "立即刷新"}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="glass-sep" />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="glass-mi-label">{"自动刷新"}</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                onValueChange={(v) => setCadence.mutate(v === "off" ? null : Number(v))}
+                value={panel.refreshMinutes == null ? "off" : String(panel.refreshMinutes)}
+              >
+                {(
+                  [
+                    ["60", "每小时"],
+                    ["360", "每 6 小时"],
+                    ["1440", "每天"],
+                    ["off", "不自动刷新"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <DropdownMenuRadioItem className="glass-mi" closeOnClick key={value} value={value}>
+                    {label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator className="glass-sep" />
+            {panel.canUndoEdit ? (
+              <DropdownMenuItem className="glass-mi" onClick={() => undoEdit.mutate()}>
+                <IconArrowBackUp className={icon} />
+                <span className="min-w-0 flex-1">{"撤销上次修改"}</span>
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem className="glass-mi is-danger" onClick={() => onRemove(panel)} variant="destructive">
+              <IconTrash className={icon} />
+              <span className="min-w-0 flex-1">{"删除面板"}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {building ? (
@@ -311,41 +320,57 @@ function LivePanelCard({ panel, onRemoved }: { panel: LivePanel; onRemoved: (p: 
   );
 }
 
-/** 右栏面板标签里的实时面板列表 + 删除后的「撤销」。 */
+/**
+ * 右栏面板标签里的实时面板列表。删除是乐观的（DESIGN.md §34.6）：点「删除面板」卡片立刻淡出、
+ * 下面的卡片补位，同时底部弹出带「撤销」的提示；请求失败就把卡片放回去并提示原因。
+ */
 export function LivePanelList({ botId }: { botId: string }) {
   const list = useLivePanels(botId);
   const queryClient = useQueryClient();
-  const [removed, setRemoved] = useState<LivePanel | null>(null);
-  useEffect(() => {
-    if (!removed) return;
-    const t = window.setTimeout(() => setRemoved(null), 10_000);
-    return () => window.clearTimeout(t);
-  }, [removed]);
+  const key = livePanelKeys.list(botId);
+  // 撤销可能在删除请求回来之前就点了：先等删除落地，再恢复，服务端顺序不会反。
+  const deleting = useRef(new Map<string, Promise<unknown>>());
   const restore = useMutation({
-    mutationFn: (p: LivePanel) => client(`/api/live-panels/${p.id}/restore`, { method: "POST", fallback: "撤销失败" }),
-    onSuccess: () => {
-      setRemoved(null);
-      void queryClient.invalidateQueries({ queryKey: livePanelKeys.list(botId) });
+    mutationFn: async ({ panel }: { panel: LivePanel; index: number }) => {
+      await deleting.current.get(panel.id);
+      return client(`/api/live-panels/${panel.id}/restore`, { method: "POST", fallback: "撤销失败" });
     },
+    onMutate: async ({ panel, index }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      queryClient.setQueryData<LivePanel[]>(key, (old = []) =>
+        old.some((o) => o.id === panel.id) ? old : [...old.slice(0, index), panel, ...old.slice(index)],
+      );
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "撤销失败"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+  const remove = useMutation({
+    mutationFn: (p: LivePanel) => {
+      const request = client(`/api/live-panels/${p.id}`, { method: "DELETE", fallback: "删除失败" });
+      deleting.current.set(p.id, request.catch(() => undefined));
+      return request;
+    },
+    onMutate: async (p) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const before = queryClient.getQueryData<LivePanel[]>(key);
+      const index = Math.max(0, before?.findIndex((o) => o.id === p.id) ?? 0);
+      queryClient.setQueryData<LivePanel[]>(key, (old) => old?.filter((o) => o.id !== p.id));
+      toast.undo(`已删除「${p.title}」`, () => restore.mutate({ panel: p, index }));
+      return { before };
+    },
+    onError: (e, p, ctx) => {
+      if (ctx?.before) queryClient.setQueryData(key, ctx.before);
+      toast.error(e instanceof Error ? e.message : `「${p.title}」删除失败`);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
   return (
-    <>
-      {removed ? (
-        <div className="glass-card panel-saved-note flex shrink-0 items-center gap-2 px-4 py-3 text-sm" role="status">
-          <span className="min-w-0 flex-1 truncate">{`已删除「${removed.title}」`}</span>
-          <button
-            className="glass-pill rounded-full px-3 py-1 text-xs"
-            disabled={restore.isPending}
-            onClick={() => restore.mutate(removed)}
-            type="button"
-          >
-            {restore.isPending ? "撤销中…" : "撤销"}
-          </button>
-        </div>
-      ) : null}
+    <PresenceList>
       {(list.data ?? []).map((panel) => (
-        <LivePanelCard key={panel.id} onRemoved={setRemoved} panel={panel} />
+        <PresenceItem key={panel.id}>
+          <LivePanelCard onRemove={(p) => remove.mutate(p)} panel={panel} />
+        </PresenceItem>
       ))}
-    </>
+    </PresenceList>
   );
 }
