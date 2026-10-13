@@ -51,6 +51,9 @@ export type LivePanel = {
   sources: { name: string; url: string }[];
   instruction: string;
   refreshMinutes: number | null;
+  /** 每天固定时刻刷新（「08:00」）；null = 按间隔。 */
+  refreshAt?: string | null;
+  refreshTimeZone?: string | null;
   error: string | null;
   refreshedAt: string | null;
   nextRefreshAt: string | null;
@@ -104,7 +107,9 @@ function ago(iso: string | null, now = Date.now()): string {
   if (s < 86400) return `${Math.floor(s / 3600)} 小时前更新`;
   return `${new Date(iso).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} 更新`;
 }
-function cadence(minutes: number | null): string {
+function cadence(minutes: number | null, at?: string | null, zone?: string | null): string {
+  // 固定时刻：北京时间以外的时区才写出来。
+  if (at) return `每天 ${at} 刷新${zone && zone !== "Asia/Shanghai" ? `（${zone}）` : ""}`;
   if (!minutes) return "不自动刷新";
   if (minutes % 1440 === 0) return minutes === 1440 ? "每天刷新" : `每 ${minutes / 1440} 天刷新`;
   if (minutes % 60 === 0) return minutes === 60 ? "每小时刷新" : `每 ${minutes / 60} 小时刷新`;
@@ -239,11 +244,15 @@ function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: Li
             <DropdownMenuGroup>
               <DropdownMenuLabel className="glass-mi-label">{"自动刷新"}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
-                onValueChange={(v) => setCadence.mutate(v === "off" ? null : Number(v))}
-                value={panel.refreshMinutes == null ? "off" : String(panel.refreshMinutes)}
+                onValueChange={(v) => {
+                  if (v !== "at") setCadence.mutate(v === "off" ? null : Number(v));
+                }}
+                value={panel.refreshAt ? "at" : panel.refreshMinutes == null ? "off" : String(panel.refreshMinutes)}
               >
                 {(
                   [
+                    // 机器人按用户说的「每天几点」设的固定时刻；选别的频率就取消它。
+                    ...(panel.refreshAt ? ([["at", `每天 ${panel.refreshAt}`]] as const) : []),
                     ["60", "每小时"],
                     ["360", "每 6 小时"],
                     ["1440", "每天"],
@@ -296,11 +305,19 @@ function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: Li
             <span className="live-panel-sources">
               {"来源 "}
               {panel.sources.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s, i) => (
-                <a href={s.url} key={s.url} rel="noopener noreferrer" target="_blank" title={s.url}>
-                  {i > 0 ? "、" : ""}
-                  {s.name}
-                  <IconExternalLink className="ml-0.5 inline size-3 align-[-1px] opacity-60" />
-                </a>
+                s.url ? (
+                  <a href={s.url} key={`${s.name}-${s.url}`} rel="noopener noreferrer" target="_blank" title={s.url}>
+                    {i > 0 ? "、" : ""}
+                    {s.name}
+                    <IconExternalLink className="ml-0.5 inline size-3 align-[-1px] opacity-60" />
+                  </a>
+                ) : (
+                  // 没有网址的来源（本机命令等）：只写名字，不做成点不开的链接。
+                  <span key={s.name}>
+                    {i > 0 ? "、" : ""}
+                    {s.name}
+                  </span>
+                )
               ))}
             </span>
           ) : null}
@@ -310,7 +327,7 @@ function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: Li
             ) : (
               <>
                 <UpdatedAgo at={panel.refreshedAt} />
-                {`${panel.refreshedAt ? " · " : ""}${cadence(panel.refreshMinutes)}`}
+                {`${panel.refreshedAt ? " · " : ""}${cadence(panel.refreshMinutes, panel.refreshAt, panel.refreshTimeZone)}`}
               </>
             )}
           </span>

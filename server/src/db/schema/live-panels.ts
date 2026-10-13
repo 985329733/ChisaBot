@@ -21,6 +21,8 @@ export const livePanels = pgTable(
     instruction: text("instruction").notNull(),
     /** 刷新间隔（分钟，最少 60）；null = 不自动刷新。 */
     refreshMinutes: integer("refresh_minutes"),
+    /** 每天固定时刻刷新（「HH:MM@IANA 时区」，如 08:00@Asia/Shanghai）；有它时 refreshMinutes = 1440，按这个时刻排下一次。 */
+    refreshAt: text("refresh_at"),
     error: text("error"),
     /** 上一版（spec / title / sources / instruction），给「撤销修改」。 */
     previous: jsonb("previous").$type<Record<string, unknown> | null>(),

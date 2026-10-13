@@ -40,3 +40,20 @@ export function takeHumanControlBlock(initiatorId: string, since: number): boole
 export function suspendsOnHumanControl(initiator: AuditInitiator | undefined): boolean {
   return initiator?.kind === "routine" && !initiator.id.startsWith("lp_");
 }
+
+type ReleaseListener = (ownerUserId: string) => void;
+const releaseListeners = new Set<ReleaseListener>();
+
+/** 有人把计算机交还给机器人时通知（实时面板据此马上重刷因接管而推迟的卡片）。 */
+export function onControlReleased(listener: ReleaseListener) {
+  releaseListeners.add(listener);
+  return () => releaseListeners.delete(listener);
+}
+
+export function notifyControlReleased(ownerUserId: string) {
+  for (const listener of releaseListeners) {
+    try {
+      listener(ownerUserId);
+    } catch {}
+  }
+}
