@@ -726,3 +726,33 @@
   保留旧数据、不计失败次数、5 分钟后重试；被服务器重启打断的刷新也不算失败，2 分钟后重来。
 - 机器人修面板必须用 `panel_refresh` 真跑一次刷新验证，只有 `ok:true` 才能说修好了；失败就把卡片上的原因照实告诉用户。
 - 浏览器本身没了（停止、重置、进程重启）时，被打断的接管不再留下 recoveryRequired；机器人只需先拍新快照。
+
+## 40. 手机竖屏体验 + 安装成应用（2026-10-13）
+
+用户：「我们不是做了个竖屏优化吗。如果检测用户是手机，也展示竖屏网页版。然后网页访问的时候，在浏览器提示用户可以安装应用。安装web应用之后如果是Windows，默认宽屏，手机版默认竖屏。重点优化竖屏体验」。样式在 `styles.css` 末尾的「§40」段；运维说明 `docs/pwa.md`。
+
+**40.1 布局由设备决定**：`index.html` 内联脚本在第一帧之前写 `<html data-phone>`：主要指针是触屏（`pointer: coarse` + `hover: none`）且**屏幕短边 < 600px**，或 UA-CH `mobile === true`。不靠 UA 字符串猜。横过来的手机（844×390）也是手机；平板（短边 ≥ 600）、电脑、ChisaBot PC 小窗照旧按窗口宽度（< 768 窄布局，§36）。`localStorage chisabot-layout = phone | wide` 可覆盖。
+- 手机上 `lib/device.ts` 把样式表里 `max-width ≥ 760px` 的媒体查询改成永远成立、`min-width ≥ 768px` 的改成永远不成立（含 Tailwind `md:` / `xl:`），等于「767px 宽的窗口」；`useIsMobile()` 对手机永远为真（左栏是抽屉）。新写的窄窗口样式继续用 `@media (max-width: 767px)`，手机会自动吃到；手机独有的写 `html[data-phone] …`。
+- 另有 `data-ios`、`data-standalone`（以安装后的应用打开）、`data-android-app`（安卓客户端外壳）。
+
+**40.2 手机竖屏细节**（390×844、360×780、横屏 844×390 都要看）：
+- 外壳高度 `var(--app-h, 100dvh)`，从不用 100vh；`--app-h` = visualViewport 高度（iOS 键盘盖住页面时也贴着键盘上沿）。viewport 带 `viewport-fit=cover, interactive-widget=resizes-content`（安卓 Chrome 键盘弹出时缩小布局视口）。键盘开着时 `<html data-keyboard>`：输入框底边只留 8px、最多 4 行；原来贴底的滚动区继续贴底。根元素 `overscroll-behavior: none`（不下拉刷新）。
+- 安全区：`--safe-t/r/b/l = env(safe-area-inset-*)`；顶栏、左栏抽屉、面板抽屉、输入框底边都让开。
+- 点按区 ≥ 44px：图标按钮外观不变，`::after` 撑出居中的 44×44 可点范围（`position: relative` 写在 base 层，按钮自己是 absolute 时不受影响）；菜单项 / 下拉选项 44px 高；顶栏菜单按钮 44、主导航 40 高；手机上不显示键盘快捷键提示（Ctrl K、Shift+T）。
+- 输入框 16px 字号（iOS 聚焦 < 16px 会放大整页）；输入框最多 6 行，横屏 3 行。
+- 内容两侧 12px；列表缩进收窄；表格每格至少 4 字宽、放不下就在表格容器里横向滚动，不再挤成一字一行。页面本身不横向滚动。
+- 菜单、弹层宽度不超过屏幕减安全区，高度交给弹层库的 `--available-height`（不要再写死 max-height，会顶出屏幕）；对话框不超出可视高度，内容多就在里面滚。
+- 横屏：顶栏 52px；键盘开着时顶栏上滑让位（200ms transform + opacity，减少动态效果时直接隐藏）。
+- 手势（`components/layout/phone-gestures.tsx`）：左边缘 28px 内往右划 56px → 打开左栏；打开的左栏上往左划 → 关；面板抽屉上往右划 → 关。只认横向为主的划动；手指在能横向滚动的东西（表格、代码、轮播）或输入框上不算。抽屉自己的进出动画不变。
+
+**40.3 安装提示**（`components/install-hint.tsx`）：与「有新版本」同一种玻璃胶囊，顶栏下面居中（让开状态栏）。
+- Chrome / Edge：接住 `beforeinstallprompt`（内联脚本先接住，避免浏览器在加载第一秒弹条），页面打开 **8 秒**后出现「安装 ChisaBot 应用 · [安装] · ×」，「安装」弹出浏览器自己的确认。
+- iPhone / iPad Safari（不含 iOS 上的 Chrome / 微信等）：按钮是「怎么装」，点开是两步说明「点分享 → 添加到主屏幕」。
+- 不出现：ChisaBot PC、安卓客户端、已经以应用打开、引导页、刚装完（`appinstalled`）。「有新版本」在时让位。关掉（或在浏览器确认里取消）后 **14 天**内不再出现（`localStorage chisabot-install-hint`）。
+- 进场 300ms 淡入 + 上浮 6px + 0.98 缩放，离场 150ms；减少动态效果时只淡入淡出。
+
+**40.4 安装后的应用（PWA）**：清单 `display: standalone`、`orientation: any`（不锁方向，布局由设备决定）、`id/start_url/scope = /`、中文描述、天空色 `theme_color #9dbddc` / `background_color #c9dbeb`；图标 `pwa-any-192/512`（圆角，电脑应用图标）+ `pwa-maskable-192/512`（满版，脸和发带在 80% 安全区里，`assets/brand/generate.py` 生成）。浏览器工具栏 / 应用标题栏颜色跟应用里选的浅色 / 深色走。
+- 电脑上第一次以应用打开且窗口比 1200 窄：开到最多 1440×920 并居中（只做一次，之后浏览器记住用户自己的大小）→ 宽屏布局。手机上是竖屏布局。
+- iOS：`apple-mobile-web-app-capable`、状态栏 `black-translucent`（内容铺到状态栏下面，顶栏用安全区让开）、`apple-touch-icon`。
+
+**40.5 Service worker**（`app/public/sw.js`）：导航永远先走网络（navigation preload；登录网关的跳转原样给），断网才给「网络不可用」卡片，**从不缓存 index.html**；`/assets/*` 缓存优先、只存 200，缺失分包的 404 原样转交，PR #64 的「分包过期自动刷新一次」（`lib/stale-chunk.ts`）照常工作。其它请求不拦。`/sw.js` 和清单回 `no-cache`，注册用 `updateViaCache: "none"`。PC / 安卓客户端里不注册（已注册的注销）。退路见 `docs/pwa.md`。

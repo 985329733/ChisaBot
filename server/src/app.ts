@@ -2226,6 +2226,9 @@ export function createApp(
       await next();
       if ((context.res.headers.get("content-type") ?? "").startsWith("text/html"))
         context.res.headers.set("Cache-Control", "no-cache");
+      // PWA（DESIGN.md §40）：service worker 和清单每次都向服务器确认，部署后浏览器马上拿到新的 sw.js。
+      else if (context.req.path === "/sw.js" || context.req.path === "/manifest.webmanifest")
+        context.res.headers.set("Cache-Control", "no-cache");
     });
     app.use("/*", serveStatic({ root }));
     /*
