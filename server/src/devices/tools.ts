@@ -191,9 +191,14 @@ function clip(text: string, max: number) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+/** diff 头里的路径：去掉开头的 / 或盘符前的 /，避免「a//work/x」。 */
+function diffPath(path: string) {
+  return path.replace(/^\/+/, "");
+}
+
 /** 审批卡片里看的改动预览：edit_file 的每处 oldText → newText（不读文件，所以不带行号）。 */
 export function editsPreview(path: string, edits: readonly { oldText: string; newText: string; replaceAll?: boolean | undefined }[]): string {
-  const lines = [`--- a/${path}`, `+++ b/${path}`];
+  const lines = [`--- a/${diffPath(path)}`, `+++ b/${diffPath(path)}`];
   for (const edit of edits.slice(0, 20)) {
     lines.push(`@@ ${edit.replaceAll ? "全部替换" : "替换"} @@`);
     for (const l of edit.oldText.split(/\r?\n/).slice(0, 60)) lines.push(`-${l}`);
@@ -208,7 +213,7 @@ export function editsPreview(path: string, edits: readonly { oldText: string; ne
 function contentPreview(path: string, content: string, append: boolean): string {
   const lines = content.split(/\r?\n/);
   const head = lines.slice(0, 80).map((l) => `+${l}`);
-  return [`--- a/${path}`, `+++ b/${path}`, `@@ ${append ? "追加到末尾" : "整个文件写成"}（${lines.length} 行）@@`, ...head, ...(lines.length > 80 ? [`…另外 ${lines.length - 80} 行`] : [])].join("\n");
+  return [`--- a/${diffPath(path)}`, `+++ b/${diffPath(path)}`, `@@ ${append ? "追加到末尾" : "整个文件写成"}（${lines.length} 行）@@`, ...head, ...(lines.length > 80 ? [`…另外 ${lines.length - 80} 行`] : [])].join("\n");
 }
 
 /** 「3 分钟前」「约 15 小时前」「2 天前」；没有记录时「从未连接过」。服务器不知道用户时区，所以只说相对时间。 */

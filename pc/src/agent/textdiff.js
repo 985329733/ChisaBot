@@ -125,7 +125,7 @@ function emit(tag, s) {
 /** 两段文本的 unified diff；没有变化返回 ""。 */
 function unifiedDiff(oldText, newText, options = {}) {
   const context = options.context ?? 3;
-  const label = options.path || "file";
+  const label = String(options.path || "file").replace(/^\/+/, "");
   const a = markedLines(oldText).lines;
   const b = markedLines(newText).lines;
   const ops = diffLines(a, b);
