@@ -1,6 +1,8 @@
 # Automatic Learning
 
-> **ChisaBot 分支：** 此能力依赖 CopilotKit Intelligence。本地 `local` 模式无需配置学习容器，不提供本文的 Intelligence 自动学习管理与交付。纯自托管运行参考 [分支说明](chisabot.md)。
+> **ChisaBot：已删除。** 瘦身 P4b-3 去掉了服务端的自动学习（`/api/admin/learning`、学习设置、学到的技能注入），下文仅作上游历史参考；`learning_*` 表保留。见 [slimming.md](slimming.md)。
+>
+> **ChisaBot 分支（旧）：** 此能力依赖 CopilotKit Intelligence。本地 `local` 模式无需配置学习容器，不提供本文的 Intelligence 自动学习管理与交付。纯自托管运行参考 [分支说明](chisabot.md)。
 
 Open **Admin → Automatic Learning** to choose which Bots contribute completed conversations to a CopilotKit Intelligence Learning container and receive its published skills. Learning defaults on for managed and self-hosted deployments; a saved off setting is preserved. Collection and delivery require an existing, assigned container. OpenBot still starts and chats without one.
 

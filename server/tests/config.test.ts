@@ -734,24 +734,6 @@ describe("deployment configuration", () => {
     },
   );
 
-  test("configures Docker as the per-Bot computer provider", () => {
-    const config = loadConfig({
-      ...baseEnvironment,
-      COMPUTER_SUPERVISOR_URL: "http://localhost:4000",
-      SUPERVISOR_TOKEN: "supervisor-token",
-      COMPUTER_TOKEN: "computer-token",
-    });
-
-    expect(config.computer?.provider).toBe("docker");
-    expect(config.computer).toEqual({
-      provider: "docker",
-      baseUrl: "http://localhost:4000",
-      supervisorToken: "supervisor-token",
-      token: "computer-token",
-      allowPrivateHosts: false,
-    });
-  });
-
   test("configures one shared computer", () => {
     const config = loadConfig({
       ...baseEnvironment,
@@ -894,7 +876,6 @@ describe("deployment configuration", () => {
   );
 
   test.each([
-    ["Docker", "COMPUTER_SUPERVISOR_URL"],
     ["shared", "AGENT_COMPUTER_URL"],
   ] as const)("refuses an invalid %s computer provider URL", (_, urlName) => {
     expect(() =>

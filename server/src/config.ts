@@ -1,8 +1,4 @@
 /** Runtime storage is chosen explicitly at the boot boundary. */
-import {
-  isLearningContainerId,
-  type LearningTarget,
-} from "../../shared/learning";
 import { singleUserEnabled } from "./auth/dev-actor";
 import { normalizeDomain } from "./auth/email-domain";
 import { organizationAuthority } from "./auth/organization";
@@ -40,15 +36,6 @@ export type IntelligenceSettings = {
   licenseToken?: string;
 };
 
-export type DockerComputerConfig = {
-  provider: "docker";
-  baseUrl: string;
-  supervisorToken?: string;
-  token?: string;
-  allowPrivateHosts: boolean;
-  policy?: ActionPolicy;
-};
-
 export type SharedComputerConfig = {
   provider: "shared";
   baseUrl: string;
@@ -75,10 +62,7 @@ export type SandboxComputerConfig = {
   policy?: ActionPolicy;
 };
 
-export type ComputerConfig =
-  | DockerComputerConfig
-  | SharedComputerConfig
-  | SandboxComputerConfig;
+export type ComputerConfig = SharedComputerConfig | SandboxComputerConfig;
 
 /**
  * Who a deployment lets in, and through which front door.
@@ -166,8 +150,6 @@ export type HandoffCaps = {
 };
 
 export type DeploymentConfig = {
-  /** Optional environment default. A saved Admin setting takes precedence. */
-  learning?: LearningTarget;
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
   voice?: VoiceConfig;
@@ -1036,10 +1018,11 @@ export function durationMs(value: string): number {
 }
 
 function computerConfig(environment: Environment): ComputerConfig | undefined {
-  const supervisorAddress = optional(environment, "COMPUTER_SUPERVISOR_URL");
+  // COMPUTER_SUPERVISOR_URL (a Docker supervisor per Bot) was removed in slimming P4b-3 with the
+  // supervisor service (P3). A personal deployment runs one shared agent-computer.
   const sharedAddress = optional(environment, "AGENT_COMPUTER_URL");
   const sandboxNamespace = optional(environment, "COMPUTER_SANDBOX_NAMESPACE");
-  if (!supervisorAddress && !sharedAddress && !sandboxNamespace) {
+  if (!sharedAddress && !sandboxNamespace) {
     return undefined;
   }
 
@@ -1069,19 +1052,6 @@ function computerConfig(environment: Environment): ComputerConfig | undefined {
         optional(environment, "COMPUTER_SANDBOX_TEMPLATE_FILE") ??
         "/etc/openbot/sandbox-template.json",
       allowPrivateHosts,
-      ...(computerToken ? { token: computerToken } : {}),
-      ...(policy ? { policy } : {}),
-    };
-  }
-
-  const supervisorUrl = url(environment, "COMPUTER_SUPERVISOR_URL");
-  if (supervisorUrl) {
-    const supervisorToken = optional(environment, "SUPERVISOR_TOKEN");
-    return {
-      provider: "docker",
-      baseUrl: supervisorUrl,
-      allowPrivateHosts,
-      ...(supervisorToken ? { supervisorToken } : {}),
       ...(computerToken ? { token: computerToken } : {}),
       ...(policy ? { policy } : {}),
     };
@@ -1273,10 +1243,6 @@ export function loadConfig(
     tenantPackageDirectory:
       optional(environment, "TENANT_PACKAGE_DIR") ?? "../examples/zh-CN",
     runtime,
-    learning:
-      runtime.mode === "intelligence"
-        ? learningDefault(environment)
-        : undefined,
     agentStallTimeoutMs: agentStallTimeoutMs(environment),
     auditRetentionDays: auditRetentionDays(environment),
     oauth: { google },
@@ -1305,17 +1271,3 @@ export function loadConfig(
   };
 }
 
-/** Optional container default; the enabled preference alone does not collect or deliver. */
-function learningDefault(environment: Environment): LearningTarget | undefined {
-  const containerId = optional(
-    environment,
-    "CPK_INTELLIGENCE_LEARNING_CONTAINER_ID",
-  );
-  if (!containerId) return undefined;
-  if (!isLearningContainerId(containerId))
-    throw new TypeError(
-      "CPK_INTELLIGENCE_LEARNING_CONTAINER_ID must use 1–64 lowercase letters, numbers, and single hyphens.",
-    );
-  const revision = optional(environment, "CPK_INTELLIGENCE_SKILLS_REVISION");
-  return { containerId, ...(revision ? { revision } : {}) };
-}

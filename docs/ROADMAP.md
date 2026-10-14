@@ -13,7 +13,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
 | [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图已上线；审批、生图/识图设置在做；简报、Google 账号最后 | 7 / 10 已上线 |
-| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2、P3、P4a 已上线；P4b 在做 |
+| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2、P3、P4a、P4b-1、P4b-2 已上线；P4b-3 在做，剩企业闸门 / SSO / 语音 |
 | [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问已上线；本地 agent 在做 |
 | [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 扫查在做 |
 | [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
@@ -60,6 +60,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
+| 2026-10-15 | 瘦身 P4b-3：去掉自动学习、身份提供者管理接口、Docker supervisor 配置（约 3.0k 行） | #123 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-2：去掉推送与可达性、群聊、团队机器人接口，交接默认关（约 4.6k 行） | #121 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-1：服务器不再加载演示录制、上游个人记忆、主动研究、意图路由（约 7.8k 行） | #117 | [slimming.md](slimming.md) |
 | 2026-10-15 | 设备核心：编码工具、完全访问、服务器节点 chisabot-node（0.1.8；CB-004/005/006） | #119 | DESIGN §62 · [pc-node.md](pc-node.md) §12–§14 · ADR-0009 |

@@ -1,4 +1,9 @@
 /**
+ * Docker supervisor client. Since slimming P4b-3 no deployment configuration selects it (the supervisor
+ * service was deleted in P3 and COMPUTER_SUPERVISOR_URL is no longer read); it stays only because the
+ * computer session-guard tests use it as a realistic per-Bot provider. Delete together with those tests.
+ */
+/**
  * Where a Bot's computer lives, asked of the supervisor.
  *
  * Each Bot gets a container of its own, which means the address of a computer is no longer one

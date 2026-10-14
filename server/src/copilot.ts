@@ -51,15 +51,6 @@ import { observeModelConnection } from "./desktop-connection-failure";
 import { desktopTelemetryProperties } from "./desktop-telemetry";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
 import type { LocalConversationBackend } from "./local-conversations";
-import { RemoteLearnedSkillsMiddleware } from "./learning/remote";
-import {
-  type AcquireLearnedSkills,
-  createLearningRuntime,
-  LEARNED_SKILL_TOOL_NAMES,
-  type LearnedSkillInvocation,
-  type LearningRuntime,
-} from "./learning/runtime";
-import type { LearningSettingsStore } from "./learning/settings";
 import {
   type LoadPersonalMemory,
   PersonalMemoryMiddleware,
@@ -493,7 +484,6 @@ export function builtInAgentConfiguration(
    */
   standingInstructions?: string | null,
   planModel?: PlanModel,
-  learnedSkills?: LearnedSkillInvocation,
 ): BuiltInAgentConfiguration {
   if (!apiKey && !planModel && model.useApiKey !== false) {
     return {
@@ -508,15 +498,7 @@ export function builtInAgentConfiguration(
   }
 
   const standing = standingInstructionsGuidance(standingInstructions);
-  const allTools = [
-    ...tools,
-    ...(learnedSkills?.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: parametersFor(tool.parameters),
-      execute: (args: unknown) => learnedSkills.execute(tool.name, args),
-    })) ?? []),
-  ];
+  const allTools = [...tools];
 
   return {
     // 每一步开始前看收件箱：机器人回答期间用户又发来的话、后台任务的结果在步与步之间读进去（thread-inbox.ts）。
@@ -566,7 +548,6 @@ export function builtInAgentConfiguration(
        * it last answered "I can't see your computer" while holding device_* tools for it.
        */
       ...toolCarriedGuidance(tools),
-      ...(learnedSkills?.catalog ? [learnedSkills.catalog] : []),
     ].join("\n\n"),
     ...(planModel ? {} : { apiKey: apiKey ?? undefined }),
     /*
@@ -663,7 +644,8 @@ export async function buildAgents(
    * `loadAttachment` for the positional reason it gives. Absent means nothing is recorded.
    */
   markAttachmentsSent?: MarkAttachmentsSent,
-  acquireLearnedSkills?: AcquireLearnedSkills,
+  /** Was Automatic Learning's skill reader (removed in slimming P4b-3); a slot so positional callers do not shift. */
+  _removedLearnedSkills?: undefined,
   loadPersonalMemory?: LoadPersonalMemory,
   resolveConnectionForAgent?: (
     agentId: string,
@@ -732,7 +714,6 @@ export async function buildAgents(
           initiator,
           loadAttachment,
           markAttachmentsSent,
-          acquireLearnedSkills,
         );
         if (loadPersonalMemory)
           built.use(new PersonalMemoryMiddleware(agent.id, loadPersonalMemory));
@@ -994,7 +975,6 @@ async function buildAgent(
   loadAttachment?: LoadAttachment,
   /** How this run records that those files were sent. See {@link buildAgents}. */
   markAttachmentsSent?: MarkAttachmentsSent,
-  acquireLearnedSkills?: AcquireLearnedSkills,
 ): Promise<AbstractAgent> {
   if (agent.type === "unavailable") {
     return new UnavailableAgent(agent);
@@ -1095,7 +1075,6 @@ async function buildAgent(
       narrowing ? offeredFor : undefined,
       loadAttachment,
       markAttachmentsSent,
-      acquireLearnedSkills,
       handoff,
       initiator,
     );
@@ -1110,7 +1089,6 @@ async function buildAgent(
     tools: GrantedTool[],
     input?: RunAgentInput,
     signal?: AbortSignal,
-    learnedSkills?: LearnedSkillInvocation,
   ) =>
     new BuiltInAgentWithSaneHistory(
       builtInAgentConfiguration(
@@ -1130,32 +1108,18 @@ async function buildAgent(
               signal,
             )
           : undefined,
-        learnedSkills,
       ),
       loadAttachment,
       markAttachmentsSent,
     );
 
   const whole = withTools(granted);
-  if (!narrowing && !handoff && !model.plan && !acquireLearnedSkills)
-    return whole;
+  if (!narrowing && !handoff && !model.plan) return whole;
 
   return new RunBuiltAgent(
     { agentId: agent.id, description: agent.name },
     whole,
     async (input, signal) => {
-      const learnedSkills = await acquireLearnedSkills?.(agent.id, signal);
-      signal.throwIfAborted();
-      if (
-        learnedSkills &&
-        [...granted, ...input.tools].some((tool) =>
-          LEARNED_SKILL_TOOL_NAMES.has(tool.name),
-        )
-      ) {
-        throw new Error(
-          "Learned Skill tool names are reserved by Automatic Learning.",
-        );
-      }
       const offered = narrowing ? await offeredFor(input, signal) : granted;
       signal.throwIfAborted();
       /*
@@ -1172,11 +1136,10 @@ async function buildAgent(
       // Nothing added and nothing narrowed means nothing to rebuild, and reusing the agent already
       // built for this request keeps that path allocation-for-allocation what it was.
       return !model.plan &&
-        !learnedSkills &&
         tools.length === granted.length &&
         passing.length === 0
         ? whole
-        : withTools(tools, input, signal, learnedSkills);
+        : withTools(tools, input, signal);
     },
   );
 }
@@ -1396,7 +1359,6 @@ function remoteAgentWithStandingRole(
   loadAttachment?: LoadAttachment,
   /** How this run records that those files were sent. See {@link buildAgents}. */
   markAttachmentsSent?: MarkAttachmentsSent,
-  acquireLearnedSkills?: AcquireLearnedSkills,
   coordination?: HandoffForRun,
   initiator?: AuditInitiator,
 ) {
@@ -1615,10 +1577,6 @@ function remoteAgentWithStandingRole(
         );
       return owned ? observeModelConnection(stream) : stream;
     });
-    if (acquireLearnedSkills)
-      target.use(
-        new RemoteLearnedSkillsMiddleware(agent.id, acquireLearnedSkills),
-      );
   });
 }
 
@@ -2022,7 +1980,8 @@ export async function resolveRuntimeAgents(
    * same positional reason. Absent means nothing is recorded.
    */
   markAttachmentsSent?: MarkAttachmentsSent,
-  acquireLearnedSkills?: AcquireLearnedSkills,
+  /** Was Automatic Learning's skill reader (removed in slimming P4b-3); a slot so positional callers do not shift. */
+  _removedLearnedSkills?: undefined,
   loadPersonalMemory?: LoadPersonalMemory,
   resolveConnectionForAgent?: (
     agentId: string,
@@ -2061,7 +2020,7 @@ export async function resolveRuntimeAgents(
     initiator,
     loadAttachment,
     markAttachmentsSent,
-    acquireLearnedSkills,
+    undefined,
     loadPersonalMemory,
     resolveConnectionForAgent,
   );
@@ -2201,7 +2160,6 @@ export function mountCopilotRuntime(
   options: {
     basePath?: string;
     onRunBusy?: (input: { threadId: string; busy: boolean }) => void;
-    learningSettings?: LearningSettingsStore;
     localBackend?: LocalConversationBackend;
   } = {},
 ) {
@@ -2221,7 +2179,7 @@ export function mountCopilotRuntime(
     process.env.COPILOTKIT_TELEMETRY_DISABLED = "true";
     process.env.DO_NOT_TRACK = "1";
   }
-  const { basePath = "/api/copilotkit", onRunBusy, learningSettings } = options;
+  const { basePath = "/api/copilotkit", onRunBusy } = options;
   if (localBackend && basePath !== "/api/copilotkit") {
     throw new Error(
       "The local runtime requires /api/copilotkit so every request passes the owner guard.",
@@ -2272,31 +2230,8 @@ export function mountCopilotRuntime(
           apiUrl: intelligence!.apiUrl,
           wsUrl: intelligence!.gatewayWsUrl,
           apiKey: intelligence!.apiKey,
-          getLearningContainerId: async ({
-            agentId,
-            input,
-            user,
-          }): Promise<string | undefined> => {
-            if (!user)
-              throw new Error(
-                "Learning Thread assignment requires a verified user.",
-              );
-            return learning?.containerForThread({
-              agentId,
-              threadId: input.threadId,
-              userId: user.id,
-            });
-          },
         }),
       );
-
-  const learning: LearningRuntime | undefined =
-    intelligence && learningSettings
-      ? createLearningRuntime({
-          store: learningSettings,
-          client: intelligenceClient,
-        })
-      : undefined;
 
   const runtime = new CopilotRuntime({
     // `mode` is inferred from the presence of `intelligence`; passing it is a type error.
@@ -2339,7 +2274,6 @@ export function mountCopilotRuntime(
 
   return {
     handler: createCopilotHonoHandler({ runtime, basePath }),
-    learning,
     runner: runtime.runner,
     /**
      * How to reach the platform's runner, exactly as the runtime reaches it.
@@ -2377,15 +2311,8 @@ export function mountCopilotRuntime(
         agentId: string;
       }) => {
         try {
-          const learningContainerId = await learning?.containerForThread(input);
-          await intelligenceClient.getOrCreateThread({
-            ...input,
-            ...(learningContainerId ? { learningContainerId } : {}),
-          });
-          const held = await intelligenceClient.ɵacquireThreadLock({
-            ...input,
-            ...(learningContainerId ? { learningContainerId } : {}),
-          });
+          await intelligenceClient.getOrCreateThread(input);
+          const held = await intelligenceClient.ɵacquireThreadLock(input);
           // A run started on this thread. Side effect only, never awaited: a channel showing it is
           // working is worth nothing next to the lock the run depends on.
           try {

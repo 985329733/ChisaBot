@@ -196,8 +196,6 @@ import { createBotThreads } from "./bot-threads";
 import { createChatShots } from "./chat-shots";
 import { createImService, type ImService, imConnectionOf } from "./im/service";
 import { createLinkPreviews } from "./link-preview/service";
-import { clearLearningRevisionFallback } from "./learning/runtime";
-import { createLearningSettingsStore } from "./learning/settings";
 import { createMemoryNotes } from "./memory-notes/service";
 import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
@@ -369,7 +367,6 @@ const identifyActor: IdentifyActor = async (request) => {
 const config = loadConfig();
 // The environment seeds local policy once. The SDK fallback must not reapply an old revision
 // after an administrator clears a pin to follow the latest published Skills.
-clearLearningRevisionFallback();
 // Read with the rest of the configuration, where an empty variable is an absent one. See
 // `serverPort` in config.ts for what `process.env.PORT ?? …` did with `PORT=` instead.
 const port = config.port;
@@ -380,7 +377,6 @@ const localBackend =
     : undefined;
 // Every dispatch point asks this database whether its person paused the Bot. See agents/lifecycle.ts.
 configureBotLifecycle({ database });
-const learningSettings = createLearningSettingsStore(database, config.learning);
 await initializeDevActorUser(database, config.singleUser);
 // The vault, built before the agent store because a customer's agent may sit behind a key and that
 // key belongs here rather than on the agent row. See agents/auth-header.ts.
@@ -1988,9 +1984,6 @@ const governedTurnRunner = createTurnRunner({
       ...(signInService ? { signIn: signInService } : {}),
     });
   },
-  learningContainerForThread: (input) =>
-    copilotRuntime.learning?.containerForThread(input) ??
-    Promise.resolve(undefined),
 });
 /*
  * 后台任务（DESIGN.md §38，workers/service.ts）：只在本地对话后端下有。工人的回合用自己的一个回合运行器
@@ -2020,8 +2013,6 @@ if (localBackend) {
       ...(await workerComputerTools(input)),
       ...(workerService && input.threadId.startsWith("worker-") ? workerService.workerTools(input.threadId.slice("worker-".length)) : []),
     ],
-    learningContainerForThread: (input) =>
-      copilotRuntime.learning?.containerForThread(input) ?? Promise.resolve(undefined),
     turnTimeoutMs: 15 * 60_000 + 30_000,
   });
   workerService = createWorkerService({
@@ -2100,8 +2091,6 @@ const imTurnRunner = createTurnRunner({
     if (!connection || !imService?.allowsDevices(connection)) return [];
     return workerComputerTools(input);
   },
-  learningContainerForThread: (input) =>
-    copilotRuntime.learning?.containerForThread(input) ?? Promise.resolve(undefined),
   turnTimeoutMs: 10 * 60_000,
 });
 imService = createImService({
@@ -2574,10 +2563,6 @@ const actorAgentResolver = createActorAgentResolver({
   loadInstructionsForActor,
   loadAttachmentForActor,
   markAttachmentsSentForActor,
-  // The runtime owns Learning. Resolve its reader only when a turn is built, after boot wiring.
-  get acquireLearnedSkills() {
-    return copilotRuntime.learning?.acquire;
-  },
   loadPersonalMemoryForActor,
 });
 
@@ -2590,7 +2575,6 @@ const copilotRuntime = mountCopilotRuntime(
     onRunBusy: (input) => {
       void channelStore.signalBusy(input.threadId, input.busy).catch(() => {});
     },
-    learningSettings,
     localBackend,
   },
 );
@@ -2648,9 +2632,6 @@ const responsibilityEngine: ResponsibilityEngine = createResponsibilityEngine({
           })),
         ];
       },
-      learningContainerForThread: (input) =>
-        copilotRuntime.learning?.containerForThread(input) ??
-        Promise.resolve(undefined),
     });
     const saved = context.continuation;
     const snapshot = saved
@@ -2748,9 +2729,6 @@ const responsibilityAnswerTurn = ({
         execute: (args: unknown) => tool.execute(args),
       })),
     ],
-    learningContainerForThread: (input) =>
-      copilotRuntime.learning?.containerForThread(input) ??
-      Promise.resolve(undefined),
   });
 };
 const responsibilitySweep = repeatAfterEach(async () => {
@@ -2829,9 +2807,6 @@ const approvalTurnRunner = createTurnRunner({
   buildAgentFor,
   toolsForTurn: async ({ ownerUserId, agentId, initiator }) =>
     approvalComputerTools(ownerUserId, agentId, initiator),
-  learningContainerForThread: (input) =>
-    copilotRuntime.learning?.containerForThread(input) ??
-    Promise.resolve(undefined),
 });
 const approvalContinuationRunner: typeof approvalTurnRunner = (input) =>
   panelTaskService.runContinuation(input, approvalTurnRunner);
@@ -3051,9 +3026,6 @@ const wakeUpRunner = createWakeUpRunner({
         ...(signInService ? { signIn: signInService } : {}),
       });
     },
-    learningContainerForThread: (input) =>
-      copilotRuntime.learning?.containerForThread(input) ??
-      Promise.resolve(undefined),
   }),
   notify: (scope, input) => deliveryNotifications(scope, input),
 });
@@ -3117,9 +3089,6 @@ const groupConversations = createGroupConversations({
         ...(signInService ? { signIn: signInService } : {}),
       });
     },
-    learningContainerForThread: (input) =>
-      copilotRuntime.learning?.containerForThread(input) ??
-      Promise.resolve(undefined),
   }),
   caps: config.handoff,
   // The handoff desk's own grant check, read per hop and failing closed.
@@ -3678,11 +3647,7 @@ const app = createApp(
     }),
     channels: channelStore,
   },
-  {
-    store: learningSettings,
-    status: copilotRuntime.learning?.status,
-    inspect: copilotRuntime.learning?.inspect,
-  },
+  undefined, // was Automatic Learning (removed in slimming P4b-3)
   {
     approvals: approvalService,
     ...(signInService ? { passwords: signInService } : {}),
