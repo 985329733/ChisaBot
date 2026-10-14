@@ -80,6 +80,7 @@ import {
 import {
   type ApprovalResumeDependencies,
   createApprovalService,
+  isApprovalRecheck,
 } from "./approvals/service";
 import { createApprovalStore } from "./approvals/store";
 import {
@@ -211,6 +212,7 @@ import { createGithub } from "./github/service";
 import { createPages } from "./pages/service";
 import { createSchedules } from "./schedules/service";
 import { createChatFiles } from "./chat-files/service";
+import { createConfirmations } from "./confirmations/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -677,11 +679,36 @@ const retentionSweeps = startRetentionSweeps(
   config.auditRetentionDays,
   pageFrameStore,
 );
+/**
+ * 确认卡片 + 审批偏好（server/src/confirmations，DESIGN.md §58）。云端浏览器：用户在聊天里确认过付款
+ * （confirm_action 类别 purchase）之后，这段对话 20 分钟内的浏览器操作不再被上游的付款安全规则交还给人。
+ */
+const confirmations = createConfirmations(database);
+await confirmations.ensure();
+const confirmAwareGate: typeof approvalService.gate = async (candidate) => {
+  // 网页上点「发送 / 发布 / 删除」这类按钮：服务器自己判断，按审批偏好出确认卡片（不靠机器人先调用 confirm_action）。
+  if (!isApprovalRecheck() && candidate.toolRef === "computer_click") {
+    const target = (candidate.target ?? {}) as { pageUrl?: string; element?: { role?: string; name?: string } };
+    const outcome = await confirmations.pageAction({
+      ownerUserId: candidate.actorId,
+      agentId: candidate.botId,
+      threadId: (candidate.continuation ?? currentApprovalContext())?.threadId ?? null,
+      element: target.element ?? null,
+      pageUrl: target.pageUrl ?? null,
+    });
+    if (outcome && !outcome.ok) throw new ApprovalRefusedError(outcome.message);
+  }
+  if (!isApprovalRecheck() && candidate.toolRef.startsWith("computer_") && candidate.effect !== "read") {
+    const threadId = (candidate.continuation ?? currentApprovalContext())?.threadId;
+    if (threadId && (await confirmations.purchaseConfirmed(candidate.actorId, threadId).catch(() => false))) return undefined;
+  }
+  return approvalService.gate(candidate);
+};
 const computerGateway = computerProvider
   ? createComputerGateway({
       provider: computerProvider,
       auditStore: bootAuditStore,
-      approvalGate: approvalService.gate,
+      approvalGate: confirmAwareGate,
       policy: () => policyStore.get(),
       // In Postgres, so the ref a click carries resolves against the snapshot that produced it even
       // when the snapshot was taken by another server. A Map here would be blank on every replica
@@ -1182,7 +1209,8 @@ const hostAccessBroker = createHostAccessBroker(Date.now, {
 
 // PC 节点（docs/pc-node.md）：设备登记在数据库，在线连接在内存里的 hub。
 const deviceStore = createDeviceStore(database);
-const deviceHub = createDeviceHub({ store: deviceStore });
+const deviceHub = createDeviceHub({ store: deviceStore, confirm: confirmations.deviceHook });
+confirmations.setDeviceDecider((approvalId, approved) => deviceHub.decide(approvalId, approved, "web"));
 // 2026-10-14：旧版登记、能力仍是出厂「全部关闭」且没人改过配置的电脑 → 新默认「全部询问」（每次审批）。
 // 幂等，用户自己关掉的不动；CHISABOT_DEVICE_ASK_DEFAULTS=0 关掉。
 if (process.env.CHISABOT_DEVICE_ASK_DEFAULTS !== "0") {
@@ -1324,6 +1352,7 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
     VAULT_GUIDANCE,
     await github.guidance(ownerUserId).catch(() => ""),
     await chatFiles.guidance().catch(() => ""),
+    await confirmations.context(ownerUserId).catch(() => ""),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -1364,7 +1393,9 @@ const loadToolsForActor =
     // 电脑 / 设备类工具只有连接里打开了「允许使用电脑和设备」才给。
     const imConnection = imConnectionOf(initiator);
     const imDevices = !imConnection || imService?.allowsDevices(imConnection) === true;
-    return [
+    // 有后果的工具（删除 / 付款 / 对外发消息）按审批偏好先出确认卡片（server/src/confirmations）。
+    return confirmations.wrap([
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : confirmations.tools(actorId, botId, initiator)),
     ...wakeUpTools({
       store: wakeUpStore,
       ownerUserId: actorId,
@@ -1414,7 +1445,7 @@ const loadToolsForActor =
       botId,
       initiator,
     }),
-  ];
+  ], { ownerUserId: actorId, agentId: botId, initiator });
   };
 
 /** One person's standing instructions, for both the /api/settings routes and every run they start. */
@@ -2049,6 +2080,29 @@ if (localBackend) {
   }
   localBackend.setWorkers(workerService);
 }
+/*
+ * 确认卡片：工具已经不等了（超时 / 服务重启）之后用户才点「确认」——往那段对话里发一条「用户确认了」，
+ * 叫机器人接着做（和后台任务交回结果同一条路：正在回答就进收件箱，空着就起一轮）。
+ */
+confirmations.setResume(async ({ ownerUserId, agentId, threadId, requestId, text }) => {
+  const message = { id: `confirm-resume-${requestId}`, role: "user", content: text } as Message;
+  if (localBackend?.control.isActive(threadId)) {
+    await localBackend.inbox.enqueue({ threadId, ownerUserId, message });
+    if (localBackend.control.isActive(threadId)) return;
+    await localBackend.inbox.withdraw(threadId, message.id);
+  }
+  const rows = await database.$client.unsafe<{ agent_id: string }[]>("SELECT agent_id FROM openbot_local_threads WHERE id = $1", [threadId]);
+  await governedTurnRunner({
+    ownerUserId,
+    routineId: `confirm:${requestId}`,
+    agentId: rows[0]?.agent_id ?? agentId,
+    threadId,
+    instruction: text,
+    initiator: { kind: "routine", id: `confirm:${requestId}` },
+    userMessage: message,
+    forwardedProps: { chisabotConfirmResume: { id: requestId } },
+  });
+});
 /** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
 const isChannelThread = async (threadId: string) =>
   (await database.$client.unsafe("SELECT 1 FROM intelligence_channel_mappings WHERE thread_id = $1 LIMIT 1", [threadId])).length > 0;
@@ -3939,6 +3993,7 @@ const app = createApp(
       ["/p", pages.publicRoutes()],
       ["/api/schedules", schedules.routes(requireUser)],
       ["/api/chat-files", chatFiles.routes(requireUser)],
+      ["/api/confirmations", confirmations.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",

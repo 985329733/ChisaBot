@@ -6563,3 +6563,91 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .rail-sec-chev[data-open] { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .rail-sec-chev { transition: none; } }
 .glass-topbar-mid { min-width: 0; }
+
+/* ── 确认卡片 + 审批偏好（confirm-card.tsx，DESIGN.md §58）────────────────────────
+ * 一张玻璃卡，最宽 480px：类别图标（40px）· 小字「需要你确认 · 类别」· 标题 · 对象；细节两列；确认 / 取消。
+ * 决定后原地收成一行（细节和按钮 grid-rows 1fr→0fr 收起），图标变 ✓ / ✕，不跳版。 */
+.cf-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-width: 100%; min-width: 0; container-type: inline-size; }
+.cf-card {
+  max-width: 480px; padding: 14px 16px; border-radius: var(--r-md, 16px); border: 1px solid var(--line);
+  background: var(--glass-3); box-shadow: var(--shadow-1); color: var(--ink-1);
+  animation: cf-in var(--dur-2) var(--ease-out) backwards;
+  transition: padding var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.cf-card:not([data-state="pending"]) { padding-block: 10px; background: var(--glass-2); box-shadow: none; }
+@keyframes cf-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.cf-head { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.cf-ico {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px;
+  color: var(--accent-blue-ink, var(--ink-2)); background: var(--accent-blue-soft, var(--glass-hover));
+  transition: color var(--dur-2), background-color var(--dur-2), width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
+}
+.cf-card[data-category="delete"] .cf-ico { color: var(--danger); background: var(--danger-soft); }
+.cf-card[data-category="purchase"] .cf-ico { color: var(--warn); background: var(--warn-soft); }
+.cf-card:not([data-state="pending"]) .cf-ico { width: 28px; height: 28px; border-radius: 9px; }
+.cf-card[data-state="approved"] .cf-ico { color: var(--success); background: var(--success-soft); }
+.cf-card:is([data-state="denied"], [data-state="expired"], [data-state="cancelled"]) .cf-ico { color: var(--ink-3); background: var(--glass-hover); }
+.cf-main { flex: 1; min-width: 0; }
+.cf-eyebrow { font-size: 12px; line-height: 18px; color: var(--ink-3); }
+.cf-title { margin-top: 1px; font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--ink-1); overflow-wrap: anywhere; }
+.cf-card:not([data-state="pending"]) .cf-title { font-weight: 500; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-card:not([data-state="pending"]) .cf-head { align-items: center; }
+.cf-target { margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink-3); overflow-wrap: anywhere; }
+.cf-card:not([data-state="pending"]) .cf-target { display: none; }
+.cf-note { flex: none; align-self: center; font-size: 12px; color: var(--ink-3); }
+.cf-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out); opacity: 0; }
+.cf-fold[data-open] { grid-template-rows: 1fr; opacity: 1; }
+.cf-fold-in { min-height: 0; overflow: hidden; }
+.cf-details { display: grid; gap: 6px; margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--glass-1); border: 1px solid var(--line); }
+.cf-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; font-size: 13px; line-height: 1.5; }
+.cf-row dt { color: var(--ink-3); }
+.cf-row dd { margin: 0; color: var(--ink-1); overflow-wrap: anywhere; white-space: pre-wrap; max-height: 9em; overflow: auto; }
+.cf-row dd.is-code { font-family: var(--font-code); font-size: 12.5px; }
+.cf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.cf-actions [data-slot="button"] { min-width: 84px; }
+.cf-always {
+  margin-left: auto; padding: 4px 2px; border: 0; background: none; font-size: 12px; color: var(--ink-3); cursor: pointer;
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: color var(--dur-1), text-decoration-color var(--dur-1);
+}
+.cf-always:hover:not(:disabled) { color: var(--ink-1); text-decoration-color: currentColor; }
+.cf-always:disabled { opacity: .5; cursor: default; }
+.cf-always:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; border-radius: 4px; }
+.cf-lock { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 12px; color: var(--ink-3); }
+@container (max-width: 420px) { .cf-always, .cf-lock { margin-left: 0; flex-basis: 100%; text-align: left; } }
+@media (max-width: 480px) { .cf-always, .cf-lock { margin-left: 0; } }
+.confirm-resume-msg { display: flex; justify-content: center; padding-top: 10px; }
+.cf-resume { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass-1); font-size: 12px; line-height: 20px; color: var(--ink-3); }
+.cf-resume svg { color: var(--success); }
+@media (prefers-reduced-motion: reduce) {
+  .cf-card { animation: cf-fade var(--dur-2) linear backwards; }
+  .cf-fold, .cf-ico, .cf-card { transition-property: opacity, color, background-color; }
+}
+@keyframes cf-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 设置 → 审批偏好：每类一行的分段选择（先问我 / 直接做）。 */
+.ap-seg { display: inline-flex; flex: none; padding: 3px; gap: 2px; border-radius: 10px; border: 1px solid var(--line); background: var(--glass-1); }
+.ap-seg button {
+  min-width: 64px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: none; font-size: 13px; color: var(--ink-3); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1);
+}
+.ap-seg button[aria-pressed="true"] { background: var(--glass-3); color: var(--ink-1); box-shadow: var(--shadow-1); font-weight: 500; }
+.ap-seg button:disabled { cursor: default; }
+.ap-seg button:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 1px; }
+.ap-ico { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; color: var(--accent-blue-ink, var(--ink-2)); background: var(--accent-blue-soft, var(--glass-hover)); }
+.ap-ico[data-category="delete"] { color: var(--danger); background: var(--danger-soft); }
+.ap-ico[data-category="purchase"] { color: var(--warn); background: var(--warn-soft); }
+.ap-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 12px; background: var(--glass-hover); color: var(--ink-2); white-space: nowrap; }
+.ap-chip[data-mode="auto"] { background: var(--success-soft); color: var(--success); }
+.ap-chip[data-mode="ask"] { background: var(--accent-blue-soft, var(--glass-hover)); color: var(--accent-blue-ink, var(--ink-2)); }
+.ap-form { display: grid; gap: 10px; padding: 14px 16px; }
+.ap-form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ap-quote { display: block; margin-top: 2px; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.ap-row .im-row-main { cursor: default; }
+@media (max-width: 560px) {
+  .ap-pref { flex-wrap: wrap; padding-bottom: 12px; }
+  .ap-pref .im-row-main { flex-basis: 100%; }
+  .ap-pref .ap-seg { margin-left: 68px; }
+}
+.ap-status { font-size: 12px; white-space: nowrap; color: var(--ink-3); }
+.ap-status[data-status="approved"] { color: var(--success); }
+.ap-status[data-status="pending"] { color: var(--warn); }

@@ -79,8 +79,31 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * 审批偏好 + 聊天里的确认卡片（server/src/confirmations，DESIGN.md §58）。「询问」能力：偏好是「直接做」就不问；
+ * 否则照旧在电脑上弹窗，网页聊天里同时出一张卡片，两边谁先决定都算。
+ */
+export type DeviceConfirmLink = {
+  linkable(): boolean;
+  before(input: { ownerUserId: string; botId: string; operation: string; operationLabel: string; summary: string; args: unknown }): Promise<"auto" | "ask">;
+  opened(input: {
+    approvalId: string;
+    ownerUserId: string;
+    botId: string;
+    deviceName: string;
+    operationLabel: string;
+    summary: string;
+    args: unknown;
+    expiresAt: string;
+  }): Promise<void>;
+  closed(approvalId: string, decision: "approve" | "deny" | "expired", by: string): Promise<void>;
+};
+/** 聊天里有卡片时等得久一点（和别的确认卡片一样 10 分钟）。 */
+const CHAT_APPROVAL_TTL_MS = 10 * 60_000;
+
 export function createDeviceHub(options: {
   store: HubStore;
+  confirm?: DeviceConfirmLink;
   approvalTtlMs?: number;
   defaultTimeoutMs?: number;
   now?: () => number;
@@ -92,6 +115,7 @@ export function createDeviceHub(options: {
   const connections = new Map<string, Connection>();
   const approvals = new Map<string, Approval>();
   const screenshots = new Map<string, Screenshot>();
+  let confirm = options.confirm;
 
   function send(connection: Connection | undefined, message: ServerToDevice) {
     if (!connection) return false;
@@ -198,6 +222,7 @@ export function createDeviceHub(options: {
       decision: by === "expired" ? "expired" : approved ? "approve" : "deny",
     });
     approval.resolve({ approved, by });
+    void confirm?.closed(id, by === "expired" ? "expired" : approved ? "approve" : "deny", by).catch(() => {});
     return true;
   }
 
@@ -207,6 +232,8 @@ export function createDeviceHub(options: {
   ): Promise<{ approved: boolean; by: string }> {
     const id = randomUUID();
     const createdAt = now();
+    const chat = input.actorType !== "user" && (confirm?.linkable() ?? false);
+    const ttlMs = chat ? Math.max(approvalTtlMs, CHAT_APPROVAL_TTL_MS) : approvalTtlMs;
     const view: DeviceApprovalView = {
       id,
       deviceId: record.id,
@@ -216,10 +243,10 @@ export function createDeviceHub(options: {
       operation: input.operation,
       summary: input.summary,
       createdAt: new Date(createdAt).toISOString(),
-      expiresAt: new Date(createdAt + approvalTtlMs).toISOString(),
+      expiresAt: new Date(createdAt + ttlMs).toISOString(),
     };
     return new Promise((resolve) => {
-      const timer = setTimeout(() => decideInternal(id, false, "expired"), approvalTtlMs);
+      const timer = setTimeout(() => decideInternal(id, false, "expired"), ttlMs);
       unref(timer);
       approvals.set(id, { view, ownerUserId: record.ownerUserId, resolve, timer });
       send(connections.get(record.id), {
@@ -230,8 +257,21 @@ export function createDeviceHub(options: {
         botName: input.bot.name,
         expiresAt: view.expiresAt,
         // PC 的时钟可能和服务器不一致，所以同时给出按服务器时钟算的剩余毫秒数，PC 用它倒数。
-        remainingMs: approvalTtlMs,
+        remainingMs: ttlMs,
       });
+      if (chat && confirm)
+        void confirm
+          .opened({
+            approvalId: id,
+            ownerUserId: record.ownerUserId,
+            botId: input.bot.id,
+            deviceName: record.name,
+            operationLabel: OPERATION_LABEL[input.operation] ?? input.operation,
+            summary: input.summary,
+            args: input.args,
+            expiresAt: view.expiresAt,
+          })
+          .catch((error) => console.warn(JSON.stringify({ type: "device-confirm-card-failed", reason: errorText(error) })));
     });
   }
 
@@ -383,6 +423,10 @@ export function createDeviceHub(options: {
       return decideInternal(id, approved, by);
     },
 
+    setConfirm(link: DeviceConfirmLink) {
+      confirm = link;
+    },
+
     screenshot(deviceId: string, id: string): Buffer | null {
       const shot = screenshots.get(id);
       return shot && shot.deviceId === deviceId ? shot.png : null;
@@ -427,7 +471,22 @@ export function createDeviceHub(options: {
       if (!connections.has(record.id)) return refuse("offline", "这台设备当前离线。");
 
       let approvalNote: string | null = null;
-      if (policy === "ask") {
+      const preference =
+        policy === "ask" && confirm && input.actorType !== "user"
+          ? await confirm
+              .before({
+                ownerUserId: record.ownerUserId,
+                botId: input.bot.id,
+                operation: input.operation,
+                operationLabel: OPERATION_LABEL[input.operation] ?? input.operation,
+                summary: input.summary,
+                args: input.args,
+              })
+              .catch(() => "ask" as const)
+          : "ask";
+      if (policy === "ask" && preference === "auto") {
+        approvalNote = "按审批偏好直接执行";
+      } else if (policy === "ask") {
         const decision = await requestApproval(record, input);
         const who = decision.by === "device" ? "PC 上" : decision.by === "expired" ? "" : "网页上";
         if (!decision.approved)
