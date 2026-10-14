@@ -1,6 +1,6 @@
-import { IconDots, IconKey, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconBrandGithub, IconDots, IconKey, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { VAULT_DOMAIN, VAULT_NAME, type VaultSecretView } from "../../../../../shared/vault";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/_authed/settings/vault")({
 function VaultPage() {
   const list = useQuery(vaultQueryOptions());
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [dialog, setDialog] = useState<{ open: boolean; secret: VaultSecretView | null }>({ open: false, secret: null });
   const [hidden, setHidden] = useState<string | null>(null);
   const secrets = (list.data ?? []).filter((secret) => secret.id !== hidden);
@@ -55,7 +56,7 @@ function VaultPage() {
             {"添加密钥"}
           </Button>
         }
-        description="API 密钥、令牌这类机器人要用、但不该看到的东西。值加密保存，只在服务器上替换进请求，只会发往你允许的域名，聊天记录里永远不会出现。机器人需要时会在聊天里弹一张安全输入卡片。网站登录在「账号与密码」里。"
+        description="API 密钥、令牌这类机器人要用、但不该看到的东西。值加密保存，只在服务器上替换进请求，只会发往你允许的域名，聊天记录里永远不会出现。机器人需要时会在聊天里弹一张安全输入卡片。网站登录和 GitHub 在「账号连接」里。"
         title="密钥"
       >
         {list.isPending ? (
@@ -75,11 +76,16 @@ function VaultPage() {
             <Card className="mem-card">
               {secrets.map((secret) => (
                 <div className="im-row" key={secret.id}>
-                  <button className="im-row-main" onClick={() => setDialog({ open: true, secret })} type="button">
+                  <button
+                    className="im-row-main"
+                    onClick={() => (secret.managedBy ? void navigate({ to: "/settings/connected-accounts" }) : setDialog({ open: true, secret }))}
+                    title={secret.managedBy ? "在 账号连接 → GitHub 里管理" : undefined}
+                    type="button"
+                  >
                     <ListRow
                       icon={
                         <span className="mem-ico is-project">
-                          <IconKey className="size-5" />
+                          {secret.managedBy ? <IconBrandGithub className="size-5" /> : <IconKey className="size-5" />}
                         </span>
                       }
                       sub={
@@ -88,12 +94,13 @@ function VaultPage() {
                             <span className="skill-slug">{`{{secret:${secret.name}}}`}</span>
                             {secret.hint ? <span className="device-cap-chip">{`末四位 ${secret.hint}`}</span> : null}
                           </span>
-                          <span className="mem-by">{`可用于 ${secret.domains.join("、")} · ${secret.lastUsedAt ? `${agoText(secret.lastUsedAt)}用过` : "还没用过"}`}</span>
+                          <span className="mem-by">{`${secret.managedBy ? "由 账号连接 → GitHub 管理 · " : ""}可用于 ${secret.domains.join("、")} · ${secret.lastUsedAt ? `${agoText(secret.lastUsedAt)}用过` : "还没用过"}`}</span>
                         </>
                       }
                       title={secret.label}
                     />
                   </button>
+                  {secret.managedBy ? null : (
                   <DropdownMenu>
                     <DropdownMenuTrigger render={<button aria-label={`「${secret.label}」的更多操作`} className="device-row-more" title={"更多操作"} type="button" />}>
                       <IconDots className="size-4" />
@@ -110,6 +117,7 @@ function VaultPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  )}
                 </div>
               ))}
             </Card>

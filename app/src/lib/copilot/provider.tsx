@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { SignInTool } from "./sign-in-tool";
+import { GithubTool } from "./github-tool";
 import { VaultTool } from "./vault-tool";
 import { ActiveBotProvider } from "./active-bot";
 import { BotTools } from "./bot-tools";
@@ -75,6 +76,8 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
         <SignInTool />
         {/* 密钥保险箱的安全输入卡片（DESIGN.md §52）：`vault_request_secret` 在服务器上等，这里只画。 */}
         <VaultTool />
+        {/* GitHub 写操作的确认卡片（DESIGN.md §XX）：github_create_issue / comment / create_pr 在服务器上等，这里只画。 */}
+        <GithubTool />
         {/*
           Draws a Bot bringing in another Bot. Registers no tool: `message_bot` runs on the server,
           where the grant and the caps are. A hop that happens off-screen is the thing to avoid.

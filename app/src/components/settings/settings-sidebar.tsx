@@ -55,8 +55,8 @@ const PERSONAL: RailGroup[] = [
         linkOptions: { to: "/settings/skills" },
       },
       {
-        title: "账号与密码",
-        sub: "已连接的应用、保存的登录",
+        title: "账号连接",
+        sub: "GitHub、已连接的应用、保存的登录",
         icon: IconPlug,
         linkOptions: { to: "/settings/connected-accounts" },
       },

@@ -949,3 +949,15 @@
 - **机器人**：`vault_list`（名字、用途、域名）、`vault_request_secret`（聊天里出安全输入卡片，工具在服务器上等最多 10 分钟，只拿到「存好了 / 取消了」）、`api_request`（https 接口，网址 / 请求头 / 请求体里写 `{{secret:名字}}`，服务器替换；目标域名不在绑定列表就拒绝；不跟随重定向；回来的内容里把值抹成 ••••）。IM、长期任务、后台刷新这些网页不在场的回合不能弹卡片，会让用户去设置里加。
 - **安全输入卡片**（`lib/copilot/vault-tool.tsx`，render-only）：玻璃卡，最宽 480px：琥珀锁图标（40px）· 标题（机器人给的名称）· 一句用途 +「只会发往 …」· 密码输入框（等宽 13px，`autocomplete=off`）+「保存」（按钮状态机）+「取消」。存好后图标变绿 ✓、文字「已加密存进保险箱，机器人看不到值」，输入框收起；取消 / 过期变灰「没有保存」。值只 POST 到 `/api/vault/requests/:id/fill`。
 - **设置 → 密钥**（`/settings/vault`，左栏「账号与密码」下面）：页头「添加密钥」；一行一个：钥匙图标（琥珀）· 名称 · `{{secret:名字}}` 等宽标签 · 末四位 ·「可用于 域名 · N 分钟前用过」· ⋯（编辑… / 删除…）。编辑弹窗：名称、引用名（建后不能改）、只允许发往（逗号分隔，校验格式）、值（已保存时占位「已保存（末四位 xxxx）」，留空不改，从不回显）。删除先确认，不可撤销（值不保留）。
+
+## XX. GitHub 账号连接：机器人读你的仓库，写之前先问你（2026-10-14）
+
+用户原话：「把 hark 的功能，都给 chisabot」——第四项：连接 GitHub。
+
+- **为什么用令牌不用 OAuth**：上游 `plugins/oauth.ts` 是 MCP 的动态注册 OAuth，GitHub 不支持；GitHub OAuth App 要管理员在 GitHub 注册应用、配回调。单人自部署最省事的是用户自己建一个 **fine-grained 令牌**（只选给机器人的仓库）。以后有 OAuth App 时可以在同一张卡里加「用 GitHub 登录」。
+- **存放**（`server/src/github/service.ts`）：令牌存进密钥保险箱（§52）的保留名字 `github`，域名绑定 api.github.com；保险箱页面这一行显示 GitHub 图标和「由 账号连接 → GitHub 管理」，点进去跳到账号连接，没有编辑 / 删除；`api_request` 和 `vault_request_secret` 都拒绝用 `github`（否则机器人能绕过写确认）。连接信息（登录名、头像、令牌类型、状态）在 `chisabot_github_connections`，开机建表。连接时服务器先用令牌读一次 `/user`，401 就不保存；之后任何 401 把连接标成「令牌已失效」。
+- **机器人工具**（只在连上后给，每轮开头一句 GitHub 用法；没连时那句话让用户去 设置 → 账号连接）：读 `github_list_repos` / `github_list_issues`（不含 PR）/ `github_list_pulls` / `github_get_issue`（正文 + 最近 20 条评论；PR 加分支、冲突、改动数）/ `github_read_file`（文件或目录，文本 60k 字以内，二进制不读）；写 `github_create_issue` / `github_comment` / `github_create_pr`（只从已有分支开 PR，不推代码）。请求地址固定是 GitHub API、不跟随重定向，回来的内容抹掉令牌，再按外部内容包起来。
+- **写操作先确认**：工具在 `chisabot_github_actions` 记一条 pending，在服务器上等最多 10 分钟；用户点「允许」时**服务器才发请求**（原子地 pending → running，第二次点击 / 另一台设备不会重复发），点「拒绝」工具告诉机器人「不要换别的方式绕过」。IM、长期任务、后台任务这些网页不在场的回合直接拒绝写。
+- **确认卡片**（`lib/copilot/github-tool.tsx`，render-only，样式 `.gh-card`）：玻璃卡最宽 520px：40px 图标（等待 = 琥珀 GitHub / PR 图标，完成 = 绿 ✓，失败 = 红 ✕，拒绝 / 过期 = 灰）· 标题「在 owner/repo 创建 Issue / 创建 Pull Request / #12 发表评论」· 一句状态 · 预览框（标题加粗、`head → base` 等宽标签、草稿、标签、正文最高 180px 可滚）· 「允许」（按钮状态机：发送中… → 已发出 ✓）+「拒绝」；完成后「在 GitHub 查看 ↗」。卡片按结果里的 `⟦github:id⟧` 找记录，重新打开对话也显示最终状态。
+- **设置 → 账号连接**（原「账号与密码」改名，路由不变 `/settings/connected-accounts`；最上面一节 GitHub）：没连 = GitHub 黑色标志 · 「未连接 · 用一个 GitHub 访问令牌连接…」·「连接」。连接弹窗两步：① 「打开 GitHub 创建令牌」（预填名称 ChisaBot、90 天、Contents / Issues / Pull requests 读写；仓库范围用户自己选）② 粘贴令牌（密码框、等宽）→「连接」（验证中… → 已连接 ✓）。已连 = 头像 · 名字 `@login` · 绿点「已连接」/ 红点「令牌已失效」· 令牌类型 · 末四位 ·「N 分钟前检查过 · 写操作每次都先问你」·「检查」（失效时换成「更换令牌」）· ⋯（更换令牌… / 在 GitHub 打开 / 断开连接…，断开先确认，并提醒去 GitHub 删除令牌）。
+- 管理员可设 `CHISABOT_GITHUB_API_BASE`（GitHub Enterprise 或测试替身），默认 https://api.github.com。

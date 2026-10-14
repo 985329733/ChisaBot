@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
-import { domainAllowed, VAULT_DOMAIN, VAULT_NAME, type VaultRequestView, type VaultSecretView } from "../../../shared/vault";
+import { domainAllowed, VAULT_DOMAIN, VAULT_NAME, vaultReserved, type VaultRequestView, type VaultSecretView } from "../../../shared/vault";
 import type { AuditInitiator } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import { decryptSecret, encryptSecret } from "../credentials";
@@ -74,7 +74,9 @@ const secretView = (row: SecretRow): VaultSecretView => ({
   createdAt: iso(row.created_at),
   updatedAt: iso(row.updated_at),
   lastUsedAt: row.last_used_at ? iso(row.last_used_at) : null,
+  ...(vaultReserved(row.name) ? { managedBy: vaultReserved(row.name) } : {}),
 });
+const RESERVED_TEXT = "「github」由 设置 → 账号连接 → GitHub 管理，请在那里连接、更换或断开。";
 const requestView = (row: RequestRow): VaultRequestView => ({
   id: row.id,
   name: row.name,
@@ -143,8 +145,9 @@ export function createVault(database: Database, options: { encryptionKey: string
   const byName = async (owner: string, name: string) =>
     (await sql.unsafe<SecretRow[]>("SELECT * FROM chisabot_vault_secrets WHERE owner_user_id = $1 AND name = $2", [owner, name]))[0] ?? null;
 
-  async function save(owner: string, input: { name: string; label: string; domains: string[]; value?: string | null }) {
+  async function save(owner: string, input: { name: string; label: string; domains: string[]; value?: string | null }, internal = false) {
     const name = nameSchema.parse(input.name);
+    if (vaultReserved(name) && !internal) throw new VaultError(RESERVED_TEXT);
     const label = z.string().trim().min(1).max(60).parse(input.label);
     const domains = domainsSchema.parse(input.domains);
     const value = input.value?.trim() ? input.value.trim() : null;
@@ -164,6 +167,8 @@ export function createVault(database: Database, options: { encryptionKey: string
   }
 
   async function remove(owner: string, id: string) {
+    const target = (await sql.unsafe<SecretRow[]>("SELECT * FROM chisabot_vault_secrets WHERE owner_user_id = $1 AND id = $2", [owner, id]))[0];
+    if (target && vaultReserved(target.name)) throw new VaultError(RESERVED_TEXT);
     const rows = await sql.unsafe<SecretRow[]>("DELETE FROM chisabot_vault_secrets WHERE owner_user_id = $1 AND id = $2 RETURNING *", [owner, id]);
     return rows.length > 0;
   }
@@ -203,6 +208,7 @@ export function createVault(database: Database, options: { encryptionKey: string
     }
     if (input.body) scan(input.body);
     for (const name of names) {
+      if (vaultReserved(name)) throw new VaultError("GitHub 令牌不能用在 api_request 里，请用 github_* 工具（写操作要用户确认）。");
       const row = await byName(owner, name);
       if (!row) throw new VaultError(`保险箱里没有叫「${name}」的密钥。先用 vault_list 看看，或者用 vault_request_secret 请用户存一个。`);
       used.set(name, row);
@@ -303,6 +309,7 @@ export function createVault(database: Database, options: { encryptionKey: string
         async (input) => {
           if (!interactive(initiator)) return `${REFUSAL_MARKER} 这一轮不是在网页聊天里，弹不出安全输入卡片。请用户去 ChisaBot 网页的 设置 → 密钥 里添加「${input.label}」（名字 ${input.name}），或在网页聊天里再让你请求一次。`;
           const name = nameSchema.parse(input.name);
+          if (vaultReserved(name)) return `${REFUSAL_MARKER} 要用 GitHub 请让用户在 设置 → 账号连接 里连接 GitHub，不要用保险箱卡片要 GitHub 令牌。`;
           const domains = domainsSchema.parse(input.domains);
           const id = `vr_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
           await sql.unsafe(
@@ -383,6 +390,20 @@ export function createVault(database: Database, options: { encryptionKey: string
     return app;
   }
 
-  return { ensure, list, save, remove, fill, cancel, request, tools, routes, requestById };
+  /** 只给服务器内部（GitHub 连接）用：存 / 取 / 删保留名字的密钥。值不离开服务器。 */
+  const internal = {
+    save: (owner: string, input: { name: string; label: string; domains: string[]; value: string }) => save(owner, input, true),
+    async reveal(owner: string, name: string) {
+      const row = await byName(owner, name);
+      if (!row) return null;
+      await sql.unsafe("UPDATE chisabot_vault_secrets SET last_used_at = now() WHERE id = $1", [row.id]);
+      return { value: await decryptSecret(options.encryptionKey, row.value), hint: row.hint, domains: domainList(row.domains) };
+    },
+    async remove(owner: string, name: string) {
+      await sql.unsafe("DELETE FROM chisabot_vault_secrets WHERE owner_user_id = $1 AND name = $2", [owner, name]);
+    },
+  };
+
+  return { ensure, list, save, remove, fill, cancel, request, tools, routes, requestById, internal };
 }
 export type Vault = ReturnType<typeof createVault>;
