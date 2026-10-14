@@ -88,9 +88,6 @@ import {
   createDeliveryRoutes,
   createDeliveryWebhookRoutes,
 } from "./delivery/routes";
-import type { DemonstrationRecorder } from "./demonstrations/recording";
-import { createDemonstrationRoutes } from "./demonstrations/routes";
-import type { DemonstrationStore } from "./demonstrations/store";
 import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
@@ -102,9 +99,6 @@ import {
   createLearningRoutes,
   type LearningAdminDependencies,
 } from "./learning/routes";
-import type { MemoryIngestion } from "./memory/ingestion";
-import { createMemoryRoutes } from "./memory/routes";
-import type { MemoryStore } from "./memory/store";
 import { parsePageLimit } from "./paging";
 import { createPasswordRoutes, createSignInRoutes } from "./passwords/routes";
 import type { SignInService } from "./passwords/service";
@@ -118,9 +112,6 @@ import {
   type PluginStore,
 } from "./plugins/store";
 import { REFUSAL_MARKER, vendorAnswer } from "./plugins/tools";
-import type { ProactiveEngine } from "./proactive/engine";
-import { createProactiveRoutes } from "./proactive/routes";
-import type { ProactiveStore } from "./proactive/store";
 import {
   type ModelProviderProxy,
   mountProviderOAuthProxy,
@@ -133,9 +124,6 @@ import type { TriggerStore } from "./responsibilities/triggers";
 import type { ResponsibilityStore } from "./responsibilities/types";
 import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
-import type { IntentRouter } from "./routing/classify";
-import { createRoutingRoutes } from "./routing/routes";
-import { createCoworkerRoutingService } from "./routing/service";
 import type { SelfHostBanner } from "./self-host-banner";
 import { createTeamBotRoutes } from "./team-bots/routes";
 import type { TeamBots } from "./team-bots/team-bots";
@@ -308,7 +296,8 @@ export function createApp(
    * client. Absent leaves the composer's existing behaviour untouched: an untagged message goes to
    * the default coworker, which is exactly the failsafe the router itself falls back to.
    */
-  intentRouter?: IntentRouter,
+  /** Removed in slimming P4b (intent routing); the slot stays because these are positional. */
+  _intentRouter?: undefined,
   /**
    * Where the frame a browsing turn ended on is kept.
    *
@@ -399,10 +388,6 @@ export function createApp(
   voiceSessions?: VoiceSessionServices,
   learning?: LearningAdminDependencies,
   coworker?: {
-    demonstrations?: {
-      store: DemonstrationStore;
-      recorder: DemonstrationRecorder;
-    };
     approvals?: ApprovalService;
     /** The private sign-in form and the Passwords vault. See passwords/service.ts. */
     passwords?: SignInService;
@@ -413,8 +398,6 @@ export function createApp(
       >;
       webhooks: Parameters<typeof createDeliveryWebhookRoutes>[0];
     };
-    memory?: { store: MemoryStore; ingestion: MemoryIngestion };
-    proactive?: { store: ProactiveStore; engine: ProactiveEngine };
     responsibilities?: {
       store: ResponsibilityStore;
       engine: ResponsibilityEngine;
@@ -1732,41 +1715,6 @@ export function createApp(
         coworker?.lifecycle?.purge,
       ),
     );
-    // Choosing a coworker for an untagged message needs the same permission-filtered roster the
-    // agents routes read, so it is mounted here where that store is in scope. Only when a router was
-    // configured; without one the composer keeps sending untagged messages to the default.
-    if (intentRouter) {
-      app.route(
-        "/api/route",
-        createRoutingRoutes(
-          createCoworkerRoutingService({
-            store: agentProfileStore,
-            router: intentRouter,
-            auditStore,
-            /*
-             * Which vendors each coworker holds tools for, so the router weighs what a coworker can
-             * reach and not only what somebody wrote it was for. Only when there is a plugin store to
-             * ask: a deployment with no connectors routes exactly as it did.
-             */
-            reachableSystems: pluginStore
-              ? async (agentId) => {
-                  const granted = await pluginStore.listForAgent(agentId);
-                  return [
-                    ...new Set(
-                      granted.tools.map(
-                        (tool) =>
-                          tool.toolName.replace(/^mcp__/, "").split("__")[0] ??
-                          tool.toolName,
-                      ),
-                    ),
-                  ];
-                }
-              : undefined,
-          }),
-          requireUser,
-        ),
-      );
-    }
   }
 
   if (panels) app.route("/api/panels", panels.routes(requireUser));
@@ -1859,15 +1807,6 @@ export function createApp(
       createDeliveryRoutes({ ...coworker.delivery.authenticated, requireUser }),
     );
   }
-  if (coworker?.demonstrations)
-    app.route(
-      "/api/demonstrations",
-      createDemonstrationRoutes(
-        coworker.demonstrations.store,
-        coworker.demonstrations.recorder,
-        requireUser,
-      ),
-    );
   if (coworker?.lifecycle)
     app.route(
       "/api/bots",
@@ -1900,24 +1839,6 @@ export function createApp(
       createPasswordRoutes(coworker.passwords, requireUser),
     );
   }
-  if (coworker?.proactive)
-    app.route(
-      "/api/proactive",
-      createProactiveRoutes(
-        coworker.proactive.store,
-        coworker.proactive.engine,
-        requireUser,
-      ),
-    );
-  if (coworker?.memory)
-    app.route(
-      "/api/memory",
-      createMemoryRoutes(
-        coworker.memory.store,
-        coworker.memory.ingestion,
-        requireUser,
-      ),
-    );
   if (coworker?.responsibilities) {
     const { store, engine, bindings } = coworker.responsibilities;
     app.route(

@@ -184,8 +184,6 @@ import {
 import { createDeliveryStore } from "./delivery/store";
 import type { DeliveryScope } from "./delivery/types";
 import { DeliveryRefusedError } from "./delivery/types";
-import { createDemonstrationRecorder } from "./demonstrations/recording";
-import { createDemonstrationStore } from "./demonstrations/store";
 import {
   createHostAccessBroker,
   HostAccessRefusedError,
@@ -205,8 +203,6 @@ import { createImService, type ImService, imConnectionOf } from "./im/service";
 import { createLinkPreviews } from "./link-preview/service";
 import { clearLearningRevisionFallback } from "./learning/runtime";
 import { createLearningSettingsStore } from "./learning/settings";
-import { createMemoryIngestion } from "./memory/ingestion";
-import { createMemoryStore } from "./memory/store";
 import { createMemoryNotes } from "./memory-notes/service";
 import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
@@ -232,7 +228,6 @@ import {
   REFUSAL_MARKER,
   vendorAnswer,
 } from "./plugins/tools";
-import { createProactiveEngine } from "./proactive/engine";
 import {
   createPrivateShareCheck,
   PRIVATE_SHARE_TOOL_REF,
@@ -243,7 +238,6 @@ import {
   restrictCoordinationForRun,
   restrictToolsForRun,
 } from "./proactive/restriction";
-import { createProactiveStore } from "./proactive/store";
 import { createProviderOAuthProxy } from "./provider-oauth";
 import { createResponsibilityBindingStore } from "./responsibilities/bindings";
 import {
@@ -282,7 +276,6 @@ import { createWorkflowStore } from "./workflows/store";
 import { workflowChatTools } from "./workflows/tools";
 import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
-import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
 import {
   createModelSettingsService,
@@ -1173,21 +1166,6 @@ const resolveRuntimeConnectionForAgent = (agentId: string) =>
         };
   });
 
-const intentRouter = createIntentRouter({
-  complete: createModelCompleter({
-    model: runtimeModel,
-    resolveConnection: resolveRuntimeConnection,
-    resolveApiKey: () =>
-      resolveModelApiKey({
-        encryptionKey: config.keyEncryptionKey,
-        reader: credentialStore,
-        provider: runtimeModel.provider,
-        keyId: tenantPackage.model.credentialSecretRef,
-        environment: process.env,
-      }),
-  }),
-});
-
 /**
  * Pass one of tool selection: which skills a message needs, on the deployment's own model.
  *
@@ -1271,25 +1249,6 @@ const deviceToolsFor = async (
 // grant, the policy and the audit row are exactly where they were. Host-folder tools are also
 // server-dispatched: the selected Bot and the signed-in owner are bound here, then the desktop worker
 // receives only opaque grant ids and relative paths.
-const personalMemoryStore = createMemoryStore(database);
-const demonstrationStore = createDemonstrationStore(database);
-const demonstrationRecorder = createDemonstrationRecorder({
-  store: demonstrationStore,
-  // Teaching a shared deployment Bot is allowed as well as an owned one; the skill is the owner's.
-  ownsBot: async (owner, bot) =>
-    (await pluginStore.agentOwner(bot)) === owner ||
-    (await agentProfileStore.get(await actorFor(owner), bot)) !== null,
-  ownsSkill: async (owner, slug) =>
-    (await pluginStore.skillOwner(slug)) === owner,
-  routines: routineStore,
-});
-const memoryIngestion = createMemoryIngestion({
-  store: personalMemoryStore,
-  plugins: pluginStore,
-  canUseBot: async (owner, bot) =>
-    (await pluginStore.agentOwner(bot)) === owner ||
-    (await agentProfileStore.get(await actorFor(owner), bot)) !== null,
-});
 // Proactive research may only read; see proactive/restriction.ts. Read from the catalogue per call.
 const proactiveReadOnlyRefs = createReadOnlyClassifier(pluginStore);
 /** 长期记忆（DESIGN.md §50）：每轮开头的记忆用法 + 笔记；上游 personal_memories 不再给机器人。 */
@@ -1369,20 +1328,6 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
   ]
     .filter(Boolean)
     .join("\n\n");
-const memorySweep = repeatAfterEach(async () => {
-  try {
-    await memoryIngestion.syncDue();
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        type: "memory-sweep-error",
-        error: error instanceof Error ? error.name : "UnknownError",
-        context: { operation: "syncDue" },
-        timestamp: new Date().toISOString(),
-      }),
-    );
-  }
-}, 60_000);
 // Follow-ups a Bot schedules for itself, on the shared work queue. See agents/wake-up.ts.
 const wakeUpStore = createWakeUpStore(database, { auditStore: bootAuditStore });
 /** Team Bots: published Bots, their audiences, and teammates' consent to their own accounts. */
@@ -3155,79 +3100,6 @@ const deliveryRouter = createDeliveryRouter({
 deliveryNotifications = (scope, input) => deliveryRouter.notify(scope, input);
 
 /*
- * Proactive research: an opted-in Bot reading its owner's apps in the background, restricted to
- * reads by its initiator (see proactive/restriction.ts), through the same headless turn runner and
- * work queue as routines. Suggestions go to the web inbox and the owner's delivery routing.
- */
-const proactiveStore = createProactiveStore(database);
-const proactiveEngine = createProactiveEngine({
-  store: proactiveStore,
-  memory: personalMemoryStore,
-  queue: createWorkQueue(database),
-  owner: workOwner("proactive"),
-  runTurn: createTurnRunner({
-    intelligence: routineIntelligence,
-    runner: routineAgentRunner,
-    buildAgentFor,
-    // Only the run's own two tools and refusals: no computer, no components.
-    toolsForTurn: (input) => proactiveEngine.toolsForTurn(input),
-    turnTimeoutMs: 3 * 60_000,
-    learningContainerForThread: (input) =>
-      copilotRuntime.learning?.containerForThread(input) ??
-      Promise.resolve(undefined),
-  }),
-  resolveScope: deliveryScopeFor,
-  notify: (scope, input) => deliveryNotifications(scope, input),
-  startTask: async (scope, input) => {
-    const actor = await actorFor(scope.ownerUserId);
-    await channelStore.recordActivity(
-      actor,
-      scope.channelId,
-      { text: input.text, agentId: null, at: new Date() },
-      { id: `${input.runId}:input` },
-    );
-    const result = await approvalContinuationRunner({
-      ...scope,
-      routineId: input.runId,
-      instruction: input.text,
-      userMessage: { id: input.runId, role: "user", content: input.text },
-      initiator: PERSON_INITIATOR,
-      signal: input.signal,
-    });
-    if (result.replyText)
-      await channelStore.recordActivity(
-        actor,
-        scope.channelId,
-        { text: result.replyText, agentId: scope.agentId, at: new Date() },
-        { id: `${input.runId}:reply` },
-      );
-  },
-  catalogue: pluginStore,
-  deniedToolNames: async (ownerUserId, agentId) => {
-    const [tools, allowed] = await Promise.all([
-      loadToolsForActor(ownerUserId)(agentId),
-      proactiveReadOnlyRefs(),
-    ]);
-    return tools
-      .filter((tool) => !allowed.has(tool.ref) && !allowed.has(tool.name))
-      .map((tool) => tool.name);
-  },
-  mintThreadId: () => threadIdentity.mint(),
-});
-const proactiveSweep = repeatAfterEach(async () => {
-  try {
-    await proactiveEngine.sweep();
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        type: "proactive-sweep-error",
-        error: error instanceof Error ? error.name : "UnknownError",
-        timestamp: new Date().toISOString(),
-      }),
-    );
-  }
-}, 60_000);
-/*
  * Follow-ups a Bot scheduled for itself: one headless turn each, through the same turn runner as a
  * routine, into the person's conversation with that Bot. See agents/wake-up.ts.
  */
@@ -3793,8 +3665,8 @@ const app = createApp(
   // The enterprise identity providers registered here. Read as facts about the deployment rather
   // than through Better Auth's own listing, which answers per person. See identity-provider-store.ts.
   identityProviderStore,
-  // Chooses the coworker for an untagged message, on the deployment's own model and key.
-  intentRouter,
+  // Intent routing (choose a coworker for an untagged message) removed in slimming P4b; positional slot.
+  undefined,
   // What a browsing turn's screen looked like when it finished, so the transcript can show it later.
   pageFrameStore,
   // What a due routine actually does: a turn, run as its owner, into the thread they will open.
@@ -3908,10 +3780,6 @@ const app = createApp(
   {
     approvals: approvalService,
     ...(signInService ? { passwords: signInService } : {}),
-    demonstrations: {
-      store: demonstrationStore,
-      recorder: demonstrationRecorder,
-    },
     delivery: {
       authenticated: {
         store: deliveryStore,
@@ -3937,8 +3805,6 @@ const app = createApp(
         twilio: deliveryProviders.sms,
       },
     },
-    memory: { store: personalMemoryStore, ingestion: memoryIngestion },
-    proactive: { store: proactiveStore, engine: proactiveEngine },
     responsibilities: {
       store: responsibilityStore,
       engine: responsibilityEngine,
@@ -4167,16 +4033,12 @@ serve<SocketData>({
           { status: 502 },
         );
       }
-      const recording = await demonstrationStore.active(actor.id, streamBotId);
-      if (recording)
-        upstream += `&recording=${encodeURIComponent(recording.id)}`;
       if (
         server.upgrade(request, {
           data: {
             upstream,
             ownerUserId: actor.id,
             botId: streamBotId,
-            ...(recording ? { recordingId: recording.id } : {}),
           },
         })
       ) {
@@ -4198,65 +4060,6 @@ serve<SocketData>({
       // Frames outward, input inward. Buffered by neither side: a frame the browser is too slow for
       // should be dropped, not queued, because a stale frame is worse than a missing one.
       inward.onmessage = (event) => {
-        if (stream.recordingId) {
-          let recorded: unknown;
-          try {
-            recorded = JSON.parse(String(event.data));
-          } catch {
-            recorded = null;
-          }
-          if (
-            recorded &&
-            typeof recorded === "object" &&
-            "type" in recorded &&
-            recorded.type === "demonstration.action"
-          ) {
-            const data = stream;
-            const message = recorded as {
-              recordingId?: unknown;
-              action?: unknown;
-            };
-            if (message.recordingId !== data.recordingId) {
-              ws.send(
-                JSON.stringify({
-                  type: "error",
-                  error:
-                    "The recording identity changed. Stop and restart recording.",
-                }),
-              );
-              return;
-            }
-            demonstrationRecorder
-              .capture(
-                data.ownerUserId,
-                data.botId,
-                data.recordingId ?? "",
-                message.action,
-              )
-              .catch((error) => {
-                console.error(
-                  JSON.stringify({
-                    type: "demonstration-capture-error",
-                    error: error instanceof Error ? error.name : "UnknownError",
-                    context: { recordingId: data.recordingId },
-                    timestamp: new Date().toISOString(),
-                  }),
-                );
-                try {
-                  ws.send(
-                    JSON.stringify({
-                      type: "error",
-                      error:
-                        "A browser step could not be saved. Stop and review the demonstration before continuing.",
-                    }),
-                  );
-                } catch {
-                  /* A closed viewer cannot receive the already logged failure. */
-                }
-              });
-            return;
-          }
-        }
         try {
           ws.send(String(event.data));
         } catch {
@@ -4301,8 +4104,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     wakeUpSweep.stop();
     schedules.stop();
     wakeUpReaper.stop();
-    memorySweep.stop();
-    proactiveSweep.stop();
     approvalSweep.stop();
     personResponseSweep.stop();
     groupSweep.stop();

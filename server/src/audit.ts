@@ -66,16 +66,7 @@ export const auditEventTypes = [
    */
   "credential.rotation_refused",
   "credential.revoked",
-  /**
-   * Which coworker an untagged message was routed to, and why.
-   *
-   * A channel is pinned to one coworker before its first turn, so when the person did not name one
-   * with `@`, something chooses. This is that choice, made visible: the row names the coworker it
-   * went to, whether it was an inferred match or the default it fell back to, and the coworkers it
-   * chose between. The message itself is not here (the payload redaction drops it either way) — a
-   * routing decision is a fact about where a conversation went, not a copy of what was said.
-   */
-  "channel.routed",
+  // "channel.routed" (upstream intent routing) is no longer written since slimming P4b; old rows stay readable.
   "delivery.received",
   "delivery.sent",
   "delivery.opted_out",
