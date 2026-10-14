@@ -11,7 +11,6 @@ import { useState } from "react";
 import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
-import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { Button } from "@/components/ui/button";
 import {
@@ -551,7 +550,6 @@ function AccessSection({ agentId }: { agentId: string }) {
 }
 
 function ConnectionSection({
-  agentId,
   profile,
 }: {
   agentId: string;
@@ -580,12 +578,6 @@ function ConnectionSection({
         </h2>
         <p className="break-all font-mono text-sm">{profile.endpoint}</p>
       </section>
-      {profile.canManage ? (
-        <CallbackTokenPanel
-          agentId={agentId}
-          hasToken={profile.hasCallbackToken}
-        />
-      ) : null}
     </>
   );
 }

@@ -6,7 +6,6 @@ import type { AgentActor } from "../src/agents/profile-types";
 import type { AuditEventInput } from "../src/audit";
 import {
   createGroupConversations,
-  createGroupRoutes,
   createGroupStore,
   GROUP_TURN_KIND,
   GroupNotFoundError,
@@ -277,24 +276,6 @@ describe("group conversations in PostgreSQL", () => {
       }),
     ).toBeNull();
 
-    // Over HTTP the refusal is the same not-found as a channel that does not exist.
-    const routes = createGroupRoutes(conversations, async (context, next) => {
-      context.set("actor", {
-        id: context.req.header("x-test-user") ?? "",
-      } as never);
-      await next();
-    });
-    const asStranger = await routes.request(`/${channel.id}`, {
-      headers: { "x-test-user": stranger.id },
-    });
-    expect(asStranger.status).toBe(404);
-    const asOwner = await routes.request(`/${channel.id}`, {
-      headers: { "x-test-user": owner.id },
-    });
-    expect(asOwner.status).toBe(200);
-    expect(
-      ((await asOwner.json()) as { messages: unknown[] }).messages,
-    ).toHaveLength(2);
   });
 
   test("without a Bot-to-Bot grant a mention is audited and refused", async () => {

@@ -359,8 +359,9 @@ function handoffCaps(environment: Environment): HandoffCaps {
     return value;
   };
   return {
-    // One level of delegation, which is what most systems allow before anybody asks for more.
-    maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 1),
+    // Bot-to-Bot hand-off is off by default since slimming P4b (a personal deployment has one
+    // assistant per person). BOT_HANDOFF_MAX_DEPTH=1 turns the upstream behaviour back on.
+    maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 0),
     maxPerRun: read("BOT_HANDOFF_MAX_PER_RUN", 3),
   };
 }

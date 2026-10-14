@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 import { z } from "zod";
 import { AgentProfile } from "@/components/agents/agent-profile";
@@ -120,8 +120,8 @@ function RouteComponent() {
 }
 
 /**
- * A channel with exactly one coworker is its CopilotKit chat. One with several is a group, which
- * redirects to its shared transcript at `/group/$channelId`.
+ * A channel with exactly one coworker is its CopilotKit chat. Old multi-Bot group conversations
+ * have no page since slimming P4b; they say so instead of redirecting to the removed `/group`.
  */
 function ChannelBody({
   channel,
@@ -144,15 +144,11 @@ function ChannelBody({
 
   const runtimeAgentId =
     channel.agentIds.length === 1 ? channel.agentIds[0] : undefined;
-  // Two or more Bots is a group conversation, with its own shared transcript. Every link to a
-  // channel lands here, so this is the one redirect they all need.
   if (!runtimeAgentId) {
     return (
-      <Navigate
-        params={{ channelId: channel.id }}
-        replace
-        to="/group/$channelId"
-      />
+      <p className="p-8 text-sm text-muted-foreground" role="status">
+        {"这是旧的多机器人群聊，已不再支持。数据仍保留。"}
+      </p>
     );
   }
 

@@ -54,7 +54,6 @@ import {
   createChannelAttachmentRoutes,
 } from "./channels/attachments";
 import type { ChannelEventHub } from "./channels/events";
-import { createGroupRoutes, type GroupConversations } from "./channels/group";
 import { type ChannelStore, createChannelRoutes } from "./channels/routes";
 import type { ThreadIdentity } from "./channels/thread-identity";
 import { createThreadRoutes } from "./channels/thread-routes";
@@ -84,10 +83,6 @@ import {
   ModelSettingsValidationError,
 } from "./model-settings";
 import { withoutStatement } from "./db/query-failure";
-import {
-  createDeliveryRoutes,
-  createDeliveryWebhookRoutes,
-} from "./delivery/routes";
 import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
@@ -125,8 +120,6 @@ import type { ResponsibilityStore } from "./responsibilities/types";
 import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { SelfHostBanner } from "./self-host-banner";
-import { createTeamBotRoutes } from "./team-bots/routes";
-import type { TeamBots } from "./team-bots/team-bots";
 import type { PackageStatusReader } from "./tenant-package";
 import {
   INSTRUCTIONS_LIMIT,
@@ -391,13 +384,6 @@ export function createApp(
     approvals?: ApprovalService;
     /** The private sign-in form and the Passwords vault. See passwords/service.ts. */
     passwords?: SignInService;
-    delivery?: {
-      authenticated: Omit<
-        Parameters<typeof createDeliveryRoutes>[0],
-        "requireUser"
-      >;
-      webhooks: Parameters<typeof createDeliveryWebhookRoutes>[0];
-    };
     responsibilities?: {
       store: ResponsibilityStore;
       engine: ResponsibilityEngine;
@@ -410,8 +396,6 @@ export function createApp(
         emailRoutes: Hono | null;
       };
     };
-    groups?: GroupConversations;
-    teamBots?: TeamBots;
     /** Pause, reset, Activity and attention for a person's own Bots. See agents/lifecycle.ts. */
     lifecycle?: BotLifecycleServices;
   },
@@ -1797,27 +1781,10 @@ export function createApp(
     );
   }
 
-  if (coworker?.delivery) {
-    app.route(
-      "/api/delivery/webhooks",
-      createDeliveryWebhookRoutes(coworker.delivery.webhooks),
-    );
-    app.route(
-      "/api/delivery",
-      createDeliveryRoutes({ ...coworker.delivery.authenticated, requireUser }),
-    );
-  }
   if (coworker?.lifecycle)
     app.route(
       "/api/bots",
       createBotLifecycleRoutes(coworker.lifecycle, requireUser),
-    );
-  if (coworker?.groups)
-    app.route("/api/groups", createGroupRoutes(coworker.groups, requireUser));
-  if (coworker?.teamBots)
-    app.route(
-      "/api/team-bots",
-      createTeamBotRoutes(coworker.teamBots, requireUser),
     );
   if (coworker?.approvals)
     app.route(
