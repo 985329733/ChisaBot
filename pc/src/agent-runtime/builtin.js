@@ -57,7 +57,12 @@ function clip(text, max = OUTPUT_CAP) {
 
 /** 一次性副本：原文件夹（ctx.origin）下的绝对路径改写成副本（ctx.workdir）里的同一位置。 */
 function mapIntoCopy(args, ctx) {
-  if (!ctx.disposable || !ctx.origin || !args || typeof args.path !== "string" || !path.isAbsolute(args.path)) return args;
+  if (!ctx.disposable || !ctx.origin || !args) return args;
+  // 命令里写了原文件夹的路径（cd /原文件夹 && …）：换成副本的路径。
+  if (typeof args.command === "string" && args.command.includes(ctx.origin)) {
+    return { ...args, command: args.command.split(ctx.origin).join(ctx.workdir) };
+  }
+  if (typeof args.path !== "string" || !path.isAbsolute(args.path)) return args;
   const win = process.platform === "win32";
   const norm = (p) => (win ? path.resolve(p).toLowerCase() : path.resolve(p));
   const origin = norm(ctx.origin);

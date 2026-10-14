@@ -49,7 +49,11 @@ function builtinToolGate(profile, tool, args, ctx) {
     const target = path.resolve(ctx.workdir, String(args.path || ""));
     return isInside(target, scope) ? null : "要改的文件不在工作区文件夹里";
   }
-  if (tool === "run") return null; // 命令的工作目录固定是工作目录（在工作区里，见 index.js 的检查）
+  if (tool === "run") {
+    // 一次性副本里，命令还提到原文件夹 = 想绕过「应用改动」直接改它：先问。
+    if (ctx.disposable && ctx.origin && String(args.command || "").includes(ctx.origin)) return "命令要动原文件夹，不是一次性副本";
+    return null; // 命令的工作目录固定是工作目录（在工作区里，见 index.js 的检查）
+  }
   return "这个操作不在工作区档位里";
 }
 

@@ -44,6 +44,15 @@ test("profile gate: reads inside, writes by profile, outside asks", () => {
   assert.equal(builtinToolGate("workspace", "edit_file", { path: "src/a.js" }, ctx), null);
   assert.match(builtinToolGate("workspace", "write_file", { path: "../escape.txt" }, ctx), /不在工作区/);
   assert.equal(builtinToolGate("full", "write_file", { path: "/tmp/x" }, ctx), null);
+  {
+    const { mapIntoCopy } = require("../src/agent-runtime/builtin");
+    const dctx = { disposable: true, origin: "/home/u/repo", workdir: "/tmp/copy", roots: ["/home/u/repo"] };
+    assert.equal(mapIntoCopy({ path: "/home/u/repo/a.txt" }, dctx).path, path.join("/tmp/copy", "a.txt"));
+    assert.equal(mapIntoCopy({ path: "/etc/x" }, dctx).path, "/etc/x");
+    assert.equal(mapIntoCopy({ command: "cd /home/u/repo && ls" }, dctx).command, "cd /tmp/copy && ls");
+    assert.match(builtinToolGate("workspace", "run", { command: "echo > /home/u/repo/x" }, dctx), /原文件夹/);
+    assert.match(builtinToolGate("workspace", "write_file", { path: "/home/u/repo/x" }, dctx), /不在工作区/);
+  }
   assert.equal(isInside(path.join(dir, "src", "new.js"), [dir]), true);
 });
 
