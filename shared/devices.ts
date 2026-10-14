@@ -68,6 +68,23 @@ export function defaultCapabilities(): DeviceCapabilities {
   ) as DeviceCapabilities;
 }
 
+/**
+ * 新登记电脑的初始权限（2026-10-14 起）：全部「询问」——机器人一开口就能用，每次操作在 PC 弹窗或网页上批准，
+ * 高风险操作还要 PC 本机确认。以前默认全部「关闭」，用户不进 设置 → 设备 → 权限 就什么都做不了，
+ * 机器人也只会说「请去打开能力」（用户报告「桌面端还是不能操作本地」）。「关闭」仍可随时设置。
+ * normalizeCapabilities 缺字段时仍按「关闭」补，安全兜底不变。
+ */
+export function initialCapabilities(): DeviceCapabilities {
+  return Object.fromEntries(
+    DEVICE_CAPABILITIES.map((capability) => [capability, "ask"]),
+  ) as DeviceCapabilities;
+}
+
+/** 能力是不是还停在旧版出厂值（全部关闭）。 */
+export function isFactoryOff(capabilities: DeviceCapabilities): boolean {
+  return DEVICE_CAPABILITIES.every((capability) => capabilities[capability] === "off");
+}
+
 export function normalizeCapabilities(value: unknown): DeviceCapabilities {
   const result = defaultCapabilities();
   if (!value || typeof value !== "object") return result;
@@ -197,6 +214,11 @@ export type DeviceToServer =
       osVersion?: string;
       hostname?: string;
       arch?: string;
+      /**
+       * PC 0.1.7 起：建议的默认「允许的文件夹」（桌面、文档、下载）。服务器只在这台电脑的文件夹列表为空、
+       * 而且从没被人改过配置时采用，之后以用户设置为准。
+       */
+      suggestedRoots?: string[];
     }
   | { type: "result"; id: string; ok: boolean; result?: unknown; error?: string }
   | { type: "approval"; id: string; decision: "approve" | "deny" }

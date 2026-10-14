@@ -82,6 +82,30 @@ describe("device hub", () => {
     expect(fake.audits.map((a) => a.outcome)).toEqual(["offline", "refused", "refused"]);
   });
 
+  test("hello with suggestedRoots asks the store to seed default folders (and touch gets no roots)", async () => {
+    const fake = fakeStore(record());
+    const seeded: Array<{ id: string; roots: unknown }> = [];
+    const touched: Array<Record<string, unknown>> = [];
+    const store = {
+      ...fake.store,
+      touch: async (_id: string, facts: Record<string, unknown>) => {
+        touched.push(facts);
+      },
+      seedRoots: async (id: string, roots: unknown) => {
+        seeded.push({ id, roots });
+        return true;
+      },
+    };
+    const hub = createDeviceHub({ store: store as never });
+    const s = fakeSocket();
+    const handlers = hub.attach(record(), s.socket, "1.2.3.4");
+    await handlers.onMessage(
+      JSON.stringify({ type: "hello", clientVersion: "0.1.7", suggestedRoots: ["C:\\Users\\a\\Desktop"] }),
+    );
+    expect(seeded).toEqual([{ id: "dev_1", roots: ["C:\\Users\\a\\Desktop"] }]);
+    expect(touched.some((facts) => "suggestedRoots" in facts)).toBe(false);
+  });
+
   test("routes a call to the connected device and returns its result", async () => {
     const fake = fakeStore(record());
     const hub = createDeviceHub({ store: fake.store as never });

@@ -67,7 +67,8 @@ export type InvokeInput = {
   timeoutMs?: number;
 };
 
-type HubStore = Pick<DeviceStore, "get" | "touch" | "update" | "audit" | "finishAudit">;
+type HubStore = Pick<DeviceStore, "get" | "touch" | "update" | "audit" | "finishAudit"> &
+  Partial<Pick<DeviceStore, "seedRoots">>;
 
 function unref(timer: ReturnType<typeof setTimeout>) {
   if (typeof timer === "object" && timer && "unref" in timer)
@@ -294,10 +295,15 @@ export function createDeviceHub(options: {
             void store.touch(record.id, { ip: connection.ip });
           }
           switch (message.type) {
-            case "hello":
-              await store.touch(record.id, { ip: connection.ip, ...message });
+            case "hello": {
+              const { suggestedRoots, ...facts } = message;
+              await store.touch(record.id, { ip: connection.ip, ...facts });
+              // PC 0.1.7 起带上默认文件夹（桌面 / 文档 / 下载）；只在列表为空、从没被人改过时采用。
+              if (Array.isArray(suggestedRoots) && store.seedRoots)
+                await store.seedRoots(record.id, suggestedRoots).catch(() => false);
               await pushConfig(record.id);
               return;
+            }
             case "result": {
               const pending = connection.pending.get(String(message.id));
               if (!pending) return;

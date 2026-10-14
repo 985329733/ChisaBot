@@ -394,12 +394,27 @@ export function createDeviceRoutes(options: {
     if (!toolsFor) return context.json({ error: "不可用。" }, 404);
     const actor = context.var.actor;
     if (actor.role !== "admin") return context.json({ error: "只有管理员可以运行自检。" }, 403);
-    const body = (await context.req.json().catch(() => null)) as { deviceId?: unknown } | null;
+    const body = (await context.req.json().catch(() => null)) as {
+      deviceId?: unknown;
+      tool?: unknown;
+      args?: unknown;
+    } | null;
     const tools = await toolsFor(actor.id, context.req.param("botId"));
-    const info = tools.find((tool) => tool.name === "device_system_info");
-    if (!info) return context.json({ ok: false, error: "这个机器人现在没有设备工具（没有在线设备？）。" }, 409);
+    // 默认跑 device_system_info；管理员也可以点名别的 device_* 工具（走同一条能力 / 审批 / 审计路径，
+    // 「询问」会真的弹审批），用来不发聊天就验证整条链路（2026-10-14）。
+    const toolName = typeof body?.tool === "string" && body.tool.startsWith("device_") ? body.tool : "device_system_info";
+    const info = tools.find((tool) => tool.name === toolName);
+    if (!info)
+      return context.json(
+        { ok: false, error: `这个机器人现在没有 ${toolName}（没有在线设备，或这项能力在所有在线设备上都关闭）。`, tools: tools.map((tool) => tool.name) },
+        409,
+      );
+    const args =
+      body?.args && typeof body.args === "object" && !Array.isArray(body.args)
+        ? (body.args as Record<string, unknown>)
+        : {};
     const result = String(
-      await info.execute(typeof body?.deviceId === "string" ? { deviceId: body.deviceId } : {}),
+      await info.execute({ ...args, ...(typeof body?.deviceId === "string" ? { deviceId: body.deviceId } : {}) }),
     );
     const failed = result.startsWith(REFUSAL_MARKER) || result.startsWith("设备操作失败");
     return context.json({ ok: !failed, result }, failed ? 409 : 200);
