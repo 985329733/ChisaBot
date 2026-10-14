@@ -96,9 +96,9 @@ test("one step, empty fields, no preset roles, no visibility or location choice"
 });
 
 test("creates a private, server-side bot from what the user wrote", async () => {
-  let created: string | null = null;
+  const created: string[] = [];
   const view = draw(
-    <CreateAgentDialog onClose={() => {}} onCreated={(id) => { created = id; }} open />,
+    <CreateAgentDialog onClose={() => {}} onCreated={(id) => { created.push(id); }} open />,
   );
   const user = userEvent.setup({ document });
   await user.type(await view.findByLabelText("名称"), "测试");
@@ -119,7 +119,7 @@ test("creates a private, server-side bot from what the user wrote", async () => 
     endpoint: "",
   });
   expect(writes[0]?.body.auth).toBeUndefined();
-  expect(created).toBe("new-bot");
+  expect(created).toEqual(["new-bot"]);
 });
 
 test("empty submit shows field errors and sends nothing", async () => {
