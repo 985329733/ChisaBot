@@ -81,10 +81,8 @@ export const GATED_ROUTES: Rule[] = [
   {
     method: ["POST", "PATCH"],
     path: /^\/api\/agents(\/[^/]+)?$/,
-    needs: async (context) =>
-      String((await body(context)).visibility ?? "").trim() === "public"
-        ? ["useBots", "teamBots"]
-        : ["useBots"],
+    // 机器人一律私有（routes.ts parseAgentInput 忽略 visibility），所以不再按「公开」要 teamBots。
+    needs: async () => ["useBots"],
   },
   {
     method: "POST",

@@ -158,10 +158,6 @@ describe("agent input parser", () => {
       "r".repeat(1001),
       "Role description must be text between 1 and 1000 characters.",
     ],
-    ["visibility", undefined, "Visibility must be public or private."],
-    ["visibility", 1, "Visibility must be public or private."],
-    ["visibility", "   ", "Visibility must be public or private."],
-    ["visibility", "friends", "Visibility must be public or private."],
   ])("rejects invalid %s values", (field, value, error) => {
     expect(parseAgentInput({ ...validInput, [field]: value })).toEqual({
       ok: false,
@@ -176,7 +172,6 @@ describe("agent input parser", () => {
     ["title", ` ${"t".repeat(120)} `, "t".repeat(120)],
     ["roleDescription", "r", "r"],
     ["roleDescription", ` ${"r".repeat(1000)} `, "r".repeat(1000)],
-    ["visibility", " public ", "public"],
     ["visibility", " private ", "private"],
   ])("accepts and trims boundary %s values", (field, value, trimmed) => {
     const result = parseAgentInput({ ...validInput, [field]: value });
@@ -186,6 +181,18 @@ describe("agent input parser", () => {
       value: { ...validInput, [field]: trimmed },
     });
   });
+
+  // 所有机器人都是私有（DESIGN.md §46）：发什么 visibility 都按私有存，缺省也不报错。
+  test.each([["public"], [undefined], [1], ["friends"]])(
+    "stores every Bot as private whatever visibility is sent (%p)",
+    (visibility) => {
+      const result = parseAgentInput({ ...validInput, visibility });
+      expect(result).toEqual({
+        ok: true,
+        value: { ...validInput, visibility: "private" },
+      });
+    },
+  );
 
   test("trims every accepted field and ignores forged fields", () => {
     expect(

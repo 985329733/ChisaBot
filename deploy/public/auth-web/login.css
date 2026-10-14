@@ -216,7 +216,7 @@ body.chisabot {
   --glass-1: rgba(255, 255, 255, .5); --glass-2: rgba(255, 255, 255, .62); --glass-3: rgba(255, 255, 255, .82);
   --stroke: rgba(255, 255, 255, .62); --line: rgba(22, 24, 29, .09); --line-strong: rgba(22, 24, 29, .14);
   --primary: #16181d; --primary-hover: #2a2e36; --on-primary: #fff;
-  --accent: #3b82f6; --focus: rgba(59, 130, 246, .32); --danger: #d64545; --danger-soft: rgba(214, 69, 69, .12);
+  --accent: #3b82f6; --focus: rgba(22, 36, 62, .18); --focus-line: rgba(22, 36, 62, .42); --danger: #d64545; --danger-soft: rgba(214, 69, 69, .12);
   --shadow: 0 20px 50px rgba(30, 50, 80, .18), 0 1px 2px rgba(40, 70, 110, .08);
   --sky: linear-gradient(180deg, #6f9bc7 0%, #9dbddc 38%, #c9dbeb 72%, #e4ecf3 100%);
   --glow: radial-gradient(640px 520px at 18% 12%, rgba(255, 255, 240, .5), transparent 62%);
@@ -229,7 +229,7 @@ body.chisabot {
     --glass-1: rgba(16, 25, 44, .55); --glass-2: rgba(255, 255, 255, .06); --glass-3: rgba(255, 255, 255, .1);
     --stroke: rgba(255, 255, 255, .09); --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .14);
     --primary: #e8ecf3; --primary-hover: #ffffff; --on-primary: #10161f;
-    --accent: #60a5fa; --focus: rgba(96, 165, 250, .35); --danger: #f07070; --danger-soft: rgba(240, 112, 112, .14);
+    --accent: #60a5fa; --focus: rgba(235, 241, 255, .22); --focus-line: rgba(235, 241, 255, .5); --danger: #f07070; --danger-soft: rgba(240, 112, 112, .14);
     --shadow: 0 20px 50px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .25);
     --sky: linear-gradient(180deg, #070d1c 0%, #0c1730 38%, #13213f 72%, #1a2a4a 100%);
     --glow: radial-gradient(560px 480px at 80% 10%, rgba(170, 190, 240, .16), transparent 62%);
@@ -289,8 +289,8 @@ body.chisabot .field input {
   height: 46px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--glass-2); color: var(--ink-1);
   transition: border-color .18s ease-out, box-shadow .18s ease-out, background .18s ease-out;
 }
-body.chisabot .field input:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); }
-body.chisabot .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); background: var(--glass-3); }
+body.chisabot .field input:hover { border-color: var(--focus-line); }
+body.chisabot .field input:focus { outline: none; border-color: var(--focus-line); box-shadow: none; background: var(--glass-3); }
 body.chisabot .field input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 body.chisabot .password-toggle { top: 5px; height: 36px; border-radius: 999px; color: var(--ink-3); font-size: 13px; transition: background .15s, color .15s; }
 body.chisabot .password-toggle:hover { background: var(--glass-3); color: var(--ink-1); }

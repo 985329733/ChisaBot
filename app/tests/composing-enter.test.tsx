@@ -145,7 +145,7 @@ test("a coworker's name is not saved by the Enter that confirms a composed chara
     (client) => client.setQueryData(agentKeys.detail(PROFILE.id), PROFILE),
   );
 
-  fireEvent.click(await view.findByRole("button", { name: "Edit name" }));
+  fireEvent.click(await view.findByRole("button", { name: "编辑 名称" }));
   const field = view.getByDisplayValue(PROFILE.name);
   await type(field, "経費");
 
@@ -165,25 +165,26 @@ test("a coworker's name is not saved by the Enter that confirms a composed chara
   expect(writes[0]?.body).toMatchObject({ name: "経費" });
 });
 
-test("the new-coworker wizard does not move on from the Enter that confirms a composed character", async () => {
+test("the new-bot form does not create from the Enter that confirms a composed character", async () => {
   const view = draw(
     <CreateAgentDialog onClose={() => {}} onCreated={() => {}} open />,
   );
 
-  const name = await view.findByLabelText("Name");
+  const name = await view.findByLabelText("名称");
   await type(name, "経費");
-  await type(view.getByLabelText("Title"), "Finance Operations");
-  await type(view.getByLabelText("Role"), "Review receipts.");
+  await type(view.getByLabelText("职责"), "整理票据");
+  await type(view.getByLabelText("提示词"), "你负责整理票据。");
 
   await confirmComposedCharacter(name);
   await settle();
-  expect(view.getByText("Step 1 of 3")).toBeTruthy();
+  expect(writes).toEqual([]);
 
-  // An ordinary Enter still means Continue.
+  // An ordinary Enter still means 创建, once.
   await act(async () => {
     fireEvent.keyDown(name, { key: "Enter", keyCode: 13 });
   });
-  expect(await view.findByText("Step 2 of 3")).toBeTruthy();
+  await settle();
+  expect(writes.map((write) => write.request)).toEqual(["POST /api/agents"]);
 });
 
 test("a boundary rule is not saved by the Enter that confirms a composed character", async () => {
@@ -192,7 +193,7 @@ test("a boundary rule is not saved by the Enter that confirms a composed charact
     client.setQueryData(computerKeys.policy(), POLICY),
   );
 
-  const field = await view.findByLabelText("A rule, written in CEL");
+  const field = await view.findByLabelText("规则，用 CEL 编写");
   expect(field.getAttribute("spellcheck")).toBe("false");
   expect(field.getAttribute("autocorrect")).toBe("off");
   expect(field.getAttribute("autocapitalize")).toBe("off");

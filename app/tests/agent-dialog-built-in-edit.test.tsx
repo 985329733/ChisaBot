@@ -147,11 +147,11 @@ function draw() {
 
 async function rename(view: ReturnType<typeof draw>, to: string) {
   const user = userEvent.setup({ document: view.baseElement.ownerDocument });
-  await user.click(await view.findByRole("button", { name: "Edit name" }));
+  await user.click(await view.findByRole("button", { name: "编辑 名称" }));
   const field = view.getByDisplayValue("Expenses");
   await user.clear(field);
   await user.type(field, to);
-  await user.click(view.getByRole("button", { name: "Save" }));
+  await user.click(view.getByRole("button", { name: "保存" }));
 }
 
 test("a built-in coworker can be renamed on a deployment whose own Bot lives on localhost", async () => {
