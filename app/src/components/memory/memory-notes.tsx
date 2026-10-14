@@ -300,11 +300,11 @@ export async function confirmBulkDelete(count: number, query: string) {
   });
 }
 
-export function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function SearchBox({ value, onChange, placeholder = "搜索记忆" }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
   return (
     <label className="mem-search">
       <IconSearch aria-hidden className="size-4" />
-      <input aria-label={"搜索记忆"} onChange={(event) => onChange(event.target.value)} placeholder={"搜索记忆"} type="search" value={value} />
+      <input aria-label={placeholder} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} type="search" value={value} />
     </label>
   );
 }

@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { label: "聊天", Icon: IconMessageCircle, to: "/", match: (p: string) => p === "/" || p.startsWith("/channel") || p.startsWith("/group") || p === "/bot" || p.startsWith("/bot/") },
   { label: "长期任务", Icon: IconRepeat, to: "/responsibilities", match: (p: string) => p.startsWith("/responsibilities") || p.startsWith("/routines") },
-  { label: "技能", Icon: IconSparkles, to: "/skills", match: (p: string) => p.startsWith("/skills") },
+  { label: "技能", Icon: IconSparkles, to: "/settings/skills", match: (p: string) => p.startsWith("/skills") || p.startsWith("/settings/skills") },
   { label: "工作流", Icon: IconRoute, to: "/workflows", match: (p: string) => p.startsWith("/workflows") },
 ] as const;
 

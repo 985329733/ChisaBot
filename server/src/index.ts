@@ -204,6 +204,7 @@ import { createLearningSettingsStore } from "./learning/settings";
 import { createMemoryIngestion } from "./memory/ingestion";
 import { createMemoryStore } from "./memory/store";
 import { createMemoryNotes } from "./memory-notes/service";
+import { createChisaSkills } from "./skills-chisa/tools";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -1253,8 +1254,21 @@ const proactiveReadOnlyRefs = createReadOnlyClassifier(pluginStore);
 /** 长期记忆（DESIGN.md §50）：每轮开头的记忆用法 + 笔记；上游 personal_memories 不再给机器人。 */
 const memoryNotes = createMemoryNotes(database);
 await memoryNotes.ensure();
-const loadPersonalMemoryForActor = (ownerUserId: string) => (botId: string) =>
-  memoryNotes.context(ownerUserId, botId).catch(() => "");
+/** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */
+const chisaSkills = createChisaSkills({
+  store: pluginStore,
+  actorFor: async (userId) => {
+    const actor = await actorFor(userId);
+    return { id: actor.id, isAdmin: actor.role === "admin" };
+  },
+});
+const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string) =>
+  [
+    await memoryNotes.context(ownerUserId, botId).catch(() => ""),
+    await chisaSkills.catalog(ownerUserId).catch(() => ""),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 const memorySweep = repeatAfterEach(async () => {
   try {
     await memoryIngestion.syncDue();
@@ -1301,6 +1315,7 @@ const loadToolsForActor =
     }),
     // 长期记忆（server/src/memory-notes，DESIGN.md §50）：一个人的所有机器人共用；后台刷新面板的回合不给。
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : memoryNotes.tools(actorId, botId)),
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : chisaSkills.tools(actorId, botId)),
     ...(await grantedTools({
       store: pluginStore,
       botId,
@@ -3643,8 +3658,7 @@ const app = createApp(
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
     const { name, args, botId, actorId, initiator } = input;
-    const memory = memoryNotes
-      .tools(actorId, botId)
+    const memory = [...memoryNotes.tools(actorId, botId), ...chisaSkills.tools(actorId, botId)]
       .find((candidate) => candidate.name === name);
     if (memory) {
       const text = await memory.execute(args);
@@ -3804,6 +3818,7 @@ const app = createApp(
       ["/api/bot-threads", botThreads.routes(requireUser)],
       ["/api/im", imService!.routes(requireUser)],
       ["/api/memory-notes", memoryNotes.routes(requireUser)],
+      ["/api/chisa-skills", chisaSkills.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",
