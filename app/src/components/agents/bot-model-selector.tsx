@@ -16,12 +16,12 @@ const labelOf = (option: ModelOption) => !option.id ? option.label : option.labe
  * Chat and settings both edit this BOT's one saved model; no connection credential reaches here.
  * `compact` is the composer's pill + popover (`ModelPicker`); the full row is for settings screens.
  */
-export function BotModelSelector({ agentId, compact = false, disabled = false }: { agentId: string; compact?: boolean; disabled?: boolean }) {
+export function BotModelSelector({ agentId, compact = false, disabled = false, bare = false }: { agentId: string; compact?: boolean; disabled?: boolean; /** 只要选择框（资料页的设置行自己有标题和说明，DESIGN.md §47）。 */ bare?: boolean }) {
   if (compact) return <ModelPicker agentId={agentId} disabled={disabled} />;
-  return <BotModelSettingsRow agentId={agentId} disabled={disabled} />;
+  return <BotModelSettingsRow agentId={agentId} bare={bare} disabled={disabled} />;
 }
 
-function BotModelSettingsRow({ agentId, disabled = false }: { agentId: string; disabled?: boolean }) {
+function BotModelSettingsRow({ agentId, disabled = false, bare = false }: { agentId: string; disabled?: boolean; bare?: boolean }) {
   const compact = false;
   const queryClient = useQueryClient();
   const state = useQuery(agentModelQueryOptions(agentId));
@@ -50,7 +50,7 @@ function BotModelSettingsRow({ agentId, disabled = false }: { agentId: string; d
   return (
     <div className={compact ? "min-w-0 pt-2" : "min-w-0"}>
       <div className="flex min-w-0 items-center gap-2">
-        <span className="shrink-0 text-xs text-muted-foreground">模型</span>
+        {bare ? null : <span className="shrink-0 text-xs text-muted-foreground">模型</span>}
         <Combobox
           items={options}
           value={selected}
@@ -74,12 +74,12 @@ function BotModelSettingsRow({ agentId, disabled = false }: { agentId: string; d
           </ComboboxContent>
         </Combobox>
         <Button aria-label="刷新模型列表" title="刷新 Magpie 模型列表" type="button" size="icon-xs" variant="ghost" disabled={disabled || saving || (refreshing && refresh.status !== "pending")} mutation={refresh} onClick={() => refresh.mutate()}><IconRefresh /></Button>
-        {catalog.data ? <span className="shrink-0 text-xs text-muted-foreground">{catalog.data.models.length} 个模型</span> : null}
+        {catalog.data && !bare ? <span className="shrink-0 text-xs text-muted-foreground">{catalog.data.models.length} 个模型</span> : null}
       </div>
       {saving ? <p className="pt-1 text-xs text-muted-foreground" role="status">正在保存模型…</p> : null}
       {modelMissing ? <p className="pt-1 text-xs text-destructive" role="alert">当前模型 {state.data.model} 已不可用，请重新选择。</p> : null}
       {save.error || refresh.error || catalog.error || state.error ? <p className="pt-1 text-xs text-destructive" role="alert">{save.error?.message ?? refresh.error?.message ?? catalog.error?.message ?? state.error?.message}</p> : null}
-      {!state.data.available ? <p className="pt-1 text-xs text-muted-foreground">此外部 BOT 的模型由其服务管理。</p> : !compact && !saving ? <p className="pt-1 text-xs text-muted-foreground">{state.data.canManage ? "与聊天输入框同步，下一轮使用所选模型。" : "只有此 BOT 的拥有者或管理员可以更改模型。"}</p> : null}
+      {!state.data.available ? <p className="pt-1 text-xs text-muted-foreground">此外部 BOT 的模型由其服务管理。</p>   : !compact && !saving && !bare ? <p className="pt-1 text-xs text-muted-foreground">{state.data.canManage ? "与聊天输入框同步，下一轮使用所选模型。" : "只有此 BOT 的拥有者或管理员可以更改模型。"}</p> : null}
     </div>
   );
 }
