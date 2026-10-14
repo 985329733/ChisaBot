@@ -83,6 +83,12 @@ const PERSONAL: RailGroup[] = [
         linkOptions: { to: "/settings/vault" },
       },
       {
+        title: "审批偏好",
+        sub: "哪些事先问你、哪些直接做",
+        icon: IconShieldCheck,
+        linkOptions: { to: "/settings/approvals" },
+      },
+      {
         title: "设备",
         sub: "已关联的设备、能力与审批",
         icon: IconDeviceDesktop,

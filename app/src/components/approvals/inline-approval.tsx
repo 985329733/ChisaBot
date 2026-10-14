@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { ConfirmCardView } from "@/components/chat/confirm-card";
 import {
   type ApprovalDecision,
   approvalInboxOptions,
@@ -35,52 +35,40 @@ export function InlineApproval({
     : undefined;
   if (request?.status !== "pending") return <>{fallback}</>;
   const handOff = request.action.policy?.behaviour === "hand_off";
-  const choices: [ApprovalDecision, string][] = handOff
-    ? [
-        ["handled", "我自己完成了"],
-        ["deny", "不要执行"],
-      ]
-    : [
-        ["allow_once", "允许一次"],
-        ["allow_always", "始终允许此处"],
-        ["deny", "Deny"],
-      ];
+  const decide = (choice: ApprovalDecision) => decision.mutateAsync(choice);
+  // 上游审批（云端浏览器的安全规则、规则「先问」等）也用 ChisaBot 的确认卡片外观（DESIGN.md §XX）。
+  const what = request.action.toolRef.replace(/^computer_|^host\//, "").replaceAll("_", " ");
+  const payment = /pay|checkout|purchase|付款|支付|下单/i.test(`${request.action.policy?.reason ?? ""} ${request.action.scope}`);
+  const reason = zhReason(request.action.policy?.reason);
   return (
-    <section
-      aria-label={"等待您的审批"}
-      className="space-y-2 rounded-lg border p-3 text-sm"
-    >
-      <p className="font-medium">
-        {handOff ? "这需要你" : "等待您的审批"}:{" "}
-        {request.action.toolRef
-          .replace(/^computer_|^host\//, "")
-          .replaceAll("_", " ")}{" "}
-        {"开"}
-        {request.action.scope}
-      </p>
-      {request.action.policy ? (
-        <p className="text-muted-foreground">{request.action.policy.reason}</p>
-      ) : null}
-      {decision.error ? (
-        <p role="alert" className="text-destructive">
-          {decision.error.message}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        {choices.map(([choice, label], index) => (
-          <Button
-            key={choice}
-            size="sm"
-            variant={index === 0 ? "default" : "outline"}
-            disabled={decision.isPending}
-            onClick={() => decision.mutate(choice)}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
-    </section>
+    <ConfirmCardView
+      approveLabel={handOff ? "我已自己完成" : "确认"}
+      denyLabel={handOff ? "不要执行" : "取消"}
+      model={{
+        category: payment ? "purchase" : "device",
+        eyebrow: handOff ? "这一步要你亲自完成" : undefined,
+        title: handOff ? (reason ?? `${what}：${request.action.scope}`) : `云端浏览器：${what}`,
+        target: request.action.scope,
+        details: reason && !handOff ? [{ label: "原因", value: reason }] : [],
+        status: "pending",
+      }}
+      onApprove={() => decide(handOff ? "handled" : "allow_once")}
+      onDeny={() => decide("deny")}
+      testId="upstream-approval-card"
+    />
   );
+}
+
+/** 上游的英文原因换成中文（界面文字一律简体中文）。 */
+function zhReason(reason: string | undefined): string | undefined {
+  if (!reason) return undefined;
+  if (/pay|purchas|money/i.test(reason)) return "付款、购买、转账要你亲自完成";
+  if (/password|passcode|credential|two-factor|recovery/i.test(reason)) return "改密码、验证码等登录凭据要你亲自完成";
+  if (/security|sharing|access settings/i.test(reason)) return "改安全、共享或权限设置要你亲自完成";
+  if (/rule asks/i.test(reason)) return "你的规则要求先问你";
+  if (/review changes/i.test(reason)) return "你设置了改动前先问你";
+  if (/[\u4e00-\u9fff]/.test(reason)) return reason;
+  return "这一步需要你确认";
 }
 
 /**

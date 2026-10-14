@@ -2,6 +2,7 @@ import { compactEvents, EventType, type AbstractAgent, type BaseEvent, type Mess
 import { AgentRunner, createRunEventFinalizer, type AgentRunnerConnectRequest, type AgentRunnerRunRequest, type AgentRunnerStopRequest } from "@copilotkit/runtime/v2";
 import { Observable, ReplaySubject, Subject } from "rxjs";
 import { estimateTokens, readingFromRunFinished, type ThreadContextReading } from "./context-usage";
+import { withConfirmTurn } from "./confirmations/context";
 import { anchorsPresent, INBOX_TEXT_LIMIT, newSteerSession, ThreadInbox, type TranscriptInjection, weaveMessages, withSteering } from "./thread-inbox";
 import type { Database } from "./db/client";
 
@@ -465,12 +466,12 @@ class PostgresAgentRunner extends AgentRunner {
         let finalized!: () => void;
         const finalization = new Promise<void>((resolve) => { finalized = resolve; });
         const segmentInput = segment === 0 ? input : { ...input, runId: entry.runId, messages: agent.messages };
-        await withSteering(steering(), () => agent.runAgent(segmentInput, {
+        await withConfirmTurn({ threadId, runId: entry.runId, stopped: () => entry.stopped }, () => withSteering(steering(), () => agent.runAgent(segmentInput, {
           onEvent: ({ event }) => guarded(() => emit(structuredClone(event))),
           onMessagesChanged: ({ messages, state }) => capture(messages, state),
           onStateChanged: ({ messages, state }) => capture(messages, state),
           onRunFinalized: () => { finalized(); },
-        }));
+        })));
         await finalization;
         await durableWrites;
         if (persistenceError || failed || entry.stopped || !heldFinish) break;

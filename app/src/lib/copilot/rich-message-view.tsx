@@ -14,6 +14,7 @@ import {
 import { WorkerResultRow } from "@/components/chat/worker-card";
 import { ScheduleFiredRow } from "@/components/chat/schedule-row";
 import { SCHEDULE_MARKER } from "../../../../shared/schedules";
+import { ConfirmResumeRow, isConfirmResume, MessageConfirmCards } from "@/components/chat/confirm-card";
 import { useReadMark } from "./thread-inbox";
 import { WORKER_RESULT_MARKER } from "./workers";
 import { renderUnvirtualizedMessageList } from "./message-list";
@@ -91,6 +92,8 @@ function RichToolCallsView(props: CopilotChatToolCallsViewProps) {
   return (
     <>
       <CopilotChatToolCallsView {...props} />
+      {/* 确认卡片（DESIGN.md §XX）：画在这条消息的工具调用下面。 */}
+      <MessageConfirmCards message={props.message} messages={props.messages} />
       <MessageRichPreviews align="start" text={textOf(content)} />
     </>
   );
@@ -114,6 +117,14 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
     return (
       <div className="copilotKitMessage worker-result-msg cpk:pt-6" data-copilotkit="" data-testid="worker-result-message">
         <WorkerResultRow messageId={props.message.id} text={text} />
+      </div>
+    );
+  }
+  // 后来才确认、服务器叫机器人接着做的那条：一行小字。
+  if (isConfirmResume(text)) {
+    return (
+      <div className="copilotKitMessage confirm-resume-msg cpk:pt-4" data-copilotkit="" data-message-id={props.message.id}>
+        <ConfirmResumeRow text={text} />
       </div>
     );
   }

@@ -29,6 +29,7 @@ import {
 import type { AgentActor } from "./agents/profile-types";
 import { modelOverrideFromValue } from "./agents/model-selection";
 import { thinkTagLanguageModel } from "./agents/think-tags";
+import { withConfirmToolCall } from "./confirmations/context";
 import {
   executeNativeApprovalTool,
   nativeApprovalRun,
@@ -563,12 +564,15 @@ export function builtInAgentConfiguration(
           tools: allTools.map((tool) => ({
             ...tool,
             execute: (args: unknown, execution?: { toolCallId?: string }) =>
-              executeNativeApprovalTool(
-                tool.name,
-                args,
-                execution?.toolCallId,
-                tools.find((granted) => granted.name === tool.name)?.initiator,
-                () => tool.execute(args),
+              // 确认卡片要画在这条工具调用下面：把 toolCallId 带给 server/src/confirmations。
+              withConfirmToolCall(execution?.toolCallId, tool.name, () =>
+                executeNativeApprovalTool(
+                  tool.name,
+                  args,
+                  execution?.toolCallId,
+                  tools.find((granted) => granted.name === tool.name)?.initiator,
+                  () => tool.execute(args),
+                ),
               ),
           })),
           maxSteps: TOOL_STEPS,
