@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { AuditInitiator } from "../audit";
 
 /**
  * 确认卡片要知道「这是哪段对话里的哪个工具调用」，卡片才能画在那条工具调用下面。
@@ -20,3 +21,11 @@ export const currentConfirmToolCall = () => calls.getStore();
 const interactiveCalls = new AsyncLocalStorage<boolean>();
 export const withConfirmInteractive = <T>(interactive: boolean, run: () => T): T => interactiveCalls.run(interactive, run);
 export const currentConfirmInteractive = () => interactiveCalls.getStore() === true;
+
+/**
+ * 云端浏览器工具（computer/headless-tools.ts）是谁发起的：网页聊天、定时任务、面板刷新……
+ * 网页上点「发送 / 删除」时（confirmations.pageAction）据此决定能不能在聊天里出卡片。
+ */
+const computerActors = new AsyncLocalStorage<{ initiator?: AuditInitiator }>();
+export const withConfirmActor = <T>(initiator: AuditInitiator | undefined, run: () => T): T => computerActors.run({ ...(initiator ? { initiator } : {}) }, run);
+export const currentConfirmActor = () => computerActors.getStore();

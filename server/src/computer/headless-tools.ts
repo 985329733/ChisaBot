@@ -27,6 +27,7 @@ import {
 } from "./gateway";
 import { HUMAN_CONTROL_ZH, noteHumanControlBlock, suspendsOnHumanControl } from "./control-blocks";
 import type { ControlState } from "./schema";
+import { withConfirmActor } from "../confirmations/context";
 
 /** Client tools supplied by OpenBot when the caller has no browser. */
 export type HeadlessTool = {
@@ -400,7 +401,8 @@ export function createHeadlessComputerTools(options: {
         if (context.signal.aborted)
           throw new Error("The computer action was stopped.");
         try {
-          return await execute(input, context);
+          // 确认卡片（server/src/confirmations）要知道这次是谁发起的（网页聊天才能出卡片）。
+          return await withConfirmActor(actor.initiator, () => execute(input, context));
         } catch (error) {
           if (error instanceof HumanHasControlError && !suspendsOnHumanControl(actor.initiator)) {
             // 聊天 / 面板刷新：不挂起（挂起后没有东西会把这一轮接上，用户只看到一句话就没下文了）。

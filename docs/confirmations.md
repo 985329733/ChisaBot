@@ -23,3 +23,4 @@
 4. 工具已经不等了才确认 → `setResume` 注入的函数往对话里发一条 `⟦chisabot:confirm:<id>⟧` 用户消息（正在回答就进收件箱，空闲就用 governedTurnRunner 起一轮，initiator `confirm:<id>` 算网页回合）。
 5. 设备「询问」：hub 先问 `before()`（auto = 不弹窗）；要问就照旧在电脑上弹窗，网页回合里同时 `opened()` 写一张 `external=device:<id>` 的卡片；任一边决定 → hub `decideInternal` → `closed()` 更新卡片。
 6. 云端浏览器：`confirmAwareGate` 包住上游 `approvalService.gate`，同一段对话 20 分钟内确认过付款（confirm_action purchase）就放行，其余交给上游。
+7. 云端浏览器点按钮（`computer_click`）：`confirmAwareGate` 先调 `confirmations.pageAction`——按钮字是发送 / 删除类（`categoryOfPageAction`）且这段对话 10 分钟内没确认过同一类，就按偏好走 `check()`（出卡片、等确认）；被取消抛 `ApprovalRefusedError`，机器人收到中文原因。发起者（网页聊天 / 定时任务…）由 `headless-tools.ts` 用 `withConfirmActor` 带进来。

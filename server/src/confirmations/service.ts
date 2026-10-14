@@ -20,8 +20,8 @@ import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
 import type { DeviceConfirmLink } from "../devices/hub";
 import { type GrantedTool, REFUSAL_MARKER } from "../plugins/tools";
-import { categoryOfTool, decideMode, detailsFromArgs, flattenForMatch, titleForTool } from "./classify";
-import { currentConfirmInteractive, currentConfirmToolCall, currentConfirmTurn, withConfirmInteractive } from "./context";
+import { categoryOfPageAction, categoryOfTool, decideMode, detailsFromArgs, flattenForMatch, titleForTool } from "./classify";
+import { currentConfirmActor, currentConfirmInteractive, currentConfirmToolCall, currentConfirmTurn, withConfirmInteractive } from "./context";
 
 /**
  * 确认卡片 + 审批偏好（DESIGN.md §XX，docs/confirmations.md）。
@@ -42,6 +42,8 @@ const CARD_TTL_HOURS = 24;
 const GRANT_MS = 30 * 60_000;
 /** 在网页上确认了付款之后，同一段对话里多久之内云端浏览器的操作不再被上游安全规则拦下。 */
 const PURCHASE_WINDOW_MS = 20 * 60_000;
+/** 机器人先用 confirm_action 问过（发消息 / 删除）之后，这段对话里多久之内网页上点「发送 / 删除」不再问第二遍。 */
+const PAGE_ACTION_WINDOW_MS = 10 * 60_000;
 
 export const DECLINED =
   "用户在确认卡片上点了「取消」，这一步没有执行。这是用户自己的决定，不是系统限制；不要换别的办法再试，除非用户再开口。如实告诉用户你没做。";
@@ -447,6 +449,46 @@ export function createConfirmations(database: Database) {
     return rows.length > 0;
   }
 
+  /** 这段对话里最近确认过这一类（发消息 / 删除）的卡片——网页上接着点「发送 / 删除」就不再问。 */
+  async function categoryConfirmed(owner: string, threadId: string, category: ConfirmCategory, windowMs: number) {
+    const rows = await sql.unsafe(
+      `SELECT 1 FROM chisabot_confirm_requests WHERE owner_user_id = $1 AND thread_id = $2 AND category = $3
+       AND status = 'approved' AND decided_at > now() - $4::int * interval '1 millisecond' LIMIT 1`,
+      [owner, threadId, category, windowMs],
+    );
+    return rows.length > 0;
+  }
+
+  /**
+   * 云端浏览器里点按钮之前（index.ts 的 confirmAwareGate 调）：按钮是「发送 / 发布 / 回复」「删除 / 移到回收站」
+   * 这类，而机器人这段对话里没先用 confirm_action 问过，就由服务器自己出卡片——不靠模型记得先问。
+   * 返回 null = 不是这类按钮，照常走上游的规则。
+   */
+  async function pageAction(input: { ownerUserId: string; agentId: string; threadId?: string | null; element?: { role?: string; name?: string } | null; pageUrl?: string | null }): Promise<ConfirmOutcome | null> {
+    const category = categoryOfPageAction(input.element);
+    if (!category) return null;
+    const threadId = input.threadId ?? currentConfirmTurn()?.threadId ?? null;
+    if (threadId && (await categoryConfirmed(input.ownerUserId, threadId, category, PAGE_ACTION_WINDOW_MS))) return { ok: true, via: "grant" };
+    const label = input.element?.name?.trim() ?? "";
+    let host = "";
+    try {
+      host = input.pageUrl ? new URL(input.pageUrl).host : "";
+    } catch {}
+    const initiator = currentConfirmActor()?.initiator;
+    return check({
+      ownerUserId: input.ownerUserId,
+      agentId: input.agentId,
+      category,
+      tool: "computer_click",
+      title: `在网页上点「${label}」${category === "message" ? "（会发出去）" : "（会删除）"}`,
+      target: host || null,
+      details: input.pageUrl ? [{ label: "网页", value: input.pageUrl.slice(0, 600), code: true }] : [],
+      matchText: [label, host, input.pageUrl ?? ""].join(" "),
+      digest: digestOf("computer_click", { category, host, label }),
+      ...(initiator ? { initiator } : {}),
+    });
+  }
+
   // ── 设备 hub 挂钩 ─────────────────────────────────────────────
   const deviceHook: DeviceConfirmHook = {
     linkable: () => Boolean(currentConfirmTurn()?.threadId) && currentConfirmInteractive(),
@@ -595,7 +637,7 @@ export function createConfirmations(database: Database) {
     const [prefList, ruleList] = await Promise.all([prefs(owner), rules(owner)]);
     const lines = [
       "【审批偏好 · 确认卡片】做有后果的事（对外发消息、删除、付款购买、操作用户的电脑）时，系统按下面的偏好自动处理：「先问我」的，工具会在聊天里出一张确认卡片并等用户点「确认 / 取消」；「直接做」的不问。",
-      "所以：直接调用要用的工具即可，不要先在聊天里用文字问「要我做吗」（卡片就是在问）；在浏览器里付款下单、在网页上替用户发消息 / 删除东西这类不经过专门工具的事，先调用 confirm_action。被取消就如实说没做，不要换办法绕过。",
+      "所以：直接调用要用的工具即可，不要先在聊天里用文字问「要我做吗」（卡片就是在问）；在浏览器里付款下单、在网页上替用户发消息 / 发帖 / 发邮件、删除网页上的东西这类不经过专门工具的事，**动手前第一步先调用 confirm_action**（它就是聊天里那张确认卡片，会等用户点完才返回）；用户让你调用 confirm_action 时也直接调用，不要先回文字。返回「已确认」再做；被取消就如实说没做，不要换办法绕过。",
       "用户说「以后 X 不用问我」或「X 要先问我」时，调用 approval_preference_save（text 用原话），然后一句话告诉用户记下了。付款购买一律先问，不能改。",
       `当前偏好：${prefList.map((p) => `${p.label}=${CONFIRM_MODE_LABEL[p.mode]}${p.locked ? "（固定）" : ""}`).join("；")}。`,
     ];
@@ -650,6 +692,7 @@ export function createConfirmations(database: Database) {
     decide,
     list,
     purchaseConfirmed,
+    pageAction,
     tools,
     wrap,
     context,

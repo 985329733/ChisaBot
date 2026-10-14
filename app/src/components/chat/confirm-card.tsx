@@ -224,10 +224,16 @@ export function MessageConfirmCards({ message, messages }: { message: MessageLik
   const threadId = chat?.threadId ?? null;
   const ids = useMemo(() => (message.toolCalls ?? []).map((call) => call.id).filter(Boolean), [message.toolCalls]);
   const answered = useMemo(() => new Set((messages ?? []).filter((m) => m.role === "tool" && m.toolCallId).map((m) => m.toolCallId as string)), [messages]);
-  // 这一轮还在跑、且这条消息里有工具调用还没结果时才轮询（历史里被打断、永远没结果的调用不让页面一直轮询）。
+  // 这条消息里有工具调用还没结果、且（这一轮正在跑，或它在最近几条消息里——刷新后卡片还在等）时才轮询；
+  // 历史里被打断、永远没结果的调用不让页面一直轮询。一轮刚跑完再取一次，卡片状态马上对上。
   const running = useChatRunning();
-  const open = running && ids.some((id) => !answered.has(id));
+  const recent = (messages ?? []).slice(-6).some((m) => m.id === message.id);
+  const open = (running || recent) && ids.some((id) => !answered.has(id));
   const list = useThreadConfirmations(ids.length ? threadId : null, open);
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!running && recent && threadId && ids.length) void queryClient.invalidateQueries({ queryKey: confirmKeys.thread(threadId) });
+  }, [running, recent, threadId, ids.length, queryClient]);
   const cards = (list.data ?? []).filter((request) => request.toolCallId && ids.includes(request.toolCallId)).reverse();
   if (!cards.length) return null;
   return (

@@ -686,6 +686,18 @@ const retentionSweeps = startRetentionSweeps(
 const confirmations = createConfirmations(database);
 await confirmations.ensure();
 const confirmAwareGate: typeof approvalService.gate = async (candidate) => {
+  // 网页上点「发送 / 发布 / 删除」这类按钮：服务器自己判断，按审批偏好出确认卡片（不靠机器人先调用 confirm_action）。
+  if (!isApprovalRecheck() && candidate.toolRef === "computer_click") {
+    const target = (candidate.target ?? {}) as { pageUrl?: string; element?: { role?: string; name?: string } };
+    const outcome = await confirmations.pageAction({
+      ownerUserId: candidate.actorId,
+      agentId: candidate.botId,
+      threadId: (candidate.continuation ?? currentApprovalContext())?.threadId ?? null,
+      element: target.element ?? null,
+      pageUrl: target.pageUrl ?? null,
+    });
+    if (outcome && !outcome.ok) throw new ApprovalRefusedError(outcome.message);
+  }
   if (!isApprovalRecheck() && candidate.toolRef.startsWith("computer_") && candidate.effect !== "read") {
     const threadId = (candidate.continuation ?? currentApprovalContext())?.threadId;
     if (threadId && (await confirmations.purchaseConfirmed(candidate.actorId, threadId).catch(() => false))) return undefined;

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { categoryOfTool, decideMode, detailsFromArgs } from "../src/confirmations/classify";
-import { withConfirmToolCall, withConfirmTurn } from "../src/confirmations/context";
+import { categoryOfPageAction, categoryOfTool, decideMode, detailsFromArgs } from "../src/confirmations/classify";
+import { withConfirmActor, withConfirmToolCall, withConfirmTurn } from "../src/confirmations/context";
 import { createConfirmations } from "../src/confirmations/service";
 import { createDatabase } from "../src/db/client";
 import type { GrantedTool } from "../src/plugins/tools";
@@ -37,6 +37,20 @@ describe("classify", () => {
     expect(decideMode({ category: "message", text: "给张三发微信", pref: "ask", rules })).toMatchObject({ mode: "auto", ruleId: "a" });
     expect(decideMode({ category: "message", text: "给张三说工资的事", pref: "auto", rules })).toMatchObject({ mode: "ask", ruleId: "b" });
     expect(decideMode({ category: "delete", text: "给张三", pref: undefined, rules })).toMatchObject({ mode: "ask", source: "default" });
+  });
+  test("page buttons: send / delete labels, not text fields or long text", () => {
+    expect(categoryOfPageAction({ role: "button", name: "发送" })).toBe("message");
+    expect(categoryOfPageAction({ role: "button", name: "Send" })).toBe("message");
+    expect(categoryOfPageAction({ role: "button", name: "发送(S)" })).toBe("message");
+    expect(categoryOfPageAction({ role: "button", name: "Post ➤" })).toBe("message");
+    expect(categoryOfPageAction({ role: "link", name: "Move to trash" })).toBe("delete");
+    expect(categoryOfPageAction({ role: "menuitem", name: "删除" })).toBe("delete");
+    expect(categoryOfPageAction({ role: "button", name: "立即购买" })).toBeNull(); // 付款归上游的付款安全规则
+    expect(categoryOfPageAction({ role: "textbox", name: "发送" })).toBeNull();
+    expect(categoryOfPageAction({ role: "heading", name: "删除" })).toBeNull();
+    expect(categoryOfPageAction({ role: "button", name: "发送验证码给我的手机看看会不会到" })).toBeNull();
+    expect(categoryOfPageAction({ role: "button", name: "搜索" })).toBeNull();
+    expect(categoryOfPageAction(undefined)).toBeNull();
   });
   test("details skip secrets and mark code", () => {
     const details = detailsFromArgs({ to: "a@b.c", api_key: "sk-1", command: "rm -rf x" });
@@ -173,6 +187,37 @@ describe.skipIf(!url)("confirmations service", () => {
     const ctx = await confirm.context(owner);
     expect(ctx).toContain("给张三发微信不用问我");
     expect(ctx).toContain("付款购买=先问我（固定）");
+  });
+
+  test("page action: server asks before a web 发送 click; a confirm_action earlier in the thread covers it", async () => {
+    const pageThread = `t-page-${randomUUID()}`;
+    const pageTurn = { threadId: pageThread, runId: "run-p", stopped: () => false };
+    expect(await confirm.pageAction({ ownerUserId: owner, agentId: "bot-3", element: { role: "button", name: "搜索" } })).toBeNull();
+    // 网页聊天：出卡片，等确认
+    const run = withConfirmTurn(pageTurn, () =>
+      withConfirmToolCall("call-page", "computer_click", () =>
+        withConfirmActor({ kind: "person" }, () =>
+          confirm.pageAction({ ownerUserId: owner, agentId: "bot-3", element: { role: "button", name: "发送" }, pageUrl: "https://mail.example.com/compose" }),
+        ),
+      ),
+    );
+    let card = null as Awaited<ReturnType<typeof confirm.list>>[number] | null;
+    for (let i = 0; i < 40 && !card; i++) {
+      card = (await confirm.list(owner, { threadId: pageThread })).find((r) => r.toolCallId === "call-page") ?? null;
+      if (!card) await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(card?.category).toBe("message");
+    expect(card?.title).toContain("发送");
+    expect(card?.target).toBe("mail.example.com");
+    await confirm.decide(owner, card!.id, "approve");
+    expect(await run).toMatchObject({ ok: true });
+    // 刚确认过：同一段对话里再点「发送」不再问
+    expect(await withConfirmTurn(pageTurn, () => confirm.pageAction({ ownerUserId: owner, agentId: "bot-3", element: { name: "Send" } }))).toMatchObject({ ok: true, via: "grant" });
+    // 定时任务这类后台回合：弹不出卡片 → 不点
+    const bg = await withConfirmTurn({ ...pageTurn, threadId: `t-page-${randomUUID()}` }, () =>
+      withConfirmActor({ kind: "routine", id: "schedule:x" }, () => confirm.pageAction({ ownerUserId: owner, agentId: "bot-3", element: { name: "Reply" } })),
+    );
+    expect(bg).toMatchObject({ ok: false });
   });
 
   test("device hook: auto preference skips, ask links a card that follows the device decision", async () => {

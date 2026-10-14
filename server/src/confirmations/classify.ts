@@ -122,3 +122,22 @@ export function titleForTool(name: string, category: ConfirmCategory): string {
   const verb = { message: "发送", delete: "删除", purchase: "付款 / 下单", device: "电脑操作" }[category];
   return `${verb}（${name}）`;
 }
+
+/**
+ * 云端浏览器里点的那个按钮算不算「有后果」（服务器自己判断，不靠机器人记得先调用 confirm_action）。
+ * 只看按钮 / 链接上显示的字，短标签整段匹配（「发送」「Send」「删除」「Move to trash」…）；
+ * 付款下单不在这里：上游的付款安全规则已经拦（DESIGN.md §XX.5）。
+ */
+const PAGE_MESSAGE = /^(发送|发 送|立即发送|发送邮件|发送消息|发布|发表|发帖|发微博|回复|发表回复|发表评论|评论|提交评论|转发|send|send now|send email|send message|post|publish|tweet|post reply|reply|comment|submit comment|share)$/i;
+const PAGE_DELETE = /^(删除|永久删除|彻底删除|确认删除|删除文件|删除邮件|移除|清空|清空回收站|移到回收站|移至废纸篓|delete|delete forever|delete permanently|permanently delete|remove|move to trash|move to bin|empty trash|empty bin)$/i;
+export function categoryOfPageAction(element: { role?: string; name?: string } | null | undefined): Exclude<ConfirmCategory, "purchase" | "device"> | null {
+  const raw = element?.name?.replace(/\s+/g, " ").trim() ?? "";
+  if (!raw || raw.length > 24) return null;
+  // 输入框、标题、正文里的同样几个字不算按钮。
+  if (element?.role && /^(textbox|searchbox|combobox|heading|paragraph|statictext|text|label|checkbox|radio|switch|cell|row|listitem|article)$/i.test(element.role)) return null;
+  // 去掉快捷键提示和箭头之类的尾巴：「发送(S)」「Send ➤」「删除 (Del)」
+  const name = raw.replace(/\s*[（(][^)）]{0,12}[)）]\s*$/, "").replace(/[\s➤›>→✓✔·•…]+$/u, "").trim();
+  if (PAGE_MESSAGE.test(name)) return "message";
+  if (PAGE_DELETE.test(name)) return "delete";
+  return null;
+}
