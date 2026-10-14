@@ -165,25 +165,26 @@ test("a coworker's name is not saved by the Enter that confirms a composed chara
   expect(writes[0]?.body).toMatchObject({ name: "経費" });
 });
 
-test("the new-coworker wizard does not move on from the Enter that confirms a composed character", async () => {
+test("the new-bot form does not create from the Enter that confirms a composed character", async () => {
   const view = draw(
     <CreateAgentDialog onClose={() => {}} onCreated={() => {}} open />,
   );
 
-  const name = await view.findByLabelText("Name");
+  const name = await view.findByLabelText("名称");
   await type(name, "経費");
-  await type(view.getByLabelText("Title"), "Finance Operations");
-  await type(view.getByLabelText("Role"), "Review receipts.");
+  await type(view.getByLabelText("职责"), "整理票据");
+  await type(view.getByLabelText("提示词"), "你负责整理票据。");
 
   await confirmComposedCharacter(name);
   await settle();
-  expect(view.getByText("Step 1 of 3")).toBeTruthy();
+  expect(writes).toEqual([]);
 
-  // An ordinary Enter still means Continue.
+  // An ordinary Enter still means 创建, once.
   await act(async () => {
     fireEvent.keyDown(name, { key: "Enter", keyCode: 13 });
   });
-  expect(await view.findByText("Step 2 of 3")).toBeTruthy();
+  await settle();
+  expect(writes.map((write) => write.request)).toEqual(["POST /api/agents"]);
 });
 
 test("a boundary rule is not saved by the Enter that confirms a composed character", async () => {

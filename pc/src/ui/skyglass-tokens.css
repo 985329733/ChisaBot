@@ -38,7 +38,7 @@
   --success: oklch(0.6 0.118 184.704);
   --border: rgba(22, 24, 29, 0.09);
   --input: rgba(22, 24, 29, 0.11);
-  --ring: rgba(59, 130, 246, 0.55);
+  --ring: rgba(22, 36, 62, 0.22);
   --chart-1: #93b4d8;
   --chart-2: #5b8ec4;
   --chart-3: #3b6fa8;
@@ -52,7 +52,7 @@
   --sidebar-accent: rgba(255, 255, 255, 0.55);
   --sidebar-accent-foreground: #16181d;
   --sidebar-border: rgba(255, 255, 255, 0.5);
-  --sidebar-ring: rgba(59, 130, 246, 0.55);
+  --sidebar-ring: rgba(22, 36, 62, 0.22);
 }
 
 .dark {
@@ -90,7 +90,7 @@
   --success: oklch(0.704 0.14 182.503);
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
-  --ring: rgba(96, 165, 250, 0.55);
+  --ring: rgba(235, 241, 255, 0.26);
   --chart-1: #93b4d8;
   --chart-2: #5b8ec4;
   --chart-3: #3b6fa8;
@@ -103,7 +103,7 @@
   --sidebar-accent: rgba(255, 255, 255, 0.08);
   --sidebar-accent-foreground: #e8ecf3;
   --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: rgba(96, 165, 250, 0.55);
+  --sidebar-ring: rgba(235, 241, 255, 0.26);
 }
 
 :root {
@@ -130,7 +130,7 @@
   --line-strong: rgba(22, 36, 62, 0.14);
   --ink-1: #111a2b; --ink-2: #3b4659; --ink-3: var(--sky-muted, #5f6673); --ink-4: rgba(17, 26, 43, 0.36);
   --ink-primary: #15203a; --ink-primary-hover: #24314f; --on-primary: #ffffff;
-  --accent-blue: #2f74f0; --accent-blue-ink: #1f5fd6; --accent-blue-soft: rgba(47, 116, 240, 0.12); --focus: rgba(47, 116, 240, 0.35);
+  --accent-blue: #2f74f0; --accent-blue-ink: #1f5fd6; --accent-blue-soft: rgba(47, 116, 240, 0.12); --focus: rgba(22, 36, 62, 0.18); --focus-line: rgba(22, 36, 62, 0.42);
   --success: #17955c; --success-soft: rgba(23, 149, 92, 0.13);
   --warn: #c97a0c; --warn-soft: rgba(217, 138, 28, 0.15);
   --danger: #d93d40; --danger-soft: rgba(217, 61, 64, 0.12);
@@ -182,7 +182,7 @@
   --line-strong: rgba(255, 255, 255, 0.13);
   --ink-1: #e9eef8; --ink-2: #b7c1d3; --ink-3: #8b97ab; --ink-4: rgba(233, 238, 248, 0.32);
   --ink-primary: #e9eff9; --ink-primary-hover: #ffffff; --on-primary: #0e1628;
-  --accent-blue: #5b95ff; --accent-blue-ink: #8ab4ff; --accent-blue-soft: rgba(91, 149, 255, 0.16); --focus: rgba(91, 149, 255, 0.4);
+  --accent-blue: #5b95ff; --accent-blue-ink: #8ab4ff; --accent-blue-soft: rgba(91, 149, 255, 0.16); --focus: rgba(235, 241, 255, 0.22); --focus-line: rgba(235, 241, 255, 0.5);
   --success: #3ccf8a; --success-soft: rgba(60, 207, 138, 0.15);
   --warn: #f0b04a; --warn-soft: rgba(240, 176, 74, 0.15);
   --danger: #ff6b6e; --danger-soft: rgba(255, 107, 110, 0.15);

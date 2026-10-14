@@ -57,7 +57,7 @@ html {
   --success: oklch(0.6 0.118 184.704);
   --border: rgba(22, 24, 29, 0.09);
   --input: rgba(22, 24, 29, 0.11);
-  --ring: rgba(59, 130, 246, 0.55);
+  --ring: rgba(22, 36, 62, 0.22);
   --chart-1: #93b4d8;
   --chart-2: #5b8ec4;
   --chart-3: #3b6fa8;
@@ -71,7 +71,7 @@ html {
   --sidebar-accent: rgba(255, 255, 255, 0.55);
   --sidebar-accent-foreground: #16181d;
   --sidebar-border: rgba(255, 255, 255, 0.5);
-  --sidebar-ring: rgba(59, 130, 246, 0.55);
+  --sidebar-ring: rgba(22, 36, 62, 0.22);
 }
 
 .dark {
@@ -109,7 +109,7 @@ html {
   --success: oklch(0.704 0.14 182.503);
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
-  --ring: rgba(96, 165, 250, 0.55);
+  --ring: rgba(235, 241, 255, 0.26);
   --chart-1: #93b4d8;
   --chart-2: #5b8ec4;
   --chart-3: #3b6fa8;
@@ -122,7 +122,7 @@ html {
   --sidebar-accent: rgba(255, 255, 255, 0.08);
   --sidebar-accent-foreground: #e8ecf3;
   --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: rgba(96, 165, 250, 0.55);
+  --sidebar-ring: rgba(235, 241, 255, 0.26);
 }
 
 
@@ -155,7 +155,7 @@ html {
   --line-strong: rgba(22, 36, 62, 0.14);
   --ink-1: #111a2b; --ink-2: #3b4659; --ink-3: var(--sky-muted, #5f6673); --ink-4: rgba(17, 26, 43, 0.36);
   --ink-primary: #15203a; --ink-primary-hover: #24314f; --on-primary: #ffffff;
-  --accent-blue: #2f74f0; --accent-blue-ink: #1f5fd6; --accent-blue-soft: rgba(47, 116, 240, 0.12); --focus: rgba(47, 116, 240, 0.35);
+  --accent-blue: #2f74f0; --accent-blue-ink: #1f5fd6; --accent-blue-soft: rgba(47, 116, 240, 0.12); --focus: rgba(22, 36, 62, 0.18); --focus-line: rgba(22, 36, 62, 0.42);
   --success: #17955c; --success-soft: rgba(23, 149, 92, 0.13);
   --warn: #c97a0c; --warn-soft: rgba(217, 138, 28, 0.15);
   --danger: #d93d40; --danger-soft: rgba(217, 61, 64, 0.12);
@@ -206,7 +206,7 @@ html {
   --line-strong: rgba(255, 255, 255, 0.13);
   --ink-1: #e9eef8; --ink-2: #b7c1d3; --ink-3: #8b97ab; --ink-4: rgba(233, 238, 248, 0.32);
   --ink-primary: #e9eff9; --ink-primary-hover: #ffffff; --on-primary: #0e1628;
-  --accent-blue: #5b95ff; --accent-blue-ink: #8ab4ff; --accent-blue-soft: rgba(91, 149, 255, 0.16); --focus: rgba(91, 149, 255, 0.4);
+  --accent-blue: #5b95ff; --accent-blue-ink: #8ab4ff; --accent-blue-soft: rgba(91, 149, 255, 0.16); --focus: rgba(235, 241, 255, 0.22); --focus-line: rgba(235, 241, 255, 0.5);
   --success: #3ccf8a; --success-soft: rgba(60, 207, 138, 0.15);
   --warn: #f0b04a; --warn-soft: rgba(240, 176, 74, 0.15);
   --danger: #ff6b6e; --danger-soft: rgba(255, 107, 110, 0.15);
@@ -964,7 +964,7 @@ body::before {
 }
 .glass-side-scroll a.glass-bot-link:focus-visible,
 .glass-bot-link:focus-visible {
-  box-shadow: 0 0 0 2px rgba(47, 124, 246, 0.45);
+  box-shadow: 0 0 0 2px var(--focus);
 }
 .glass-bot-ava {
   position: relative;
@@ -1217,7 +1217,7 @@ body::before {
   transform: scale(0.94);
 }
 .glass-icon-btn:focus-visible {
-  box-shadow: var(--glass-shadow-sm), 0 0 0 2px rgba(47, 124, 246, 0.5);
+  box-shadow: var(--glass-shadow-sm), 0 0 0 2px var(--focus);
 }
 .glass-icon-btn-ico {
   width: 20px;
@@ -1350,7 +1350,7 @@ body::before {
   background: #4c8dff;
 }
 .glass-mini-bot:focus-visible {
-  box-shadow: 0 0 0 2px rgba(47, 124, 246, 0.5);
+  box-shadow: 0 0 0 2px var(--focus);
 }
 .glass-mini-dot {
   position: absolute;
@@ -1477,8 +1477,7 @@ body::before {
   transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 .glass-composer:focus-within {
-  border-color: rgba(47, 124, 246, 0.45);
-  box-shadow: 0 0 0 4px rgba(47, 124, 246, 0.14), 0 14px 38px rgba(40, 80, 140, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 38px rgba(40, 80, 140, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .glass-composer-hero {
   padding: 16px 14px 12px 18px;
@@ -1491,8 +1490,7 @@ body::before {
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .dark .glass-composer:focus-within {
-  border-color: rgba(96, 155, 255, 0.45);
-  box-shadow: 0 0 0 4px rgba(76, 141, 255, 0.16), 0 14px 38px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .glass-composer :is([contenteditable], textarea) {
   font-size: 15px;
@@ -2274,8 +2272,8 @@ button.chat-bottom-pill:hover {
 [data-slot="textarea"]:focus-visible,
 [data-slot="select-trigger"]:focus-visible {
   background-color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.55);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+  border-color: rgba(22, 24, 29, 0.22);
+  box-shadow: none;
 }
 .dark [data-slot="input"]:focus-visible,
 .dark [data-slot="textarea"]:focus-visible,
@@ -2875,7 +2873,7 @@ button.chat-bottom-pill:hover {
 [data-slot="input"]:focus-visible,
 [data-slot="textarea"]:focus-visible,
 [data-slot="select-trigger"]:focus-visible {
-  border-color: var(--accent-blue);
+  border-color: var(--focus-line);
   background-color: var(--glass-3);
   box-shadow: 0 0 0 3px var(--focus);
 }
@@ -3107,7 +3105,7 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 /* ---------- 设备 / PC 节点（DESIGN.md §16，docs/pc-node.md）---------- */
 .device-row-link { display: block; color: inherit; text-decoration: none; }
 .device-row-link + .device-row-link .sg-lrow { border-top: 1px solid var(--line); }
-.device-row-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-blue); border-radius: 14px; }
+.device-row-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus-line); border-radius: 14px; }
 /* 设备列表行（2026-10-12「设备列表」）：主体是链接，右侧 ⋯ 菜单在链接外面（不嵌套交互元素）。 */
 .device-row { display: flex; align-items: center; transition: background var(--dur-1), opacity var(--dur-2); }
 .device-row + .device-row { border-top: 1px solid var(--line); }
@@ -3130,7 +3128,7 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1);
 }
 .device-row-more:hover, .device-row-more[data-popup-open] { background: var(--glass-2); color: var(--ink-1); }
-.device-row-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-blue); }
+.device-row-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-line); }
 @media (max-width: 640px) { .device-row-facts { white-space: normal; } .device-row-more { margin-right: 8px; } }
 .device-row-actions { display: inline-flex; align-items: center; gap: 8px; }
 .device-icon {
@@ -3393,7 +3391,7 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .jr-field { display: flex; flex-direction: column; gap: 6px; }
 .jr-label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .jr-control, .jr-select { background: var(--glass-2); border-color: var(--line-strong); border-radius: var(--r-md); }
-.jr-control:focus-visible, .jr-select:focus-visible { background: var(--glass-3); border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--focus); }
+.jr-control:focus-visible, .jr-select:focus-visible { background: var(--glass-3); border-color: var(--focus-line); box-shadow: 0 0 0 3px var(--focus); }
 .jr-select { height: 40px; width: 100%; padding: 0 12px; border-width: 1px; border-style: solid; font: inherit; font-size: 14px; color: var(--ink-1); outline: none; transition: border-color var(--dur-1), box-shadow var(--dur-1), background var(--dur-1); }
 .jr-helper { font-size: 12px; color: var(--ink-3); }
 .jr-check { display: flex; align-items: flex-start; gap: 10px; }
@@ -3937,8 +3935,8 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   transition: background var(--dur-2) var(--ease-std), border-color var(--dur-2) var(--ease-std), box-shadow var(--dur-2) var(--ease-out);
 }
 .side-search:hover { background: var(--glass-2); }
-.side-search:focus-within { background: var(--glass-3); border-color: rgba(56, 128, 220, 0.45); box-shadow: 0 0 0 3px rgba(56, 128, 220, 0.12); color: var(--ink-2); }
-.dark .side-search:focus-within { border-color: rgba(120, 175, 255, 0.45); box-shadow: 0 0 0 3px rgba(120, 175, 255, 0.12); }
+.side-search:focus-within { background: var(--glass-3); border-color: var(--line-strong); box-shadow: none; color: var(--ink-2); }
+.dark .side-search:focus-within { border-color: var(--line-strong); box-shadow: none; }
 .side-search-ico { width: 16px; height: 16px; flex: none; }
 .side-search-input { flex: 1; min-width: 0; height: 100%; background: transparent; outline: none; font-size: 13px; color: var(--ink-1); }
 .side-search-input::placeholder { color: var(--ink-3); }
@@ -4317,7 +4315,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .bca-empty { align-items: flex-start; padding: 12px; }
 .bca-row-link { color: inherit; text-decoration: none; transition: background var(--dur-1), border-color var(--dur-1); }
 .bca-row-link:hover { background: var(--glass-hover); }
-.bca-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-blue); }
+.bca-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-line); }
 .bca-ico {
   display: grid; place-items: center; flex: none;
   width: 34px; height: 34px; border-radius: 10px;
@@ -4492,7 +4490,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   app-region: no-drag;
 }
 .brand-mark-btn:hover { background: var(--glass-2); }
-.brand-mark-btn:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.brand-mark-btn:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; }
 .brand-mark {
   display: inline-flex;
   align-items: baseline;
@@ -4796,7 +4794,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .wf-run-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 18px; color: inherit; text-decoration: none; transition: background var(--dur-1); }
 .wf-run-row + .wf-run-row { border-top: 1px solid var(--line); }
 .wf-run-row:hover { background: var(--glass-hover); }
-.wf-run-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-blue); border-radius: 14px; }
+.wf-run-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus-line); border-radius: 14px; }
 .wf-run-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--glass-2); font-size: 16px; flex: none; }
 .wf-run-title { display: block; font-size: 14px; font-weight: 500; color: var(--ink-1); }
 .wf-run-sub { display: block; font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -5083,7 +5081,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   animation: rp-in var(--dur-2) var(--ease-out) both;
 }
 .rp-link:hover { transform: translateY(-1px); box-shadow: var(--shadow-2), var(--inset-hl); background: var(--glass-2); }
-.rp-link:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.rp-link:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; }
 .rp-link-media { position: relative; aspect-ratio: 1.91 / 1; overflow: hidden; background: var(--glass-2); border-bottom: 1px solid var(--line); }
 .rp-link-media img { display: block; width: 100%; height: 100%; object-fit: cover; animation: rp-fade var(--dur-2) var(--ease-out) both; }
 .rp-link-media[data-kind="shot"] img { object-position: top center; }
@@ -5114,7 +5112,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   animation: rp-in var(--dur-2) var(--ease-out) both;
 }
 .rp-image-single:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
-.rp-image-single:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.rp-image-single:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; }
 .rp-image-single img { display: block; max-width: 100%; max-height: 300px; width: auto; height: auto; object-fit: contain; }
 
 /* 图片：一摞（叠放、轻微倾斜；悬停 / 聚焦 / 第一次轻点摊开） */
@@ -5133,7 +5131,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .rp-pile[data-spread] .rp-pile-card { transform: translateX(calc(var(--rp-i) * var(--rp-step))) rotate(calc(var(--rp-rot) * 0.35)); }
 .rp-pile[data-spread] .rp-pile-card:first-child { transform: none; }
 .rp-pile[data-spread] .rp-pile-card:hover { transform: translateX(calc(var(--rp-i) * var(--rp-step))) translateY(-4px) rotate(0deg); box-shadow: var(--shadow-2); z-index: 20 !important; }
-.rp-pile-card:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; z-index: 20 !important; }
+.rp-pile-card:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; z-index: 20 !important; }
 .rp-pile-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 16, 28, 0.48); color: #fff; font-size: var(--fs-20); font-weight: 600; }
 .rp-pile-count {
   position: absolute; left: 8px; bottom: -6px; z-index: 30; display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
@@ -5167,7 +5165,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .rp-file-meta { font-size: var(--fs-12); line-height: 1.4; color: var(--ink-3); }
 .rp-file-dl { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-pill); color: var(--ink-2); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
 .rp-file-dl:hover { background: var(--glass-2); color: var(--ink-1); }
-.rp-file-dl:focus-visible, .rp-file-text:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.rp-file-dl:focus-visible, .rp-file-text:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; }
 
 /* 看大图 */
 .rp-lightbox {
@@ -5254,7 +5252,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .jr-action:active { transform: scale(0.985); }
 .jr-action:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
 .jr-action-go { position: absolute; top: 8px; right: 8px; width: 14px; height: 14px; color: var(--ink-3); opacity: 0; transform: translate(-2px, 2px); transition: opacity var(--dur-1), transform var(--dur-1) var(--ease-out), color var(--dur-1); pointer-events: none; }
-.jr-action:hover > .jr-action-go, .jr-action:focus-visible > .jr-action-go { opacity: 0.9; transform: none; color: var(--accent-blue); }
+.jr-action:hover > .jr-action-go, .jr-action:focus-visible > .jr-action-go { opacity: 0.9; transform: none; color: var(--focus-line); }
 .jr-action-go.is-inline { position: static; display: inline-block; flex: none; margin-left: 4px; opacity: 0.5; transform: none; vertical-align: -2px; }
 .jr-action-go.is-ok { color: var(--success); opacity: 1; }
 @media (hover: none) { .jr-action-go { opacity: 0.55; transform: none; } }
@@ -5881,7 +5879,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   flex: 1; min-width: 0; height: 28px; padding: 0 10px; border-radius: var(--r-pill); font-size: 13px; color: var(--ink-1);
   border: 1px solid var(--line-strong); background: var(--glass-3); outline: none; transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
-.worker-steer-input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--focus); }
+.worker-steer-input:focus { border-color: var(--focus-line); box-shadow: 0 0 0 3px var(--focus); }
 .worker-error { padding-left: 28px; font-size: 12px; color: var(--danger); }
 /* 结束后收成一行：图标 · 标题 · 一句结果 · 用时；点它跳到结果消息。 */
 .worker-card.is-collapsed { flex-direction: row; align-items: center; gap: 4px; padding: 6px 8px 6px 10px; }
@@ -6155,3 +6153,23 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .bot-history-empty { padding: 16px 12px; font-size: 14px; color: var(--glass-ink-4); }
 .bot-history-retry { margin-left: 8px; color: var(--accent-blue-ink); }
 @media (prefers-reduced-motion: reduce) { .bot-history-skel { animation: none; } }
+
+/* ---------- 输入框选中：没有蓝色（DESIGN.md §45，2026-10-14 用户：「选中输入框有个蓝色选中效果…不需要这个，去掉」） ----------
+   文字输入（input / textarea / select / 输入组 / 组合框 / 搜索框 / 聊天输入框 / 卡片里的表单 / 地址栏）选中时
+   只把描边加深一点、玻璃更实一点：没有光圈、没有蓝色描边、没有浏览器默认的蓝色 outline。
+   放在文件最后、不进 @layer：盖过 Tailwind 的 focus-visible:ring-* 和前面各处的旧规则。
+   出错（aria-invalid）的红色描边保留。按钮等非输入控件的键盘焦点环用 --focus（中性墨色，不是蓝）。 */
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), textarea, select, [contenteditable="true"], [data-slot="select-trigger"], [data-slot="combobox-trigger"]):is(:focus, :focus-visible) {
+  outline: none;
+}
+:is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="input-group"], [data-slot="input-group-control"], .jr-control, .jr-select):is(:focus, :focus-visible, :focus-within):not([aria-invalid="true"]),
+[data-slot="input-group"]:has(:focus-visible):not(:has([aria-invalid="true"])) {
+  border-color: var(--focus-line, var(--line-strong));
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+}
+:is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):is(:focus, :focus-visible):not([aria-invalid="true"]) { background-color: var(--glass-3); }
+[data-slot="input-group"] :is([data-slot="input-group-control"], input, textarea):is(:focus, :focus-visible) { border-color: transparent; }
+:is(.glass-search, .side-search, .computer-urlbar-field, .topbar-search .glass-search):focus-within { box-shadow: none; border-color: var(--line-strong); }
+.glass-composer:focus-within, .dark .glass-composer:focus-within { border-color: var(--stroke); }

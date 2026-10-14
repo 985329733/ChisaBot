@@ -38,13 +38,6 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
@@ -107,11 +100,11 @@ export function AgentDialog({
 
 const SECTIONS = [
   { id: "general", name: "通用", icon: IconUser },
-  { id: "access", name: "Access", icon: IconPuzzle },
+  { id: "access", name: "权限", icon: IconPuzzle },
   { id: "connection", name: "连接", icon: IconPlugConnected },
   { id: "handoff", name: "交接", icon: IconArrowsExchange },
   { id: "routines", name: "例行任务", icon: IconClock },
-  { id: "manage", name: "Manage", icon: IconAdjustments },
+  { id: "manage", name: "管理", icon: IconAdjustments },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -260,7 +253,8 @@ function GeneralSection({
         name: profile.name,
         title: profile.title,
         roleDescription: profile.roleDescription,
-        visibility: profile.visibility,
+        // 一律私有（DESIGN.md §45）。
+        visibility: "private",
         /*
          * Not a built-in coworker's endpoint. That is the managed Bot's own address, which nobody
          * typed, and the route checks any endpoint it is sent as one somebody did: on a deployment
@@ -298,11 +292,6 @@ function GeneralSection({
           onSave={(roleDescription) => save({ roleDescription })}
           schema={agentFormSchema.shape.roleDescription}
           value={profile.roleDescription}
-        />
-        <VisibilityItem
-          canManage={profile.canManage}
-          onSave={(visibility) => save({ visibility })}
-          value={profile.visibility}
         />
         <Item variant="muted"><ItemContent><ItemTitle>模型设置</ItemTitle><BotModelSelector agentId={agentId} /></ItemContent></Item>
         {profile.systemOwned ? (
@@ -461,77 +450,6 @@ function EditableTextItem({
           </Button>
         </div>
       </ItemContent>
-    </Item>
-  );
-}
-
-/**
- * Visibility is two named choices, so it edits as a select that writes on pick — no open state and
- * no Save, because there is no draft worth holding: the pick is the whole of the change.
- */
-function VisibilityItem({
-  value,
-  canManage,
-  onSave,
-}: {
-  value: AgentProfile["visibility"];
-  canManage: boolean;
-  onSave: (visibility: AgentProfile["visibility"]) => Promise<unknown>;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <Item variant="muted">
-      <ItemContent>
-        <ItemTitle>{"可见性"}</ItemTitle>
-        <ItemDescription>
-          {value === "private"
-            ? "只有你能看到它并与之启动会话。"
-            : "部署中的每个人都可以找到并使用它。"}
-        </ItemDescription>
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </ItemContent>
-      <ItemActions>
-        {canManage ? (
-          <Select
-            disabled={saving}
-            // The label map, so the closed trigger says "Private" rather than the raw value.
-            items={{ private: "私有", public: "Public" }}
-            onValueChange={async (next) => {
-              if (next === value) return;
-              setError(null);
-              setSaving(true);
-              try {
-                await onSave(next as AgentProfile["visibility"]);
-              } catch (failure) {
-                setError(
-                  failure instanceof Error ? failure.message : "无法保存。",
-                );
-              } finally {
-                setSaving(false);
-              }
-            }}
-            value={value}
-          >
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="private">{"私有"}</SelectItem>
-              <SelectItem value="public">{"公开"}</SelectItem>
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className="text-sm text-muted-foreground">
-            {value === "private" ? "私有" : "公开"}
-          </span>
-        )}
-      </ItemActions>
     </Item>
   );
 }

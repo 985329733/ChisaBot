@@ -72,13 +72,11 @@ export function parseAgentInput(
   );
   if (typeof roleDescription !== "string") return roleDescription;
 
-  if (typeof input.visibility !== "string") {
-    return { ok: false, error: "Visibility must be public or private." };
-  }
-  const visibility = input.visibility.trim();
-  if (visibility !== "public" && visibility !== "private") {
-    return { ok: false, error: "Visibility must be public or private." };
-  }
+  /*
+   * 所有机器人都是私有的（2026-10-14 用户：「所有的机器人都是私有」，DESIGN.md §45）。界面不再提供
+   * 「公开」，这里也不再接受：旧客户端照旧发 visibility 也不报错，但不管发什么都按私有存。
+   */
+  const visibility = "private" as const;
 
   // The endpoint is optional and checked. Absent means the Bot in the box, which is what most people
   // want on their first go. Present means this server will POST to an address a person chose, so it
