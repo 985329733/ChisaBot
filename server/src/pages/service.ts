@@ -651,7 +651,7 @@ export function createPages(
             note: input.note ?? null,
           });
           if (input.title && input.title.trim() !== target.title) {
-            const current = await version(page.id, page.current_version);
+            const current = await version(page.id, page.version);
             const body = current?.html ?? "";
             if (!body.includes(input.title.trim()) && body.includes(target.title))
               extra += `\n⚠ 只改了浏览器标签上的标题；页面正文里的大标题还是「${target.title}」。要一起改就再用 edits 把正文里的「${target.title}」换掉。`;
