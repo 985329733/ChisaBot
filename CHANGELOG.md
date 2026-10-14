@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 频道聊天不再丢正在写的回答（P0）：回答写到一半刷新页面、手机切后台再回来、网络抖一下，回来后接着一个字一个字往下写（服务器其实一直在写，只是页面没再接上）；回答中刷新后「停止」照样能用。同一段频道对话在手机和电脑上同时打开，一边发的另一边约 2 秒出现，回答两边同步流式。只改网页。见 DESIGN.md §64。
 - 瘦身 P4b-3：去掉上游的自动学习（`/api/admin/learning`、学习设置、学到的技能注入；只在 Intelligence 模式下生效，本部署一直没用）、身份提供者管理接口（`/api/admin/identity-providers`）、每个机器人一台电脑的 Docker supervisor 配置（`COMPUTER_SUPERVISOR_URL` 不再读，机器人共用 `AGENT_COMPUTER_URL`）。表和旧数据不动。企业控制闸门、SSO/SCIM、语音暂留，原因见 `docs/slimming.md`。
 - 瘦身 P4b-2：去掉上游的推送与可达性（Slack / Teams / 短信 / 手机推送，`/api/delivery*`）、群聊接口（`/api/groups`）、团队机器人接口（`/api/team-bots`）；机器人之间交接默认关闭（`BOT_HANDOFF_MAX_DEPTH` 默认 `0`，设 `1` 恢复）。旧的多机器人对话打开时显示「已不再支持」。网页里的群聊链接、团队机器人同意卡片、外部机器人回调令牌面板一并去掉。表和旧数据不动。见 `docs/slimming.md`。
 - 成熟度 2（新朋友第一次用）：① 新建机器人只有名称必填，职责 / 提示词可以不填（提交时补一句基本说明，之后在资料页改）。② 机器人的空聊天多了 4 个「试试这样问」，点一下就发。③ 手机上建好机器人后左栏抽屉自动收起。④ 「AI 同事」等机翻文案改成「机器人」。⑤ 模型回答到一半断开时，出错卡片说中文（以前是 `AI SDK stream error`）。只改网页。见 DESIGN.md §63。

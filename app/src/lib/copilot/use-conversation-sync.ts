@@ -62,6 +62,29 @@ export function userOrderDiffers(local: readonly string[], server: readonly stri
 type Connect = (options: { agent: AbstractAgent }) => Promise<unknown>;
 
 /**
+ * 合并式接入时哪些消息算「这台已经有了」（回放里它们的事件跳过）。
+ *
+ * `liveTail`（频道聊天，DESIGN.md §64）：服务器正在回答时，最后一条用户消息之后的那几条（正在写的回答、
+ * 思考、工具调用）不算——这台手里的只是刷新 / 切后台前收到的半截，跳过它们的事件就会一直停在半截上。
+ * 不跳过时 SDK 在「开始」事件里清空这条再按回放重建，然后接着实时往下写。
+ */
+export function knownForMerge(
+  messages: readonly { id: string; role: string; toolCalls?: { id: string }[] }[],
+  liveTail = false,
+): { messages: Set<string>; toolCalls: Set<string> } {
+  let keep = messages.length;
+  if (liveTail) {
+    const lastUser = messages.map((message) => message.role).lastIndexOf("user");
+    keep = lastUser + 1;
+  }
+  const kept = messages.slice(0, keep);
+  return {
+    messages: new Set(kept.map((message) => message.id)),
+    toolCalls: new Set(kept.flatMap((message) => (message.toolCalls ?? []).map((call) => call.id))),
+  };
+}
+
+/**
  * 全端同步（DESIGN.md §42）：同一段对话在别的设备上有了动静，把它拉到这台设备。
  *
  * `useBotThread` 每 2 秒（前台时）问一次服务器这条对话的变化戳（事件序号、是否在回答、后台任务 / 收件箱
@@ -80,7 +103,9 @@ export function useConversationSync(
   agent: AbstractAgent,
   connect: Connect,
   onActivity: (listener: (activity: ThreadActivity) => void) => () => void,
+  options: { liveTail?: boolean } = {},
 ) {
+  const liveTail = options.liveTail === true;
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!threadId) return;
@@ -95,20 +120,10 @@ export function useConversationSync(
      * mode "merge"（平时）：不清空列表，只把新的接上——见下面的 onEvent。
      * mode "rebuild"（顺序和服务器不一致时）：照 SDK 原样，先清空再按服务器回放重建。
      */
-    const join = (mode: "merge" | "rebuild" = "merge") => {
+    const join = (mode: "merge" | "rebuild" = "merge", running = false) => {
       if (connecting || agent.isRunning) return;
       connecting = true;
-      merge =
-        mode === "merge"
-          ? {
-              messages: new Set(agent.messages.map((message) => message.id)),
-              toolCalls: new Set(
-                agent.messages.flatMap((message) =>
-                  ((message as { toolCalls?: { id: string }[] }).toolCalls ?? []).map((call) => call.id),
-                ),
-              ),
-            }
-          : null;
+      merge = mode === "merge" ? knownForMerge(agent.messages as never, liveTail && running) : null;
       void connect({ agent })
         .catch(() => {})
         .finally(() => {
@@ -185,13 +200,13 @@ export function useConversationSync(
       if (rebase || !previous) {
         rebase = false;
         // 服务器在回答、这台却没在跟（刚回到前台、刚打开时那一轮还没开始）：接上。
-        if (activity.running) join();
+        if (activity.running) join("merge", true);
         return;
       }
       if (activity.workers !== previous.workers)
         void queryClient.invalidateQueries({ queryKey: workerKeys.thread(threadId) });
       if (activity.inbox !== previous.inbox) void restoreQueue(threadId);
-      if (activity.seq !== previous.seq || activity.running) join();
+      if (activity.seq !== previous.seq || activity.running) join("merge", activity.running);
     });
     return () => {
       alive = false;
@@ -199,5 +214,5 @@ export function useConversationSync(
       off();
       subscription.unsubscribe();
     };
-  }, [threadId, agent, connect, onActivity, queryClient]);
+  }, [threadId, agent, connect, onActivity, queryClient, liveTail]);
 }

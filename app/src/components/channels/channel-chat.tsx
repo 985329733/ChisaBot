@@ -38,6 +38,9 @@ import {
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
+import type { ThreadActivity } from "@/lib/copilot/bot-thread";
+import { useThreadActivity, withStoredTail } from "@/lib/copilot/thread-activity";
+import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
 import { useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
@@ -458,6 +461,62 @@ export function ChannelChat({
       current = false;
     };
   }, [copilotkit, agent, isReady, channel.threadId, runtimeAgentId, retryHistoryRead]);
+
+  /*
+   * 刷新 / 切后台 / 换设备后接着看正在写的回答，别的设备发的消息几秒内出现（DESIGN.md §64，CB-041 / CB-043）。
+   *
+   * 和 `/bot` 同一套（§42 `useConversationSync`），变化戳由 `useThreadActivity` 每 2 秒问服务器。打开时的接入
+   * 只等 JOIN_DEADLINE_MS 就截断（不能挡住第一条消息），截断时服务器可能还在写：接入结束后马上问一次，
+   * 服务器说在回答就重新接上、接着实时往下写（`liveTail`：手里那半截回答按回放重建，不当作已有）。
+   * 接入结束前收到的戳不处理，免得两个接入同时进行。回答在服务器上写完时再读一次存下的对话，
+   * 补上这台没收到的、把截断的半截换成完整的。
+   */
+  const activity = useThreadActivity(runtimeAgentId, channel.threadId);
+  const joinedRef = useRef(false);
+  useEffect(() => {
+    joinedRef.current = false;
+    let alive = true;
+    void joinGatePromise.then(() => {
+      if (!alive) return;
+      joinedRef.current = true;
+      activity.kick();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [joinGatePromise, activity.kick]);
+  const onJoinedActivity = useCallback(
+    (listener: (value: ThreadActivity) => void) =>
+      activity.onActivity((value) => {
+        if (joinedRef.current) listener(value);
+      }),
+    [activity.onActivity],
+  );
+  const connectChat = useCallback(
+    (options: { agent: typeof agent }) => copilotkit.connectAgent(options),
+    [copilotkit],
+  );
+  useConversationSync(channel.threadId, agent, connectChat as never, onJoinedActivity, { liveTail: true });
+  useEffect(() => {
+    let wasRunning = false;
+    return onJoinedActivity((value) => {
+      const finished = wasRunning && !value.running;
+      wasRunning = value.running;
+      if (!finished) return;
+      void (async () => {
+        // 给回放 / 实时流一点时间收尾；这台自己在跑（刚又发了一句）时不动。
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        const current = agentRef.current;
+        if (current.isRunning) return;
+        const stored = await readThreadMessages(channel.threadId, runtimeAgentId);
+        if (stored.availability === "unavailable") return;
+        const latest = agentRef.current;
+        if (latest.isRunning) return;
+        const merged = withStoredTail(mergeStoredMessages(latest.messages, stored.messages), stored.messages);
+        if (merged !== latest.messages) latest.setMessages(merged);
+      })();
+    });
+  }, [onJoinedActivity, channel.threadId, runtimeAgentId]);
 
   /*
    * A turn nobody here streamed, surfaced while the channel is open.

@@ -26,8 +26,8 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | [CB-008](BACKLOG.md#cb-008) | 本地 agent 沙箱 / 权限配置档 | 设备核心 | `feat/local-agent-1` |
 | [CB-001](BACKLOG.md#cb-001) | 审批卡片与审批偏好 | Hark parity | `feat/approvals` |
 | [CB-002](BACKLOG.md#cb-002) | 生图 / 识图模型设置，每人可覆盖 | Hark parity | `feat/model-media` |
-| [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先 → 新朋友视角） | 成熟度 | `fix/maturity-2` |
-| [CB-041](BACKLOG.md#cb-041) | 频道聊天刷新中途回答丢失（P0）+ 跨设备同步（CB-043） | 成熟度 | `fix/maturity-3` |
+| [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先 → 新朋友视角） | 成熟度 | `fix/maturity-*`（批 2 #122 已合并） |
+| [CB-042](BACKLOG.md#cb-042) | 重新生成 / 编辑后重发 | 成熟度 | `fix/maturity-4` |
 | [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块（分 P4b-1…） | 精简 | `chore/slim-p4b-*` |
 | [CB-012](BACKLOG.md#cb-012) | 项目维护与文档系统（本页） | 成熟度 | `chore/pm-system` |
 
@@ -60,6 +60,8 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
+| 2026-10-15 | 频道聊天刷新 / 换设备接着看正在写的回答（CB-041 P0、CB-043） | #124 | DESIGN §64 |
+| 2026-10-15 | 成熟度 2：只填名字建机器人、空聊天「试试这样问」（CB-003） | #122 | DESIGN §63 |
 | 2026-10-15 | 瘦身 P4b-3：去掉自动学习、身份提供者管理接口、Docker supervisor 配置（约 3.0k 行） | #123 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-2：去掉推送与可达性、群聊、团队机器人接口，交接默认关（约 4.6k 行） | #121 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-1：服务器不再加载演示录制、上游个人记忆、主动研究、意图路由（约 7.8k 行） | #117 | [slimming.md](slimming.md) |

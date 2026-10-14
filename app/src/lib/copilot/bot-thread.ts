@@ -161,7 +161,18 @@ export async function writeServerThread(agentId: string, threadId: string, onlyI
   }
 }
 
-async function readSync(agentId: string, threadId: string): Promise<SyncReply | null> {
+/** 问一次对话的变化戳；「服务器没有这个接口」单独返回 "unsupported"（频道聊天用，见 thread-activity.ts）。 */
+export async function readSync(agentId: string, threadId: string): Promise<SyncReply | "unsupported" | null> {
+  try {
+    return await readJson<SyncReply>(
+      await tryClient(`${botThreadsApi(agentId)}/sync?threadId=${encodeURIComponent(threadId)}`),
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function readSyncForBot(agentId: string, threadId: string): Promise<SyncReply | null> {
   try {
     const body = await readJson<SyncReply>(
       await tryClient(`${botThreadsApi(agentId)}/sync?threadId=${encodeURIComponent(threadId)}`),
@@ -324,7 +335,7 @@ export function useBotThread(agentId: string): BotThread {
           if (written && pendingWriteRef.current === pending) pendingWriteRef.current = null;
         }
         const epoch = epochRef.current;
-        const reply = await readSync(agentId, shown);
+        const reply = await readSyncForBot(agentId, shown);
         if (!alive || !reply) return;
         const fresh = epoch === epochRef.current && !pendingWriteRef.current && !mintingRef.current;
         const serverThread = reply.current?.threadId ?? null;
