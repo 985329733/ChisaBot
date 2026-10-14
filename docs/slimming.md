@@ -66,3 +66,13 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 | P4b-2 | 群聊（`/api/groups`） | 路由删掉；`channels/group.ts` 里的群聊服务保留（只被机器人交接用，交接也默认关了）。旧的多机器人对话打开时显示「已不再支持」 | 删 `/group` 链接（左栏、对话页跳转、频道事件里的群聊刷新） |
 | P4b-2 | 团队机器人（`/api/team-bots`） | 路由删掉；`team-bots/team-bots.ts` 的访问判断保留（机器人一律私有后只是一条恒为自己的路径） | 删同意卡片 `team-bot-consent` 与 `lib/team-bots` |
 | P4b-2 | 机器人之间交接（`hand_off`、群里 @ 别的机器人） | `BOT_HANDOFF_MAX_DEPTH` 默认改为 `0`：不给工具、不跑交接队列；设成 `1` 恢复上游行为 | 机器人设置窗里外部机器人的「回调令牌」面板删掉（外部框架适配器 P3 已删） |
+| P4b-3 | 自动学习（`/api/admin/learning`，`learning/` 的 routes/settings/runtime/remote，学到的技能注入、Intelligence 线程的学习容器） | 删；只在 Intelligence 模式下才会生效，生产是 `local` 模式，一直是休眠的。`/api/capabilities` 仍返回 `learning: false`；`createApp` / `buildAgents` / `resolveRuntimeAgents` 里原来的位置参数留了一个空位（`_removedLearning` / `_removedLearnedSkills`），免得后面的参数错位。`learning_*` 表、`shared/learning.ts`（表的类型）、`scripts/setup-learning.ts`（Intelligence 开通脚本）保留 | P4a 已删 `/admin/learning` |
+| P4b-3 | 身份提供者管理接口（`GET/DELETE /api/admin/identity-providers`） | 删；Better Auth 的 SSO / SCIM 插件、`/api/auth/*` 处理、人员表与 `/api/admin/people` **不动**（多用户账号工作 cb-accounts 正在改认证，见下） | P4a 已删 `/admin/identity-providers` |
+| P4b-3 | 每个机器人一台电脑的 Docker supervisor（`COMPUTER_SUPERVISOR_URL`、`SUPERVISOR_TOKEN`） | 配置不再读，`createComputerProvider` 只剩 shared / sandbox。`computer/supervisor.ts` 暂留：电脑会话守卫的测试拿它当真实的按机器人提供方 | 无 |
+
+**P4b 刻意留下（之后再做）：**
+
+- **企业控制闸门**（`app.use("/api/*", createEnterpriseGate)`、`/api/admin/enterprise`、`admin/controls.ts`）：它同时管电脑动作策略、模型允许名单、离职（offboard）和管理员名单，`enterprise_settings` 里还存着 `model_connection`（默认模型）和 `model_fallbacks`（备用模型，#118）。多用户账号（cb-accounts）落地前去掉闸门等于少一道权限检查，所以先不动；之后把 `model_connection` / `model_fallbacks` 换成独立的 KV 读写，再删闸门和管理路由。
+- **SSO / SCIM 插件与 `/api/auth/*` 里的身份提供者分支**：在认证代码里，等 cb-accounts 合并后再删。
+- **语音**（`/api/voice`、`voice/`、网页 `voice-call-widget` 与 `lib/voice`）：生产没配置语音（没有任何 VOICE 变量），依赖 `ask_agent`；但前端和 `channel-chat.tsx` / `chat-transcript.tsx` 缠在一起（约 40 处），而这两个文件正被聊天同步（cb-qa）改，等它合并后单独一个 PR 删。
+- **`worker/`**：删它会改依赖指纹、触发一次完整构建，等有别的依赖变动时一起做。

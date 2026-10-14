@@ -28,14 +28,6 @@ test("local OSS configuration has durable history and no Intelligence credential
   expect(() =>
     loadConfig(testEnvironment({ OPENBOT_RUNTIME_MODE: "other" })),
   ).toThrow("OPENBOT_RUNTIME_MODE must be intelligence or local");
-  expect(
-    loadConfig(
-      testEnvironment({
-        OPENBOT_RUNTIME_MODE: "local",
-        CPK_INTELLIGENCE_LEARNING_CONTAINER_ID: "Bad--Id",
-      }),
-    ).learning,
-  ).toBeUndefined();
 });
 
 test("the public SSE runtime reports disabled telemetry and makes no vendor request", async () => {
@@ -74,7 +66,6 @@ test("the public SSE runtime reports disabled telemetry and makes no vendor requ
     expect(information.telemetryDisabled).toBe(true);
     expect(identityCalls).toBe(0);
     expect(network).not.toHaveBeenCalled();
-    expect(mounted.learning).toBeUndefined();
     const appArgs: Parameters<typeof createApp> = [
       configuration(),
       {
@@ -245,11 +236,8 @@ test("foreign run and stop scopes never reach the SDK and Learning is unavailabl
   expect(unavailable.status).toBe(503);
   expect(await unavailable.text()).not.toContain("private-database-address");
   expect(sdkCalls()).toBe(0);
-  const learning = await app.request("/api/admin/learning/settings");
-  expect(learning.status).toBe(503);
-  expect(await learning.json()).toMatchObject({
-    code: "learning_unavailable_in_local_runtime",
-  });
+  // Automatic Learning was removed in slimming P4b-3: its admin API is gone.
+  expect((await app.request("/api/admin/learning/settings")).status).toBe(404);
   expect(await (await app.request("/api/capabilities")).json()).toMatchObject({
     mode: "local",
     durableHistory: true,

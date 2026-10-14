@@ -377,18 +377,6 @@ describe("shared computer provider", () => {
 });
 
 describe("computer provider factory", () => {
-  test("selects the Docker supervisor adapter", () => {
-    const config: ComputerConfig = {
-      provider: "docker",
-      baseUrl: "http://supervisor:4300",
-      supervisorToken: "supervisor-secret",
-      token: "computer-secret",
-      allowPrivateHosts: false,
-    };
-
-    expect(createComputerProvider(config).name).toBe("Docker supervisor");
-  });
-
   test("selects the shared computer adapter", () => {
     const config: ComputerConfig = {
       provider: "shared",

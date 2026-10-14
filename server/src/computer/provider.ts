@@ -5,10 +5,6 @@ import {
   readSandboxTemplate,
 } from "./sandbox";
 import type { ComputerStatus } from "./schema";
-import {
-  createDockerSupervisorProvider,
-  type SupervisorOptions,
-} from "./supervisor";
 
 /** The address and lifecycle details for one Bot's computer. */
 export type ComputerLocation = {
@@ -67,9 +63,9 @@ export function describeComputerIsolation(
 
   return {
     isolation: "one shared computer",
-    note: "No supervisor is configured, so every Bot uses the same browser. Sessions, files and logins are shared between them. Set COMPUTER_SUPERVISOR_URL to give each Bot its own.",
+    note: "No supervisor is configured, so every Bot uses the same browser. Sessions, files and logins are shared between them.",
     warning:
-      "Every Bot shares one browser. Set COMPUTER_SUPERVISOR_URL for a computer each.",
+      "Every Bot shares one browser.",
   };
 }
 
@@ -280,13 +276,6 @@ export function createComputerProvider(
   config: ComputerConfig,
 ): ComputerProvider {
   switch (config.provider) {
-    case "docker": {
-      const options: SupervisorOptions = {
-        baseUrl: config.baseUrl,
-        ...(config.supervisorToken ? { token: config.supervisorToken } : {}),
-      };
-      return createDockerSupervisorProvider(options);
-    }
     case "shared":
       return createSharedComputerProvider({
         baseUrl: config.baseUrl,

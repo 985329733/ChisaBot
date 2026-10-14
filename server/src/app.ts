@@ -90,10 +90,6 @@ import type { HostAccessBroker } from "./host-access/broker";
 import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import type { LocalConversationBackend } from "./local-conversations";
-import {
-  createLearningRoutes,
-  type LearningAdminDependencies,
-} from "./learning/routes";
 import { parsePageLimit } from "./paging";
 import { createPasswordRoutes, createSignInRoutes } from "./passwords/routes";
 import type { SignInService } from "./passwords/service";
@@ -379,7 +375,8 @@ export function createApp(
   modelProviderProxy?: ModelProviderProxy,
   userPreferences?: UserPreferencesStore,
   voiceSessions?: VoiceSessionServices,
-  learning?: LearningAdminDependencies,
+  /** Was Automatic Learning (removed in slimming P4b-3). Kept as a slot so positional callers do not shift. */
+  _removedLearning?: undefined,
   coworker?: {
     approvals?: ApprovalService;
     /** The private sign-in form and the Passwords vault. See passwords/service.ts. */
@@ -444,6 +441,7 @@ export function createApp(
     context.json({
       mode: config.runtime.mode,
       durableHistory: config.runtime.durableHistory,
+      // Automatic Learning was removed in slimming P4b-3; a local runtime still says "off" for old clients.
       ...(config.runtime.mode === "local" ? { learning: false } : {}),
       /*
        * Whether a Bot may answer with an interface it wrote itself.
@@ -620,10 +618,6 @@ export function createApp(
       channelStore,
       agentProfileStore,
       voiceSessions,
-      learning?.status
-        ? async (agentId) =>
-            (await learning.status?.(agentId))?.configured ?? false
-        : undefined,
     ),
   );
 
@@ -786,35 +780,7 @@ export function createApp(
 
     return context.json({ instructions: saved });
   });
-  if (config.runtime.mode === "local") {
-    app.all("/api/admin/learning/*", requireUser, (context) => {
-      const denied = requireAdmin(context);
-      return (
-        denied ??
-        context.json(
-          {
-            error:
-              "Automatic Learning is unavailable in the local OSS runtime. Personal memory remains available.",
-            code: "learning_unavailable_in_local_runtime",
-          },
-          503,
-        )
-      );
-    });
-  } else if (learning) {
-    app.route(
-      "/api/admin/learning",
-      createLearningRoutes(
-        learning,
-        requireUser,
-        [
-          ...(config.auth?.trustedOrigins ?? []),
-          ...(config.appUrl ? [config.appUrl] : []),
-        ],
-        auditStore,
-      ),
-    );
-  }
+  // `/api/admin/learning` (Automatic Learning) was removed in slimming P4b-3.
   app.get("/api/admin/status", requireUser, (context) => {
     const denied = requireAdmin(context);
     return denied ?? context.json({ status: "ok" });
@@ -1025,72 +991,8 @@ export function createApp(
     return context.json({ person: await peopleStore.find(userId) });
   });
 
-  /*
-   * The identity providers this deployment has registered.
-   *
-   * Not Better Auth's own `GET /sso/providers`, which answers with the ones the person asking
-   * registered themselves. Two administrators therefore saw two different deployments: the second
-   * one to open this screen found it empty and registered a provider that was already there. What is
-   * registered is a fact about the deployment, so every administrator sees the same list.
-   */
-  app.get("/api/admin/identity-providers", requireUser, async (context) => {
-    const denied = requireAdmin(context);
-    if (denied) {
-      return denied;
-    }
-    if (!identityProviders) {
-      return context.json(
-        { error: "Identity providers are not available." },
-        503,
-      );
-    }
-
-    return context.json({ providers: await identityProviders.list() });
-  });
-
-  /*
-   * Remove one.
-   *
-   * Ours rather than Better Auth's `delete-provider`, which refuses unless the person asking is the
-   * one who registered it. That leaves a provider nobody can remove as soon as the administrator who
-   * set it up has left, which is the same moment somebody most needs to.
-   */
-  app.delete(
-    "/api/admin/identity-providers/:providerId",
-    requireUser,
-    async (context) => {
-      const denied = requireAdmin(context);
-      if (denied) {
-        return denied;
-      }
-      if (!identityProviders) {
-        return context.json(
-          { error: "Identity providers are not available." },
-          503,
-        );
-      }
-
-      const providerId = context.req.param("providerId");
-      const removed = await identityProviders.remove(providerId);
-      if (!removed) {
-        // A screen somebody left open, or two administrators removing the same one. Saying so beats
-        // reporting success for something that was not there.
-        return context.json({ error: "There is no such provider." }, 404);
-      }
-
-      if (auditStore) {
-        await recordAuditEvent(auditStore, {
-          eventType: "identity_provider.removed",
-          targetType: "identity_provider",
-          targetId: providerId,
-          actorUserId: context.var.actor.id,
-          payload: { removedBy: context.var.actor.email },
-        });
-      }
-
-      return context.json({ removed: true });
-    },
-  );
+  // `/api/admin/identity-providers` (list / remove SSO providers) was removed in slimming P4b-3; the
+  // admin page went in P4a. Better Auth's own SSO plugin routes under /api/auth stay (auth is shared).
 
   app.get("/api/models", requireUser, async (context) => {
     context.header("Cache-Control", "no-store");

@@ -533,15 +533,7 @@ address: its page and the Bot both say inbound email is not configured on this d
 
 ## Automatic Learning
 
-Learning is on by default; with no container assigned, nothing is collected or delivered and the
-deployment still starts and chats. Both variables are optional defaults that an administrator's saved
-settings under **Admin → Automatic Learning** override, including a saved off. See
-[automatic-learning.md](automatic-learning.md).
-
-| Variable                                 | Meaning                                                                                       |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `CPK_INTELLIGENCE_LEARNING_CONTAINER_ID` | Default Learning container for this deployment's Bots. 1 to 64 lowercase letters, digits and single hyphens, or the server refuses to start. |
-| `CPK_INTELLIGENCE_SKILLS_REVISION`       | An exact published skills revision to pin. Read only beside a container id. Unset follows the latest. |
+已在瘦身 P4b-3 删除（服务端不再读 `CPK_INTELLIGENCE_LEARNING_CONTAINER_ID` / `CPK_INTELLIGENCE_SKILLS_REVISION`，`/api/admin/learning` 不再存在；`learning_*` 表保留）。见 [slimming.md](slimming.md)。
 
 ## OpenTelemetry export
 
@@ -571,8 +563,6 @@ is still the record.
 | `COMPUTER_BROWSER_BACKEND`           | `managed` by default (full bundled Chromium); `local-chrome` opts into installed Chrome with dedicated profiles and a loopback API. |
 | `COMPUTER_BROWSER_MODE`              | Managed on Linux defaults to `headed` on a private Xvfb display when `Xvfb` is on PATH (the image installs it), otherwise `headless` (full Chromium's new headless mode). Headless is refused outright by some Cloudflare-protected sites (x.ai, chatgpt.com); set `headless` explicitly only if you accept that. `headed` uses a native window on macOS/Windows. Local Chrome requires `headed`. |
 | `OPENBOT_LOCAL_COMPUTER_DIR`         | Local startup helper's absolute data root. Defaults to the platform's OpenBot user-data directory; contains `profiles/` and `workspace/`. |
-| `COMPUTER_SUPERVISOR_URL`            | Supervisor URL for per-Bot computers. If absent, Bots share `AGENT_COMPUTER_URL`.         |
-| `SUPERVISOR_TOKEN`                   | Bearer token required by the supervisor.                                                  |
 | `AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS` | Local-only private-host browsing when `true`. A deployment running with `NODE_ENV=production` refuses to start while it is set. Cloud metadata addresses are refused either way. |
 | `AGENT_ENDPOINT_ALLOWED_HOSTS`       | Private addresses an agent may be registered at, comma separated; unset (none) by default. Host, optionally with a port. Exact match; no wildcards. Never-allowed addresses cannot be named. |
 | `AGENT_COMPUTER_POLICY`              | JSON action policy: `{"mode":"enforce","deny":[...],"allow":[...]}`.                      |
@@ -649,12 +639,11 @@ bun install --cwd agent-computer --frozen-lockfile
 
 Use the same existing `COMPUTER_TOKEN` for the API and helper. It can be set in the checkout's `.env`
 (Bun loads it) or supplied securely in each process environment; the helper never prints it. Set the
-following API configuration and clear both supervisor selectors, including any inherited process
-environment values, because either selector takes precedence over the shared URL:
+following API configuration and clear the sandbox selector, including any inherited process
+environment value, because it takes precedence over the shared URL:
 
 ```dotenv
 AGENT_COMPUTER_URL=http://127.0.0.1:4101
-COMPUTER_SUPERVISOR_URL=
 COMPUTER_SANDBOX_NAMESPACE=
 ```
 

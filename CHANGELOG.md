@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 瘦身 P4b-3：去掉上游的自动学习（`/api/admin/learning`、学习设置、学到的技能注入；只在 Intelligence 模式下生效，本部署一直没用）、身份提供者管理接口（`/api/admin/identity-providers`）、每个机器人一台电脑的 Docker supervisor 配置（`COMPUTER_SUPERVISOR_URL` 不再读，机器人共用 `AGENT_COMPUTER_URL`）。表和旧数据不动。企业控制闸门、SSO/SCIM、语音暂留，原因见 `docs/slimming.md`。
 - 瘦身 P4b-2：去掉上游的推送与可达性（Slack / Teams / 短信 / 手机推送，`/api/delivery*`）、群聊接口（`/api/groups`）、团队机器人接口（`/api/team-bots`）；机器人之间交接默认关闭（`BOT_HANDOFF_MAX_DEPTH` 默认 `0`，设 `1` 恢复）。旧的多机器人对话打开时显示「已不再支持」。网页里的群聊链接、团队机器人同意卡片、外部机器人回调令牌面板一并去掉。表和旧数据不动。见 `docs/slimming.md`。
 - 成熟度 2（新朋友第一次用）：① 新建机器人只有名称必填，职责 / 提示词可以不填（提交时补一句基本说明，之后在资料页改）。② 机器人的空聊天多了 4 个「试试这样问」，点一下就发。③ 手机上建好机器人后左栏抽屉自动收起。④ 「AI 同事」等机翻文案改成「机器人」。⑤ 模型回答到一半断开时，出错卡片说中文（以前是 `AI SDK stream error`）。只改网页。见 DESIGN.md §63。
 - 瘦身 P4b-1：服务器不再加载上游的演示录制（`/api/demonstrations`）、上游个人记忆（`/api/memory` 和每分钟的记忆同步）、主动研究（`/api/proactive`）、意图路由（`POST /api/route`）。长期记忆（设置 → 记忆）不受影响。表和旧数据不动，回滚镜像即可恢复。见 `docs/slimming.md`。
