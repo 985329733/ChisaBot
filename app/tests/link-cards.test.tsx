@@ -27,7 +27,8 @@ let requested: string[] = [];
 
 describe("链接卡", () => {
   beforeAll(() => {
-    GlobalRegistrator.register();
+    // bot-message-list.test.tsx registers at import and never unregisters; file order varies by runner.
+    if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register();
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const href = String(input);
       const url = decodeURIComponent(href.split("url=")[1] ?? "");

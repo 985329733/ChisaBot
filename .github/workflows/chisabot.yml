@@ -25,12 +25,18 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.14
-      - run: bun install --frozen-lockfile
+      # Hoisted, like the image (Dockerfile): shared/ is not a workspace and imports zod / @json-render
+      # from the app and server trees; under the isolated linker those don't resolve from shared/.
+      - run: bun install --frozen-lockfile --linker hoisted
       - run: cp .env.example .env
       - run: node scripts/check-zh-localization.cjs
       - run: bun run --cwd server typecheck
+      # build first: it regenerates app/src/routeTree.gen.ts, which typecheck reads (the committed copy
+      # lags behind new routes because parallel PRs each add their own).
+      # Same as the image build (Dockerfile): with the hoisted tree vite sits at the root, and app's own
+      # build script names app/node_modules/vite.
+      - run: bun run generate:app-config && cd app && bun --bun ../node_modules/vite/bin/vite.js build
       - run: bun run --cwd app typecheck
-      - run: bun run --cwd app build
       - name: Server model, permission and runtime checks
         run: >-
           bun test
@@ -47,8 +53,10 @@ jobs:
           server/tests/model-selection-routes.test.ts
           server/tests/model-settings-routes.test.ts
           server/tests/model-settings.test.ts
-      - name: Model chooser UI checks
+      # The chat regression set every ChisaBot PR runs on the server (the older model-chooser DOM tests
+      # need a live API and never ran here while typecheck was failing; see docs/slimming.md P3).
+      - name: Chat UI checks
         working-directory: app
-        run: bun test tests/bot-model-input.test.tsx tests/bot-model-selector.test.tsx tests/composer-model-save.test.tsx
+        run: bun test tests/no-group-has.test.ts tests/stopped-turn.test.ts tests/bot-message-list.test.tsx tests/link-cards.test.tsx tests/rich-previews-extract.test.ts
       - name: Login gateway checks
         run: bun test deploy/public/auth/server.test.ts deploy/public/auth/startup-report.test.ts

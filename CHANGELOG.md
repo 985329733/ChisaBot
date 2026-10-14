@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 瘦身 P3：仓库里删掉不进任何发布物的上游目录（Tauri 桌面端、Expo 移动端、13 个外部框架适配器、Helm chart、SPIRE、supervisor、多余示例、上游笔记本全栈脚本与 docker-compose、上游 CI / 桌面签名 / 镜像发布流程）。服务端镜像、PC、Android 不受影响，部署行为不变。CI「ChisaBot checks」改成和镜像一样的 hoisted 安装，server typecheck 终于是绿的。见 `docs/slimming.md`。
 - 瘦身 P4a：已经隐藏 / 重定向的上游页面代码删掉（人员与角色、企业控制、身份提供者、自动学习、组件游乐场、组件库、旧管理员设备页、群聊），旧地址仍然跳到新位置；机器人设置窗去掉「交接」「例行任务」两栏，接管窗口去掉「录制成工作流…」。只改网页，数据不动。见 `docs/slimming.md`。
 - 生图 / 识图模型：设置 → 图片生成 并入 设置 → 模型 的「生图模型」（原配置不动，旧地址自动跳转），旁边新增「识图模型」：默认「跟随主模型」（图片直接给聊天模型），也可以选一个 OpenAI 兼容的看图模型——选了以后上传的图片先由它写详细描述和图中文字（按文件缓存，只描述一次），再交给聊天模型，机器人还能用 `image_inspect` 追问细节；聊天模型在模型目录里标明不能看图时自动用识图模型。每个人可以在 设置 → 生图与识图 换成自己的接口 / 密钥 / 模型（不设就用管理员的默认）。密钥加密、只显示末四位；普通用户只能填公网接口。新表 `chisabot_media_models`、`chisabot_image_descriptions`（开机建表，可回滚）。见 DESIGN.md §59、`docs/chat-files.md`。
 - 成熟度 1：① 模型额度用完（429 / 402 / 「Daily free limit」）时自动换同平台的其它模型重发，被拒的模型冷却到它说的恢复时间，期间不再白等——以前默认免费模型额度一用完，每个机器人每句话都要转圈到两分钟再报英文错，一整天不可用。`CHISABOT_MODEL_FALLBACKS` 指定候选（`off` 关闭）。② 一轮出错的提示翻成中文并告诉你下一步（额度、限流、密钥、超时、上下文太长…）。③ 代码块和表格工具栏的提示改成中文。④ 模型把工具调用写成正文 `<tool_call>…` 时收进「思考」并说明没有执行。⑤ **升级网关**：部署 / 重启时不再是 nginx 白底 502（和乱码的「退出登录」），换成「ChisaBot 正在更新」等待页，好了自动回到原页面（新模板 `deploy/public/nginx.conf` + `auth-web/updating.*`）。服务器 + 网页 + 网关。见 DESIGN.md §60。

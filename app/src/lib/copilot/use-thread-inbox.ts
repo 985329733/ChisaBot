@@ -1,4 +1,5 @@
-import type { AbstractAgent, Message } from "@ag-ui/client";
+import type { Message } from "@ag-ui/core";
+import type { AbstractAgent } from "@copilotkit/react-core/v2";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { inboxState, markRead, queuedFor, restoreQueue, takeQueued } from "./thread-inbox";

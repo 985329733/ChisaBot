@@ -5,8 +5,7 @@
 ## Setup
 
 Install Docker, [Bun](https://bun.sh) 1.3+, `lsof`, `openssl`, and `curl`. The
-Intelligence provisioning below also needs `npx` (Node); `scripts/start.sh` uses `openssl` to mint
-the generated secrets on a first run.
+Intelligence provisioning below also needs `npx` (Node); `deploy/start.sh` 首次运行会生成所需密钥。
 
 ```sh
 cp .env.example .env
@@ -32,31 +31,9 @@ its runtime key. Local development may use a loopback HTTP origin. Existing key-
 use authenticated Intelligence administration to create a container and assign it in OpenBot Admin.
 There is no managed licence step. Then add `OPENAI_API_KEY`.
 
-Start the stack:
-
-```sh
-bash scripts/start.sh
-```
-
 ## Running services
 
-Use `bash scripts/start.sh` for the full local stack. It starts Docker services, applies migrations, starts the API server, the app, and the routine worker, and verifies health routes.
-
-Use `bash scripts/stop.sh` to take it down: the app, the routine worker, the API server, the Docker services, and each Bot's computer, which the supervisor makes rather than compose and which therefore outlives `docker compose down`. Pass `--keep-computers` to leave those browsers signed in. Nothing is deleted either way.
-
-Use `bun run dev` only when you want the app and API server without starting the Docker Bots and computers.
-
-| Service           | Port                       |
-| ----------------- | -------------------------- |
-| `app`             | 3010                       |
-| `server`          | 3001                       |
-| `agent-computer`  | 4100                       |
-| `agent-bot`       | 4200                       |
-| `agent-langgraph` | 4201                       |
-| `supervisor`      | 4500 host / 4300 container |
-| PostgreSQL        | 5432                       |
-
-`start.sh` hands every selected Docker service to `docker compose up -d` on every run, so one whose configuration changed is recreated and an unchanged one is left as it is. It leaves an API server or app that already answers as OpenBot alone, restarts the API server when it refuses the worker's secret or has no routines route, and reports when a port is held by another process.
+> **ChisaBot 瘦身 P3（2026-10-15）：** 上游的笔记本全栈（`scripts/start.sh` / `stop.sh` + 根目录 `docker-compose.yml`，带 agent-bot、agent-langgraph、supervisor、SPIRE）已删除——ChisaBot 只发布一个镜像，自建部署走 `deploy/start.sh`（见 [快速开始](getting-started.md)）。本地只想跑前端和 API：`bun run dev`（app 3010、server 3001，数据库自己准备）。
 
 **Nothing here sweeps staged attachments.** A file dropped into the composer is stored before the
 message is sent, and the only thing that reclaims the ones never sent is
@@ -133,7 +110,7 @@ CI uses `bun run test:ci` to verify the expected test count in addition to norma
 `bun run test:smoke` is separate and needs a deployment that is up, and a session on it:
 
 ```sh
-bash scripts/start.sh
+# 先用 deploy/start.sh 起一个部署
 export OPENBOT_SMOKE_COOKIE='better-auth.session_token=...'
 bun run test:smoke
 ```
