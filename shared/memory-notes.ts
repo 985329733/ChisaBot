@@ -1,0 +1,45 @@
+/**
+ * 长期记忆（DESIGN.md §50，docs/memory.md）：机器人替你记住的笔记。
+ *
+ * 一条笔记 = 一种（kind）+ 一个主题（subject，人物 / 地点 / 项目的名字；资料、偏好、其它可空）+ 正文
+ * + 适用情境（context：在哪、和谁、什么场合才成立）。日志（daily）一天一条，subject 是日期。
+ * 笔记属于一个人，他的所有机器人共用；某个机器人可以在 设置 → 记忆 里关掉（不读也不写）。
+ */
+export const MEMORY_KINDS = ["profile", "preference", "person", "place", "project", "note", "daily"] as const;
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+
+export const MEMORY_KIND_LABELS: Record<MemoryKind, string> = {
+  profile: "个人资料",
+  preference: "偏好",
+  person: "人物",
+  place: "地点",
+  project: "项目与事项",
+  note: "其他",
+  daily: "日志",
+};
+
+/** 主题必填的种类：同一主题只有一条，新内容并进去。 */
+export const SUBJECT_KINDS: readonly MemoryKind[] = ["person", "place", "project"];
+
+export type MemoryNoteView = {
+  id: string;
+  kind: MemoryKind;
+  subject: string | null;
+  content: string;
+  context: string | null;
+  /** 谁写的：「你」或机器人名字（服务器存 agent id，列表接口换成名字）。 */
+  author: "you" | "bot";
+  agentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MemoryBotSetting = { agentId: string; enabled: boolean };
+
+export const MEMORY_LIMITS = {
+  content: 4000,
+  subject: 80,
+  context: 300,
+  /** 一个人最多存多少条（超过就拒绝新增，提示去设置里整理）。 */
+  perUser: 3000,
+} as const;

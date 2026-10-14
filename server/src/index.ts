@@ -203,7 +203,7 @@ import { clearLearningRevisionFallback } from "./learning/runtime";
 import { createLearningSettingsStore } from "./learning/settings";
 import { createMemoryIngestion } from "./memory/ingestion";
 import { createMemoryStore } from "./memory/store";
-import { memoryTools } from "./memory/tools";
+import { createMemoryNotes } from "./memory-notes/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -1250,8 +1250,11 @@ const memoryIngestion = createMemoryIngestion({
 });
 // Proactive research may only read; see proactive/restriction.ts. Read from the catalogue per call.
 const proactiveReadOnlyRefs = createReadOnlyClassifier(pluginStore);
+/** 长期记忆（DESIGN.md §50）：每轮开头的记忆用法 + 笔记；上游 personal_memories 不再给机器人。 */
+const memoryNotes = createMemoryNotes(database);
+await memoryNotes.ensure();
 const loadPersonalMemoryForActor = (ownerUserId: string) => (botId: string) =>
-  memoryIngestion.contextFor(ownerUserId, botId);
+  memoryNotes.context(ownerUserId, botId).catch(() => "");
 const memorySweep = repeatAfterEach(async () => {
   try {
     await memoryIngestion.syncDue();
@@ -1296,12 +1299,8 @@ const loadToolsForActor =
       agentId: botId,
       initiator,
     }),
-    ...memoryTools({
-      store: personalMemoryStore,
-      ingestion: memoryIngestion,
-      ownerUserId: actorId,
-      agentId: botId,
-    }),
+    // 长期记忆（server/src/memory-notes，DESIGN.md §50）：一个人的所有机器人共用；后台刷新面板的回合不给。
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : memoryNotes.tools(actorId, botId)),
     ...(await grantedTools({
       store: pluginStore,
       botId,
@@ -3644,12 +3643,9 @@ const app = createApp(
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
     const { name, args, botId, actorId, initiator } = input;
-    const memory = memoryTools({
-      store: personalMemoryStore,
-      ingestion: memoryIngestion,
-      ownerUserId: actorId,
-      agentId: botId,
-    }).find((candidate) => candidate.name === name);
+    const memory = memoryNotes
+      .tools(actorId, botId)
+      .find((candidate) => candidate.name === name);
     if (memory) {
       const text = await memory.execute(args);
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
@@ -3807,6 +3803,7 @@ const app = createApp(
       ["/api/chat-shots", chatShots.routes(requireUser)],
       ["/api/bot-threads", botThreads.routes(requireUser)],
       ["/api/im", imService!.routes(requireUser)],
+      ["/api/memory-notes", memoryNotes.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",

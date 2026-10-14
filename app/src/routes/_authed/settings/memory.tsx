@@ -1,0 +1,138 @@
+import { IconPlus } from "@tabler/icons-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { MEMORY_KIND_LABELS, MEMORY_KINDS, type MemoryKind, type MemoryNoteView } from "../../../../../shared/memory-notes";
+import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
+import {
+  confirmBulkDelete,
+  deleteWithUndo,
+  matches,
+  MemoryBots,
+  NoteDialog,
+  NoteRow,
+  SearchBox,
+} from "@/components/memory/memory-notes";
+import { Button } from "@/components/ui/button";
+import { Card, ErrorCard, Toolbar } from "@/components/ui/skyglass";
+import { agentListQueryOptions } from "@/lib/agents/queries";
+import { memoryNoteKeys, memoryNotesQueryOptions } from "@/lib/memory-notes";
+
+export const Route = createFileRoute("/_authed/settings/memory")({
+  component: MemoryPage,
+});
+
+/**
+ * 设置 → 记忆（DESIGN.md §50）：机器人替你记住的笔记。你的所有机器人共用；可以按机器人关掉。
+ */
+function MemoryPage() {
+  const queryClient = useQueryClient();
+  const list = useQuery(memoryNotesQueryOptions());
+  const bots = useQuery(agentListQueryOptions());
+  const [filter, setFilter] = useState<MemoryKind | "all">("all");
+  const [query, setQuery] = useState("");
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [dialog, setDialog] = useState<{ open: boolean; note: MemoryNoteView | null }>({ open: false, note: null });
+  const botName = useMemo(() => new Map((bots.data ?? []).map((bot) => [bot.id, bot.name])), [bots.data]);
+  const notes = (list.data?.notes ?? []).filter((note) => !hidden.has(note.id));
+  const counts = useMemo(() => {
+    const out = new Map<MemoryKind, number>();
+    for (const note of notes) out.set(note.kind, (out.get(note.kind) ?? 0) + 1);
+    return out;
+  }, [notes]);
+  const shown = notes.filter((note) => (filter === "all" || note.kind === filter) && matches(note, query));
+  const disabledBots = useMemo(() => new Set((list.data?.bots ?? []).filter((bot) => !bot.enabled).map((bot) => bot.agentId)), [list.data]);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: memoryNoteKeys.all });
+  const hide = (ids: string[] | null) => setHidden(ids ? new Set(ids) : new Set());
+  const groups = MEMORY_KINDS.filter((kind) => filter === "all" || kind === filter)
+    .map((kind) => ({ kind, notes: shown.filter((note) => note.kind === kind) }))
+    .filter((group) => group.notes.length);
+
+  return (
+    <>
+      <NoteDialog note={dialog.note} onOpenChange={(open) => setDialog((current) => ({ ...current, open }))} open={dialog.open} />
+      <PageShell
+        action={
+          <Button onClick={() => setDialog({ open: true, note: null })} size="sm">
+            <IconPlus />
+            {"添加"}
+          </Button>
+        }
+        description="机器人记住的关于你的事：你的情况、偏好、身边的人、常去的地方、在做的事和每天的日志。你的所有机器人共用这份记忆。对机器人说「忘掉 …」或在这里删除，都会真的删掉。"
+        title="记忆"
+      >
+        {list.isPending ? (
+          <PageSkeleton rows={4} />
+        ) : list.isError ? (
+          <ErrorCard
+            action={
+              <Button className="mt-2" onClick={() => void list.refetch()} size="sm" variant="outline">
+                {"重试"}
+              </Button>
+            }
+            description={list.error.message}
+            title="记忆暂时无法读取"
+          />
+        ) : (
+          <>
+            <Toolbar className="mem-toolbar">
+              <div aria-label={"按种类筛选"} className="sg-segmented mem-seg" role="radiogroup">
+                {(["all", ...MEMORY_KINDS] as const).map((kind) => {
+                  const count = kind === "all" ? notes.length : (counts.get(kind) ?? 0);
+                  if (kind !== "all" && !count) return null;
+                  return (
+                    <button aria-checked={filter === kind} className="sg-segmented-item" key={kind} onClick={() => setFilter(kind)} role="radio" type="button">
+                      {kind === "all" ? "全部" : MEMORY_KIND_LABELS[kind]}
+                      <span className="mem-count">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <SearchBox onChange={setQuery} value={query} />
+            </Toolbar>
+            {query.trim() && shown.length ? (
+              <div className="mem-bulk">
+                <span>{`找到 ${shown.length} 条和「${query.trim()}」有关的记忆`}</span>
+                <Button
+                  onClick={async () => {
+                    if (await confirmBulkDelete(shown.length, query.trim())) await deleteWithUndo(shown, refresh, hide);
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  {"全部删除…"}
+                </Button>
+              </div>
+            ) : null}
+            {groups.length ? (
+              groups.map((group) => (
+                <PageSection key={group.kind} title={`${MEMORY_KIND_LABELS[group.kind]} · ${group.notes.length}`}>
+                  <Card className="mem-card">
+                    {group.notes.map((note) => (
+                      <NoteRow
+                        botName={note.agentId ? (botName.get(note.agentId) ?? null) : null}
+                        key={note.id}
+                        note={note}
+                        onDelete={() => void deleteWithUndo([note], refresh, hide)}
+                        onEdit={() => setDialog({ open: true, note })}
+                      />
+                    ))}
+                  </Card>
+                </PageSection>
+              ))
+            ) : (
+              <PageEmpty>
+                {notes.length
+                  ? "没有符合条件的记忆。"
+                  : "还没有记忆。和机器人聊天时，它会安静地记下值得记住的事；你也可以说「记住…」，或点右上角「添加」。"}
+              </PageEmpty>
+            )}
+            <PageSection description="关掉的机器人不读也不写共用记忆。" title="哪些机器人用记忆">
+              <MemoryBots disabled={disabledBots} />
+            </PageSection>
+          </>
+        )}
+      </PageShell>
+    </>
+  );
+}
