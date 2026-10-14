@@ -1315,6 +1315,12 @@ const pages = createPages(database, {
 /** 聊天文件 + 图片生成（DESIGN.md §56）：上传进工作区、file_share 文件卡、image_generate / image_edit。 */
 const chatFiles = createChatFiles(database, {
   encryptionKey: config.keyEncryptionKey,
+  // 识图模型（DESIGN.md §59）：主模型能不能看图看模型目录（Magpie 的 input modalities），不知道就当能。
+  mainModelSupportsImages: async (agentId) => {
+    const modelId = (await agentModels.resolveModel(agentId).catch(() => null)) ?? (await resolveRuntimeConnection()).model.defaultModel;
+    return (await modelCatalog.list()).models.find((entry) => entry.id === modelId)?.supportsImages;
+  },
+  isAdmin: async (userId) => (await actorFor(userId)).role === "admin",
   ownsBot: async (owner, bot) => (await agentProfileStore.get(await actorFor(owner), bot).catch(() => null)) !== null,
   ...(computerGateway?.writeBytes
     ? {
@@ -1351,7 +1357,7 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
     await chisaSkills.catalog(ownerUserId).catch(() => ""),
     VAULT_GUIDANCE,
     await github.guidance(ownerUserId).catch(() => ""),
-    await chatFiles.guidance().catch(() => ""),
+    await chatFiles.guidance(ownerUserId, botId).catch(() => ""),
     await confirmations.context(ownerUserId).catch(() => ""),
   ]
     .filter(Boolean)
@@ -3994,6 +4000,7 @@ const app = createApp(
       ["/api/schedules", schedules.routes(requireUser)],
       ["/api/chat-files", chatFiles.routes(requireUser)],
       ["/api/confirmations", confirmations.routes(requireUser)],
+      ["/api/media-models", chatFiles.media.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",

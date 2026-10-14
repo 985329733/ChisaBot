@@ -8,6 +8,8 @@ export type ModelCatalogEntry = {
   contextWindow?: number;
   /** 这个模型一次最多能输出多少 token（Magpie: max_output_tokens）。服务器用它给不认识的模型定输出上限。 */
   maxOutputTokens?: number;
+  /** 能不能看图（目录里的 input modalities / vision 标记）；目录没说就不写（当作能）。识图模型用（DESIGN.md §59）。 */
+  supportsImages?: boolean;
 };
 
 /** Gateway-side readiness of one provider, from Magpie's admin API. Never carries keys. */

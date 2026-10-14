@@ -10,19 +10,17 @@ import {
   IMAGE_ASPECTS,
   IMAGE_PROVIDER_PRESETS,
   type ImageAspect,
-  type ImageProviderKind,
-  type ImageSettingsView,
   isInlineSafeMime,
   MAX_CHAT_FILE_BYTES,
 } from "../../../shared/chat-files";
 import type { StoredAttachment } from "../channels/attachment-parts";
 import type { AuditInitiator } from "../audit";
 import type { AppVariables } from "../auth/guards";
-import { decryptSecret, encryptSecret } from "../credentials";
 import type { Database } from "../db/client";
 import { type GrantedTool, REFUSAL_MARKER } from "../plugins/tools";
 import { assertPublicUrl } from "../web/tools";
 import { ImageProviderError, type ImageProviderConfig, probeImageModel, runImageModel } from "./image-provider";
+import { createMediaModels } from "./media-models";
 
 /**
  * 聊天文件 + 图片生成（DESIGN.md §56，docs/chat-files.md）。
@@ -51,17 +49,6 @@ type FileRow = {
   model: string | null;
   source_id: string | null;
   created_at: Date | string;
-};
-
-type SettingsRow = {
-  enabled: boolean;
-  provider: ImageProviderKind;
-  base_url: string;
-  model: string;
-  edit_model: string;
-  api_key: string | null;
-  key_hint: string;
-  updated_at: Date | string | null;
 };
 
 export type ChatFilesWorkspace = {
@@ -170,11 +157,23 @@ export function createChatFiles(
     env?: Record<string, string | undefined>;
     /** 网址结果的下载；默认只许公网地址、最大 20MB。测试里换掉。 */
     download?: (url: string) => Promise<Buffer>;
+    /** 这个机器人当前的聊天模型能不能看图（模型目录里的 input modalities）；不知道 = undefined。 */
+    mainModelSupportsImages?: (agentId: string) => Promise<boolean | undefined>;
+    isAdmin?: (userId: string) => Promise<boolean>;
+    assertPublic?: (url: string) => Promise<unknown>;
   },
 ) {
   const sql = database.$client;
   const doFetch = options.fetch ?? fetch;
   const env = options.env ?? process.env;
+  const media = createMediaModels(database, {
+    encryptionKey: options.encryptionKey,
+    fetch: doFetch,
+    env,
+    ...(options.mainModelSupportsImages ? { mainModelSupportsImages: options.mainModelSupportsImages } : {}),
+    ...(options.isAdmin ? { isAdmin: options.isAdmin } : {}),
+    ...(options.assertPublic ? { assertPublic: options.assertPublic } : {}),
+  });
 
   async function defaultDownload(url: string): Promise<Buffer> {
     const checked = await assertPublicUrl(url);
@@ -221,98 +220,21 @@ export function createChatFiles(
     `);
   }
 
-  // ------------------------------------------------------------------ 图片模型设置
+  // ------------------------------------------------------------------ 图片模型设置（生图 / 识图，media-models.ts）
 
-  async function settingsRow(): Promise<SettingsRow | null> {
-    const rows = await sql.unsafe<SettingsRow[]>("SELECT * FROM chisabot_image_settings WHERE id = 'default'");
-    return rows[0] ?? null;
-  }
-
-  function envKey(provider: ImageProviderKind): string {
-    if (provider === "minimax") {
-      if (env.MINIMAX_API_KEY?.trim()) return env.MINIMAX_API_KEY.trim();
-      if (/minimax/i.test(env.OPENAI_BASE_URL ?? "") && env.OPENAI_API_KEY?.trim()) return env.OPENAI_API_KEY.trim();
-      return "";
-    }
-    return env.IMAGE_API_KEY?.trim() ?? "";
-  }
-
-  async function settingsView(): Promise<ImageSettingsView> {
-    const row = await settingsRow();
-    const provider = (row?.provider ?? "minimax") as ImageProviderKind;
-    const preset = IMAGE_PROVIDER_PRESETS[provider] ?? IMAGE_PROVIDER_PRESETS.minimax;
-    const fromEnv = envKey(provider);
-    const keySource = row?.api_key ? "saved" : fromEnv ? "environment" : "none";
-    const baseUrl = row?.base_url || preset.baseUrl;
-    const model = row?.model || preset.model;
-    return {
-      enabled: Boolean(row?.enabled),
-      provider,
-      baseUrl,
-      model,
-      editModel: row?.edit_model ?? "",
-      keySource,
-      keyHint: row?.api_key ? row.key_hint : fromEnv.length >= 8 ? fromEnv.slice(-4) : "",
-      ready: Boolean(row?.enabled) && keySource !== "none" && Boolean(baseUrl) && Boolean(model),
-      updatedAt: row?.updated_at ? iso(row.updated_at) : null,
-    };
-  }
-
-  async function providerConfig(override?: Partial<ImageProviderConfig>): Promise<ImageProviderConfig | null> {
-    const row = await settingsRow();
-    const view = await settingsView();
-    const provider = override?.provider ?? view.provider;
-    const apiKey =
-      override?.apiKey ||
-      (row?.api_key && (!override?.provider || override.provider === view.provider) ? await decryptSecret(options.encryptionKey, row.api_key) : "") ||
-      envKey(provider);
-    if (!apiKey) return null;
-    return {
-      provider,
-      baseUrl: override?.baseUrl || view.baseUrl || IMAGE_PROVIDER_PRESETS[provider].baseUrl,
-      model: override?.model || view.model || IMAGE_PROVIDER_PRESETS[provider].model,
-      editModel: override?.editModel ?? view.editModel,
-      apiKey,
-    };
-  }
-
-  const settingsInput = z
-    .object({
-      enabled: z.boolean(),
-      provider: z.enum(["minimax", "openai"]),
-      baseUrl: z.string().trim().max(300).url("接口地址要写成 https://… 这样的网址"),
-      model: z.string().trim().min(1, "要填模型名").max(120),
-      editModel: z.string().trim().max(120).optional().default(""),
-      /** 不传 = 保留已存的；空字符串 = 清掉已存的（改用环境变量）。 */
-      apiKey: z.string().max(4000).optional(),
-    })
-    .strict();
-
-  async function saveSettings(actorId: string, raw: unknown): Promise<ImageSettingsView> {
-    const input = settingsInput.parse(raw);
-    const row = await settingsRow();
-    let sealed = row?.api_key ?? null;
-    let hint = row?.key_hint ?? "";
-    if (input.apiKey !== undefined) {
-      const key = input.apiKey.trim();
-      sealed = key ? await encryptSecret(options.encryptionKey, key) : null;
-      hint = key.length >= 8 ? key.slice(-4) : "";
-    }
-    await sql.unsafe(
-      `INSERT INTO chisabot_image_settings (id, enabled, provider, base_url, model, edit_model, api_key, key_hint, updated_at, updated_by)
-       VALUES ('default', $1, $2, $3, $4, $5, $6, $7, now(), $8)
-       ON CONFLICT (id) DO UPDATE SET enabled = $1, provider = $2, base_url = $3, model = $4, edit_model = $5, api_key = $6, key_hint = $7, updated_at = now(), updated_by = $8`,
-      [input.enabled, input.provider, input.baseUrl, input.model, input.editModel ?? "", sealed, hint, actorId],
-    );
-    return settingsView();
-  }
-
+  /** 管理员的生图默认（§56 原接口，保留给 /api/chat-files/settings/image 和旧测试）。 */
+  const settingsView = () => media.imageDefaultView();
+  const providerConfig = (override?: Partial<ImageProviderConfig>) => media.imageDefaultConfig(override);
+  const saveSettings = (actorId: string, raw: unknown) => media.saveImageDefault(actorId, raw);
   async function testSettings(raw: unknown): Promise<{ ok: boolean; message: string }> {
-    const input = settingsInput.partial().parse(raw ?? {});
+    const input = z
+      .object({ provider: z.enum(["minimax", "openai"]).optional(), baseUrl: z.string().optional(), model: z.string().optional(), apiKey: z.string().max(4000).optional() })
+      .passthrough()
+      .parse(raw ?? {});
     const config = await providerConfig({
       ...(input.provider ? { provider: input.provider } : {}),
-      ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
-      ...(input.model ? { model: input.model } : {}),
+      ...(input.baseUrl?.trim() ? { baseUrl: input.baseUrl.trim() } : {}),
+      ...(input.model?.trim() ? { model: input.model.trim() } : {}),
       ...(input.apiKey?.trim() ? { apiKey: input.apiKey.trim() } : {}),
     });
     if (!config) return { ok: false, message: "没有密钥：填一个密钥，或者在部署环境变量里配置。" };
@@ -361,6 +283,7 @@ export function createChatFiles(
   async function remove(owner: string, id: string): Promise<boolean> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return false;
     const rows = await sql.unsafe<{ id: string }[]>("DELETE FROM chisabot_chat_files WHERE id = $1 AND owner_user_id = $2 RETURNING id", [id, owner]);
+    if (rows.length > 0) await media.forgetDescriptions(id).catch(() => {});
     return rows.length > 0;
   }
 
@@ -402,6 +325,50 @@ export function createChatFiles(
   }
 
   /**
+   * 图片怎么给主模型（DESIGN.md §59 识图模型）：
+   * - 跟随主模型：原图（和 §56 一样）。
+   * - 有识图模型：先让识图模型写详细描述 + OCR（按文件、模型缓存），把文字给主模型，并告诉它可以用
+   *   image_inspect 追问。识图失败时，主模型能看图就退回原图，否则给一句说明。
+   * - 主模型看不了图又没有识图模型：给一句说明，让机器人请用户去配置。
+   */
+  async function imageForTurn(owner: string, found: FileRow, bytes: Buffer, mimeType: string, where: string): Promise<StoredAttachment> {
+    const vision = await media.visionFor(owner, found.agent_id).catch(() => ({ kind: "main" }) as const);
+    const head = `用户上传的图片「${found.name}」（${where}，文件 id：${found.id}）`;
+    if (vision.kind === "main") return { mimeType: found.mime_type, name: found.name, bytes };
+    if (vision.kind === "none") {
+      return {
+        mimeType: "text/plain",
+        name: found.name,
+        bytes: Buffer.from(`${head}。当前聊天模型不能看图片，也没有配置识图模型，所以你看不到图片内容。请告诉用户：在 设置 → 生图与识图（或管理员在 设置 → 模型 → 识图模型）里配置一个识图模型后再发。`),
+      };
+    }
+    const fresh = Date.now() - new Date(found.created_at).getTime() < media.DESCRIBE_FRESH_MS;
+    try {
+      const text = await media.describe(found.id, { bytes, mimeType }, vision.config, { fresh });
+      if (text === null) {
+        return {
+          mimeType: "text/plain",
+          name: found.name,
+          bytes: Buffer.from(`${head}。这是较早的图片，没有现成的描述；需要它的内容时用 image_inspect（source 填文件 id）提问。`),
+        };
+      }
+      return {
+        mimeType: "text/plain",
+        name: found.name,
+        bytes: Buffer.from(
+          `${head}。你看不到原图，下面是识图模型（${vision.label}）对它的描述，按这个回答；描述里没有的细节用 image_inspect（source 填文件 id）去问，不要编。\n\n【图片描述】\n${text}`,
+        ),
+      };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "未知错误";
+      console.error(JSON.stringify({ type: "chat-files-describe-failed", error: error instanceof Error ? error.name : "UnknownError" }));
+      const supports = options.mainModelSupportsImages ? await options.mainModelSupportsImages(found.agent_id).catch(() => undefined) : undefined;
+      if (supports !== false) return { mimeType: found.mime_type, name: found.name, bytes };
+      return { mimeType: "text/plain", name: found.name, bytes: Buffer.from(`${head}。识图模型没能读这张图（${reason.slice(0, 200)}），你看不到图片内容；如实告诉用户。`) };
+    }
+  }
+
+  /**
    * 模型读一个聊天文件（attachment-parts 的 `cf:` 引用）：图片给字节；小的文本给文字；
    * 其他（PDF、Office、压缩包…）给一句说明，告诉机器人文件在工作区哪里、可以怎么处理。
    */
@@ -409,8 +376,9 @@ export function createChatFiles(
     const found = await row(owner, id, true);
     if (!found?.bytes) return null;
     const bytes = Buffer.from(found.bytes);
-    if (sniffImage(bytes)) return { mimeType: found.mime_type, name: found.name, bytes };
     const where = found.workspace_path ? `已保存在你的工作区 ${found.workspace_path}` : "没能写进你的工作区";
+    const image = sniffImage(bytes);
+    if (image) return imageForTurn(owner, found, bytes, image, where);
     if (TEXT_TYPES.has(found.mime_type) && bytes.length <= 512 * 1024) {
       return { mimeType: "text/plain", name: found.name, bytes: Buffer.concat([Buffer.from(`（${where}）\n\n`), bytes]) };
     }
@@ -456,10 +424,9 @@ export function createChatFiles(
     input: { prompt: string; aspect: ImageAspect; edit?: boolean; source?: string },
     signal?: AbortSignal,
   ): Promise<ChatFileView> {
-    const view = await settingsView();
-    if (!view.ready) throw new ChatFilesError("图片生成没有打开：请管理员在 设置 → 图片生成 里选好模型并打开。");
-    const config = await providerConfig();
-    if (!config) throw new ChatFilesError("图片模型没有密钥：请管理员在 设置 → 图片生成 里填写。");
+    const chosen = await media.imageFor(owner);
+    if (!chosen) throw new ChatFilesError("图片生成没有打开：请管理员在 设置 → 模型 → 生图模型 里打开，或者在 设置 → 生图与识图 里填自己的生图模型。");
+    const config = chosen.config;
     const src = input.edit ? await sourceImage(owner, agentId, input.source) : null;
     const result = await runImageModel(
       config,
@@ -521,7 +488,7 @@ export function createChatFiles(
       },
     });
     const out: GrantedTool[] = [];
-    const images = await settingsView().catch(() => null);
+    const images = await media.imageViewFor(owner).catch(() => null);
     if (images?.ready) {
       const aspect = z.enum(IMAGE_ASPECTS).optional().describe("画幅，默认 1:1");
       out.push(
@@ -564,6 +531,26 @@ export function createChatFiles(
         ),
       );
     }
+    const vision = await media.visionFor(owner, agentId).catch(() => null);
+    if (vision?.kind === "model") {
+      out.push(
+        tool(
+          "image_inspect",
+          "让识图模型看一张图片并回答一个具体问题（图里某处写了什么、某个数字、某个细节）。上传的图片你只拿到了文字描述；描述里没有的细节用它去问，不要编。",
+          z
+            .object({
+              question: z.string().min(1).max(1000).describe("要问识图模型的具体问题"),
+              source: z.string().max(400).optional().describe("哪张图片：文件 id、/api/chat-files/… 网址，或工作区路径；不写 = 这个聊天里最近的一张"),
+            })
+            .strict(),
+          async (input) => {
+            const src = await sourceImage(owner, agentId, input.source);
+            const answer = await media.ask(vision.config, { bytes: src.bytes, mimeType: src.mimeType }, `${input.question}\n\n只根据图片回答，用中文；看不清就说看不清。`);
+            return `识图模型（${vision.label}）对「${src.name}」的回答：\n${answer}`;
+          },
+        ),
+      );
+    }
     out.push(
       tool(
         "chat_files_recent",
@@ -581,14 +568,16 @@ export function createChatFiles(
   }
 
   /** 每轮开头给机器人的用法（不点名具体文件）。 */
-  async function guidance(): Promise<string> {
-    const images = await settingsView().catch(() => null);
+  async function guidance(owner?: string, agentId?: string): Promise<string> {
+    const images = owner ? await media.imageViewFor(owner).catch(() => null) : await settingsView().catch(() => null);
+    const vision = owner && agentId ? await media.visionFor(owner, agentId).catch(() => null) : null;
     return [
       "【文件】用户在聊天里上传的文件会存进你的工作区 uploads/（消息里能看到图片和说明）。",
       options.workspace ? "要把工作区里的文件给用户，用 file_share（聊天里出下载卡片），不要贴路径或 workspace.local 链接。" : "",
       images?.ready
         ? "要画图用 image_generate，要改图（包括用户刚上传的）用 image_edit；结果会自动显示，不要再用 Markdown 贴图。"
-        : "这个部署还没打开图片生成：用户要你画图时，告诉他请管理员在 设置 → 图片生成 里打开。",
+        : "还没打开图片生成：用户要你画图时，告诉他请管理员在 设置 → 模型 → 生图模型 里打开，或在 设置 → 生图与识图 里填自己的生图模型。",
+      vision?.kind === "model" ? "用户上传的图片由识图模型转成文字描述给你；描述里没有的细节用 image_inspect 追问，不要编。" : "",
     ]
       .filter(Boolean)
       .join("");
@@ -649,6 +638,11 @@ export function createChatFiles(
     return app;
   }
 
-  return { ensure, settingsView, saveSettings, testSettings, providerConfig, store, setWorkspacePath, row, list, remove, upload, loadForTurn, makeImage, share, tools, guidance, routes };
+  async function ensureAll() {
+    await ensure();
+    await media.ensure();
+  }
+
+  return { ensure: ensureAll, media, settingsView, saveSettings, testSettings, providerConfig, store, setWorkspacePath, row, list, remove, upload, loadForTurn, makeImage, share, tools, guidance, routes };
 }
 export type ChatFiles = ReturnType<typeof createChatFiles>;
