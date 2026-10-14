@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PAGE_SLUG } from "../../shared/pages";
 import { createDatabase } from "../src/db/client";
 import { REFUSAL_MARKER } from "../src/plugins/tools";
-import { assetName, createPages, newSlug, PAGE_CSP, sniffMatches } from "../src/pages/service";
+import { assetName, createPages, newSlug, PAGE_CSP, sniffMatches, syncHeading } from "../src/pages/service";
 import { composePage, isFullDocument } from "../src/pages/template";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
@@ -36,6 +36,11 @@ describe("pages helpers", () => {
     expect(sniffMatches("a.png", PNG)).toBe(true);
     expect(sniffMatches("a.png", new TextEncoder().encode("<html>"))).toBe(false);
     expect(sniffMatches("a.svg", new TextEncoder().encode("<svg xmlns=''></svg>"))).toBe(true);
+  });
+  test("title change syncs the matching <h1> only", () => {
+    expect(syncHeading('<header class="hero"><h1 class="x">东京三日游</h1></header>', "东京三日游", "东京三日游 · 秋")).toBe('<header class="hero"><h1 class="x">东京三日游 · 秋</h1></header>');
+    expect(syncHeading("<h1>别的标题</h1>", "东京三日游", "新")).toBe("<h1>别的标题</h1>");
+    expect(syncHeading("<h1>A &amp; B</h1>", "A & B", "C < D")).toBe("<h1>C &lt; D</h1>");
   });
   test("CSP sandboxes without same-origin and blocks network", () => {
     expect(PAGE_CSP).toContain("sandbox allow-scripts");
@@ -120,6 +125,13 @@ describe.skipIf(!url)("pages service", () => {
     expect((await pages.assets(owner, page.id)).map((a) => a.name)).toEqual(["cover.png"]);
   });
 
+  test("retitle syncs the page's own <h1>", async () => {
+    const page = await pages.create(owner, { title: "生日会", html: '<header class="hero"><h1>生日会</h1></header><p>x</p>' });
+    const { page: v2 } = await pages.update(owner, page.id, { title: "小林的生日会" });
+    expect(v2.version).toBe(2);
+    expect(await pages.publicPage(page.slug)).toContain("<h1>小林的生日会</h1>");
+  });
+
   test("delete is soft with undo; link dies immediately", async () => {
     const page = await pages.create(owner, { title: "报告", html: "<p>r</p>" });
     expect(await pages.remove(owner, page.id)).toBe(true);
@@ -145,6 +157,9 @@ describe.skipIf(!url)("pages service", () => {
     const id = created.match(/⟦page:(pg_[a-z0-9]+)⟧/)![1]!;
     const updated = await tools.page_update!.execute({ page: id, edits: [{ find: "<h1>旅行</h1>", replace: "<h1>东京旅行</h1>" }] });
     expect(updated).toContain("第 2 版");
+    const retitled = await tools.page_update!.execute({ page: id, title: "旅行 · 秋" });
+    expect(retitled).toContain("第 3 版");
+    expect(await tools.page_get!.execute({ page: id })).toContain("<h1>东京旅行</h1>");
     const got = await tools.page_get!.execute({ page: id });
     expect(got).toContain("<h1>东京旅行</h1>");
     const missingFile = await tools.page_update!.execute({ page: id, assets: [{ path: "nope.png" }] });

@@ -137,6 +137,16 @@ export function sniffMatches(name: string, bytes: Uint8Array) {
   }
 }
 
+const escapeText = (text: string) => text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+/** 把第一个内容正好是旧标题的 <h1> 换成新标题（找不到就原样返回）。 */
+export function syncHeading(html: string, from: string, to: string) {
+  const match = /<h1(\s[^>]*)?>([\s\S]*?)<\/h1>/i.exec(html);
+  if (!match) return html;
+  const inner = match[2]!.trim();
+  if (inner !== from && inner !== escapeText(from)) return html;
+  return html.slice(0, match.index) + `<h1${match[1] ?? ""}>${escapeText(to)}</h1>` + html.slice(match.index + match[0].length);
+}
+
 /** 每个 /p/ 响应都带的头。 */
 export const PAGE_CSP = [
   "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals",
@@ -340,6 +350,8 @@ export function createPages(
     }
     const css = input.css === undefined || input.css === null ? current.css : input.css;
     const title = input.title ? titleSchema.parse(input.title) : page.title;
+    // 换标题时，正文里第一个和旧标题一字不差的 <h1> 跟着换（机器人常常只改 title，页面上的大标题没变）。
+    if (title !== page.title && !html.includes(title)) html = syncHeading(html, page.title, title);
     checkContent(html, css);
     const description = input.description === undefined || input.description === null ? undefined : descriptionSchema.parse(input.description) || null;
     if (description !== undefined) await sql.unsafe("UPDATE chisabot_pages SET description = $2 WHERE id = $1", [page.id, description]);
@@ -622,7 +634,7 @@ export function createPages(
       ),
       tool(
         "page_update",
-        "改一个已有页面，每次改动存成新的一版（用户可以在 设置 → 页面 里恢复旧版）。title 只是浏览器标签 / 卡片上的标题，正文里的 <h1> 要另外用 edits 改。小改用 edits（原文 → 新文，原文要在当前版里恰好出现一次）；大改传完整的新 html。也能换标题、追加 / 替换素材。改之前不确定内容就先 page_get。",
+        "改一个已有页面，每次改动存成新的一版（用户可以在 设置 → 页面 里恢复旧版）。换 title 时，正文里和旧标题一字不差的 <h1> 会自动跟着换；别的大标题写法要用 edits 改。小改用 edits（原文 → 新文，原文要在当前版里恰好出现一次）；大改传完整的新 html。也能换标题、追加 / 替换素材。改之前不确定内容就先 page_get。",
         z
           .object({
             page: z.string().describe("页面 id、slug 或链接"),
