@@ -6389,3 +6389,16 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 /* §51 技能：设置 → 技能 */
 .skill-slug { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-family: var(--font-code); font-size: 12px; color: var(--accent-blue-ink); background: var(--accent-blue-soft); }
 .skill-instructions { min-height: 240px; font-family: var(--font-code); font-size: 13px; line-height: 1.6; }
+
+/* §52 密钥保险箱：聊天里的安全输入卡片 */
+.vault-card { max-width: 480px; margin: 4px 0; padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--glass-3); box-shadow: var(--shadow-1); transition: opacity var(--dur-2); }
+.vault-card-h { display: flex; gap: 12px; align-items: flex-start; }
+.vault-card-ico { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; color: var(--warn); background: var(--warn-soft); }
+.vault-card[data-state="done"] .vault-card-ico { color: var(--success); background: var(--success-soft); }
+.vault-card[data-state="stopped"] .vault-card-ico { color: var(--ink-3); background: var(--glass-hover); }
+.vault-card-t { font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.vault-card-s { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+.vault-card-f { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.vault-card-in { flex: 1 1 200px; min-width: 0; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--glass-2); font-family: var(--font-code); font-size: 13px; color: var(--ink-1); outline: none; }
+.vault-card-in:focus { border-color: var(--ink-3); }
+.vault-card-in::placeholder { font-family: inherit; color: var(--ink-4); }
