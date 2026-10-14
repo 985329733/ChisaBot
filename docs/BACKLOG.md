@@ -261,7 +261,7 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 - [ ] server 测试、tsc、预览 e2e、生产自检通过
 - [ ] docs/slimming.md 记录每个模块的处理与依赖
 
-> 进行中：P4b-1（演示录制、上游个人记忆、主动研究、意图路由）#PRNUM；其余模块见 docs/slimming.md「P4b」。完成时在 PR 里 `Backlog: CB-011`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 进行中：P4b-1（演示录制、上游个人记忆、主动研究、意图路由）#117；其余模块见 docs/slimming.md「P4b」。完成时在 PR 里 `Backlog: CB-011`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
 
 ## CB-012
 
