@@ -7,6 +7,7 @@ import {
   IconPlugConnected,
   IconSettings,
   IconShieldLock,
+  IconTerminal2,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -15,6 +16,7 @@ import { isMobilePlatform } from "../../../../../../shared/devices";
 import { DeviceActivityPanel, FullAccessBadge } from "@/components/devices/full-access";
 import { ApprovalsCard, AuditList, DeviceIcon, DevicePermissions, StatusBadge, ThisPcBadge, ThisPcPanel } from "@/components/devices/devices";
 import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
+import { DeviceAgentsPanel, DeviceProfileBadge } from "@/components/local-agents/device-agents-panel";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -42,16 +44,18 @@ export const Route = createFileRoute("/_authed/settings/devices/$deviceId")({
     TAB_IDS.includes(search.tab as Tab) ? { tab: search.tab as Tab } : {},
 });
 
-type Tab = "permissions" | "activity" | "local" | "audit" | "settings";
+type Tab = "permissions" | "activity" | "agents" | "local" | "audit" | "settings";
 const TABS: Array<{ id: Tab; label: string; Icon: typeof IconShieldLock; thisPcOnly?: boolean }> = [
   { id: "permissions", label: "权限", Icon: IconShieldLock },
   { id: "activity", label: "运行中", Icon: IconActivity },
+  // 权限档位 + 本地 agent（docs/local-agents.md）。
+  { id: "agents", label: "本地 agent", Icon: IconTerminal2 },
   { id: "local", label: "本机", Icon: IconDeviceDesktop, thisPcOnly: true },
   { id: "audit", label: "操作记录", Icon: IconHistory },
   { id: "settings", label: "设备", Icon: IconSettings },
 ];
 
-const TAB_IDS: Tab[] = ["permissions", "activity", "local", "audit", "settings"];
+const TAB_IDS: Tab[] = ["permissions", "activity", "agents", "local", "audit", "settings"];
 
 /** 设备详情（模板 C）：大图标页头 + 测试连接 / 紧急停止 → 标签（权限 / 操作记录 / 设备）。 */
 function DevicePage() {
@@ -118,7 +122,7 @@ function DevicePage() {
   const isThisPc = !!local && local.deviceId === d.id && !d.revoked;
   // 扫码绑定的手机只用来登录聊天：没有能力 / 测试连接 / 紧急停止，只有操作记录和设备（重命名、撤销）。
   const mobile = isMobilePlatform(d.platform);
-  const tabs = TABS.filter((item) => (!item.thisPcOnly || isThisPc) && !(mobile && (item.id === "permissions" || item.id === "activity")));
+  const tabs = TABS.filter((item) => (!item.thisPcOnly || isThisPc) && !(mobile && (item.id === "permissions" || item.id === "activity" || item.id === "agents")));
   const activeTab: Tab = mobile
     ? tab === "settings" ? "settings" : "audit"
     : tab === "local" && !isThisPc ? "permissions" : tab;
@@ -134,6 +138,7 @@ function DevicePage() {
             <FullAccessBadge device={d} />
             <span className="device-badge">{platformLabel(d.platform)}</span>
             {d.clientVersion ? <span className="device-badge">{`客户端 ${d.clientVersion}`}</span> : null}
+            {!mobile && !d.revoked ? <DeviceProfileBadge device={d} /> : null}
           </div>
           <p className="device-hero-s">
             {[d.osVersion, d.hostname, seenText(d.lastSeenAt, d.online), d.lastIp ? `IP ${d.lastIp}` : null, d.lastUsedBy ? `最近使用：${lastUsedText(d.lastUsedBy)}` : null]
@@ -196,6 +201,7 @@ function DevicePage() {
 
       {activeTab === "permissions" ? <DevicePermissions device={d} isThisPc={isThisPc} /> : null}
       {activeTab === "activity" ? <DeviceActivityPanel device={d} /> : null}
+      {activeTab === "agents" ? <DeviceAgentsPanel device={d} isThisPc={isThisPc} /> : null}
       {activeTab === "local" && local ? <ThisPcPanel local={local} onLocal={setLocal} /> : null}
       {activeTab === "audit" ? (
         <Card className="device-audit-card">

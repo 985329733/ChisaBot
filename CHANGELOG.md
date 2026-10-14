@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 本地 agent 与权限档位（0.1.9）：① 机器人可以把一整件活儿交给你电脑上的 agent——Claude Code、Codex CLI、OpenCode / Gemini CLI / Aider（检测到装了才有），或 ChisaBot 内置循环（不用装，默认用机器人的模型、由服务器代调，也可以配本机模型）。在聊天里说「用 Claude Code 在我电脑上修这个 bug」，出一张任务卡片：实时输出、停止、改了哪些文件；默认在一次性 git worktree / 临时副本里做，你点「应用改动」才合回原文件夹，结果回到同一段对话。默认路径不变：什么都不装，云端机器人照样用 `device_*` 操作电脑。② **权限档位**（设置 → 设备 → 某台电脑 → 本地 agent）：只读 / 工作区 / 完全访问。档位只收紧——档位之外的操作，能力是「允许」也先出审批卡片（摘要写明档位）；「完全访问」就是 0.1.8 的完全访问开关（有时限，到期回到原档位）。任务可以要求更严的档位，不能更宽；只有你能改档位。③ 隔离与网络：git worktree（默认）、临时副本、bubblewrap（Linux）、macOS 沙盒、Docker / Podman（内置 agent）、WSL，按电脑上检测到的列出；可以断网。Claude Code 只在完全访问或系统级沙盒里跳过它自己的确认（root 下自动加 `IS_SANDBOX=1`）。CLI agent 用它自己登录的账号，ChisaBot 不碰凭据。新表 `chisabot_device_agent_settings`、`chisabot_local_agent_tasks`（开机建表，可回滚）。服务器 + 网页 + PC 0.1.9（服务器节点 chisabot-node 重新运行安装命令即可；旧客户端设置页显示「还没检测过」）。见 DESIGN.md §66、`docs/local-agents.md`、ADR-0010。
 - 手机上聊天里的页面卡片恢复「打开」按钮（窄屏只显示外链图标，以前整个藏掉，只剩缩略图能点）。见 DESIGN.md §54。
 - 频道聊天不再丢正在写的回答（P0）：回答写到一半刷新页面、手机切后台再回来、网络抖一下，回来后接着一个字一个字往下写（服务器其实一直在写，只是页面没再接上）；回答中刷新后「停止」照样能用。同一段频道对话在手机和电脑上同时打开，一边发的另一边约 2 秒出现，回答两边同步流式。只改网页。见 DESIGN.md §64。
 - 瘦身 P4b-3：去掉上游的自动学习（`/api/admin/learning`、学习设置、学到的技能注入；只在 Intelligence 模式下生效，本部署一直没用）、身份提供者管理接口（`/api/admin/identity-providers`）、每个机器人一台电脑的 Docker supervisor 配置（`COMPUTER_SUPERVISOR_URL` 不再读，机器人共用 `AGENT_COMPUTER_URL`）。表和旧数据不动。企业控制闸门、SSO/SCIM、语音暂留，原因见 `docs/slimming.md`。

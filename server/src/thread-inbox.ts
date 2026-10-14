@@ -190,7 +190,9 @@ export function textOfMessage(message: Pick<Message, "content">): string {
 /** 后台任务结果消息的开头标记（界面据此画成一行结果卡，模型看到的也是同一段文字）。 */
 export const WORKER_RESULT_MARKER = "⟦chisabot:worker-result:";
 export function isWorkerResult(message: Pick<Message, "content">) {
-  return textOfMessage(message).startsWith(WORKER_RESULT_MARKER);
+  const text = textOfMessage(message);
+  // 本地 agent 任务的结果（docs/local-agents.md）同样是自带说明的交付消息。
+  return text.startsWith(WORKER_RESULT_MARKER) || text.startsWith("⟦chisabot:local-agent-result:");
 }
 
 /** 插进 prompt 时给模型看的样子：用户插话带一句说明，后台任务结果本身已经写清楚了。 */

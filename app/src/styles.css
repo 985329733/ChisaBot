@@ -5962,6 +5962,78 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   .worker-icon.is-running svg { animation-duration: 2.4s; }
 }
 
+/* 本地 agent 任务卡片（docs/local-agents.md，DESIGN.md「本地 agent」）：沿用后台任务卡片，多一行档位、实时输出、改动列表。 */
+.la-card { width: min(100%, 600px); }
+.la-meta { display: flex; align-items: center; gap: 5px; min-width: 0; padding-left: 28px; font-size: 12px; color: var(--ink-3); }
+.la-meta > span:not(.la-profile) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.la-dot { color: var(--ink-4); }
+.la-profile { flex: none; margin-left: 4px; padding: 0 8px; border-radius: var(--r-pill); line-height: 20px; color: var(--accent-blue-ink); background: var(--accent-blue-soft); }
+.la-full-toggle { margin-left: 10px; }
+/* 实时输出：等宽、固定最高、自动滚到底（往上翻就不再跟随）。 */
+.la-output {
+  margin-top: 4px; max-height: 196px; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: color-mix(in oklch, var(--glass-3) 70%, transparent);
+  font-family: var(--font-code); font-size: 12px; line-height: 1.55; color: var(--ink-2);
+}
+.la-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.la-line + .la-line { margin-top: 1px; }
+.la-line.is-tool { color: var(--ink-1); }
+.la-line.is-status { color: var(--ink-3); }
+.la-line.is-stderr { color: var(--warn); }
+.la-line.is-approval { color: var(--accent-blue-ink); }
+.la-line-mark { display: inline-block; width: 12px; color: var(--accent-blue); font-weight: 700; }
+.la-summary { padding-left: 28px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-1); max-height: 220px; overflow-y: auto; }
+/* 档位之外 / 启动审批：卡片里直接允许 / 拒绝（同 设置 → 设备 的审批，谁先点算谁）。 */
+.la-approval {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: 28px; padding: 8px 10px; border-radius: var(--r-sm);
+  color: var(--warn); background: var(--warn-soft); animation: worker-step-in var(--dur-2) var(--ease-out) both;
+}
+.la-approval-text { flex: 1 1 200px; min-width: 0; color: var(--ink-1); font-size: 13px; }
+.la-approval-actions { display: flex; gap: 6px; flex: none; }
+.la-diff { display: flex; flex-direction: column; gap: 4px; padding-left: 28px; }
+.la-diff-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-1); }
+.la-diff-state { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.la-plus { color: var(--success); font-variant-numeric: tabular-nums; font-size: 12px; }
+.la-minus { color: var(--danger); font-variant-numeric: tabular-nums; font-size: 12px; }
+.la-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1px; }
+.la-file { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; line-height: 22px; }
+.la-file-status { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; font-size: 11px; color: var(--ink-2); background: var(--glass-2); border: 1px solid var(--line); }
+.la-file-status.is-added { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.la-file-status.is-deleted { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.la-file-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-code); color: var(--ink-2); }
+.la-actions { display: flex; gap: 6px; padding-top: 4px; }
+@container (max-width: 360px) {
+  .la-meta, .la-summary, .la-diff { padding-left: 0; }
+  .la-approval { margin-left: 0; }
+  .la-diff-state { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .la-approval { animation: none; }
+}
+/* 设置 → 设备 → 本地 agent：档位三选一卡片、已检测到的 agent 列表。 */
+.la-profiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.la-profile-opt {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px; text-align: left; border-radius: var(--r-md); border: 1px solid var(--line);
+  background: var(--glass-2); color: var(--ink-2); font-size: 12px; line-height: 1.5;
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.la-profile-opt:hover { background: var(--glass-3); }
+.la-profile-opt.is-active { border-color: var(--accent-blue); background: var(--accent-blue-soft); box-shadow: 0 0 0 3px var(--focus); color: var(--ink-1); }
+.la-profile-opt.is-full.is-active { border-color: color-mix(in oklab, var(--danger) 55%, transparent); background: color-mix(in oklab, var(--danger-soft) 60%, var(--glass-1)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger) 18%, transparent); }
+.la-profile-opt.is-full.is-active .la-profile-opt-t { color: var(--danger); }
+.la-profile-opt.is-standby { border-style: dashed; border-color: var(--accent-blue); }
+.la-profile-opt-t { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.la-agent-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.la-agent-name { font-weight: 600; color: var(--ink-1); }
+.la-agent-ver { font-size: 12px; color: var(--ink-3); font-family: var(--font-code); }
+.la-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.la-chip { padding: 0 8px; border-radius: var(--r-pill); font-size: 12px; line-height: 22px; color: var(--ink-2); background: var(--glass-2); border: 1px solid var(--line); }
+.la-chip.is-on { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.la-chip.is-off { color: var(--ink-4); text-decoration: line-through; }
+@media (max-width: 640px) {
+  .la-profiles { grid-template-columns: 1fr; }
+}
+
 /* ==========================================================================================
  * §40 手机竖屏体验 + 安装成应用（2026-10-13，DESIGN.md §40）。
  * <html data-phone> 由 index.html 的内联脚本写（触屏 + 屏幕短边 < 600，或 UA-CH 说是手机）；横屏手机也带它。

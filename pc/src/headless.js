@@ -22,6 +22,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { createNodeAgent } = require("./agent/core");
 const { createOps } = require("./agent/ops");
+const { attachAgentRuntime } = require("./agent-runtime/attach");
 const auth = require("./agent/auth");
 
 const VERSION = typeof __CHISABOT_NODE_VERSION__ !== "undefined" ? __CHISABOT_NODE_VERSION__ : require("../package.json").version; // eslint-disable-line no-undef
@@ -115,7 +116,10 @@ function run(dir) {
     process.exit(2);
   }
   const ops = createOps({ clientVersion: `${VERSION}-node` });
+  // 本地 agent（Claude Code / Codex / 内置循环…，docs/local-agents.md）：和节点共用这条连接。
+  const agentRuntime = attachAgentRuntime({ log: (line) => console.log(new Date().toISOString(), `[本地 agent] ${line}`) });
   const agent = createNodeAgent({
+    onExtra: agentRuntime.onExtra,
     serverUrl: config.server,
     getToken: () => config.token,
     ops,
@@ -123,6 +127,7 @@ function run(dir) {
     allowFullAccess: config.allowFullAccess !== false,
     unrefTimers: false,
   });
+  agentRuntime.bind(agent);
   const log = (...parts) => console.log(new Date().toISOString(), ...parts);
   agent.events.on("state", ({ state, detail }) => log(`[状态] ${state}${detail ? `（${detail}）` : ""}`));
   agent.events.on("config", (device) =>
@@ -140,6 +145,7 @@ function run(dir) {
   agent.start();
   const stop = () => {
     ops.stopAll?.("shutdown");
+    agentRuntime.runtime.stopAll?.();
     agent.stop();
     process.exit(0);
   };

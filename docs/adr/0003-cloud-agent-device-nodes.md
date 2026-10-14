@@ -1,6 +1,6 @@
 # ADR-0003：默认「云端 agent + 设备节点」，本地 agent 运行时可选
 
-- 状态：已采纳（本地 agent 部分在做：BACKLOG CB-007 / CB-008）
+- 状态：已采纳（本地 agent 部分的具体做法见 ADR-0010：按任务交接，不是换掉回答者）
 - 日期：2026-10-15
 - 相关：docs/architecture.md §2.1、§2.5；docs/pc-node.md
 

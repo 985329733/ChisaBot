@@ -41,6 +41,7 @@ const { createConfig } = require("./config");
 const { createNodeAgent } = require("./agent/core");
 const { parseProxyList, describeProxy, createProxyAgent, createAgentFetch } = require("./agent/proxy");
 const { createOps } = require("./agent/ops");
+const { attachAgentRuntime } = require("./agent-runtime/attach");
 const auth = require("./agent/auth");
 const { ensureEnrolled } = require("./agent/enrollment");
 const { createUpdater } = require("./updater");
@@ -576,7 +577,10 @@ function startAgent() {
       openExternal: (url) => shell.openExternal(url),
     },
   });
+  // 本地 agent（Claude Code / Codex / 内置循环…，docs/local-agents.md）：和节点共用这条连接。
+  const agentRuntime = attachAgentRuntime();
   agent = createNodeAgent({
+    onExtra: agentRuntime.onExtra,
     serverUrl: local.serverUrl,
     getToken: () => config.getToken(),
     ops,
@@ -595,6 +599,7 @@ function startAgent() {
     },
   });
   agent.events.on("full_access", () => refreshTray());
+  agentRuntime.bind(agent, { isPaused: () => !!config.get().localPaused });
   agent.events.on("state", (event) => {
     agentDetail = event && event.detail ? String(event.detail) : event && event.state === "online" ? "" : agentDetail;
     refreshTray();

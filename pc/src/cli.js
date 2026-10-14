@@ -14,6 +14,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const { createNodeAgent } = require("./agent/core");
 const { createOps } = require("./agent/ops");
+const { attachAgentRuntime } = require("./agent-runtime/attach");
 const auth = require("./agent/auth");
 const pkg = require("../package.json");
 
@@ -53,7 +54,10 @@ async function main() {
     return;
   }
   const approveMode = arg("approve", "web");
+  // 本地 agent（Claude Code / Codex / 内置循环…，docs/local-agents.md）：同一条连接。
+  const agentRuntime = attachAgentRuntime({ log: (line) => console.log(`[本地 agent] ${line}`) });
   const agent = createNodeAgent({
+    onExtra: agentRuntime.onExtra,
     serverUrl: server,
     getToken: () => token,
     ops: createOps({ clientVersion: pkg.version }),
@@ -66,6 +70,7 @@ async function main() {
             return approveMode === "approve" ? "approve" : "deny";
           },
   });
+  agentRuntime.bind(agent);
   agent.events.on("state", ({ state, detail }) => console.log(`[状态] ${state}${detail ? `（${detail}）` : ""}`));
   agent.events.on("config", (device) =>
     console.log(`[配置] ${device.name} paused=${device.paused} roots=${JSON.stringify(device.allowedRoots)} caps=${JSON.stringify(device.capabilities)}`),
