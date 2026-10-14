@@ -269,7 +269,7 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 - [ ] server 测试、tsc、预览 e2e、生产自检通过
 - [ ] docs/slimming.md 记录每个模块的处理与依赖
 
-> 进行中：P4b-1（演示录制、上游个人记忆、主动研究、意图路由）#117 已上线；P4b-2（推送与可达性、群聊、团队机器人、交接默认关）#121 已上线；P4b-3（自动学习、身份提供者管理接口、Docker supervisor 配置）#PRNUM。**还剩**（docs/slimming.md「P4b 刻意留下」）：企业控制闸门（先把 `model_connection` / `model_fallbacks` 移出 `enterprise_settings`，等多用户账号合并）、SSO/SCIM 插件（认证代码，等 cb-accounts）、语音（等聊天同步 cb-qa 合并后删前端）、`worker/`（会触发完整构建，和下一次依赖变动一起做）。完成时在 PR 里 `Backlog: CB-011`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 进行中：P4b-1（演示录制、上游个人记忆、主动研究、意图路由）#117 已上线；P4b-2（推送与可达性、群聊、团队机器人、交接默认关）#121 已上线；P4b-3（自动学习、身份提供者管理接口、Docker supervisor 配置）#123。**还剩**（docs/slimming.md「P4b 刻意留下」）：企业控制闸门（先把 `model_connection` / `model_fallbacks` 移出 `enterprise_settings`，等多用户账号合并）、SSO/SCIM 插件（认证代码，等 cb-accounts）、语音（等聊天同步 cb-qa 合并后删前端）、`worker/`（会触发完整构建，和下一次依赖变动一起做）。完成时在 PR 里 `Backlog: CB-011`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
 
 ## CB-012
 
