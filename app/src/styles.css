@@ -6181,15 +6181,18 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 
 /* ---------- 机器人资料页（DESIGN.md §47）：一个紧凑页头 + 资料 / 运行 / 任务三张卡 ---------- */
 .ph.has-media { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 16px; }
-.ph.has-media .ph-media { grid-row: 1; grid-column: 1; display: flex; }
-.ph.has-media .ph-main { grid-row: 1; grid-column: 2; }
-.ph.has-media .ph-actions { grid-row: 1; grid-column: 3; align-self: center; }
+.ph.has-media .ph-eyebrow-row { grid-row: 1; grid-column: 1 / -1; margin-bottom: 8px; }
+.ph.has-media .ph-media { grid-row: 2; grid-column: 1; display: flex; }
+.ph.has-media .ph-main { grid-row: 2; grid-column: 2; min-width: 0; }
+.ph.has-media .ph-actions { grid-row: 2; grid-column: 3; align-self: center; }
 .ph.has-media .ph-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph.has-media .ph-desc { margin-top: 2px; }
-.bp-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; font-size: 13px; color: var(--ink-3); }
-.bp-status-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
-.bp-status-item:not(:last-child)::after { content: "·"; margin: 0 8px; color: var(--ink-4); }
-.bp-state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
+.bp-status { display: flex; flex-wrap: nowrap; align-items: center; min-width: 0; margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--ink-3); white-space: nowrap; }
+.bp-status-item { display: inline-flex; align-items: center; min-width: 0; }
+.bp-status-item:first-child:not(.bp-state) { overflow: hidden; text-overflow: ellipsis; display: block; }
+.bp-status-item + .bp-status-item { flex: none; }
+.bp-status-item + .bp-status-item::before { content: "·"; margin: 0 8px; color: var(--ink-4); }
+.bp-state-dot { margin-right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
 .bp-state.is-paused { color: var(--warn); }
 .bp-state.is-paused .bp-state-dot { background: var(--warn); }
 .bp-actions { display: flex; align-items: center; gap: 8px; }
@@ -6217,8 +6220,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .bp-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .bp-card .sg-srow { min-height: 60px; padding: 12px 20px; }
 .bp-model { width: min(320px, 46vw); }
-.bp-select { height: 32px; min-width: 168px; padding: 0 10px; border-radius: var(--r-sm, 10px); border: 1px solid var(--line-strong); background: var(--glass-2); color: var(--ink-1); font-size: 13px; }
-.bp-select:focus-visible { outline: none; border-color: var(--focus-line, var(--line-strong)); background: var(--glass-3); }
+.bp-select { min-width: 196px; }
 .bp-srow-skel { padding: 8px 12px; }
 .bp-srow-skel .page-rows { border: 0 !important; background: transparent !important; box-shadow: none !important; }
 .bp-group { padding: 12px 20px 4px; font-size: 12px; font-weight: 600; color: var(--ink-3); }
@@ -6229,7 +6231,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .bp-footer [data-slot="button"]:hover { color: var(--danger); }
 @media (max-width: 640px) {
   .ph.has-media { grid-template-columns: auto minmax(0, 1fr); row-gap: 12px; }
-  .ph.has-media .ph-actions { grid-row: 2; grid-column: 1 / -1; margin-left: 0; }
+  .ph.has-media .ph-actions { grid-row: 3; grid-column: 1 / -1; margin-left: 0; }
   .ph.has-media .bp-actions { width: 100%; }
   .ph.has-media .bp-actions > [data-slot="button"]:first-child { flex: 1; }
   .bp-delete-text { display: none; }
@@ -6237,4 +6239,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
   .bp-label { width: auto; }
   .bp-model { width: 100%; }
   .bp-select { width: 100%; }
+  .ph.has-media .ph-eyebrow-row { margin-bottom: -4px; }
+  .bp-card .sg-srow.is-inline { flex-wrap: nowrap; }
+  .bp-card .sg-srow.is-inline .sg-srow-c { width: auto; }
 }

@@ -63,9 +63,10 @@ export function PageHeader({
 }) {
   return (
     <header className={cn("ph", media ? "has-media" : null, className)} data-slot="page-header">
+      {media && eyebrow ? <div className="ph-eyebrow ph-eyebrow-row">{eyebrow}</div> : null}
       {media ? <div className="ph-media">{media}</div> : null}
       <div className="ph-main">
-        {eyebrow ? <div className="ph-eyebrow">{eyebrow}</div> : null}
+        {eyebrow && !media ? <div className="ph-eyebrow">{eyebrow}</div> : null}
         <h1 className="ph-title page-title">{title}</h1>
         {description ? <p className="ph-desc">{description}</p> : null}
       </div>

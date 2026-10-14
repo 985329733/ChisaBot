@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { runWithPageLoader } from "@/components/ui/page-loader";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, SettingRow } from "@/components/ui/skyglass";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -168,7 +169,7 @@ function ResetDialog({
   );
 }
 
-/** 头部那一行状态：职责 · 模型 · 运行中 / 已暂停。 */
+/** 头部那一行状态：模型 · 运行中 / 已暂停（职责就在下面「资料」卡里，不重复）。 */
 function StatusLine({ agent }: { agent: AgentProfile }) {
   const lifecycle = useQuery(botLifecycleQueryOptions(agent.id));
   const model = useQuery(agentModelQueryOptions(agent.id));
@@ -182,7 +183,6 @@ function StatusLine({ agent }: { agent: AgentProfile }) {
   const paused = lifecycle.data?.paused;
   return (
     <span className="bp-status">
-      {agent.title ? <span className="bp-status-item">{agent.title}</span> : null}
       {modelLabel ? (
         <span className="bp-status-item" title={modelId ?? undefined}>
           {modelLabel}
@@ -382,7 +382,7 @@ function RunCard({ agent }: { agent: AgentProfile }) {
       ) : (
         <>
           <SettingRow
-            className="bp-srow"
+            className="bp-srow is-inline"
             description={"暂停后，定时任务、长期任务和后台工作都不再运行。"}
             title={"暂停"}
           >
@@ -394,25 +394,29 @@ function RunCard({ agent }: { agent: AgentProfile }) {
             />
           </SettingRow>
           <SettingRow className="bp-srow" description={"左栏的角标始终显示。"} title={"通知"}>
-            <select
-              aria-label={"通知"}
-              className="bp-select"
+            <Select
               disabled={notify.isPending}
-              onChange={(event) =>
-                notify.mutate({ agentId: agent.id, notify: event.target.value as BotNotify })
+              items={NOTIFY_LABEL}
+              onValueChange={(next) =>
+                next && notify.mutate({ agentId: agent.id, notify: next as BotNotify })
               }
               value={lifecycle.data.notify}
             >
-              {(Object.keys(NOTIFY_LABEL) as BotNotify[]).map((value) => (
-                <option key={value} value={value}>
-                  {NOTIFY_LABEL[value]}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label={"通知"} className="bp-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(NOTIFY_LABEL) as BotNotify[]).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {NOTIFY_LABEL[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           {permission === "default" && lifecycle.data.notify !== "none" ? (
             <SettingRow
-              className="bp-srow"
+              className="bp-srow is-inline"
               description={"这个浏览器还没允许通知。"}
               title={"浏览器通知"}
             >
