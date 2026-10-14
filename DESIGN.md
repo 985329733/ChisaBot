@@ -912,3 +912,13 @@
 - 系统提示词（`shared/bot-prompt.ts` `LINK_CARD_GUIDANCE`，并进 `WORK_STYLE_GUIDANCE`）：要用户点开或去操作的网页（下载页、注册 / 登录入口、文档首页、刚做好的页面）把链接单独放一行，或一行 `[简短标签](网址)`；一条回复最多 3 张、放在正文后面、不在卡片外再写一遍；来源 / 参考资料 / 顺带提到的网站写在句子里，不做成卡片。render_ui 规则（`shared/json-render/catalog.ts`）加一条：只是要用户点开一到三个网页时不用 render_ui。
 - 用户气泡里的长网址折行（`overflow-wrap: anywhere`），不再冲出气泡（实测时发现的旧问题，顺手修）。
 - 验证：单测 `app/tests/rich-previews-extract.test.ts`（出卡规则、拿掉正文、流式最后一行）、`app/tests/link-cards.test.tsx`（卡片内容 / 标签 / 兜底卡 / 骨架 / 正文拿掉）、`server/tests/link-preview.test.ts`（SSRF、兜底标题）；`tests/chat-scroll/regression.sh` 不许有滚动跳动。
+
+## 49. IM 接入：QQ / 微信 / 飞书 / 企业微信 / 钉钉 / Telegram 接到机器人（2026-10-14）
+
+用户原话：「需要增加一个im的功能。可以连接qq，微信，飞书等。可以配置是哪个bot对接」「给用户一个设置，有类似那种给agent提供这种功能的GitHub项目，直接借鉴一下」。参考了 LangBot（Apache-2.0）、飞书 Node SDK（MIT）、OneBot 11；AstrBot（AGPL）/ cc-connect 只参考产品形态，没用代码。来源写在 `shared/im.ts` 文件头、docs/im.md 和 docs/THIRD_PARTY_NOTICES.md。
+
+- **设置 →「IM 接入」**（`/settings/im`，左栏个人组「设备」下面）：模板 B。页头「添加连接」；「我的连接」一张卡，一行一个连接：平台图标（各平台品牌色的浅底方块，40px）· 名称 · 「平台 · 平台账号 · 最后消息 N 分钟前」· 机器人小标签（蓝）/ 白名单人数 / 「可用电脑和设备」（琥珀）· 右侧状态徽标（复用设备页 `.device-badge`：已连接绿点呼吸、连接中 / 等待协议端连入琥珀、出错红、已停用灰）· 启用开关（乐观切换，失败回滚 + 提示）· ⋯（编辑… / 测试连接 / 查看日志… / 删除…，删除走确认弹窗）。出错时行内一行红字写原因。下面「选择平台 / 再接一个平台」是平台卡片网格（名称 + 官方 / 非官方小标签 + 一句话），点哪个直接打开该平台的表单。
+- **添加 / 编辑弹窗**（`ConnectionDialog`）：新建且没选平台 → 平台网格；选了 → 风险提示（非官方琥珀色）· 可折叠「怎么获取这些信息」（编号步骤 + docs/im.md 链接，新建默认展开）· 两列表单（名称、由哪个机器人回复、平台字段；窄屏一列）· 个人微信是「扫码授权」块（二维码 → 已扫码 → ✓ 已授权，令牌不经过浏览器，只拿一次性键）· OneBot 反向连接保存后显示地址和 Token（可复制，弹窗不自动关，按钮变「完成」）· 折叠的「谁能用 · 权限」（白名单、允许使用电脑和设备）· 群聊说明一行 ·「测试连接」（用表单里的值，编辑时空密钥沿用已保存的）结果绿 / 红条 · 保存走按钮状态机。密钥输入框已保存时占位「已保存，留空不改」，从不回显。
+- **日志弹窗**：最近 100 条，时间（等宽 12px）+ 文字，warn 琥珀、error 红。
+- **服务器**（`server/src/im/`）：`service.ts`（表 chisabot_im_connections / chisabot_im_chats / chisabot_im_logs，开机 `ensure()` 建表，回滚安全）；凭据整体用 `KEY_ENCRYPTION_KEY` AES-GCM 加密；每个平台一个 `LoopAdapter` 子类（断线重连 1s→60s 指数退避，连上满 60 秒才清零）；入站 → 群里没 @ 忽略 → `/id`（谁都能用）→ 白名单 → `/new` 换对话 → 按（连接, 会话）排队（每个会话最多排 3 条）→ 无头回合（initiator `routine` + `im:<连接>`，对话 id `im-…`，网页「历史对话」不列）→ 回复按平台切段（QQ / 微信 / Telegram 先把 Markdown 变纯文本）。回合拿不到 render_ui 和面板工具；电脑 / 设备 / host 工具只有连接打开「允许使用电脑和设备」才给；停在网页审批时回一句去网页确认。
+- 路由 `/api/im/*`（登录后）；`/api/im/onebot/:id` 是 OneBot 反向 WebSocket，不走登录、只认连接自己的 token（失败限速），公网网关要对它放行并支持升级。
