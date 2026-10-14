@@ -48,7 +48,7 @@ import { queryClient as sharedQueryClient } from "@/query-client";
 import { ActivityRow } from "./activity";
 
 /*
- * 机器人资料页（/bots/:id，DESIGN.md §46，2026-10-14 用户：「机器人资料页做的太垃圾了。要简洁高效」）。
+ * 机器人资料页（/bots/:id，DESIGN.md §47，2026-10-14 用户：「机器人资料页做的太垃圾了。要简洁高效」）。
  *
  *   头部：头像 · 名字 · 一行状态（职责 · 模型 · 运行中/已暂停）· 右边 开始聊天 / 编辑 / 删除
  *   资料：名称 · 职责 · 提示词，原地编辑（一次改完一起保存）

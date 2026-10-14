@@ -22,7 +22,7 @@ import { queryClient } from "@/query-client";
 
 /*
  * 每种更新发到哪里（对你所有的机器人生效）。以前放在每个机器人的资料页里，2026-10-14 资料页精简时
- * 搬到「通知 / 可达性」页（DESIGN.md §46）：它不属于某一个机器人。
+ * 搬到「通知 / 可达性」页（DESIGN.md §47）：它不属于某一个机器人。
  */
 const KIND_LABEL: Record<UpdateKind, { title: string; description: string }> = {
   progress: {

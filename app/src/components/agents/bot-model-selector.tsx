@@ -16,7 +16,7 @@ const labelOf = (option: ModelOption) => !option.id ? option.label : option.labe
  * Chat and settings both edit this BOT's one saved model; no connection credential reaches here.
  * `compact` is the composer's pill + popover (`ModelPicker`); the full row is for settings screens.
  */
-export function BotModelSelector({ agentId, compact = false, disabled = false, bare = false }: { agentId: string; compact?: boolean; disabled?: boolean; /** 只要选择框（资料页的设置行自己有标题和说明，DESIGN.md §46）。 */ bare?: boolean }) {
+export function BotModelSelector({ agentId, compact = false, disabled = false, bare = false }: { agentId: string; compact?: boolean; disabled?: boolean; /** 只要选择框（资料页的设置行自己有标题和说明，DESIGN.md §47）。 */ bare?: boolean }) {
   if (compact) return <ModelPicker agentId={agentId} disabled={disabled} />;
   return <BotModelSettingsRow agentId={agentId} bare={bare} disabled={disabled} />;
 }

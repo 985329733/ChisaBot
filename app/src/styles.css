@@ -6179,7 +6179,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 :is(.glass-search, .side-search, .computer-urlbar-field, .topbar-search .glass-search):focus-within { box-shadow: none; border-color: var(--line-strong); }
 .glass-composer:focus-within, .dark .glass-composer:focus-within { border-color: var(--stroke); }
 
-/* ---------- 机器人资料页（DESIGN.md §46）：一个紧凑页头 + 资料 / 运行 / 任务三张卡 ---------- */
+/* ---------- 机器人资料页（DESIGN.md §47）：一个紧凑页头 + 资料 / 运行 / 任务三张卡 ---------- */
 .ph.has-media { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 16px; }
 .ph.has-media .ph-media { grid-row: 1; grid-column: 1; display: flex; }
 .ph.has-media .ph-main { grid-row: 1; grid-column: 2; }

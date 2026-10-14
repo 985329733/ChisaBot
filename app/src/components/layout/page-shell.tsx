@@ -53,7 +53,7 @@ export function PageHeader({
   className,
   media,
 }: {
-  /** 标题左边的头像 / 图标（机器人资料页，DESIGN.md §46）。 */
+  /** 标题左边的头像 / 图标（机器人资料页，DESIGN.md §47）。 */
   media?: React.ReactNode;
   eyebrow?: React.ReactNode;
   title: React.ReactNode;
