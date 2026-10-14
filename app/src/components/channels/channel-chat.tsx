@@ -1085,7 +1085,7 @@ export function ChannelChat({
                     className="pb-2 text-sm text-muted-foreground"
                     role="status"
                   >
-                    {"此 AI 同事已被删除。会话保持可读，但无法再回复。"}
+                    {"这个机器人已被删除。对话还能看，但它不会再回复。"}
                   </p>
                 )}
               </>

@@ -26,6 +26,7 @@ export function AppHotkeys() {
       onClose={closeCreateBot}
       onCreated={(agentId) => {
         closeCreateBot();
+        window.dispatchEvent(new Event("chisabot-close-drawer"));
         // Straight into the new Bot's chat; the roster selects it from the URL.
         void navigate({ to: "/channel/new", search: { agent: agentId } });
       }}

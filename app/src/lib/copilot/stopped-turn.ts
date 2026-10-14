@@ -60,6 +60,8 @@ export function friendlyStopReason(said: string): string {
     return "模型密钥无效或已过期。请管理员到 管理后台 → 模型 检查连接。";
   if (/context (length|window)|maximum context|too many tokens|prompt is too long/i.test(text))
     return "这段对话太长，超出了模型能读的范围。点 ⋯ → 新话题 重新开始。";
+  if (/AI SDK stream error|stream error|connection lost|GOAWAY|server_shutting_down|premature close/i.test(text))
+    return "模型的连接中途断开了，这一轮的回答没写完。再发一次试试；经常这样就换一个模型。";
   if (/timed? ?out|ETIMEDOUT|deadline/i.test(text)) return "模型太久没有回应。稍后再发，或换一个模型。";
   if (/fetch failed|ECONNREFUSED|ECONNRESET|socket hang up|network|\b50[234]\b|bad gateway|service unavailable|overloaded/i.test(text))
     return "暂时连不上模型服务。稍后再发，或换一个模型。";

@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { z } from "zod";
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import {
   agentFormSchema,
   agentInputFrom,
   emptyAgentForm,
+  withCreateDefaults,
 } from "@/lib/agents/form";
 import { createAgentMutationOptions } from "@/lib/agents/mutations";
 import { isComposing } from "@/lib/composing";
@@ -33,7 +35,7 @@ import { queryClient } from "@/query-client";
  * 「所有的机器人都是私有」「创建就是在服务器上创建」）。
  *
  * 以前是三步向导：名字和角色 → 谁可以看到它（私有 / 公开）→ 它在哪里运行（内置 / 自托管端点）。
- * 现在只问名字、职责和提示词：机器人一律私有（服务器也强制），一律在这台服务器上运行（不再提供
+ * 现在只问名字、职责和提示词（只有名字必填，2026-10-15 成熟度扫查）：机器人一律私有（服务器也强制），一律在这台服务器上运行（不再提供
  * 自托管端点）。提示词从空白开始，没有「财务 / 报销」之类的示例或模板，由用户自己写。
  */
 export function CreateAgentDialog({
@@ -72,11 +74,13 @@ export function CreateAgentDialog({
 }
 
 /** 这张表要校验的字段，和服务器的上限一致。 */
-const identitySchema = agentFormSchema.pick({
-  name: true,
-  title: true,
-  roleDescription: true,
-});
+const identitySchema = agentFormSchema
+  .pick({ name: true, title: true, roleDescription: true })
+  // 只有名称必填：职责、提示词留空时 withCreateDefaults 补一句（成熟度扫查 F1）。
+  .extend({
+    title: agentFormSchema.shape.title.or(z.literal("")),
+    roleDescription: agentFormSchema.shape.roleDescription.or(z.literal("")),
+  });
 
 type IdentityField = keyof typeof identitySchema.shape;
 
@@ -120,7 +124,7 @@ const CreateAgentWizard = memo(function CreateAgentWizard({
     // 一律私有、一律在这台服务器上运行：不带端点，不带密钥。
     const agent = await createAgent.mutateAsync(
       agentInputFrom({
-        ...values,
+        ...withCreateDefaults(values),
         visibility: "private",
         endpoint: "",
         authValue: "",
@@ -174,7 +178,7 @@ const CreateAgentWizard = memo(function CreateAgentWizard({
             ) : null}
           </Field>
           <Field data-invalid={errors.title ? true : undefined}>
-            <FieldLabel htmlFor="create-agent-title">{"职责"}</FieldLabel>
+            <FieldLabel htmlFor="create-agent-title">{"职责"}<span className="field-optional">{"可不填"}</span></FieldLabel>
             <Input
               aria-invalid={errors.title ? true : undefined}
               autoComplete="off"
@@ -188,7 +192,7 @@ const CreateAgentWizard = memo(function CreateAgentWizard({
             ) : null}
           </Field>
           <Field data-invalid={errors.roleDescription ? true : undefined}>
-            <FieldLabel htmlFor="create-agent-role">{"提示词"}</FieldLabel>
+            <FieldLabel htmlFor="create-agent-role">{"提示词"}<span className="field-optional">{"可不填，之后在资料页改"}</span></FieldLabel>
             <Textarea
               aria-invalid={errors.roleDescription ? true : undefined}
               className="min-h-32"

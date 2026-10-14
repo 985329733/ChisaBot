@@ -29,6 +29,14 @@ import { newId } from "../../../../lib/new-id";
  * Creates the channel on first send. The selected coworker stays in the URL so profile links and
  * reloads preserve the pending recipient without creating an empty channel.
  */
+/** 空聊天里的「试试这样问」：都是问问题、不改任何东西的句子（成熟度扫查 F2，DESIGN.md §61）。 */
+const INTRO_TRIES = [
+  "你能帮我做哪些事？",
+  "帮我查一下今天的科技新闻要点",
+  "怎么把我的电脑连上，让你帮我改文件？",
+  "我想让你记住一些我的习惯，该怎么说？",
+] as const;
+
 /** What `GET /api/agents/:id` answers for a Bot this person cannot see. */
 const AGENT_NOT_FOUND = "Agent not found.";
 
@@ -94,7 +102,7 @@ function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
   const urlAgentDetailFailed = needsUrlAgentDetail && detailError && !fetched;
   const loadError =
     rosterError && profiles === undefined
-      ? "AI 同事无法加载。"
+      ? "机器人列表没有加载出来，请刷新重试。"
       : urlAgentDetailFailed
         ? /*
            * The server's 404 sentence (agents/routes.ts `mapStoreError`) means this person cannot see
@@ -102,14 +110,34 @@ function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
            * other failure is a load that can be retried, and says so.
            */
           detailFailure?.message === AGENT_NOT_FOUND
-          ? "此机器人不可用。它可能未发布、未共享或尚未描述。"
-          : "AI 同事无法加载。"
+          ? "这个机器人不存在或已被删除。"
+          : "这个机器人没有加载出来，请刷新重试。"
         : null;
   const recipients: Recipient[] = chosen
     ? [{ id: chosen.id, name: chosen.name }]
     : [];
   const skillCommands = useSkillCommands(chosen?.id ?? "");
   const modelSaving = useModelSelectionSaving(chosen?.id ?? "");
+
+  const start = async (text: string) => {
+    const recipient = recipients[0];
+    if (!recipient || !canSend(recipients, text)) return;
+    assertModelSelectionNotSaving(modelQueryClient, recipient.id);
+
+    setError(null);
+    setSent(seedMessage(text, newId()));
+
+    try {
+      // Recorded, then started: a coworker picked here is as much a choice as an `@` on the
+      // home screen, and the trail has to say so for both.
+      await startChosen(recipient.id, text);
+    } catch (caught) {
+      // Preserve the unsent draft when channel creation fails.
+      setSent(null);
+      setError(caught instanceof Error ? caught.message : "无法开始会话。");
+      throw caught;
+    }
+  };
 
   if ((profiles === undefined && !rosterError) || channels.isPending || existing) return null;
 
@@ -118,11 +146,25 @@ function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
       <RegisterBotChat agentId={chosen?.id} freshTopic />
       {chosen && !sent ? (
         // Quiet identity of the Bot picked in the left column, until the first message replaces it.
-        <div aria-hidden className="chat-intro">
+        <div className="chat-intro">
           <ChannelAvatar participantIds={[chosen.id]} size={48} />
           <p className="chat-intro-name">{chosen.name}</p>
           {chosen.title ? <p className="chat-intro-sub">{chosen.title}</p> : null}
           {fresh ? <p className="chat-intro-topic">{"新话题 · 之前的对话不会发给它"}</p> : null}
+          {/* 新朋友不知道能问什么（成熟度扫查 F2）：几句不带副作用的开场，点了直接发。 */}
+          <div className="chat-intro-tries" role="group" aria-label="试试这样问">
+            {INTRO_TRIES.map((text) => (
+              <button
+                className="chat-intro-try"
+                disabled={pending || Boolean(loadError) || waitingForUrlAgent}
+                key={text}
+                onClick={() => void start(text).catch(() => undefined)}
+                type="button"
+              >
+                {text}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
       <ConversationView
@@ -144,27 +186,7 @@ function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
             </p>
           ) : null
         }
-        onSubmit={async (draft) => {
-          const recipient = recipients[0];
-          if (!recipient || !canSend(recipients, draft.text)) return;
-          assertModelSelectionNotSaving(modelQueryClient, recipient.id);
-
-          setError(null);
-          setSent(seedMessage(draft.text, newId()));
-
-          try {
-            // Recorded, then started: a coworker picked here is as much a choice as an `@` on the
-            // home screen, and the trail has to say so for both.
-            await startChosen(recipient.id, draft.text);
-          } catch (caught) {
-            // Preserve the unsent draft when channel creation fails.
-            setSent(null);
-            setError(
-              caught instanceof Error ? caught.message : "无法开始会话。",
-            );
-            throw caught;
-          }
-        }}
+        onSubmit={(draft) => start(draft.text)}
         pending={pending}
       />
     </div>

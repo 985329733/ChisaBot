@@ -149,7 +149,7 @@ export function DeleteBotDialog({
           </DialogTitle>
           <DialogDescription>
             {
-              "机器人会被彻底删除，并从侧边栏、AI 同事列表和收件人选择中移除。你与它的私人会话、它为你记住的内容、定时任务、长期职责、面板和授权也会一并删除。"
+              "机器人会被彻底删除，并从左栏移除。你与它的私人会话、它为你记住的内容、定时任务、长期职责、面板和授权也会一并删除。"
             }
           </DialogDescription>
         </DialogHeader>
