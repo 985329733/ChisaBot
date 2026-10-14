@@ -70,7 +70,7 @@ test("exposes complete chat IDs and safe metadata across upstream protocols", as
       contextWindow: 200000,
       maxOutputTokens: 64000,
     },
-    { id: "gpt/main", label: "GPT", provider: "gpt" },
+    { id: "gpt/main", label: "GPT", provider: "gpt", supportsImages: true },
     { id: "group/auto", label: "自动路由", provider: "group" },
   ]);
   expect(result.fetchedAt).toBeGreaterThan(0);
