@@ -10,7 +10,6 @@ import {
 import { useComputerControl } from "@/lib/computers/use-control";
 import { ChannelAvatar } from "../channels/avatar";
 import { ComputerControlButton } from "./computer-controls";
-import { DemonstrationRecorder } from "./demonstration-recorder";
 import { LiveScreen } from "./live-screen";
 import { useElementVisible, usePageVisible } from "./preview-visibility";
 
@@ -507,7 +506,7 @@ export function ComputerView({
         {!driving && !settled && control?.requested ? (
           <div className="flex items-start justify-between gap-3 border-t bg-amber-500/10 px-3 py-2 text-sm">
             <span>
-              <strong className="font-medium">{"助手需要您。"}</strong>{" "}
+              <strong className="font-medium">{"机器人需要你。"}</strong>{" "}
               {control.reason}
             </span>
           </div>
@@ -750,7 +749,7 @@ export function ComputerView({
                       ) : control?.requested ? (
                         <span className="truncate text-muted-foreground">
                           <strong className="font-medium text-foreground">
-                            {"助手需要您。"}
+                            {"机器人需要你。"}
                           </strong>{" "}
                           {control.reason}
                         </span>
@@ -758,17 +757,6 @@ export function ComputerView({
                     </span>
                     <ComputerControlButton computerId={computerId} />
                   </div>
-                )}
-                {/* 录制工作流是进阶功能：默认收起（一直挂着），不再占掉半个大屏、把交还挤到画面底下。 */}
-                {!settled && (
-                  <details className="computer-teach relative z-10 mt-3">
-                    <summary>{"录制成工作流…"}</summary>
-                    <DemonstrationRecorder
-                      botId={computerId}
-                      driving={driving}
-                      onRecordingChange={() => setRetryKey((value) => value + 1)}
-                    />
-                  </details>
                 )}
               </div>
             </div>,

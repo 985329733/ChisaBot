@@ -13,7 +13,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
 | [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图已上线；审批、生图/识图设置在做；简报、Google 账号最后 | 7 / 10 已上线 |
-| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2 已上线；P3/P4a/P4b 在做 |
+| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2、P4a 已上线；P3/P4b 在做 |
 | [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 在做 |
 | [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 扫查在做 |
 | [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
@@ -31,7 +31,6 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | [CB-002](BACKLOG.md#cb-002) | 生图 / 识图模型设置，每人可覆盖 | Hark parity | `feat/model-media` |
 | [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先） | 成熟度 | `fix/maturity-1` |
 | [CB-009](BACKLOG.md#cb-009) | 瘦身 P3：删不发布的目录 + 修 CI | 精简 | `feat/slim-p3` |
-| [CB-010](BACKLOG.md#cb-010) | 瘦身 P4a：删前端死页 | 精简 | `feat/slim-p4a` |
 | [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块 | 精简 | — |
 | [CB-012](BACKLOG.md#cb-012) | 项目维护与文档系统（本页） | 成熟度 | `chore/pm-system` |
 
@@ -66,6 +65,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
+| 2026-10-15 | 瘦身 P4a：删前端死页（约 1.2 万行） | #116 | [slimming.md](slimming.md) · DESIGN §57 |
 | 2026-10-15 | 瘦身 P2：示例部署包精简、开机清孤儿授权 / 包技能 / 包频道 | #110 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P1：导航收敛 | #109 | DESIGN §57 |
 | 2026-10-14 | 聊天文件与图片生成 | #108 | DESIGN §56 · [chat-files.md](chat-files.md) |

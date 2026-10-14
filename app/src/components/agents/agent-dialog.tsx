@@ -1,7 +1,5 @@
 import {
   IconAdjustments,
-  IconArrowsExchange,
-  IconClock,
   IconPencil,
   IconPlugConnected,
   IconPuzzle,
@@ -14,9 +12,7 @@ import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
-import { HandoffPanel } from "@/components/agents/handoff-panel";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
-import { RoutinesList } from "@/components/routines/routines-list";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -102,8 +98,6 @@ const SECTIONS = [
   { id: "general", name: "通用", icon: IconUser },
   { id: "access", name: "权限", icon: IconPuzzle },
   { id: "connection", name: "连接", icon: IconPlugConnected },
-  { id: "handoff", name: "交接", icon: IconArrowsExchange },
-  { id: "routines", name: "例行任务", icon: IconClock },
   { id: "manage", name: "管理", icon: IconAdjustments },
 ] as const;
 
@@ -217,10 +211,6 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
               <AccessSection agentId={agentId} />
             ) : section === "connection" ? (
               <ConnectionSection agentId={agentId} profile={profile} />
-            ) : section === "handoff" ? (
-              <HandoffPanel agentId={agentId} />
-            ) : section === "routines" ? (
-              <RoutinesList agentId={agentId} embedded />
             ) : (
               <ManageSection agentId={agentId} profile={profile} />
             )}

@@ -21,3 +21,13 @@
   1、2 只在库里只有这一个部署包时做（技能表按名字全局共享，多包时分不清是谁不要了）。
 - **删机器人时**同一个事务里收回它的 `plugin_grants`。
 - 上线前在生产 `pg_dump` 了受影响的表（`skills`、`skill_tools`、`plugin_grants`、`channels`、`channel_agents`）到 `/opt/openbot-zh/backups/`，恢复就是把这份 SQL 导回去。
+
+## P4a 删前端死页
+
+P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 万行，只改网页，服务器与数据库不动）：
+
+- **页面**：管理后台 人员与角色、企业控制、身份提供者、自动学习、组件游乐场、旧的管理员设备页；设置 → UI 组件库；群聊 `/group/*`。地址都保留成重定向（去 设置、设置 → 技能、设置 → 设备、对话）。
+- **机器人设置窗**去掉「交接」「例行任务」两栏；接管窗口去掉「录制成工作流…」。
+- **只被它们用到的组件 / lib** 一起删：gallery、carousel、questionnaire、主动研究面板、可达性（delivery）、群聊、旧记忆（`lib/memory.ts`）、主动研究（`lib/proactive.ts`）、演示录制（`lib/demonstrations.ts`）、旧技能编辑、旧例行任务列表、人员 / 企业 / 身份提供者 / 学习的查询与修改等；对应的 10 个测试文件。
+- 测试夹具里 `mock.module("@/components/layout/sidebar-toggle")` 改成提供全部导出（bun 的模块 mock 会漏到后面的文件里，缺 `TopBarOwnsSidebarToggle` 会在 glass-shell 处报「测试之间未处理的错误」）。
+- 不动：审批 / 确认卡、设备、定时任务、保险箱、GitHub、页面、聊天文件 / 图片、模型设置、IM、技能、记忆、例行任务后端。

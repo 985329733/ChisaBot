@@ -22,7 +22,7 @@
 | [CB-007](#cb-007) | 本地 agent 运行时与 agent 选择（可选） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: devices` · `P1` · `status: in-progress` |
 | [CB-008](#cb-008) | 本地 agent 的沙箱 / 权限配置档 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: approvals` · `P1` · `status: in-progress` |
 | [CB-009](#cb-009) | 瘦身 P3：删不发布的目录 + 修 server-typecheck CI | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: in-progress` |
-| [CB-010](#cb-010) | 瘦身 P4a：删前端死页 | 精简 Slim | `type: chore` · `area: slim` · `area: settings` · `P1` · `status: in-progress` |
+| [CB-010](#cb-010) | 瘦身 P4a：删前端死页 | 精简 Slim | `type: chore` · `area: slim` · `area: settings` · `P1` · `status: done` |
 | [CB-011](#cb-011) | 瘦身 P4b：不再构造上游服务端模块（表保留） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: in-progress` |
 | [CB-012](#cb-012) | 项目维护与文档系统（labels / milestones / ROADMAP / ADR / 模板） | 成熟度 Maturity | `type: docs` · `area: docs` · `P1` · `status: in-progress` |
 | [CB-013](#cb-013) | Google 账号连接（Hark parity 最后一项） | Hark parity | `type: feat` · `area: settings` · `P2` · `status: deferred` |
@@ -231,7 +231,7 @@
 ## CB-010
 
 **瘦身 P4a：删前端死页**  
-里程碑：精简 Slim · 标签：`type: chore` `area: slim` `area: settings` `P1` `status: in-progress`
+里程碑：精简 Slim · 标签：`type: chore` `area: slim` `area: settings` `P1` `status: done`
 
 #### 背景
 
@@ -239,11 +239,11 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 
 #### 验收标准
 
-- [ ] 页面与独占组件删除，旧地址仍重定向
-- [ ] app tsc / build / DOM 测试全过；初始 JS 不变大
-- [ ] docs/slimming.md、CHANGELOG
+- [x] 页面与独占组件删除，旧地址仍重定向
+- [x] app tsc / build / DOM 测试全过；初始 JS 不变大
+- [x] docs/slimming.md、CHANGELOG
 
-> 进行中：worker cb-slim-2。完成时在 PR 里 `Backlog: CB-010`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：#116（见 docs/slimming.md「P4a」）。
 
 ## CB-011
 
