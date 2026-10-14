@@ -36,7 +36,7 @@ export function InlineApproval({
   if (request?.status !== "pending") return <>{fallback}</>;
   const handOff = request.action.policy?.behaviour === "hand_off";
   const decide = (choice: ApprovalDecision) => decision.mutateAsync(choice);
-  // 上游审批（云端浏览器的安全规则、规则「先问」等）也用 ChisaBot 的确认卡片外观（DESIGN.md §XX）。
+  // 上游审批（云端浏览器的安全规则、规则「先问」等）也用 ChisaBot 的确认卡片外观（DESIGN.md §58）。
   const what = request.action.toolRef.replace(/^computer_|^host\//, "").replaceAll("_", " ");
   const payment = /pay|checkout|purchase|付款|支付|下单/i.test(`${request.action.policy?.reason ?? ""} ${request.action.scope}`);
   const reason = zhReason(request.action.policy?.reason);

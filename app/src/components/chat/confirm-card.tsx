@@ -27,7 +27,7 @@ import { confirmKeys, decideConfirmation, setConfirmPref, useThreadConfirmations
 import { cn } from "@/lib/utils";
 
 /**
- * 聊天里的确认卡片（DESIGN.md §XX）：机器人要做有后果的事、用户的偏好是「先问我」时，卡片画在那条工具调用
+ * 聊天里的确认卡片（DESIGN.md §58）：机器人要做有后果的事、用户的偏好是「先问我」时，卡片画在那条工具调用
  * 下面——要做什么 · 对象 · 细节 · 「确认 / 取消」。确认后服务器上等着的工具接着执行，这一轮继续。
  *
  * 状态在服务器上（chisabot_confirm_requests），刷新、换设备看到的是同一张卡；决定后卡片原地收成一行

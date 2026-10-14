@@ -1,5 +1,5 @@
 /**
- * 确认卡片 + 审批偏好（DESIGN.md §XX，docs/confirmations.md）。服务器（server/src/confirmations）和网页共用。
+ * 确认卡片 + 审批偏好（DESIGN.md §58，docs/confirmations.md）。服务器（server/src/confirmations）和网页共用。
  *
  * 机器人做有后果的事之前（对外发消息、删除、付款购买、操作用户的电脑），按用户的审批偏好决定：
  * 「先问我」= 聊天里出一张确认卡片（要做什么 · 对象 · 细节 · 确认 / 取消），确认后这一轮接着做；

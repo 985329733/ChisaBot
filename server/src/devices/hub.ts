@@ -80,7 +80,7 @@ function errorText(error: unknown) {
 }
 
 /**
- * 审批偏好 + 聊天里的确认卡片（server/src/confirmations，DESIGN.md §XX）。「询问」能力：偏好是「直接做」就不问；
+ * 审批偏好 + 聊天里的确认卡片（server/src/confirmations，DESIGN.md §58）。「询问」能力：偏好是「直接做」就不问；
  * 否则照旧在电脑上弹窗，网页聊天里同时出一张卡片，两边谁先决定都算。
  */
 export type DeviceConfirmLink = {

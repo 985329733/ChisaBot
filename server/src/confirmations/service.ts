@@ -24,7 +24,7 @@ import { categoryOfPageAction, categoryOfTool, decideMode, detailsFromArgs, flat
 import { currentConfirmActor, currentConfirmInteractive, currentConfirmToolCall, currentConfirmTurn, withConfirmInteractive } from "./context";
 
 /**
- * 确认卡片 + 审批偏好（DESIGN.md §XX，docs/confirmations.md）。
+ * 确认卡片 + 审批偏好（DESIGN.md §58，docs/confirmations.md）。
  *
  * 表（开机建，回滚安全，什么都不删）：
  * - chisabot_confirm_prefs：每类一行「先问我 / 直接做」+ 用户原话；

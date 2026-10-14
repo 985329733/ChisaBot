@@ -8,7 +8,7 @@ import type {
 } from "../../../shared/confirmations";
 import { client } from "@/lib/client";
 
-/** 确认卡片 + 审批偏好（DESIGN.md §XX，docs/confirmations.md）。 */
+/** 确认卡片 + 审批偏好（DESIGN.md §58，docs/confirmations.md）。 */
 export const confirmKeys = {
   all: ["confirmations"] as const,
   prefs: ["confirmations", "prefs"] as const,

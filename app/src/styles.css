@@ -6564,7 +6564,7 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 @media (prefers-reduced-motion: reduce) { .rail-sec-chev { transition: none; } }
 .glass-topbar-mid { min-width: 0; }
 
-/* ── 确认卡片 + 审批偏好（confirm-card.tsx，DESIGN.md §XX）────────────────────────
+/* ── 确认卡片 + 审批偏好（confirm-card.tsx，DESIGN.md §58）────────────────────────
  * 一张玻璃卡，最宽 480px：类别图标（40px）· 小字「需要你确认 · 类别」· 标题 · 对象；细节两列；确认 / 取消。
  * 决定后原地收成一行（细节和按钮 grid-rows 1fr→0fr 收起），图标变 ✓ / ✕，不跳版。 */
 .cf-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-width: 100%; min-width: 0; container-type: inline-size; }

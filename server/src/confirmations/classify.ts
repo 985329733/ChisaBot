@@ -4,11 +4,11 @@ import type { ConfirmCategory, ConfirmDetail, ConfirmMode } from "../../../share
  * 哪些工具调用算「有后果的事」、算哪一类，以及按偏好 + 规则该不该问。纯函数，单测直接驱动。
  *
  * - 设备（device_*）不在这里：由设备 hub 在「询问」能力上问（DESIGN.md §45），这里只决定问不问。
- * - ChisaBot 自己的读写工具（记忆、技能、保险箱、联网、面板更新、确认本身）不拦：它们要么只读，要么
+ * - ChisaBot 自己的读写工具（记忆、技能、保险箱、联网、面板更新、聊天文件卡 / 画图、确认本身）不拦：它们要么只读，要么
  *   本身就是用户要求的记录类操作，删除也有撤销。
  * - 其余工具（内置任务工具、连接器 / MCP 工具）按名字判断：删除类、付款类、发消息类；读类动词开头的不算。
  */
-const SKIP_REF = /^(memory|vault|skills|lifecycle|web|workflows|devices|host-access|confirmations|github)\//;
+const SKIP_REF = /^(memory|vault|skills|lifecycle|web|workflows|devices|host-access|confirmations|github|chat-files)\//;
 const READ_VERB = /^(list|get|search|find|read|fetch|query|describe|count|check|lookup|preview|view|show|download)(_|$)/i;
 const DELETE = /(^|[_\-/])(delete|remove|trash|destroy|purge|erase|wipe|drop)([_\-/]|$)/i;
 const PURCHASE = /(^|[_\-/])(pay|payment|purchase|checkout|buy|place_order|create_order|order_create|transfer|send_money|charge|subscribe)([_\-/]|$)/i;
@@ -126,7 +126,7 @@ export function titleForTool(name: string, category: ConfirmCategory): string {
 /**
  * 云端浏览器里点的那个按钮算不算「有后果」（服务器自己判断，不靠机器人记得先调用 confirm_action）。
  * 只看按钮 / 链接上显示的字，短标签整段匹配（「发送」「Send」「删除」「Move to trash」…）；
- * 付款下单不在这里：上游的付款安全规则已经拦（DESIGN.md §XX.5）。
+ * 付款下单不在这里：上游的付款安全规则已经拦（DESIGN.md §58.5）。
  */
 const PAGE_MESSAGE = /^(发送|发 送|立即发送|发送邮件|发送消息|发布|发表|发帖|发微博|回复|发表回复|发表评论|评论|提交评论|转发|send|send now|send email|send message|post|publish|tweet|post reply|reply|comment|submit comment|share)$/i;
 const PAGE_DELETE = /^(删除|永久删除|彻底删除|确认删除|删除文件|删除邮件|移除|清空|清空回收站|移到回收站|移至废纸篓|delete|delete forever|delete permanently|permanently delete|remove|move to trash|move to bin|empty trash|empty bin)$/i;

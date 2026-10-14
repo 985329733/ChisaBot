@@ -680,7 +680,7 @@ const retentionSweeps = startRetentionSweeps(
   pageFrameStore,
 );
 /**
- * 确认卡片 + 审批偏好（server/src/confirmations，DESIGN.md §XX）。云端浏览器：用户在聊天里确认过付款
+ * 确认卡片 + 审批偏好（server/src/confirmations，DESIGN.md §58）。云端浏览器：用户在聊天里确认过付款
  * （confirm_action 类别 purchase）之后，这段对话 20 分钟内的浏览器操作不再被上游的付款安全规则交还给人。
  */
 const confirmations = createConfirmations(database);

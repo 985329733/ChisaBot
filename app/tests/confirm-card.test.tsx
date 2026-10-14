@@ -3,7 +3,7 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { ConfirmCardView, ConfirmResumeRow, isConfirmResume } from "@/components/chat/confirm-card";
 
-/** 确认卡片（DESIGN.md §XX）：等确认时有细节和按钮；决定后收成一行、按钮不可达；付款没有「以后直接做」。 */
+/** 确认卡片（DESIGN.md §58）：等确认时有细节和按钮；决定后收成一行、按钮不可达；付款没有「以后直接做」。 */
 describe("确认卡片", () => {
   beforeAll(() => GlobalRegistrator.register());
   afterEach(() => cleanup());

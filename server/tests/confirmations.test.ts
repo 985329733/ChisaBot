@@ -8,7 +8,7 @@ import type { GrantedTool } from "../src/plugins/tools";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 import { z } from "zod";
 
-/** 确认卡片 + 审批偏好（DESIGN.md §XX）：分类、偏好 / 规则、等确认、取消、非网页回合、后来才确认。 */
+/** 确认卡片 + 审批偏好（DESIGN.md §58）：分类、偏好 / 规则、等确认、取消、非网页回合、后来才确认。 */
 describe("classify", () => {
   test("tool categories", () => {
     expect(categoryOfTool("delete_routine", "openbot-routines/delete_routine")).toBe("delete");
@@ -25,6 +25,8 @@ describe("classify", () => {
     expect(categoryOfTool("page_delete", "pages/page_delete")).toBe("delete");
     expect(categoryOfTool("page_publish", "pages/page_publish")).toBeNull();
     expect(categoryOfTool("page_create", "pages/page_create")).toBeNull();
+    expect(categoryOfTool("file_share", "chat-files/file_share")).toBeNull(); // 聊天里给用户看的文件卡，不是对外发
+    expect(categoryOfTool("schedule_cancel", "chisabot/schedule_cancel")).toBeNull();
   });
   test("decideMode: purchase locked, keyword rules, ask beats auto, pref fallback", () => {
     expect(decideMode({ category: "purchase", text: "x", pref: "auto", rules: [] })).toMatchObject({ mode: "ask", source: "safety" });

@@ -55,7 +55,7 @@ const STATUS_TEXT: Record<ConfirmRequestView["status"], string> = {
 };
 
 /**
- * 设置 → 审批偏好（DESIGN.md §XX）：哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
+ * 设置 → 审批偏好（DESIGN.md §58）：哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
  * 机器人每轮都读这里，用户在聊天里说「以后 X 不用问我」时机器人也会写进来。
  */
 function ApprovalPrefsPage() {

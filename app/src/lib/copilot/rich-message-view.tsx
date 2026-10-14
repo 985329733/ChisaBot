@@ -92,7 +92,7 @@ function RichToolCallsView(props: CopilotChatToolCallsViewProps) {
   return (
     <>
       <CopilotChatToolCallsView {...props} />
-      {/* 确认卡片（DESIGN.md §XX）：画在这条消息的工具调用下面。 */}
+      {/* 确认卡片（DESIGN.md §58）：画在这条消息的工具调用下面。 */}
       <MessageConfirmCards message={props.message} messages={props.messages} />
       <MessageRichPreviews align="start" text={textOf(content)} />
     </>

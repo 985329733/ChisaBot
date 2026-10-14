@@ -1,6 +1,6 @@
 # 确认卡片 + 审批偏好
 
-设计与界面：DESIGN.md §XX（合并时编号）。代码：`server/src/confirmations/`、`shared/confirmations.ts`、`app/src/components/chat/confirm-card.tsx`、`app/src/routes/_authed/settings/approvals.tsx`。
+设计与界面：DESIGN.md §58。代码：`server/src/confirmations/`、`shared/confirmations.ts`、`app/src/components/chat/confirm-card.tsx`、`app/src/routes/_authed/settings/approvals.tsx`。
 
 ## 数据
 | 表 | 内容 |
