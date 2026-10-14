@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authed/settings/im")({
 });
 
 /**
- * 设置 → IM 接入（DESIGN.md §48，docs/im.md）：把你的机器人接到 QQ、微信、飞书、企业微信、钉钉、Telegram。
+ * 设置 → IM 接入（DESIGN.md §49，docs/im.md）：把你的机器人接到 QQ、微信、飞书、企业微信、钉钉、Telegram。
  * 连接属于你一个人；每个连接选一个你的机器人来回复。
  */
 function ImPage() {

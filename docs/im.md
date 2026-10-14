@@ -107,7 +107,7 @@
 
 ## 实现与来源
 
-代码在 `server/src/im/`（`service.ts` 存库、排队、跑回合；`adapters/*.ts` 每个平台一个；`feishu-proto.ts` 飞书长连接帧编解码），设置页在 `app/src/routes/_authed/settings/im.tsx` + `app/src/components/im/im.tsx`，平台清单和字段在 `shared/im.ts`。设计说明见 DESIGN.md §48。
+代码在 `server/src/im/`（`service.ts` 存库、排队、跑回合；`adapters/*.ts` 每个平台一个；`feishu-proto.ts` 飞书长连接帧编解码），设置页在 `app/src/routes/_authed/settings/im.tsx` + `app/src/components/im/im.tsx`，平台清单和字段在 `shared/im.ts`。设计说明见 DESIGN.md §49。
 
 参考过的开源项目（只借鉴设计和公开协议格式，**没有复制 GPL / AGPL 代码**）：
 

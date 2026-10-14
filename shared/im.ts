@@ -1,5 +1,5 @@
 /**
- * IM 接入（DESIGN.md §48，docs/im.md）：把机器人接到 QQ、微信、飞书、企业微信、钉钉、Telegram。
+ * IM 接入（DESIGN.md §49，docs/im.md）：把机器人接到 QQ、微信、飞书、企业微信、钉钉、Telegram。
  *
  * 平台清单、每个平台要填的字段、风险提示，服务器和网页共用这一份。字段 `secret: true` 的值加密存库、
  * 接口只回「已保存」，不回原文。

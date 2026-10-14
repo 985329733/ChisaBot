@@ -14,7 +14,7 @@ import { errorText, markdownToPlain, splitText } from "./text";
 import type { AdapterContext, FetchLike, ImAdapter, ImAdapterStatus, ImInbound, ImLogLevel, WsFactory, WsLike } from "./types";
 
 /**
- * IM 接入（DESIGN.md §48，docs/im.md）：每个人自己的「连接」，一个连接 = 一个平台账号 → 一个机器人。
+ * IM 接入（DESIGN.md §49，docs/im.md）：每个人自己的「连接」，一个连接 = 一个平台账号 → 一个机器人。
  *
  * - 存库：chisabot_im_connections（凭据字段整体 AES-GCM 加密，和部署里其它密钥同一把钥匙）、
  *   chisabot_im_chats（平台会话 → 对话 id；「/new」换一条）、chisabot_im_logs（每个连接最近 300 行）。

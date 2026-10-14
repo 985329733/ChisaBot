@@ -6280,7 +6280,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
   .bp-card .sg-srow.is-inline .sg-srow-c { width: auto; }
 }
 
-/* ---------- IM 接入（DESIGN.md §48）---------- */
+/* ---------- IM 接入（DESIGN.md §49）---------- */
 .im-ico {
   display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none;
   border-radius: 12px; color: var(--accent-blue-ink); background: var(--accent-blue-soft);

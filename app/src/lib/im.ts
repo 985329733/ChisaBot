@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { ImConnectionView, ImLogEntry } from "../../../shared/im";
 import { client } from "@/lib/client";
 
-/** 设置 → IM 接入（DESIGN.md §48，docs/im.md）。列表每 5 秒刷新：状态和「最后消息」几乎实时。 */
+/** 设置 → IM 接入（DESIGN.md §49，docs/im.md）。列表每 5 秒刷新：状态和「最后消息」几乎实时。 */
 
 export const imKeys = {
   all: ["im"] as const,

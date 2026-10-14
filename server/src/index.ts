@@ -1280,7 +1280,7 @@ const teamBots = createTeamBots({
     ),
 });
 
-/** IM 接入（server/src/im，DESIGN.md §48）：下面才建；IM 回合的工具按连接的开关裁剪。 */
+/** IM 接入（server/src/im，DESIGN.md §49）：下面才建；IM 回合的工具按连接的开关裁剪。 */
 let imService: ImService | undefined;
 const loadToolsForActor =
   (actorId: string, initiator: AuditInitiator = PERSON_INITIATOR) =>
@@ -1981,7 +1981,7 @@ const routineRunner = createRoutineRunner({
 });
 
 /*
- * IM 接入（server/src/im，DESIGN.md §48，docs/im.md）：QQ / 微信 / 飞书 / 企业微信 / 钉钉 / Telegram 的消息
+ * IM 接入（server/src/im，DESIGN.md §49，docs/im.md）：QQ / 微信 / 飞书 / 企业微信 / 钉钉 / Telegram 的消息
  * 交给连接选的机器人回答。回合用自己的运行器：电脑工具只在连接打开「允许使用电脑和设备」时给，单轮最长 10 分钟。
  */
 const imTurnRunner = createTurnRunner({
