@@ -18,7 +18,7 @@ import type { Database } from "./db/client";
  *   标题 = 对话名或第一条用户消息、消息数、最后更新时间）。共用一条当前对话后，一台设备原来的对话就看不到了，
  *   从这里切回去（切换 = PUT 当前对话）。不含后台任务的隐藏对话（worker-*）和空对话。
  * - `GET  /api/bot-threads/:agentId/sync?threadId=` → 当前对话 + 这条对话的变化戳（事件序号、是否在回答、
- *   后台任务和收件箱最后更新时间）。打开的设备每 2 秒问一次（页面隐藏时不问，回到前台马上问），变了才去拉。
+ *   后台任务和收件箱最后更新时间、截断版本 revision §67）。打开的设备每 2 秒问一次（页面隐藏时不问，回到前台马上问），变了才去拉。
  *
  * 一个人一行（owner_user_id + agent_id），只存 id；对话从不因为这里被删（换「新对话」后旧对话还在库里）。
  * 只认属于自己的对话：库里已有这条对话但不是自己的（或不是这个机器人的）→ 404。还没发过消息的新对话
@@ -38,6 +38,8 @@ export type BotThreadActivity = {
   workers: string | null;
   /** 收件箱（排队消息）最后一次变化（ISO），没有为 null。 */
   inbox: string | null;
+  /** 对话版本：重新生成 / 编辑后重发截断过几次（DESIGN.md §67）。变了 = 别的设备该按服务器回放重建。 */
+  revision: string;
 };
 
 export type BotThreadSummary = {
@@ -146,7 +148,16 @@ export async function createBotThreads(database: Database, control?: BotThreadRu
     } catch {
       // 后台任务没启用（没有这张表）。
     }
-    return { threadId, seq, running: Boolean(control?.isActive(threadId)) || locked, workers, inbox };
+    let revision = "0";
+    try {
+      const rows = await sql.unsafe<{ n: string | null }[]>(
+        "SELECT count(*)::text AS n FROM chisabot_thread_truncations WHERE thread_id = $1", [threadId],
+      );
+      revision = rows[0]?.n ?? "0";
+    } catch {
+      // 截断没启用（没有这张表）。
+    }
+    return { threadId, seq, running: Boolean(control?.isActive(threadId)) || locked, workers, inbox, revision };
   }
 
   /** 「历史对话」（DESIGN.md §42.6）：最近 30 条有消息的对话，新的在前。 */

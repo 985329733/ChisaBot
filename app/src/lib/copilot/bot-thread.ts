@@ -125,6 +125,8 @@ export type ThreadActivity = {
   running: boolean;
   workers: string | null;
   inbox: string | null;
+  /** 对话版本（截断过几次，DESIGN.md §67）；旧服务器没有这个字段。 */
+  revision?: string;
 };
 type SyncReply = { current: ServerThread | null; thread: ThreadActivity | null };
 

@@ -21,9 +21,10 @@ import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { queueMessage } from "@/lib/copilot/thread-inbox";
 import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
-import { RICH_MESSAGE_VIEW } from "@/lib/copilot/rich-message-view";
+import { lastAnswerMessageId, RICH_MESSAGE_VIEW } from "@/lib/copilot/rich-message-view";
 import { useFallbackTurns, useStoppedTurnIds, useTurnCompaction } from "@/lib/copilot/turn-compaction";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
+import { lastUserIndex, MessageActionsContext, type TruncateMode, truncateConversation, withEditedText } from "@/lib/copilot/regenerate";
 
 /** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
 const BOT_CHAT_LABELS = {
@@ -222,6 +223,56 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
     },
     [chatAgent, copilotkit, threadId],
   );
+  /*
+   * 重新生成 / 编辑后重发（DESIGN.md §67，CB-042）：和频道聊天同一套——服务器先截断（本人的对话、没在回答），
+   * 本机截到同一处，再照常发一轮。按钮只在没在回答时出现（`running` 跟着智能体的运行状态）。
+   */
+  const [running, setRunning] = useState(() => chatAgent.isRunning);
+  // 「重新生成」挂在哪条回答下：消息组件被 CopilotKit 按内容 memo，自己算会停在旧的一条上，所以在这里跟着消息变化算好放进 context。
+  const [lastAnswer, setLastAnswer] = useState<string | null>(() => lastAnswerMessageId(chatAgent.messages as never));
+  useEffect(() => {
+    setRunning(chatAgent.isRunning);
+    setLastAnswer(lastAnswerMessageId(chatAgent.messages as never));
+    const subscription = chatAgent.subscribe({
+      onRunInitialized: () => setRunning(true),
+      onRunFinalized: () => setRunning(false),
+      onRunFailed: () => setRunning(false),
+      onMessagesChanged: ({ messages }) => setLastAnswer(lastAnswerMessageId(messages as never)),
+    });
+    return () => subscription.unsubscribe();
+  }, [chatAgent]);
+  const resendFrom = useCallback(
+    async (fromMessageId: string, mode: TruncateMode, content: unknown) => {
+      if (!threadId) throw new Error("对话还没准备好。");
+      if (chatAgent.isRunning) throw new Error("机器人正在回答，等它说完再试。");
+      await truncateConversation(threadId, fromMessageId, mode);
+      const at = chatAgent.messages.findIndex((message) => message.id === fromMessageId);
+      if (at >= 0) chatAgent.setMessages(chatAgent.messages.slice(0, at));
+      chatAgent.addMessage({ id: crypto.randomUUID(), role: "user", content: content as string });
+      await copilotkit.runAgent({ agent: chatAgent });
+    },
+    [chatAgent, copilotkit, threadId],
+  );
+  const messageActions = useMemo(
+    () => ({
+      canAct: !running && Boolean(threadId),
+      lastAnswerId: lastAnswer,
+      regenerate: async () => {
+        const at = lastUserIndex(chatAgent.messages as never);
+        if (at < 0) throw new Error("没有可以重新生成的回答。");
+        const user = chatAgent.messages[at]!;
+        await resendFrom(user.id, "regenerate", (user as { content?: unknown }).content);
+      },
+      edit: async (messageId: string, text: string) => {
+        const user = chatAgent.messages.find((message) => message.id === messageId);
+        if (!user || user.role !== "user") throw new Error("这条消息已经不在了，刷新看看。");
+        const content = withEditedText((user as { content?: unknown }).content, text);
+        if (content === null) throw new Error("消息不能是空的。");
+        await resendFrom(messageId, "edit", content);
+      },
+    }),
+    [running, lastAnswer, threadId, chatAgent, resendFrom],
+  );
   // 回答期间发的消息、后台任务的结果和服务器自己起的那一轮（DESIGN.md §38）。
   const runChat = useCallback((options: { agent: typeof chatAgent }) => copilotkit.runAgent(options), [copilotkit]);
   useThreadInbox(threadId, chatAgent, runChat as never);
@@ -280,6 +331,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           {threadId ? (
             <BotComposerContext.Provider value={composer}>
             <ConversationProvider ask={askFromUi}>
+            <MessageActionsContext.Provider value={messageActions}>
             <CopilotChat
               input={BotModelInput}
               agentId={agentId}
@@ -292,6 +344,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
               key={`${agentId}:${threadId}`}
               threadId={threadId}
             />
+            </MessageActionsContext.Provider>
             </ConversationProvider>
             </BotComposerContext.Provider>
           ) : null}

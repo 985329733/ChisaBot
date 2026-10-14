@@ -62,6 +62,24 @@ export function userOrderDiffers(local: readonly string[], server: readonly stri
 type Connect = (options: { agent: AbstractAgent }) => Promise<unknown>;
 
 /**
+ * 本机自己截断（重新生成 / 编辑后重发，DESIGN.md §67）后服务器回的对话版本。本机已经截好了，同步看到这个
+ * 版本时不再重建；别的版本（别的设备截的）才重建。
+ */
+const ownRevisions = new Map<string, string>();
+export function noteOwnRevision(threadId: string, revision: string) {
+  ownRevisions.set(threadId, revision);
+}
+
+/**
+ * 版本变化要不要重建：第一次看到（还没有基线）不算；和基线一样不算；是本机自己截出来的那个版本不算。
+ */
+export function revisionNeedsRebuild(known: string | null, seen: string | undefined, own: string | undefined): boolean {
+  if (seen === undefined || known === null) return false;
+  if (seen === known) return false;
+  return seen !== own;
+}
+
+/**
  * 合并式接入时哪些消息算「这台已经有了」（回放里它们的事件跳过）。
  *
  * `liveTail`（频道聊天，DESIGN.md §64）：服务器正在回答时，最后一条用户消息之后的那几条（正在写的回答、
@@ -116,6 +134,9 @@ export function useConversationSync(
     let connecting = false;
     /** 合并式接入时，接入前这台已经有的消息 / 工具调用（回放里它们的内容不再追加一遍）。 */
     let merge: { messages: Set<string>; toolCalls: Set<string> } | null = null;
+    /** 对话版本基线（§67）；版本变了（别的设备截断过）就按服务器回放重建，本机在跑时等它结束再重建。 */
+    let knownRevision: string | null = null;
+    let rebuildPending = false;
     /**
      * mode "merge"（平时）：不清空列表，只把新的接上——见下面的 onEvent。
      * mode "rebuild"（顺序和服务器不一致时）：照 SDK 原样，先清空再按服务器回放重建。
@@ -190,6 +211,16 @@ export function useConversationSync(
     });
     const off = onActivity((activity) => {
       if (!alive || activity.threadId !== threadId) return;
+      if (revisionNeedsRebuild(knownRevision, activity.revision, ownRevisions.get(threadId))) rebuildPending = true;
+      if (activity.revision !== undefined) knownRevision = activity.revision;
+      if (rebuildPending && !agent.isRunning && !connecting) {
+        // 别的设备重新生成 / 编辑重发截断了这段对话：清空，按服务器回放重建（截掉的气泡、卡片一起消失）。
+        rebuildPending = false;
+        last = activity;
+        rebase = false;
+        join("rebuild");
+        return;
+      }
       if (agent.isRunning || connecting) {
         // 本机在跑或正在接：它收到的就是最新的，等它结束再记基线。
         rebase = true;
