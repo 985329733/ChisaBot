@@ -389,6 +389,7 @@ export function ConnectionDialog({
     if (!open) return;
     setPlatform(connection?.platform ?? initialPlatform ?? null);
     setTestResult(null);
+    test.reset();
     setSaved(null);
     setStepsOpen(!connection);
   }, [open, connection, initialPlatform]);
@@ -425,12 +426,18 @@ export function ConnectionDialog({
     if (result.reversePath && !connection) setSaved(result);
     else setTimeout(() => onOpenChange(false), 600);
   });
-  const test = useAsyncAction(async () => {
-    const body = input();
-    if (!body) return;
-    setTestResult(null);
-    setTestResult(await testImDraft({ ...body, ...(connection ? { id: connection.id } : {}) }));
-  });
+  const test = useAsyncAction(
+    async () => {
+      const body = input();
+      if (!body) return;
+      setTestResult(null);
+      const result = await testImDraft({ ...body, ...(connection ? { id: connection.id } : {}) });
+      setTestResult(result);
+      // 没通过：按钮显示 ✕「测试失败」，原因在下面的红条里（不另弹提示）。
+      if (!result.ok) throw new Error(result.detail);
+    },
+    { errorToast: false },
+  );
 
   const visible = (field: ImField) => !field.showIf || (form?.config[field.showIf.key] ?? "") === field.showIf.equals;
   const reverse = saved ?? (connection?.reversePath ? connection : null);
@@ -450,6 +457,7 @@ export function ConnectionDialog({
           </DialogBody>
         ) : form ? (
           <form
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               if (save.state !== "pending" && !saved) void save.run();

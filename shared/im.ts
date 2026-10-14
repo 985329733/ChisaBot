@@ -107,7 +107,7 @@ export const IM_PLATFORMS: ImPlatformInfo[] = [
         type: "select",
         default: "qq",
         options: [
-          { value: "qq", label: "QQ 私聊和 QQ 群（@ 机器人）" },
+          { value: "qq", label: "QQ 私聊和 QQ 群" },
           { value: "all", label: "QQ 私聊、QQ 群和频道" },
         ],
       },
@@ -145,8 +145,8 @@ export const IM_PLATFORMS: ImPlatformInfo[] = [
         type: "select",
         default: "forward",
         options: [
-          { value: "forward", label: "正向 WebSocket（ChisaBot 连协议端）" },
-          { value: "reverse", label: "反向 WebSocket（协议端连 ChisaBot）" },
+          { value: "forward", label: "正向（ChisaBot 连协议端）" },
+          { value: "reverse", label: "反向（协议端连 ChisaBot）" },
         ],
       },
       { key: "url", label: "协议端 WebSocket 地址", type: "url", placeholder: "ws://192.168.1.10:3001", showIf: { key: "mode", equals: "forward" } },
