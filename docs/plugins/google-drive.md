@@ -173,7 +173,7 @@ rather than handed an empty string it would fill in from memory.
 
 ## See also
 
-- [Architecture](../architecture.md) — where plugins, grants, policy and audit sit.
+- [Architecture](../openbot-architecture.md) — where plugins, grants, policy and audit sit.
 - [Configuration](../configuration.md) — `OPENBOT_PUBLIC_URL`, `OPENBOT_APP_URL`,
   `KEY_ENCRYPTION_KEY`.
 - [Google Drive API](https://developers.google.com/workspace/drive/api/reference/rest/v3) — the REST

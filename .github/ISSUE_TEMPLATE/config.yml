@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 路线图与 Backlog
+    url: https://github.com/ChisaAlter/ChisaBot/blob/main/docs/ROADMAP.md
+    about: 先看看是不是已经在计划里。
