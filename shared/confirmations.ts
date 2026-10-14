@@ -32,7 +32,7 @@ export const CONFIRM_CATEGORY_INFO: Record<
   },
 };
 
-export type ConfirmDetail = { label: string; value: string; code?: boolean };
+export type ConfirmDetail = { label: string; value: string; code?: boolean; /** value 是 unified diff，按增删行着色（设备改文件，§62） */ diff?: boolean };
 
 export type ConfirmStatus = "pending" | "approved" | "denied" | "expired" | "cancelled";
 

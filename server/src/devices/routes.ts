@@ -1,6 +1,9 @@
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import {
+  FULL_ACCESS_DURATIONS,
+  FULL_ACCESS_FOREVER,
+  type FullAccessDuration,
   DEVICE_CAPABILITIES,
   type DeviceCapabilities,
 } from "../../../shared/devices";
@@ -10,7 +13,10 @@ import { upgradeWebSocket } from "../channels/socket";
 import { DeviceRefusedError, type DeviceHub, describeChange } from "./hub";
 import { type GrantedTool, REFUSAL_MARKER } from "../plugins/tools";
 import { createPairingStore, isMobilePlatform, type PairingStore } from "./pairing";
-import type { DevicePatch, DeviceRecord, DeviceStore } from "./store";
+import { type DevicePatch, type DeviceRecord, type DeviceStore, fullAccessActive } from "./store";
+import { installScript, readNodeBundle } from "./node-install";
+
+const NODE_PLATFORMS = new Set(["linux", "darwin", "win32", "freebsd", "openbsd", "sunos", "aix"]);
 
 /**
  * /api/devices（docs/pc-node.md §6）。
@@ -93,6 +99,14 @@ function parsePatch(body: unknown): DevicePatch | string {
     if (!Array.isArray(input.botIds)) return "机器人列表无效。";
     patch.botIds = input.botIds.map(String);
   }
+  // 完全访问（docs/pc-node.md §13）：只有这里能打开——设备主人在网页上，机器人没有任何工具能调到这里。
+  if (input.fullAccess !== undefined) {
+    if (input.fullAccess === "off") patch.fullAccessUntil = null;
+    else if (typeof input.fullAccess === "string" && input.fullAccess in FULL_ACCESS_DURATIONS) {
+      const ms = FULL_ACCESS_DURATIONS[input.fullAccess as FullAccessDuration];
+      patch.fullAccessUntil = ms === null ? FULL_ACCESS_FOREVER : new Date(Date.now() + ms).toISOString();
+    } else return "完全访问的时长无效（1h / 24h / permanent / off）。";
+  }
   return patch;
 }
 
@@ -105,6 +119,8 @@ export function createDeviceRoutes(options: {
   toolsFor?: (actorId: string, botId: string) => Promise<GrantedTool[]>;
   /** 手机扫码绑定的一次性绑定码（默认放在本进程内存里）。 */
   pairing?: PairingStore;
+  /** 网页构建目录：服务器节点程序 node-agent/chisabot-node.cjs 在里面。 */
+  appDistDir?: string;
 }) {
   const { store, hub, requireUser, auditStore, toolsFor } = options;
   const pairing = options.pairing ?? createPairingStore();
@@ -221,6 +237,41 @@ export function createDeviceRoutes(options: {
             : "二维码无效，请扫描 ChisaBot 网页「设置 → 设备 → 绑定手机」里的二维码。";
       return context.json({ error, reason: result.reason }, result.reason === "invalid" ? 400 : 410);
     }
+    if (result.kind === "node") {
+      try {
+        const platform = typeof body.platform === "string" && NODE_PLATFORMS.has(body.platform) ? body.platform : "linux";
+        const { device, token } = await store.enroll({
+          ownerUserId: result.ownerUserId,
+          name: body.name ?? body.hostname ?? "我的服务器",
+          platform,
+          osVersion: body.osVersion,
+          hostname: body.hostname,
+          arch: body.arch,
+          clientVersion: body.clientVersion,
+          ip,
+        });
+        await store.touch(device.id, { ip });
+        pairing.complete(result.pairingId, device);
+        await store.audit({
+          deviceId: device.id,
+          ownerUserId: result.ownerUserId,
+          actorType: "device",
+          actorId: device.id,
+          actorName: "服务器节点",
+          action: "enrolled",
+          summary: `安装命令登记服务器节点「${device.name}」（${platform}${body.hostname ? ` · ${String(body.hostname).slice(0, 80)}` : ""}）`,
+          outcome: "succeeded",
+          detail: null,
+          durationMs: null,
+        });
+        await mainAudit(result.ownerUserId, device.id, "device_enrolled", device.name);
+        const fresh = (await store.get(device.id)) ?? device;
+        return context.json({ device: hub.view(fresh), token }, 201);
+      } catch {
+        pairing.fail(result.pairingId);
+        return context.json({ error: "登记失败，请在网页上重新生成安装命令后重试。" }, 500);
+      }
+    }
     try {
       const model = typeof body.model === "string" ? body.model : null;
       const { device, token } = await store.enroll({
@@ -285,6 +336,26 @@ export function createDeviceRoutes(options: {
     return context.json({ active });
   });
 
+  // ---- 服务器节点 chisabot-node（docs/pc-node.md §14）：公开的安装脚本和节点程序（不含密钥，配对靠一次性安装码） ----
+
+  routes.get("/agent/node/install.sh", (context) => {
+    const proto = context.req.header("x-forwarded-proto") ?? new URL(context.req.url).protocol.replace(":", "");
+    const host = context.req.header("x-forwarded-host") ?? context.req.header("host") ?? new URL(context.req.url).host;
+    return context.body(installScript(`${proto}://${host}`), 200, {
+      "content-type": "text/x-shellscript; charset=utf-8",
+      "cache-control": "no-store",
+    });
+  });
+
+  routes.get("/agent/node/chisabot-node.cjs", async (context) => {
+    const bundle = await readNodeBundle(options.appDistDir);
+    if (!bundle) return context.json({ error: "这个部署没有打包服务器节点程序（node-agent/chisabot-node.cjs）。" }, 404);
+    return context.body(new Uint8Array(bundle), 200, {
+      "content-type": "application/javascript; charset=utf-8",
+      "cache-control": "no-store",
+    });
+  });
+
   // ---- 已登录的人 ----
 
   async function owned(context: { var: Variables }, id: string): Promise<DeviceRecord | null> {
@@ -337,10 +408,12 @@ export function createDeviceRoutes(options: {
   });
 
   /** 网页「绑定手机」：签发一次性绑定码（5 分钟），网页把它和服务器地址一起画成二维码。 */
-  routes.post("/pairing", userGuard, (context) => {
+  routes.post("/pairing", userGuard, async (context) => {
     const actor = context.var.actor;
-    const issued = pairing.issue(actor.id);
-    return context.json(issued, 201);
+    const body = (await context.req.json().catch(() => null)) as { kind?: unknown } | null;
+    const kind = body?.kind === "node" ? "node" : "phone";
+    const issued = pairing.issue(actor.id, kind);
+    return context.json({ ...issued, kind }, 201);
   });
 
   routes.get("/pairing/:pairingId", userGuard, (context) => {
@@ -432,10 +505,25 @@ export function createDeviceRoutes(options: {
     if (before.revoked) return context.json({ error: "这台设备已被撤销，不能再修改。" }, 409);
     const patch = parsePatch(await context.req.json().catch(() => null));
     if (typeof patch === "string") return context.json({ error: patch }, 400);
+    const actor = context.var.actor;
+    if (patch.fullAccessUntil) {
+      if (before.ownerUserId !== actor.id) return context.json({ error: "完全访问只能由设备的主人自己打开。" }, 403);
+      if (isMobilePlatform(before.platform)) return context.json({ error: "手机不是可操作的设备。" }, 400);
+      if (before.paused && patch.paused !== false) return context.json({ error: "这台设备在紧急停止中，先解除紧急停止。" }, 409);
+    }
     const after = await store.update(before.id, patch);
     if (!after) return context.json({ error: "没有这台设备。" }, 404);
-    const actor = context.var.actor;
-    const change = describeChange(before, after);
+    const fullBefore = fullAccessActive(before);
+    const fullAfter = fullAccessActive(after);
+    const fullChange =
+      patch.fullAccessUntil !== undefined || fullBefore !== fullAfter
+        ? fullAfter
+          ? `完全访问：开（${after.fullAccessUntil === FULL_ACCESS_FOREVER ? "永久，直到手动关闭" : `到 ${after.fullAccessUntil}`}）`
+          : fullBefore
+            ? "完全访问：关"
+            : null
+        : null;
+    const change = [describeChange(before, after), fullChange].filter((part) => part && part !== "无变化").join("；") || "无变化";
     const pausedChanged = before.paused !== after.paused;
     await store.audit({
       deviceId: after.id,
@@ -443,7 +531,15 @@ export function createDeviceRoutes(options: {
       actorType: "user",
       actorId: actor.id,
       actorName: actor.name ?? actor.email ?? null,
-      action: pausedChanged ? (after.paused ? "kill_switch_on" : "kill_switch_off") : "config_changed",
+      action: pausedChanged
+        ? after.paused
+          ? "kill_switch_on"
+          : "kill_switch_off"
+        : fullChange
+          ? fullAfter
+            ? "full_access_on"
+            : "full_access_off"
+          : "config_changed",
       summary: change,
       outcome: "succeeded",
       detail: "网页",
@@ -485,6 +581,54 @@ export function createDeviceRoutes(options: {
     await store.remove(device.id);
     await mainAudit(context.var.actor.id, device.id, "device_deleted", device.name);
     return context.json({ ok: true });
+  });
+
+  /**
+   * 设备页「正在运行」：节点上的后台命令（实时问设备）+ 最近的文件改动（审计记录里 edit_file / apply_patch / write_file）。
+   */
+  routes.get("/:id/activity", userGuard, async (context) => {
+    const device = await owned(context, context.req.param("id"));
+    if (!device) return context.json({ error: "没有这台设备。" }, 404);
+    const log = await store.auditLog(device.id, { limit: 200 });
+    const edits = log
+      .filter((entry) => ["edit_file", "apply_patch", "write_file", "file_upload"].includes(entry.action) && entry.outcome === "succeeded")
+      .slice(0, 20);
+    let live: unknown = null;
+    let liveError: string | null = null;
+    if (hub.isOnline(device.id) && hub.supports(device.id, "activity")) {
+      try {
+        live = await hub.direct(device, "activity", {}, 10_000);
+      } catch (error) {
+        liveError = error instanceof Error ? error.message : String(error);
+      }
+    } else liveError = hub.isOnline(device.id) ? "客户端版本太旧，看不到运行中的命令（需要 0.1.8+）。" : "设备离线。";
+    return context.json({ live, liveError, edits });
+  });
+
+  /** 设备主人在设备页上结束一个后台命令。 */
+  routes.post("/:id/jobs/:jobId/kill", userGuard, async (context) => {
+    const device = await owned(context, context.req.param("id"));
+    if (!device) return context.json({ error: "没有这台设备。" }, 404);
+    const actor = context.var.actor;
+    const jobId = context.req.param("jobId");
+    try {
+      const result = await hub.direct(device, "exec_kill", { jobId }, 15_000);
+      await store.audit({
+        deviceId: device.id,
+        ownerUserId: device.ownerUserId,
+        actorType: "user",
+        actorId: actor.id,
+        actorName: actor.name ?? actor.email ?? null,
+        action: "exec_kill",
+        summary: `在网页上结束后台命令 ${jobId}`,
+        outcome: "succeeded",
+        detail: null,
+        durationMs: null,
+      });
+      return context.json({ ok: true, job: result });
+    } catch (error) {
+      return context.json({ error: error instanceof Error ? error.message : String(error) }, 409);
+    }
   });
 
   routes.get("/:id/audit", userGuard, async (context) => {

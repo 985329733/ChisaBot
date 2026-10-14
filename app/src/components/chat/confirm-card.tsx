@@ -113,7 +113,13 @@ export function ConfirmCardView({
               {details.map((detail, index) => (
                 <div className="cf-row" key={`${detail.label}-${index}`}>
                   <dt>{detail.label}</dt>
-                  <dd className={cn(detail.code && "is-code")}>{detail.value}</dd>
+                  {detail.diff ? (
+                    <dd className="cf-diff">
+                      <DiffLines diff={detail.value} />
+                    </dd>
+                  ) : (
+                    <dd className={cn(detail.code && "is-code")}>{detail.value}</dd>
+                  )}
                 </div>
               ))}
             </dl>
@@ -257,3 +263,26 @@ export function ConfirmResumeRow({ text }: { text: string }): ReactNode {
 }
 export const isConfirmResume = (text: string) => text.startsWith(CONFIRM_RESUME_MARKER);
 
+/** 设备改文件的 unified diff：加行绿、删行红、@@ 灰（同 设置 → 设备 的 .device-diff，DESIGN.md §62）。 */
+function DiffLines({ diff }: { diff: string }) {
+  return (
+    <pre className="device-diff is-approval">
+      {diff
+        .split("\n")
+        .slice(0, 300)
+        .map((line, index) => (
+          <span
+            className={cn(
+              line.startsWith("+") && !line.startsWith("+++") && "is-add",
+              line.startsWith("-") && !line.startsWith("---") && "is-del",
+              line.startsWith("@@") && "is-hunk",
+            )}
+            // biome-ignore lint/suspicious/noArrayIndexKey: diff 行没有稳定 id，只渲染一次
+            key={index}
+          >
+            {`${line}\n`}
+          </span>
+        ))}
+    </pre>
+  );
+}

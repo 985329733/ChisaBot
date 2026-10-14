@@ -6608,6 +6608,8 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .cf-row dt { color: var(--ink-3); }
 .cf-row dd { margin: 0; color: var(--ink-1); overflow-wrap: anywhere; white-space: pre-wrap; max-height: 9em; overflow: auto; }
 .cf-row dd.is-code { font-family: var(--font-code); font-size: 12.5px; }
+.cf-row dd.cf-diff { grid-column: 1 / -1; max-height: none; overflow: visible; }
+.cf-row dd.cf-diff .device-diff { margin: 0; }
 .cf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .cf-actions [data-slot="button"] { min-width: 84px; }
 .cf-always {
@@ -6678,3 +6680,50 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .fb-rank { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; background: var(--glass-2); font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
 .fb-add { min-width: 220px; }
+/* ---- §62 设备编码工具 · 完全访问 · 服务器节点（docs/pc-node.md §12–§14） ---- */
+.device-badge.is-full { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.device-group + .device-group { margin-top: 12px; }
+.device-group-t { margin: 0 0 6px 4px; font-size: 13px; font-weight: 500; color: var(--ink-3); }
+.device-section.is-overridden > .sg-card { opacity: 0.6; }
+.full-access-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: background var(--dur-2), border-color var(--dur-2); }
+.full-access-card.is-on { border-color: color-mix(in oklab, var(--danger) 45%, transparent); background: color-mix(in oklab, var(--danger-soft) 60%, var(--glass-1)); }
+.full-access-head { display: flex; gap: 12px; align-items: flex-start; }
+.full-access-ic { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; border-radius: 12px; color: var(--warn); background: var(--warn-soft); }
+.full-access-card.is-on .full-access-ic { color: var(--danger); background: var(--danger-soft); }
+.full-access-t { font-size: 14px; font-weight: 500; color: var(--ink-1); }
+.full-access-s { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--ink-3); }
+.full-access-s.is-warn { color: var(--warn); }
+.full-access-note { margin: 0; }
+.full-access-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.device-diff { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-family: var(--font-code); font-size: 12px; line-height: 1.5; color: var(--ink-2); background: var(--glass-2); white-space: pre; overflow: auto; max-height: 360px; }
+.device-diff.is-approval { max-height: 240px; }
+.device-diff .is-add { color: var(--success); background: color-mix(in oklab, var(--success-soft) 70%, transparent); display: block; }
+.device-diff .is-del { color: var(--danger); background: color-mix(in oklab, var(--danger-soft) 70%, transparent); display: block; }
+.device-diff .is-hunk { color: var(--ink-4); display: block; }
+.device-diff span { display: block; }
+.device-job { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-top: 1px solid var(--line); }
+.device-job:first-child { border-top: 0; }
+.device-job.is-done { opacity: 0.7; }
+.device-job-dot { width: 8px; height: 8px; margin-top: 7px; flex: none; border-radius: 50%; background: var(--ink-4); }
+.device-job-dot.is-running { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); animation: device-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .device-job-dot.is-running { animation: none; } }
+.device-job-cmd { display: block; font-family: var(--font-code); font-size: 13px; color: var(--ink-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-job-meta { margin-top: 2px; font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-job-last { display: block; margin-top: 4px; padding: 4px 8px; border-radius: 8px; font-family: var(--font-code); font-size: 12px; color: var(--ink-2); background: var(--glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-job-empty { padding: 16px; font-size: 13px; color: var(--ink-3); }
+.device-edit { border-top: 1px solid var(--line); padding: 10px 16px; }
+.device-edit:first-child { border-top: 0; }
+.device-edit-head { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; color: var(--ink-2); }
+.device-edit-head:disabled { cursor: default; }
+.device-edit-t { flex: 1; min-width: 0; font-family: var(--font-code); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-edit-m { flex: none; font-size: 12px; color: var(--ink-3); }
+.node-install { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.node-install-cmd { display: flex; gap: 4px; align-items: flex-start; }
+.node-install-cmd .device-code { flex: 1; max-width: none; white-space: pre-wrap; word-break: break-all; line-height: 1.5; padding-block: 6px; height: auto; }
+.node-install-s { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.node-install > .sg-srow { padding-inline: 0; }
+@media (max-width: 640px) {
+  .full-access-actions { justify-content: stretch; }
+  .full-access-actions > * { flex: 1; }
+  .device-job { flex-wrap: wrap; }
+}

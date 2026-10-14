@@ -1,4 +1,5 @@
 import {
+  IconActivity,
   IconDeviceDesktop,
   IconHistory,
   IconPlayerPlayFilled,
@@ -11,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { isMobilePlatform } from "../../../../../../shared/devices";
+import { DeviceActivityPanel, FullAccessBadge } from "@/components/devices/full-access";
 import { ApprovalsCard, AuditList, DeviceIcon, DevicePermissions, StatusBadge, ThisPcBadge, ThisPcPanel } from "@/components/devices/devices";
 import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
@@ -40,15 +42,16 @@ export const Route = createFileRoute("/_authed/settings/devices/$deviceId")({
     TAB_IDS.includes(search.tab as Tab) ? { tab: search.tab as Tab } : {},
 });
 
-type Tab = "permissions" | "local" | "audit" | "settings";
+type Tab = "permissions" | "activity" | "local" | "audit" | "settings";
 const TABS: Array<{ id: Tab; label: string; Icon: typeof IconShieldLock; thisPcOnly?: boolean }> = [
   { id: "permissions", label: "权限", Icon: IconShieldLock },
+  { id: "activity", label: "运行中", Icon: IconActivity },
   { id: "local", label: "本机", Icon: IconDeviceDesktop, thisPcOnly: true },
   { id: "audit", label: "操作记录", Icon: IconHistory },
   { id: "settings", label: "设备", Icon: IconSettings },
 ];
 
-const TAB_IDS: Tab[] = ["permissions", "local", "audit", "settings"];
+const TAB_IDS: Tab[] = ["permissions", "activity", "local", "audit", "settings"];
 
 /** 设备详情（模板 C）：大图标页头 + 测试连接 / 紧急停止 → 标签（权限 / 操作记录 / 设备）。 */
 function DevicePage() {
@@ -115,7 +118,7 @@ function DevicePage() {
   const isThisPc = !!local && local.deviceId === d.id && !d.revoked;
   // 扫码绑定的手机只用来登录聊天：没有能力 / 测试连接 / 紧急停止，只有操作记录和设备（重命名、撤销）。
   const mobile = isMobilePlatform(d.platform);
-  const tabs = TABS.filter((item) => (!item.thisPcOnly || isThisPc) && !(mobile && item.id === "permissions"));
+  const tabs = TABS.filter((item) => (!item.thisPcOnly || isThisPc) && !(mobile && (item.id === "permissions" || item.id === "activity")));
   const activeTab: Tab = mobile
     ? tab === "settings" ? "settings" : "audit"
     : tab === "local" && !isThisPc ? "permissions" : tab;
@@ -128,6 +131,7 @@ function DevicePage() {
           <div className="device-hero-badges">
             {isThisPc ? <ThisPcBadge /> : null}
             <StatusBadge device={d} />
+            <FullAccessBadge device={d} />
             <span className="device-badge">{platformLabel(d.platform)}</span>
             {d.clientVersion ? <span className="device-badge">{`客户端 ${d.clientVersion}`}</span> : null}
           </div>
@@ -191,6 +195,7 @@ function DevicePage() {
       </div>
 
       {activeTab === "permissions" ? <DevicePermissions device={d} isThisPc={isThisPc} /> : null}
+      {activeTab === "activity" ? <DeviceActivityPanel device={d} /> : null}
       {activeTab === "local" && local ? <ThisPcPanel local={local} onLocal={setLocal} /> : null}
       {activeTab === "audit" ? (
         <Card className="device-audit-card">

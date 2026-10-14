@@ -16,9 +16,9 @@
 | [CB-001](#cb-001) | 审批卡片与审批偏好（Hark parity 第 5 项） | Hark parity | `type: feat` · `area: approvals` · `area: chat` · `P1` · `status: in-progress` |
 | [CB-002](#cb-002) | 生图 / 识图模型设置：管理员默认 + 每人可覆盖 | Hark parity | `type: feat` · `area: images` · `area: settings` · `P1` · `status: in-progress` |
 | [CB-003](#cb-003) | 成熟度扫查：设备流程优先的全量体验检查 | 成熟度 Maturity | `type: chore` · `area: devices` · `area: chat` · `P1` · `status: in-progress` |
-| [CB-004](#cb-004) | 设备上的编码工具：云端机器人读 / 改 / 写本地代码 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: pc` · `P0` · `status: in-progress` |
-| [CB-005](#cb-005) | 无界面设备节点：Linux / macOS 服务器也能当设备 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: infra` · `P1` · `status: in-progress` |
-| [CB-006](#cb-006) | 设备「完全访问」模式（像本地 OpenClaw / Hermes） | 设备核心 Devices core | `type: feat` · `area: devices` · `area: approvals` · `P1` · `status: in-progress` |
+| [CB-004](#cb-004) | 设备上的编码工具：云端机器人读 / 改 / 写本地代码 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: pc` · `P0` · `status: done` |
+| [CB-005](#cb-005) | 无界面设备节点：Linux / macOS 服务器也能当设备 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: infra` · `P1` · `status: done` |
+| [CB-006](#cb-006) | 设备「完全访问」模式（像本地 OpenClaw / Hermes） | 设备核心 Devices core | `type: feat` · `area: devices` · `area: approvals` · `P1` · `status: done` |
 | [CB-007](#cb-007) | 本地 agent 运行时与 agent 选择（可选） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: devices` · `P1` · `status: in-progress` |
 | [CB-008](#cb-008) | 本地 agent 的沙箱 / 权限配置档 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: approvals` · `P1` · `status: in-progress` |
 | [CB-009](#cb-009) | 瘦身 P3：删不发布的目录 + 修 server-typecheck CI | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: done` |
@@ -42,7 +42,7 @@
 | [CB-027](#cb-027) | IM 定时推送受平台被动回复窗口限制 | 成熟度 Maturity | `type: bug` · `area: im` · `area: schedules` · `P2` |
 | [CB-028](#cb-028) | 「开场一句」只在显示时折叠，事件历史里仍保存 | 成熟度 Maturity | `type: chore` · `area: chat` · `P2` |
 | [CB-029](#cb-029) | 弹窗打开动画仍有毛玻璃开销 | 成熟度 Maturity | `type: perf` · `area: settings` · `P2` |
-| [CB-030](#cb-030) | 设备能力「打开」实际可执行任意命令，却标为非危险 | 设备核心 Devices core | `type: bug` · `area: devices` · `area: pc` · `P1` |
+| [CB-030](#cb-030) | 设备能力「打开」实际可执行任意命令，却标为非危险 | 设备核心 Devices core | `type: bug` · `area: devices` · `area: pc` · `P1` · `status: done` |
 | [CB-031](#cb-031) | 本地对话事件表无上限增长 | 成熟度 Maturity | `type: chore` · `area: chat` · `area: infra` · `P2` |
 | [CB-032](#cb-032) | 安卓签名改为 CI 内签名（需要仓库 Actions secrets） | 0.2.0 release | `type: chore` · `area: android` · `area: infra` · `P2` · `status: needs-user` |
 | [CB-033](#cb-033) | 生产跨部署 stale-chunk 测试待跑 | 成熟度 Maturity | `type: chore` · `area: infra` · `P2` |
@@ -116,7 +116,7 @@
 ## CB-004
 
 **设备上的编码工具：云端机器人读 / 改 / 写本地代码**  
-里程碑：设备核心 Devices core · 标签：`type: feat` `area: devices` `area: pc` `P0` `status: in-progress`
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: devices` `area: pc` `P0` `status: done`
 
 #### 背景
 
@@ -124,22 +124,22 @@
 
 #### 验收标准
 
-- [ ] 机器人能在授权文件夹里：列目录、按内容搜索、读文件片段、精确替换编辑、新建文件、跑测试 / 构建命令并看到输出
-- [ ] 每个写操作经过设备权限（关闭 / 询问 / 允许）和审计记录；危险命令仍要本机确认
-- [ ] 大文件 / 大输出截断并说明；二进制文件拒绝
+- [x] 机器人能在授权文件夹里：列目录、按内容搜索、读文件片段、精确替换编辑、新建文件、跑测试 / 构建命令并看到输出
+- [x] 每个写操作经过设备权限（关闭 / 询问 / 允许）和审计记录；危险命令仍要本机确认
+- [x] 大文件 / 大输出截断并说明；二进制文件拒绝
 - [ ] 在 PC 节点和无界面节点上都能用；预览 + 生产 e2e
-- [ ] docs/pc-node.md 与 DESIGN.md 更新、CHANGELOG
+- [x] docs/pc-node.md 与 DESIGN.md 更新、CHANGELOG
 
 #### 相关
 
 - DESIGN.md §16、§45；docs/pc-node.md
 
-> 进行中：worker cb-devices，分支 feat/devices-1。完成时在 PR 里 `Backlog: CB-004`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成（2026-10-15，分支 feat/devices-1，0.1.8）：`device_search` / 按行读 / `device_edit_file` / `device_apply_patch` / `device_git` / 后台命令 + 持久会话 / 进程 / 传文件；审批卡片（聊天卡片、设置 → 设备、PC 弹窗）显示 diff。无界面节点上预览 + 生产 e2e 通过（真实编码循环：克隆 → 跑测试失败 → 搜索 / 读 / 精确替换 → 测试通过 → 提交）。**未勾的一项**：Windows PC 节点只有单元测试（同一套 agent 代码），真机验证随 0.1.8 PC 发版后做（CB-017）。
 
 ## CB-005
 
 **无界面设备节点：Linux / macOS 服务器也能当设备**  
-里程碑：设备核心 Devices core · 标签：`type: feat` `area: devices` `area: infra` `P1` `status: in-progress`
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: devices` `area: infra` `P1` `status: done`
 
 #### 背景
 
@@ -147,17 +147,17 @@
 
 #### 验收标准
 
-- [ ] 一条命令安装 / 关联（令牌一次性），systemd / launchd 常驻，断线重连
-- [ ] 出现在 设置 → 设备，能力与权限模型和 PC 一致
-- [ ] 不需要图形界面；截图类能力在无显示器时如实报不可用
-- [ ] 安装、升级、卸载写进 docs/pc-node.md（或新 docs/node.md）
+- [x] 一条命令安装 / 关联（令牌一次性），systemd / launchd 常驻，断线重连
+- [x] 出现在 设置 → 设备，能力与权限模型和 PC 一致
+- [x] 不需要图形界面；截图类能力在无显示器时如实报不可用
+- [x] 安装、升级、卸载写进 docs/pc-node.md（或新 docs/node.md）
 
-> 进行中：worker cb-devices。完成时在 PR 里 `Backlog: CB-005`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成（2026-10-15，feat/devices-1）：设置 → 设备 →「添加一台服务器」生成一行安装命令（30 分钟有效的一次性安装码）；`chisabot-node` 和 PC 用同一套 agent 代码；有 systemd 时注册服务（root 系统级 / 普通用户 user 级），macOS 用 launchd；断线自动重连。e2e 在无 systemd 的一次性容器里跑（手动运行路径）；systemd / launchd 服务安装只有代码路径与单元测试，未在真机上验证。文档 docs/pc-node.md §14。
 
 ## CB-006
 
 **设备「完全访问」模式（像本地 OpenClaw / Hermes）**  
-里程碑：设备核心 Devices core · 标签：`type: feat` `area: devices` `area: approvals` `P1` `status: in-progress`
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: devices` `area: approvals` `P1` `status: done`
 
 #### 背景
 
@@ -165,12 +165,12 @@
 
 #### 验收标准
 
-- [ ] 设备上有「完全访问」开关，打开前一次清楚的风险确认（本机 + 网页都显示状态）
-- [ ] 完全访问下命令 / 文件 / 键鼠不再逐次询问，但全部写审计，有一键急停（kill switch）
-- [ ] 随时可以退回「询问」；服务器重启后状态保持
-- [ ] ADR 记录这个取舍；DESIGN.md + docs/pc-node.md 更新
+- [x] 设备上有「完全访问」开关，打开前一次清楚的风险确认（本机 + 网页都显示状态）
+- [x] 完全访问下命令 / 文件 / 键鼠不再逐次询问，但全部写审计，有一键急停（kill switch）
+- [x] 随时可以退回「询问」；服务器重启后状态保持
+- [x] ADR 记录这个取舍；DESIGN.md + docs/pc-node.md 更新
 
-> 进行中：worker cb-devices。完成时在 PR 里 `Backlog: CB-006`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成（2026-10-15，feat/devices-1）：1 小时 / 24 小时 / 永久，只能主人在网页打开（PC 本机再确认一次），机器人无法打开；急停 / 到期自动关闭；状态存 `devices.full_access_until`（服务器重启后保持，有真库回归测试）。ADR-0009，docs/pc-node.md §13。
 
 ## CB-007
 
@@ -595,8 +595,10 @@ delegate_task 的工具参数还在流式输出时（默认模型约 6–8 秒�
 #### 验收标准
 
 - [ ] open 只能打开 URL / 文件 / 文件夹，不能带任意参数执行
-- [ ] 或者把它归为危险能力并本机确认
-- [ ] 测试覆盖绕过用例
+- [x] 或者把它归为危险能力并本机确认
+- [x] 测试覆盖绕过用例
+
+> 完成（2026-10-15，feat/devices-1，0.1.8）：「打开」标为高风险，PC 开着「高风险操作始终在本机确认」时也会本机再问一次（`pc/test/code-ops.check.js` 覆盖带参数启动程序的用例）。仍可以带参数启动程序——这是这项能力的用途，按命令行同级对待。
 
 #### 相关
 

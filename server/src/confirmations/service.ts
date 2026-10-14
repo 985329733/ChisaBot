@@ -509,7 +509,10 @@ export function createConfirmations(database: Database) {
         tool: call?.toolName ?? "device",
         title: `在你的电脑上${input.operationLabel}`,
         target: input.deviceName,
-        details: [{ label: "要做的事", value: input.summary.slice(0, 600), code: /命令|shell|路径/.test(input.operationLabel) }],
+        details: [
+          { label: "要做的事", value: input.summary.slice(0, 600), code: /命令|shell|路径/.test(input.operationLabel) },
+          ...(input.diff ? [{ label: "改动", value: input.diff.slice(0, 8000), code: true, diff: true }] : []),
+        ],
         external: `device:${input.approvalId}`,
         expiresAt: new Date(input.expiresAt),
       });

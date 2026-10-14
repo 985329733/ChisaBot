@@ -6,6 +6,7 @@
  * 但在本机先检查）都会拒绝。断线自动重连（1s → 30s 指数退避 + 抖动），被撤销则停止。
  */
 const { EventEmitter } = require("node:events");
+const { gitIsRead } = require("./code-ops");
 
 const OPERATION_CAPABILITY = {
   system_info: null,
@@ -18,9 +19,32 @@ const OPERATION_CAPABILITY = {
   open: "open",
   clipboard_read: "clipboard",
   clipboard_write: "clipboard",
+  // 编码 / 完全访问（docs/pc-node.md §12、§13）
+  search: "files_read",
+  read_range: "files_read",
+  edit_file: "files_write",
+  apply_patch: "files_write",
+  git: "shell", // 只读子命令按 files_read，见 capabilityFor
+  shell_session: "shell",
+  exec_start: "shell",
+  exec_poll: "shell",
+  exec_kill: "shell",
+  exec_list: "shell",
+  process_list: "shell",
+  process_kill: "shell",
+  file_upload: "files_write",
+  file_download: "files_read",
+  activity: null,
 };
 
-const DANGEROUS = new Set(["shell", "files_write", "input"]);
+/** 某次调用需要的能力（git 只读子命令只要「读取文件」）。和 shared/devices.ts 的 capabilityFor 一致。 */
+function capabilityFor(operation, args = {}) {
+  if (operation === "git") return gitIsRead(args.subcommand, Array.isArray(args.args) ? args.args : []) ? "files_read" : "shell";
+  return OPERATION_CAPABILITY[operation];
+}
+
+// open 也算：它能 Start-Process / xdg-open 任意程序（带参数），等同命令行（CB-030）。
+const DANGEROUS = new Set(["shell", "files_write", "input", "open"]);
 
 function wsUrlFor(serverUrl) {
   const url = new URL(serverUrl);
@@ -38,7 +62,15 @@ function summarize(operation, args) {
     case "write_file":
       return `写入：${args.path}`;
     case "read_file":
+    case "read_range":
       return `读取：${args.path}`;
+    case "edit_file":
+    case "apply_patch":
+      return `修改文件：${args.path || "补丁"}`;
+    case "git":
+      return `git ${args.subcommand || ""}`;
+    case "exec_start":
+      return `后台运行：${String(args.command || "").slice(0, 200)}`;
     case "list_files":
       return `列出：${args.path || "允许的文件夹"}`;
     case "input":
@@ -66,6 +98,12 @@ function createNodeAgent(options) {
   const events = new EventEmitter();
   const WebSocketImpl = options.WebSocket || require("ws");
   const local = options.local || (() => ({ paused: false, forceLocalApproval: false }));
+  // 完全访问（docs/pc-node.md §13）：服务器说开了，还要本机同意一次（PC 弹窗 / 无界面节点的启动参数）。
+  // acceptFullAccess(device) → Promise<boolean>；不提供时按 allowFullAccess（默认 true）。
+  let fullAccessAccepted = null; // 已同意的那次开启（fullAccessUntil）
+  let fullAccessAsking = null;
+  let fullAccessTimer = null;
+  let fullAccessExpired = false;
   let socket = null;
   let state = "offline"; // offline | connecting | online | revoked | stopped
   let device = null;
@@ -121,11 +159,58 @@ function createNodeAgent(options) {
     if (typeof reconnectTimer.unref === "function" && options.unrefTimers) reconnectTimer.unref();
   }
 
+  function fullAccessOn() {
+    return !!(device && device.fullAccess && !fullAccessExpired && fullAccessAccepted && fullAccessAccepted === device.fullAccessUntil);
+  }
+
+  /** 收到新配置时：完全访问刚开 → 本机确认一次；关了 / 到期 → 结束后台命令和管理员助手。 */
+  function syncFullAccess(previous) {
+    clearTimeout(fullAccessTimer);
+    const wasOn = previous && previous.fullAccess;
+    if (!device?.fullAccess) {
+      fullAccessAccepted = null;
+      fullAccessExpired = false;
+      if (wasOn) {
+        options.ops.stopAll?.("full_access_off");
+        events.emit("full_access", { on: false });
+      }
+      return;
+    }
+    fullAccessExpired = false;
+    if (typeof device.fullAccessRemainingMs === "number" && device.fullAccessRemainingMs < 400 * 24 * 3600_000) {
+      fullAccessTimer = setTimeout(() => {
+        fullAccessExpired = true;
+        options.ops.stopAll?.("full_access_expired");
+        events.emit("full_access", { on: false, expired: true });
+      }, Math.max(0, device.fullAccessRemainingMs));
+      if (typeof fullAccessTimer.unref === "function" && options.unrefTimers) fullAccessTimer.unref();
+    }
+    if (fullAccessAccepted === device.fullAccessUntil || fullAccessAsking === device.fullAccessUntil) return;
+    const grant = device.fullAccessUntil;
+    fullAccessAsking = grant;
+    const ask = options.acceptFullAccess ? options.acceptFullAccess(device) : Promise.resolve(options.allowFullAccess !== false);
+    Promise.resolve(ask)
+      .catch(() => false)
+      .then((ok) => {
+        fullAccessAsking = null;
+        if (!device || device.fullAccessUntil !== grant) return;
+        if (ok) {
+          fullAccessAccepted = grant;
+          send({ type: "local_audit", action: "full_access_accepted", outcome: "succeeded", summary: "本机同意了完全访问" });
+          events.emit("full_access", { on: true });
+        } else {
+          send({ type: "set_config", fullAccess: "off" });
+          send({ type: "local_audit", action: "full_access_declined", outcome: "denied", summary: "本机拒绝了完全访问，已关闭" });
+        }
+      });
+  }
+
   async function handleCall(message) {
     const { id, operation } = message;
     const args = message.args || {};
-    const capability = OPERATION_CAPABILITY[operation];
-    const policy = capability ? device?.capabilities?.[capability] ?? "off" : "allow";
+    const capability = capabilityFor(operation, args);
+    const full = fullAccessOn();
+    const policy = full ? "allow" : capability ? device?.capabilities?.[capability] ?? "off" : "allow";
     const started = Date.now();
     const reply = (ok, payload) => {
       running.delete(id);
@@ -143,8 +228,9 @@ function createNodeAgent(options) {
     if (local().paused) return reply(false, "这台电脑已在本机紧急停止，拒绝所有远程操作。");
     if (device?.paused) return reply(false, "这台设备已紧急停止。");
     if (policy === "off") return reply(false, "本机设置中这项能力是关闭的。");
-    // 本机强制审批：危险能力即使服务器设为「直接执行」也在本机再问一次。
-    if (local().forceLocalApproval && capability && DANGEROUS.has(capability) && policy === "allow" && options.approve) {
+    if (args.elevated && !full) return reply(false, "管理员身份运行只在「完全访问」模式下可用（本机尚未同意或已到期）。");
+    // 本机强制审批：危险能力即使服务器设为「直接执行」也在本机再问一次。完全访问模式下不问（用户已在本机同意过）。
+    if (!full && local().forceLocalApproval && capability && DANGEROUS.has(capability) && policy === "allow" && options.approve) {
       const decision = await options
         .approve({
           id: `local-${id}`,
@@ -165,6 +251,8 @@ function createNodeAgent(options) {
       const result = await options.ops.run(operation, args, {
         allowedRoots: device?.allowedRoots || [],
         signal: controller.signal,
+        fullAccess: full,
+        botName: message.botName,
       });
       if (controller.signal.aborted) return reply(false, "已取消。");
       reply(true, result);
@@ -198,12 +286,16 @@ function createNodeAgent(options) {
     }
     switch (message.type) {
       case "welcome":
-      case "config":
+      case "config": {
+        const previous = device;
         device = message.device;
         attempt = 0;
+        if (device?.paused && !previous?.paused) options.ops.stopAll?.("paused");
+        syncFullAccess(previous);
         setState("online");
         events.emit("config", device);
         return;
+      }
       case "call":
         void handleCall(message);
         return;
@@ -223,6 +315,7 @@ function createNodeAgent(options) {
         return;
       }
       case "revoked":
+        options.ops.stopAll?.("revoked");
         stopped = true;
         setState("revoked");
         events.emit("revoked");
@@ -268,7 +361,7 @@ function createNodeAgent(options) {
     armWatchdog(ws);
     ws.on("open", () => {
       lastError = "";
-      send({ type: "hello", ...(options.clientInfo || {}) });
+      send({ type: "hello", ...(options.clientInfo || {}), features: options.ops.features || undefined });
     });
     ws.on("message", (data) => {
       armWatchdog(ws);
@@ -364,7 +457,10 @@ function createNodeAgent(options) {
         if (patch.name) device = { ...device, name: patch.name };
         events.emit("config", device);
       }
-      if (patch.paused === true) for (const controller of running.values()) controller.abort();
+      if (patch.paused === true) {
+        for (const controller of running.values()) controller.abort();
+        options.ops.stopAll?.("paused");
+      }
       return send({ type: "set_config", ...patch });
     },
     reportLocal(action, outcome, summary) {
@@ -376,7 +472,11 @@ function createNodeAgent(options) {
     get device() {
       return device;
     },
+    /** 完全访问是否在本机生效（服务器开了、本机同意了、没到期）。 */
+    get fullAccess() {
+      return fullAccessOn();
+    },
   };
 }
 
-module.exports = { createNodeAgent, wsUrlFor, OPERATION_CAPABILITY, summarize };
+module.exports = { createNodeAgent, wsUrlFor, OPERATION_CAPABILITY, capabilityFor, summarize };

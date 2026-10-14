@@ -21,7 +21,8 @@ import {
 } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, ErrorCard } from "@/components/ui/skyglass";
-import { deviceListQueryOptions, pcDownloadQueryOptions } from "@/lib/devices";
+import { AddServerCard } from "@/components/devices/full-access";
+import { DEVICE_KIND_LABEL, type DeviceKind, deviceKind, deviceListQueryOptions, pcDownloadQueryOptions } from "@/lib/devices";
 import { usePcLocal } from "@/lib/pc-bridge";
 import { isMobilePlatform } from "../../../../../../shared/devices";
 
@@ -78,7 +79,7 @@ function DevicesPage() {
             ) : null}
           </span>
         }
-        description="关联到你账号的全部设备，由你的所有机器人共用：机器人只能在每台设备开启的能力和允许的文件夹里操作在线设备，「询问」的操作先问你，每一步都有记录，随时可以紧急停止。"
+        description="关联到你账号的全部设备（电脑、服务器、手机），由你的所有机器人共用：机器人只能在每台设备开启的能力和允许的文件夹里操作在线设备，「询问」的操作先问你，每一步都有记录，随时可以紧急停止。需要时可以为某台设备打开「完全访问」。"
         title="设备"
       >
         {list.isPending ? (
@@ -101,7 +102,7 @@ function DevicesPage() {
         ) : (
           <>
             <ApprovalsCard approvals={list.data.approvals} />
-            {/* 「机器人能用的电脑」只算电脑：扫码绑定的手机只用来登录聊天（DESIGN.md §33）。 */}
+            {/* 「机器人能用的设备」只算电脑和服务器：扫码绑定的手机只用来登录聊天（DESIGN.md §33）。 */}
             <ConnectionCard
               devices={active.filter(
                 (device) => !isMobilePlatform(device.platform),
@@ -118,15 +119,22 @@ function DevicesPage() {
               title="设备列表"
             >
               {active.length ? (
-                <Card>
-                  {active.map((device) => (
-                    <DeviceRow
-                      device={device}
-                      isThisPc={local?.deviceId === device.id}
-                      key={device.id}
-                    />
-                  ))}
-                </Card>
+                // 按类型分组：电脑 / 服务器 / 手机（只有一种时不写组名）。
+                (["pc", "server", "phone"] as DeviceKind[]).map((kind) => {
+                  const group = active.filter((device) => deviceKind(device) === kind);
+                  if (!group.length) return null;
+                  const kinds = new Set(active.map((device) => deviceKind(device)));
+                  return (
+                    <div className="device-group" key={kind}>
+                      {kinds.size > 1 ? <h3 className="device-group-t">{`${DEVICE_KIND_LABEL[kind]}（${group.length}）`}</h3> : null}
+                      <Card>
+                        {group.map((device) => (
+                          <DeviceRow device={device} isThisPc={local?.deviceId === device.id} key={device.id} />
+                        ))}
+                      </Card>
+                    </div>
+                  );
+                })
               ) : (
                 <NoDevices />
               )}
@@ -150,6 +158,9 @@ function DevicesPage() {
         </PageSection>
         <PageSection title="添加一台电脑">
           <AddDeviceCard />
+        </PageSection>
+        <PageSection title="添加一台服务器">
+          <AddServerCard />
         </PageSection>
       </PageShell>
     </>

@@ -18,6 +18,7 @@ import {
   IconPhoto,
   IconPlayerStopFilled,
   IconRobot,
+  IconServer,
   IconShieldCheck,
   IconTerminal2,
   IconTrash,
@@ -68,6 +69,8 @@ import {
   deleteDevice,
   deviceKeys,
   lastUsedText,
+  DEVICE_KIND_LABEL,
+  deviceKind,
   linkedText,
   OUTCOME_LABEL,
   type PcDownload,
@@ -79,6 +82,7 @@ import {
 } from "@/lib/devices";
 import { type PcLocalPatch, type PcLocalState, type PcUpdateState, pcBridge } from "@/lib/pc-bridge";
 import { cn } from "@/lib/utils";
+import { FullAccessBadge, FullAccessCard } from "./full-access";
 import { PairPhoneButton } from "./pair-phone";
 
 const CAP_ICON: Record<DeviceCapability, typeof IconTerminal2> = {
@@ -91,7 +95,8 @@ const CAP_ICON: Record<DeviceCapability, typeof IconTerminal2> = {
   clipboard: IconClipboard,
 };
 
-export function platformIcon(platform: string) {
+export function platformIcon(platform: string, kind?: "pc" | "server" | "phone") {
+  if (kind === "server") return IconServer;
   if (platform === "win32") return IconBrandWindows;
   if (platform === "android") return IconBrandAndroid;
   if (platform === "darwin") return IconBrandApple;
@@ -99,8 +104,14 @@ export function platformIcon(platform: string) {
   return IconDeviceDesktop;
 }
 
-export function DeviceIcon({ device, size = "md" }: { device: Pick<DeviceView, "platform" | "online" | "paused" | "revoked">; size?: "md" | "lg" }) {
-  const Icon = platformIcon(device.platform);
+export function DeviceIcon({
+  device,
+  size = "md",
+}: {
+  device: Pick<DeviceView, "platform" | "online" | "paused" | "revoked"> & Partial<Pick<DeviceView, "clientVersion">>;
+  size?: "md" | "lg";
+}) {
+  const Icon = platformIcon(device.platform, deviceKind({ platform: device.platform, clientVersion: device.clientVersion ?? null }));
   const status = device.revoked ? "is-revoked" : device.paused ? "is-paused" : device.online ? "is-online" : "is-offline";
   return (
     <span className={cn("device-icon", size === "lg" && "is-lg", status)}>
@@ -177,7 +188,7 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
   const busy =
     revoke.state === "pending" ? "撤销中…" : remove.state === "pending" ? "删除中…" : revoke.state === "success" ? "已撤销" : remove.state === "success" ? "已删除" : null;
   const facts = [
-    osText(device.platform, device.osVersion),
+    `${DEVICE_KIND_LABEL[deviceKind(device)]} · ${osText(device.platform, device.osVersion)}`,
     device.clientVersion ? `客户端 ${device.clientVersion}` : null,
     // 在线时右侧徽标已经写了「在线」，这里只在离线时写最后在线时间。
     device.online ? null : seenText(device.lastSeenAt, device.online),
@@ -193,6 +204,7 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
           actions={
             <span className="device-row-actions">
               {isThisPc ? <ThisPcBadge /> : null}
+              {busy ? null : <FullAccessBadge device={device} size="sm" />}
               {busy ? (
                 <span aria-live="polite" className={cn("device-badge", busy.startsWith("已") ? "is-muted" : "is-warn")}>
                   {busy}
@@ -396,6 +408,7 @@ function ApprovalRow({ approval }: { approval: DeviceApprovalView }) {
           {`${approval.botName ?? "机器人"} 想在「${approval.deviceName}」上${OPERATION_LABEL[approval.operation]}`}
         </div>
         <code className="device-approval-s">{approval.summary}</code>
+        {approval.diff ? <DiffBlock diff={approval.diff} /> : null}
         <div className="device-approval-m">
           {`${left > 0 ? `${Math.ceil(left / 1000)} 秒后自动拒绝` : "即将自动拒绝"} · 也可以在这台电脑的弹窗里处理`}
         </div>
@@ -417,6 +430,27 @@ function ApprovalRow({ approval }: { approval: DeviceApprovalView }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** 审批卡片里的改动预览：删行红、加行绿，最多 240px 高可滚动。 */
+export function DiffBlock({ diff }: { diff: string }) {
+  const lines = diff.split("\n").slice(0, 400);
+  return (
+    <pre className="device-diff is-approval">
+      {lines.map((line, index) => (
+        <span
+          className={cn(
+            line.startsWith("+") && !line.startsWith("+++") && "is-add",
+            line.startsWith("-") && !line.startsWith("---") && "is-del",
+            line.startsWith("@@") && "is-hunk",
+          )}
+          key={index}
+        >
+          {`${line}\n`}
+        </span>
+      ))}
+    </pre>
   );
 }
 
@@ -514,7 +548,7 @@ export function ConnectionCard({
       : "这台电脑还没有关联到你的账号。";
   return (
     <Card className="device-connection">
-      <SettingRow description={summary} title="机器人能用的电脑">
+      <SettingRow description={summary} title="机器人能用的设备">
         <span className={cn("device-badge", online.length ? "is-ok" : "is-warn")}>
           <span aria-hidden className={cn("device-dot", online.length && "is-ok")} />
           {online.length ? `${online.length} 台在线` : "没有在线设备"}
@@ -740,8 +774,9 @@ export function DevicePermissions({ device, isThisPc = false }: { device: Device
 
   return (
     <>
-      <section className="device-section">
-        <h2 className="device-section-t">{"能力"}</h2>
+      <FullAccessCard device={device} />
+      <section className={cn("device-section", device.fullAccess && "is-overridden")}>
+        <h2 className="device-section-t">{device.fullAccess ? "能力（完全访问开启中，以下设置暂不生效）" : "能力"}</h2>
         <p className="device-section-s">{"新电脑默认全部「询问」。「询问」= 每次在这台电脑的弹窗或这里确认；「允许」= 直接执行。所有操作都会记录。"}</p>
         <Card>
           {DEVICE_CAPABILITIES.map((capability) => {
