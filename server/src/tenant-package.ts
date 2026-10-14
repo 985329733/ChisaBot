@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { parse } from "yaml";
 import { DEPLOYMENT_ROUTES } from "./computer/deployment-routes";
+import { sweepPackageOrphans } from "./package-orphans";
 import type { Database } from "./db/client";
 import {
   agentProfiles,
@@ -1132,6 +1133,13 @@ export async function synchronizeTenantPackage(
           });
       }
     }
+
+    // 包里删掉的技能 / 频道、授给已删机器人的授权：同一个事务里清掉（瘦身 P2，docs/slimming.md）。
+    await sweepPackageOrphans(transaction, {
+      packageId: deploymentPackage.id,
+      skillSlugs: tenantPackage.skills.map((skill) => skill.slug),
+      channelIds: tenantPackage.channels.map((channel) => channel.id),
+    });
 
     return deploymentPackage;
   });

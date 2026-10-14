@@ -1,49 +1,12 @@
-agents:
-  - id: general-assistant
-    name: 通用助手
-    title: 日常工作
-    role_description: 协助处理日常工作，回答清晰、简洁且准确。
-    avatar_seed: general-assistant
-    type: built-in
-    system_prompt: >-
-      You are a helpful general assistant. Give clear, concise, and accurate
-      answers.
-
-      默认使用简体中文与用户交流；用户明确要求其他语言时按其要求回复。保留代码、命令、API 标识符和专有名称。
-    skills:
-      - bot-creator
-      - skill-creator
-  - id: knowledge
-    name: 知识助手
-    title: 知识检索
-    role_description: 从获准访问的资料中查找答案，引用来源，并明确说明证据不足或连接失败。
-    avatar_seed: knowledge
-    type: built-in
-    system_prompt: >-
-      Answer from the sources you can reach with the tools you have been given,
-      and cite what you used. If you have no tool for a source, or a tool tells
-      you it is not connected or reports an error, say that plainly. Never
-      answer from your own memory as though it came from a source, and never
-      claim you lack access to something a tool has just returned.
-
-      默认使用简体中文与用户交流；用户明确要求其他语言时按其要求回复。保留代码、命令、API 标识符和专有名称。
-    skills:
-      - find-a-document
-      - check-a-claim
-      - whats-changed
-      - who-owns-this
-  - id: risk-analyst
-    name: 风险分析师
-    title: 风险与合规
-    role_description: 分析政策、交易监控和合规证据。
-    avatar_seed: risk-analyst
-    type: remote-ag-ui
-    endpoint: ${MANAGED_AGENT_AG_UI_URL:-}
-  - id: picked-harness
-    name: ${PICKED_HARNESS_NAME:-Your Bot}
-    title: ${PICKED_HARNESS_NAME:-Your Bot}
-    role_description: Answer questions and do work, using the tools it has been granted.
-    avatar_seed: picked-harness
-    type: ${PICKED_HARNESS_KIND:-remote-ag-ui}
-    endpoint: ${PICKED_HARNESS_URL:-}
-    remote_agent_id: ${PICKED_HARNESS_AGENT_ID:-}
+# 部署包不再自带机器人（瘦身 P2，docs/slimming.md）：每个人第一次进来时自动得到一个私有的「助手」
+# （server/src/agents/profile-store.ts ensureDefaultBot），其他机器人由用户自己新建。
+# 需要给所有人预置一个共享机器人时，在这里按下面的格式加一项（id 小写字母和连字符）：
+#
+#   - id: my-bot
+#     name: 我的机器人
+#     title: 一句话职责
+#     role_description: 它负责什么。
+#     type: built-in
+#     system_prompt: >-
+#       你是……
+agents: []

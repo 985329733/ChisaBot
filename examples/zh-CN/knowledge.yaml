@@ -1,9 +1,2 @@
-sources:
-  - type: google-drive
-    roots:
-      - Policies
-      - Compliance
-  - type: microsoft-onedrive
-    roots:
-      - Risk
-      - Operations
+# 部署包不再预置知识来源（上游 Google Drive / OneDrive 示例已去掉）。
+sources: []

@@ -1,24 +1,2 @@
-channels:
-  - id: general-assistant
-    name: 通用助手
-    description: 协助处理日常工作。
-    permitted_agents:
-      - general-assistant
-    allowed_groups:
-      - all
-  - id: risk-and-compliance
-    name: 风险与合规
-    description: 分析政策、交易监控和合规证据。
-    permitted_agents:
-      - knowledge
-      - risk-analyst
-    allowed_groups:
-      - risk
-      - compliance
-  - id: company-knowledge
-    name: 知识检索
-    description: 从已授权的文档中查找有依据的答案。
-    permitted_agents:
-      - knowledge
-    allowed_groups:
-      - all
+# 部署包不再自带频道（对话由机器人对话自动建立）。
+channels: []
