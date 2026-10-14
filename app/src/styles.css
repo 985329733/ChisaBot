@@ -6403,7 +6403,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .vault-card-in:focus { border-color: var(--ink-3); }
 .vault-card-in::placeholder { font-family: inherit; color: var(--ink-4); }
 
-/* GitHub 账号连接（DESIGN.md §XX）：设置里的连接行 + 连接弹窗步骤 + 聊天里的写操作确认卡片。 */
+/* GitHub 账号连接（DESIGN.md §53）：设置里的连接行 + 连接弹窗步骤 + 聊天里的写操作确认卡片。 */
 .im-row-main.is-static { cursor: default; }
 .gh-avatar { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; background: var(--glass-2); }
 .gh-mark { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; color: #fff; background: #1f2328; }

@@ -1,5 +1,5 @@
 /**
- * GitHub 账号连接（DESIGN.md §XX，docs/github.md）。
+ * GitHub 账号连接（DESIGN.md §53，docs/github.md）。
  *
  * 用户在 设置 → 账号连接 里贴一个 GitHub 令牌（推荐 fine-grained，只勾需要的仓库和权限）；令牌存进
  * 密钥保险箱（保留名字 `github`，只允许发往 api.github.com），从不进模型。机器人拿到 github_* 工具：

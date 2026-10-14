@@ -165,7 +165,7 @@ function RouteComponent() {
       description={"GitHub、机器人代表你使用的应用，以及你保存的网站登录。"}
       title={"账号连接"}
     >
-      {/* GitHub（DESIGN.md §XX）：自己的连接，不依赖管理员启用的连接器，所以放在最上面、总是显示。 */}
+      {/* GitHub（DESIGN.md §53）：自己的连接，不依赖管理员启用的连接器，所以放在最上面、总是显示。 */}
       <GithubConnectionSection />
       {/*
        * Only the failure is worth saying. A success needs no sentence: the row it came back to now

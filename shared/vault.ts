@@ -42,7 +42,7 @@ export function domainAllowed(host: string, domains: readonly string[]): boolean
   });
 }
 
-/** 保留的名字：由专门的连接管理（DESIGN.md §XX GitHub），保险箱页面和 `api_request` 都不能直接用。 */
+/** 保留的名字：由专门的连接管理（DESIGN.md §53 GitHub），保险箱页面和 `api_request` 都不能直接用。 */
 const RESERVED = new Map<string, "github">([["github", "github"]]);
 export function vaultReserved(name: string): "github" | undefined {
   return RESERVED.get(name);

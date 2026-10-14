@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { GithubActionView, GithubConnectionView } from "../../../shared/github";
 import { client } from "@/lib/client";
 
-/** GitHub 账号连接（DESIGN.md §XX，docs/github.md）。令牌只往服务器送，从不读回来。 */
+/** GitHub 账号连接（DESIGN.md §53，docs/github.md）。令牌只往服务器送，从不读回来。 */
 export const githubKeys = {
   all: ["github"] as const,
   action: (key: string) => ["github", "action", key] as const,

@@ -76,7 +76,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
         <SignInTool />
         {/* 密钥保险箱的安全输入卡片（DESIGN.md §52）：`vault_request_secret` 在服务器上等，这里只画。 */}
         <VaultTool />
-        {/* GitHub 写操作的确认卡片（DESIGN.md §XX）：github_create_issue / comment / create_pr 在服务器上等，这里只画。 */}
+        {/* GitHub 写操作的确认卡片（DESIGN.md §53）：github_create_issue / comment / create_pr 在服务器上等，这里只画。 */}
         <GithubTool />
         {/*
           Draws a Bot bringing in another Bot. Registers no tool: `message_bot` runs on the server,

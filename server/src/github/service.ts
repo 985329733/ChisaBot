@@ -17,7 +17,7 @@ import { markUntrusted } from "../untrusted-content";
 import type { Vault } from "../vault/service";
 
 /**
- * GitHub 账号连接（DESIGN.md §XX，docs/github.md）。
+ * GitHub 账号连接（DESIGN.md §53，docs/github.md）。
  *
  * 令牌：用户在 设置 → 账号连接 贴的 GitHub 令牌（推荐 fine-grained）。存进密钥保险箱的保留名字 `github`
  * （只允许发往 api.github.com；保险箱页面不能改、`api_request` 不能用），连接信息（登录名、头像、令牌类型）

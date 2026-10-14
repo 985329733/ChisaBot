@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { decideGithubAction, githubActionQueryOptions, githubKeys } from "@/lib/github";
 
 /**
- * GitHub 写操作的确认卡片（DESIGN.md §XX）。RENDER ONLY：工具在服务器上等用户点「允许 / 拒绝」，
+ * GitHub 写操作的确认卡片（DESIGN.md §53）。RENDER ONLY：工具在服务器上等用户点「允许 / 拒绝」，
  * 点「允许」时服务器才真正调用 GitHub。卡片按工具结果里的 ⟦github:id⟧ 找到这条操作（重新打开对话也对得上）。
  */
 const parameters = z.object({

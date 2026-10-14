@@ -1,6 +1,6 @@
 # GitHub 账号连接（ChisaBot）
 
-设计见 DESIGN.md §XX。
+设计见 DESIGN.md §53。
 
 - 设置 → 账号连接 → GitHub：贴一个 GitHub 令牌（推荐 fine-grained，只选给机器人的仓库；需要 Contents / Issues / Pull requests 读写，Metadata 只读）。服务器先读 `/user` 验证，成功才加密存进保险箱（保留名 `github`，只发往 api.github.com）。
 - 机器人读：`github_list_repos`、`github_list_issues`、`github_list_pulls`、`github_get_issue`、`github_read_file`。

@@ -22,7 +22,7 @@ const KIND_TEXT: Record<GithubConnectionView["tokenKind"], string> = {
 };
 
 /**
- * 设置 → 账号连接 → GitHub（DESIGN.md §XX）。
+ * 设置 → 账号连接 → GitHub（DESIGN.md §53）。
  * 连接 = 贴一个 GitHub 令牌：服务器先用它读一次 /user，成功才加密存进保险箱（保留名 github）。值从不回显。
  */
 export function GithubConnectionSection() {

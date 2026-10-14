@@ -1259,7 +1259,7 @@ await memoryNotes.ensure();
 /** 密钥保险箱（DESIGN.md §52）：API 密钥 / 令牌，值不进模型；api_request 按域名替换。 */
 const vault = createVault(database, { encryptionKey: config.keyEncryptionKey });
 await vault.ensure();
-/** GitHub 账号连接（DESIGN.md §XX）：令牌在保险箱（保留名 github），读直接做，写先在聊天里确认。 */
+/** GitHub 账号连接（DESIGN.md §53）：令牌在保险箱（保留名 github），读直接做，写先在聊天里确认。 */
 const github = createGithub(database, { vault, apiBase: process.env.CHISABOT_GITHUB_API_BASE });
 await github.ensure();
 /** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */

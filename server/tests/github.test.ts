@@ -6,7 +6,7 @@ import { canConfirm, createGithub, githubGuidance } from "../src/github/service"
 import { createVault } from "../src/vault/service";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
-/** GitHub 账号连接（DESIGN.md §XX）：令牌校验 + 存保险箱、读工具、写操作要确认、令牌不出服务器。 */
+/** GitHub 账号连接（DESIGN.md §53）：令牌校验 + 存保险箱、读工具、写操作要确认、令牌不出服务器。 */
 describe("helpers", () => {
   test("token kind", () => {
     expect(githubTokenKind("github_pat_11AAA")).toBe("fine-grained");
