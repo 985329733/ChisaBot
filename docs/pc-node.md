@@ -141,3 +141,46 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
   解锁屏幕、聊天网页从服务器加载成功时 `reconnectNow()` 跳过退避立刻重连。
 - 离线时托盘 / 网页设备页显示真实原因（例如「服务器返回 403」「代理拒绝了连接」）和线路（`networkRoute`）；
   设备页「这台电脑」的「重新连接」调 `pc:reconnect`。
+
+## 12. 编码工具（0.1.8，2026-10-15）
+
+让云端的机器人像本机的编码智能体一样改用户设备上的代码：先搜、再按行读、精确改、跑测试、看 diff。实现在 `pc/src/agent/code-ops.js`（PC 客户端和服务器节点共用）+ `pc/src/agent/textdiff.js`（无依赖的 Myers 行差异 / unified diff 解析与应用，和 `git apply` 互通），服务器工具在 `server/src/devices/tools.ts`。
+
+| 机器人工具 | 节点操作 | 能力 | 说明 |
+| --- | --- | --- | --- |
+| `device_search` | `search` | 读取文件 | 类似 ripgrep：`pattern`（正则，`literal` 按字面）+ `glob`（`*.ts`、`src/**/*.py`、`*.{js,jsx}`），返回 文件:行号:内容（可带上下文）；默认跳过 node_modules / .git / dist 等和二进制、>4MB 文件；最多 1000 条、5 万个文件、60 秒 |
+| `device_read_file`（带 `startLine`/`endLine`） | `read_range` | 读取文件 | 流式按行读，带行号「N│」，一次最多 2000 行，返回 `totalLines` / `more` |
+| `device_edit_file` | `edit_file` | 写入文件 | 一处或多处 `oldText → newText`：必须逐字一致且唯一（出现多次时报出行号，`replaceAll` 全部替换），任何一处失败整个不改；保留 CRLF；备份 `*.chisabot-bak`；返回 unified diff 和 +/- 行数；`dryRun` 只看 diff |
+| `device_apply_patch` | `apply_patch` | 写入文件 | unified diff（多文件、`/dev/null` 新建 / 删除、改名）；先全部校验再统一写盘；允许行号偏移，空白不同再宽松匹配一次 |
+| `device_git` | `git` | 只读子命令（status / diff / log / show / branch 列表 / remote -v / blame / ls-files / stash list）= 读取文件；其余 = 命令行 | 不经过 shell，参数逐个传；禁止 `--output` `--exec` `--upload-pack` `-c` 等会执行或写任意文件的参数；`GIT_TERMINAL_PROMPT=0`；**push 每次都要人批准**（能力是「允许」也问，完全访问除外） |
+| `device_run_shell`（`background: true`）/ `device_shell_output` / `device_shell_kill` | `exec_start` / `exec_poll` / `exec_list` / `exec_kill` | 命令行 | 后台命令：立刻返回 `jobId` 和开头输出（最多等 `waitMs`），之后按字节偏移 `since` 取新输出（可等最多 25 秒），每个任务保留最后 2MB；默认最长 2 小时，同时最多 20 个，结束 1 小时后清理；紧急停止 / 撤销时全部结束 |
+| `device_run_shell`（`session`） | `shell` | 命令行 | 持久会话：同名会话里 `cd`、`export` / `$env:` 留到下一条命令（每条命令结束时把 `pwd` 和环境写回会话） |
+| `device_processes` | `process_list` / `process_kill` | 命令行 | 进程列表（按 CPU 排序、可过滤）、按 pid 结束 |
+| `device_upload` / `device_download` | `file_upload` / `file_download` | 写入 / 读取文件 | 机器人云端工作区 ↔ 设备，3MB 一块、最大 200MB，上传完校验 sha256，覆盖前备份 |
+
+- 命令行：Windows = PowerShell；Linux / macOS = `$SHELL`（bash / zsh）→ bash → sh。前台输出各 64KB，超长时保留开头 30% 和结尾（编译 / 测试的结论通常在最后）。
+- 审批卡片带改动：`edit_file`（每处 old → new）、`apply_patch`（补丁本身）、`write_file`（新内容开头）的 diff 同时出现在网页「等待你审批」和 PC 弹窗里，加行绿、删行红。审计行的 detail 里记下实际 diff 的开头（≤900 字符），设备页「运行中 → 最近的改动」可以展开看。
+- 旧客户端：`hello.features` 是客户端支持的操作名单（0.1.8 起）。没有它的客户端只支持最初的 10 个操作，服务器对新操作直接回「请更新到 0.1.8」，不会发过去。
+- 机器人提示词（`deviceGuidance`）：先 device_search 找、device_read_file 按行读需要的部分（不把大文件整个贴进聊天）、device_edit_file / device_apply_patch 改、device_run_shell 跑测试（长的用 background），回复里只放相关的 diff 片段和测试结果；用户要求或明显期望时才 commit，push 只在用户要求时做。
+
+## 13. 完全访问（0.1.8，2026-10-15）
+
+用户要「像本机装了 OpenClaw / Hermes 一样」：一台设备可以打开「完全访问」。
+
+- **只有设备主人在网页上能打开**：`PATCH /api/devices/:id {fullAccess: "1h" | "24h" | "permanent" | "off"}`（管理员也不能替别人打开；手机不行；紧急停止中要先解除）。机器人没有任何工具能改设备配置。PC 本机（`set_config.fullAccess = "off"`）只能关，不能开。
+- **PC / 节点本机再同意一次**：配置下发后，PC 客户端弹本机确认窗（网页脚本点不到）；服务器节点按安装时的选择（`--no-full-access` = 永远拒绝，配置里 `allowFullAccess:false`）。拒绝时节点立刻发 `fullAccess: "off"` 把它关回去，并记审计 `full_access_declined`。
+- **开着时**：服务器和节点都把所有能力当「允许」（不审批、跳过「高风险操作始终在本机确认」）；文件操作不限「允许的文件夹」（整台电脑、所有盘，相对路径相对第一个允许的文件夹或主目录）；前台命令最长 24 小时，后台命令默认不限时；`elevated: true` 可用——Windows 第一次弹一次 UAC 启动管理员助手（`powershell -Verb RunAs`，同一台电脑上的临时目录 + 随机密钥交换命令，父进程退出 / 空闲 30 分钟 / 关闭完全访问 / 紧急停止时退出），Linux / macOS 要节点本身是 root 或有免密 sudo（`sudo -n` 先探测，不行就说明原因）。
+- **到期**：存 `devices.full_access_until`（开机 `ALTER TABLE … ADD COLUMN IF NOT EXISTS`，可空，旧镜像忽略它，所以回滚安全）。永久 = `9999-12-31`。服务器到点写审计 `full_access_expired` 并重推配置；节点按服务器给的剩余毫秒数自己也倒数（不信本机时钟），到点结束后台命令和管理员助手。
+- **仍然有的**：每个操作照常写审计（detail 里标「完全访问」）；紧急停止（网页设备页、PC 托盘、手机网页）立即取消进行中的操作、结束后台命令，并**同时关闭完全访问**（解除紧急停止不会自动恢复）；撤销同样。PC 托盘在完全访问时多「关闭完全访问」，状态写「在线 · 完全访问」。
+
+## 14. 服务器节点 chisabot-node（0.1.8，2026-10-15）
+
+Linux / macOS（也能在 Windows 上跑）的无界面节点，和 PC 客户端同一套 agent 代码、同一个协议，命令行用 bash / zsh，没有截图 / 鼠标键盘（有 X 显示和 xdotool 时才有）。
+
+- **安装**：设置 → 设备 → 添加一台服务器 →「生成安装命令」（一次性安装码 `cbp_…`，30 分钟、用一次，`POST /api/devices/pairing {kind:"node"}`）→ 在服务器上运行
+  `curl -fsSL https://<服务器>/api/devices/agent/node/install.sh | sh -s -- --server https://<服务器> --code cbp_… [--no-full-access] [--name 名称] [--no-service]`。
+  脚本：找 Node.js ≥18，没有就从 nodejs.org（`NODE_MIRROR` 可换镜像）下载 v22 二进制到节点目录并校验 sha256 → 下载 `chisabot-node.cjs` → `pair`（`POST /api/devices/agent/pair`，安装码换设备令牌，令牌写 `config.json` 权限 600）→ `install-service`。
+- **目录**：root = `/opt/chisabot-node` + 系统服务 `chisabot-node.service`（systemd）/ `/Library/LaunchDaemons/cn.ayase.chisabot.node.plist`；普通用户 = `~/.chisabot-node` + `systemctl --user`（尝试 `loginctl enable-linger`）/ `~/Library/LaunchAgents`。没有 systemd 时打印手动运行命令。
+- **运行**：`Restart=on-failure`，断线 1–30 秒指数退避重连，70 秒没消息判定断线；被网页撤销时退出码 0（不再被拉起）。命令：`pair | run | install-service | uninstall-service | status | logout`。
+- **程序从哪来**：`pc/src/headless.js` 在网页构建时由 Vite 插件 `chisabotNodeBundle`（app/vite.config.ts）用 esbuild 打成单文件 `dist/node-agent/chisabot-node.cjs`（含 ws，约 250KB），服务器在 `GET /api/devices/agent/node/chisabot-node.cjs` 原样提供；`install.sh` 由 `server/src/devices/node-install.ts` 生成。两个地址都在网关的 `/api/devices/agent/` 例外里（不需要会话），只是公开代码，配对靠安装码。客户端版本写作 `0.1.8-node`，网页据此把它归为「服务器」（服务器图标）。
+- **安全**：和 PC 一样默认全部「询问」（审批在网页 / 手机上点）；没有本机弹窗，所以「高风险操作始终在本机确认」不适用；完全访问见 §13。

@@ -72,11 +72,13 @@ function short(value: unknown, max: number): string | null {
 
 type Row = typeof devices.$inferSelect;
 
-export type DeviceRecord = Omit<DeviceView, "online"> & { tokenHash: string };
+export type DeviceRecord = Omit<DeviceView, "online" | "fullAccess" | "fullAccessRemainingMs" | "features"> & {
+  tokenHash: string;
+};
 
 type LastUse = DeviceView["lastUsedBy"];
 
-function toRecord(row: Row, botIds: string[], lastUsedBy: LastUse = null): DeviceRecord {
+function toRecord(row: Row, botIds: string[], lastUsedBy: LastUse = null, fullAccessUntil: string | null = null): DeviceRecord {
   return {
     id: row.id,
     ownerUserId: row.ownerUserId,
@@ -95,8 +97,16 @@ function toRecord(row: Row, botIds: string[], lastUsedBy: LastUse = null): Devic
     createdAt: row.createdAt.toISOString(),
     botIds,
     lastUsedBy,
+    fullAccessUntil: row.revokedAt ? null : fullAccessUntil,
     tokenHash: row.tokenHash,
   };
+}
+
+/** 完全访问现在是否生效（未到期）。 */
+export function fullAccessActive(record: Pick<DeviceRecord, "paused" | "revoked"> & { fullAccessUntil?: string | null | undefined }, now = Date.now()): boolean {
+  if (!record.fullAccessUntil || record.paused || record.revoked) return false;
+  const until = Date.parse(record.fullAccessUntil);
+  return Number.isFinite(until) && until > now;
 }
 
 export type DevicePatch = {
@@ -105,6 +115,8 @@ export type DevicePatch = {
   allowedRoots?: string[];
   paused?: boolean;
   botIds?: string[];
+  /** 完全访问到期时间（ISO）；null = 关闭。只有用户在网页上能打开（routes.ts），PC 本机只能关闭。 */
+  fullAccessUntil?: string | null;
 };
 
 export type AuditInput = Omit<DeviceAuditEntry, "id" | "at"> & {
@@ -150,10 +162,36 @@ export function createDeviceStore(database: Database) {
     return map;
   }
 
+  /**
+   * 完全访问的到期时间放在 devices.full_access_until（开机时 ALTER TABLE … ADD COLUMN IF NOT EXISTS 建列，见 ensure）。
+   * 不进 drizzle 表定义：可空新列，回滚到旧镜像时被忽略，不需要迁移。
+   */
+  async function fullAccessFor(ids: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (!ids.length || !fullAccessColumn) return map;
+    try {
+      const rows = (await database.$client.unsafe(
+        "SELECT id, full_access_until FROM devices WHERE id = ANY($1) AND full_access_until IS NOT NULL",
+        [ids],
+      )) as unknown as { id: string; full_access_until: Date | string }[];
+      for (const row of rows) map.set(row.id, new Date(row.full_access_until).toISOString());
+    } catch {
+      /* 列还没建好时当作都没开 */
+    }
+    return map;
+  }
+
+  let fullAccessColumn = false;
+
+  async function setFullAccess(id: string, until: string | null) {
+    if (!fullAccessColumn) await store.ensure();
+    await database.$client.unsafe("UPDATE devices SET full_access_until = $2 WHERE id = $1", [id, until ? new Date(until) : null]);
+  }
+
   async function hydrate(rows: Row[]): Promise<DeviceRecord[]> {
     const ids = rows.map((row) => row.id);
-    const [bots, lastUse] = await Promise.all([botIdsFor(ids), lastBotUseFor(ids)]);
-    return rows.map((row) => toRecord(row, bots.get(row.id) ?? [], lastUse.get(row.id) ?? null));
+    const [bots, lastUse, full] = await Promise.all([botIdsFor(ids), lastBotUseFor(ids), fullAccessFor(ids)]);
+    return rows.map((row) => toRecord(row, bots.get(row.id) ?? [], lastUse.get(row.id) ?? null, full.get(row.id) ?? null));
   }
 
   async function get(id: string): Promise<DeviceRecord | null> {
@@ -164,6 +202,16 @@ export function createDeviceStore(database: Database) {
 
   const store = {
     get,
+
+    /** 开机时调用一次：建完全访问列（幂等）。 */
+    async ensure() {
+      try {
+        await database.$client.unsafe("ALTER TABLE devices ADD COLUMN IF NOT EXISTS full_access_until timestamptz");
+        fullAccessColumn = true;
+      } catch (error) {
+        console.warn("devices.full_access_until column unavailable", error);
+      }
+    },
 
     async list(ownerUserId: string | null): Promise<DeviceRecord[]> {
       const rows = await database
@@ -266,6 +314,9 @@ export function createDeviceStore(database: Database) {
       if (patch.paused !== undefined) set.paused = patch.paused === true;
       if (Object.keys(set).length)
         await database.update(devices).set(set).where(eq(devices.id, id));
+      // 紧急停止同时关掉完全访问（解除紧急停止不会自动恢复，要重新打开）。
+      if (patch.paused === true && current.fullAccessUntil) await setFullAccess(id, null);
+      else if (patch.fullAccessUntil !== undefined) await setFullAccess(id, patch.fullAccessUntil);
       if (patch.botIds !== undefined) {
         const botIds = [...new Set(patch.botIds.filter((b) => typeof b === "string" && b))].slice(0, 100);
         await database.delete(deviceBotAccess).where(eq(deviceBotAccess.deviceId, id));
@@ -283,6 +334,7 @@ export function createDeviceStore(database: Database) {
         .set({ revokedAt: new Date(), paused: true })
         .where(and(eq(devices.id, id), isNull(devices.revokedAt)))
         .returning({ id: devices.id });
+      if (result.length) await setFullAccess(id, null).catch(() => {});
       return result.length > 0;
     },
 

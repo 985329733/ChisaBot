@@ -414,7 +414,7 @@ function statusText() {
   if (local.localPaused) return "紧急停止中";
   switch (agent?.state) {
     case "online":
-      return "在线";
+      return agent?.fullAccess ? "在线 · 完全访问" : "在线";
     case "connecting":
       return "正在连接…";
     case "revoked":
@@ -453,6 +453,12 @@ function refreshTray() {
         ? [{ label: `重启以安装 ${updater.state.version || "新版本"}…`, click: () => openUpdateWindow() }]
         : []),
       { type: "separator" },
+      ...(agent?.fullAccess
+        ? [
+            { label: "完全访问已开启", enabled: false },
+            { label: "关闭完全访问", click: () => agent?.setConfig({ fullAccess: "off" }) },
+          ]
+        : []),
       {
         label: paused ? "解除紧急停止…" : "紧急停止（拒绝一切远程操作）",
         click: () => void requestPaused(!paused),
@@ -578,7 +584,17 @@ function startAgent() {
     getAgent: (url) => proxyAgentFor(url),
     approve: (request) => askApproval(request),
     local: () => ({ paused: config.get().localPaused, forceLocalApproval: config.get().forceLocalApproval }),
+    // 完全访问（docs/pc-node.md §13）：网页上打开后，这台电脑还要本人在本机确认一次才生效（网页脚本点不到这个窗口）。
+    acceptFullAccess: (device) => {
+      const until = device.fullAccessUntil && !String(device.fullAccessUntil).startsWith("9999") ? `，到 ${new Date(device.fullAccessUntil).toLocaleString("zh-CN", { hour12: false })} 自动关闭` : "，直到你手动关闭";
+      return confirmLocal({
+        title: "允许机器人完全访问这台电脑？",
+        description: `网页上为「${device.name}」打开了完全访问${until}。开启后机器人可以不经询问运行任何命令、读写整台电脑的文件、长时间运行程序，也可以申请管理员权限。所有操作仍会记录；托盘「紧急停止」随时可以立即关闭。`,
+        confirmLabel: "允许完全访问",
+      });
+    },
   });
+  agent.events.on("full_access", () => refreshTray());
   agent.events.on("state", (event) => {
     agentDetail = event && event.detail ? String(event.detail) : event && event.state === "online" ? "" : agentDetail;
     refreshTray();
@@ -659,7 +675,7 @@ function pumpConfirm() {
   const parent = windows.chat && !windows.chat.isDestroyed() && windows.chat.isVisible() ? windows.chat : undefined;
   confirmWindow = new BrowserWindow({
     width: 440,
-    height: 260,
+    height: confirmCurrent.request.description && confirmCurrent.request.description.length > 90 ? 330 : 260,
     parent,
     modal: !!parent,
     frame: false,
@@ -703,8 +719,8 @@ function pumpApprovals() {
   if (currentApproval || !approvalQueue.length) return;
   currentApproval = approvalQueue.shift();
   const { workArea } = screen.getPrimaryDisplay();
-  const width = 460;
-  const height = 320;
+  const width = currentApproval.request.diff ? 560 : 460;
+  const height = currentApproval.request.diff ? 520 : 320;
   approvalWindow = new BrowserWindow({
     width,
     height,

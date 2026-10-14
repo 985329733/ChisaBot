@@ -27,17 +27,17 @@ export const CAPABILITY_INFO: Record<
 > = {
   shell: {
     label: "命令行",
-    description: "在这台电脑上运行命令（Windows 用 PowerShell，macOS / Linux 用 sh），有超时和输出上限。",
+    description: "在这台设备上运行命令（Windows 上是 PowerShell，Linux / macOS 上是 sh / bash；有超时和输出上限）。也用于 git 提交 / 拉取、后台命令和进程管理。",
     dangerous: true,
   },
   files_read: {
     label: "读取文件",
-    description: "列出和读取「允许的文件夹」里的文件。",
+    description: "列出、搜索和读取「允许的文件夹」里的文件，以及 git status / diff / log 这类只读操作。",
     dangerous: false,
   },
   files_write: {
     label: "写入文件",
-    description: "在「允许的文件夹」里新建或修改文件，覆盖前自动备份。",
+    description: "在「允许的文件夹」里新建或修改文件（精确替换、补丁、整文件写入），改前自动备份，审批时能看到改动。",
     dangerous: true,
   },
   screenshot: {
@@ -124,7 +124,51 @@ export const OPERATION_CAPABILITY: Record<DeviceOperation, DeviceCapability | nu
   open: "open",
   clipboard_read: "clipboard",
   clipboard_write: "clipboard",
+  // 编码 / 完全访问（docs/pc-node.md §12、§13）：读 = 读取文件，改 = 写入文件，git 写 / 命令 / 进程 = 命令行。
+  search: "files_read",
+  read_range: "files_read",
+  edit_file: "files_write",
+  apply_patch: "files_write",
+  git: "shell",
+  shell_session: "shell",
+  exec_start: "shell",
+  exec_poll: "shell",
+  exec_kill: "shell",
+  exec_list: "shell",
+  process_list: "shell",
+  process_kill: "shell",
+  file_upload: "files_write",
+  file_download: "files_read",
+  activity: null,
 };
+
+/** git 只读子命令（status / diff / log / show / 列分支…）只要「读取文件」能力；其余要「命令行」。 */
+export const GIT_READ_SUBCOMMANDS = ["status", "diff", "log", "show", "branch", "rev-parse", "remote", "blame", "ls-files", "stash-list"] as const;
+export const GIT_SUBCOMMANDS = [
+  ...GIT_READ_SUBCOMMANDS,
+  "add", "commit", "checkout", "switch", "restore", "reset", "pull", "push", "fetch", "clone", "init", "stash", "merge", "rebase", "tag", "rm", "mv", "apply", "cherry-pick", "config",
+] as const;
+
+export function gitIsRead(subcommand: string, args: readonly string[] = []): boolean {
+  if (!(GIT_READ_SUBCOMMANDS as readonly string[]).includes(subcommand)) return false;
+  if (subcommand === "branch")
+    return args.every((a) => /^-(a|r|v|vv|l|-list|-all|-remotes|-show-current|-contains|-merged|-no-merged)$/.test(a) || a.startsWith("--format"));
+  if (subcommand === "remote") return args.length === 0 || (args.length === 1 && args[0] === "-v");
+  return true;
+}
+
+/** 某次调用需要的能力（PC 端 core.js 的 capabilityFor 同一规则）。 */
+export function capabilityFor(operation: DeviceOperation, args: Record<string, unknown> = {}): DeviceCapability | null {
+  if (operation === "git")
+    return gitIsRead(String(args.subcommand ?? ""), Array.isArray(args.args) ? args.args.map(String) : []) ? "files_read" : "shell";
+  return OPERATION_CAPABILITY[operation];
+}
+
+/** 完全访问的时长选项。permanent = 一直开着，直到手动关闭或紧急停止。 */
+export const FULL_ACCESS_DURATIONS = { "1h": 3600_000, "24h": 24 * 3600_000, permanent: null } as const;
+export type FullAccessDuration = keyof typeof FULL_ACCESS_DURATIONS;
+/** 「永久」在库里存成这个时间。 */
+export const FULL_ACCESS_FOREVER = "9999-12-31T00:00:00.000Z";
 
 export type DeviceOperation =
   | "system_info"
@@ -136,7 +180,22 @@ export type DeviceOperation =
   | "input"
   | "open"
   | "clipboard_read"
-  | "clipboard_write";
+  | "clipboard_write"
+  | "search"
+  | "read_range"
+  | "edit_file"
+  | "apply_patch"
+  | "git"
+  | "shell_session"
+  | "exec_start"
+  | "exec_poll"
+  | "exec_kill"
+  | "exec_list"
+  | "process_list"
+  | "process_kill"
+  | "file_upload"
+  | "file_download"
+  | "activity";
 
 export const OPERATION_LABEL: Record<DeviceOperation, string> = {
   system_info: "读取系统信息",
@@ -149,6 +208,21 @@ export const OPERATION_LABEL: Record<DeviceOperation, string> = {
   open: "打开应用 / 网址",
   clipboard_read: "读取剪贴板",
   clipboard_write: "写入剪贴板",
+  search: "搜索文件",
+  read_range: "读取文件",
+  edit_file: "修改文件",
+  apply_patch: "应用补丁",
+  git: "git",
+  shell_session: "命令行会话",
+  exec_start: "后台命令",
+  exec_poll: "查看命令输出",
+  exec_kill: "结束命令",
+  exec_list: "列出后台命令",
+  process_list: "查看进程",
+  process_kill: "结束进程",
+  file_upload: "传文件到设备",
+  file_download: "从设备取文件",
+  activity: "查看运行中的命令",
 };
 
 /** 网页 / PC 看到的设备。不含令牌。 */
@@ -177,6 +251,17 @@ export type DeviceView = {
   botIds: string[];
   /** 最近一次由机器人发起的操作（来自设备审计记录）；从未被机器人用过为 null。 */
   lastUsedBy: { botId: string | null; botName: string | null; at: string } | null;
+  /**
+   * 完全访问（docs/pc-node.md §13）：只能由用户在 设置 → 设备 → 权限 打开，机器人没有工具能打开。
+   * 开着时所有能力按「允许」、不限文件夹、命令不限 10 分钟、可以用管理员身份运行；仍全部审计，紧急停止立即关闭它。
+   * fullAccessUntil = 到期时间（永久 = FULL_ACCESS_FOREVER），没开为 null。
+   */
+  fullAccess?: boolean;
+  fullAccessUntil?: string | null;
+  /** 按服务器时钟算的剩余毫秒数（下发配置那一刻），PC 用它倒数，不依赖 PC 时钟。 */
+  fullAccessRemainingMs?: number | null;
+  /** 在线时：这个客户端支持哪些操作（hello.features）。旧客户端没有。 */
+  features?: string[] | null;
 };
 
 export type DeviceAuditEntry = {
@@ -201,6 +286,8 @@ export type DeviceApprovalView = {
   botName: string | null;
   operation: DeviceOperation;
   summary: string;
+  /** 改文件类操作的改动（unified diff），审批卡片里显示。 */
+  diff?: string | null;
   createdAt: string;
   expiresAt: string;
 };
@@ -219,6 +306,8 @@ export type DeviceToServer =
        * 而且从没被人改过配置时采用，之后以用户设置为准。
        */
       suggestedRoots?: string[];
+      /** 0.1.8 起：客户端支持的操作名单。 */
+      features?: string[];
     }
   | { type: "result"; id: string; ok: boolean; result?: unknown; error?: string }
   | { type: "approval"; id: string; decision: "approve" | "deny" }
@@ -228,6 +317,8 @@ export type DeviceToServer =
       capabilities?: Partial<DeviceCapabilities>;
       allowedRoots?: string[];
       paused?: boolean;
+      /** PC 本机只能关闭完全访问（拒绝 / 托盘关闭），不能打开。 */
+      fullAccess?: "off";
     }
   | { type: "local_audit"; action: string; outcome: string; summary?: string }
   | { type: "pong" };
@@ -243,6 +334,7 @@ export type ServerToDevice =
       summary: string;
       botName: string | null;
       expiresAt: string;
+      diff?: string | null;
       /** 按服务器时钟算的剩余毫秒数（PC 时钟可能不准，倒数用它）。 */
       remainingMs?: number;
     }

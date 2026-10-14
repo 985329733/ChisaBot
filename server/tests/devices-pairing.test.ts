@@ -15,7 +15,7 @@ describe("pairing store", () => {
     expect(store.status(ticket.id, "u2")).toBeNull();
     expect(store.status(ticket.id, "u1")?.state).toBe("pending");
     const first = store.redeem(ticket.code);
-    expect(first).toEqual({ ok: true, pairingId: ticket.id, ownerUserId: "u1" });
+    expect(first).toEqual({ ok: true, pairingId: ticket.id, ownerUserId: "u1", kind: "phone" });
     expect(store.redeem(ticket.code)).toEqual({ ok: false, reason: "used" });
     store.complete(ticket.id, { id: "dev_x", name: "Pixel 8" });
     expect(store.status(ticket.id, "u1")).toMatchObject({ state: "bound", device: { id: "dev_x", name: "Pixel 8" } });

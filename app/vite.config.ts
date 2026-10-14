@@ -191,6 +191,44 @@ export const BUNDLE_STUBS = [
   { find: /^rehype-katex$/, replacement: path.resolve(__dirname, "./src/lib/bundle-stubs/rehype-katex.ts") },
 ];
 
+/**
+ * 服务器节点 chisabot-node（docs/pc-node.md §14）：构建网页时顺便用 esbuild 把 pc/src/headless.js
+ * （和 PC 客户端同一套 agent 代码 + ws）打成单个 dist/node-agent/chisabot-node.cjs，服务器在
+ * /api/devices/agent/node/chisabot-node.cjs 原样提供给安装脚本下载。pc/ 不在服务器镜像里，所以在这里打包。
+ * 打包失败只告警、不让网页构建失败（节点下载会 404，网页照常）。
+ */
+function chisabotNodeBundle(): Plugin {
+  return {
+    name: "chisabot-node-bundle",
+    apply: "build",
+    async generateBundle() {
+      try {
+        const { build } = await import("esbuild");
+        const root = path.resolve(__dirname, "..");
+        const pcPackage = JSON.parse(readFileSync(path.join(root, "pc/package.json"), "utf8")) as { version: string };
+        const result = await build({
+          entryPoints: [path.join(root, "pc/src/headless.js")],
+          bundle: true,
+          platform: "node",
+          target: "node18",
+          format: "cjs",
+          write: false,
+          minify: false,
+          legalComments: "inline",
+          external: ["bufferutil", "utf-8-validate", "electron"],
+          define: { __CHISABOT_NODE_VERSION__: JSON.stringify(pcPackage.version) },
+          banner: { js: `// chisabot-node ${pcPackage.version} — https://github.com/ChisaAlter/ChisaBot (docs/pc-node.md §14)` },
+          logLevel: "silent",
+        });
+        const code = result.outputFiles[0]?.text ?? "";
+        this.emitFile({ type: "asset", fileName: "node-agent/chisabot-node.cjs", source: code });
+      } catch (error) {
+        this.warn(`chisabot-node bundle skipped: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    },
+  };
+}
+
 export default defineConfig({
   envDir: path.resolve(__dirname, ".."),
   plugins: [
@@ -202,6 +240,7 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    chisabotNodeBundle(),
   ],
   resolve: {
     alias: [

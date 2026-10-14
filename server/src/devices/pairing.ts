@@ -37,10 +37,16 @@ type Entry = {
   expiresAt: number;
   state: "pending" | "redeeming" | "bound" | "cancelled";
   device: { id: string; name: string } | null;
+  /** phone = 手机扫码；node = 服务器节点（chisabot-node 安装命令里的一次性码，docs/pc-node.md §14）。 */
+  kind: PairingKind;
 };
 
+export type PairingKind = "phone" | "node";
+/** 服务器节点的安装码多给点时间（复制命令、登录服务器、粘贴）。 */
+export const NODE_PAIRING_TTL_MS = 30 * 60_000;
+
 export type RedeemResult =
-  | { ok: true; pairingId: string; ownerUserId: string }
+  | { ok: true; pairingId: string; ownerUserId: string; kind: PairingKind }
   | { ok: false; reason: "invalid" | "expired" | "used" };
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -55,7 +61,7 @@ export function isPairingCode(value: unknown): value is string {
   return typeof value === "string" && /^cbp_[A-Za-z0-9_-]{32}$/.test(value);
 }
 
-export function createPairingStore(options: { now?: () => number; ttlMs?: number } = {}) {
+export function createPairingStore(options: { now?: () => number; ttlMs?: number; nodeTtlMs?: number } = {}) {
   const now = options.now ?? Date.now;
   const ttl = options.ttlMs ?? PAIRING_TTL_MS;
   const entries = new Map<string, Entry>();
@@ -88,11 +94,11 @@ export function createPairingStore(options: { now?: () => number; ttlMs?: number
 
   return {
     /** 签发一个新码。返回的 code 只在这里出现一次。 */
-    issue(ownerUserId: string): { id: string; code: string; expiresAt: string; ttlSeconds: number } {
+    issue(ownerUserId: string, kind: PairingKind = "phone"): { id: string; code: string; expiresAt: string; ttlSeconds: number } {
       sweep();
       // 同一个人的旧的未用码：超过上限时从最旧的开始作废（网页每 5 分钟自动换码）。
       const pending = [...entries.values()]
-        .filter((entry) => entry.ownerUserId === ownerUserId && entry.state === "pending" && entry.expiresAt > now())
+        .filter((entry) => entry.ownerUserId === ownerUserId && entry.kind === kind && entry.state === "pending" && entry.expiresAt > now())
         .sort((a, b) => a.createdAt - b.createdAt);
       while (pending.length >= MAX_PENDING_PER_OWNER) {
         const oldest = pending.shift();
@@ -108,18 +114,20 @@ export function createPairingStore(options: { now?: () => number; ttlMs?: number
       }
       const code = PAIRING_CODE_PREFIX + randomBytes(24).toString("base64url");
       const id = `pair_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+      const life = kind === "node" ? Math.max(ttl, options.nodeTtlMs ?? NODE_PAIRING_TTL_MS) : ttl;
       const entry: Entry = {
         id,
         ownerUserId,
         codeHash: hash(code),
         createdAt: now(),
-        expiresAt: now() + ttl,
+        expiresAt: now() + life,
         state: "pending",
         device: null,
+        kind,
       };
       entries.set(id, entry);
       byHash.set(entry.codeHash, id);
-      return { id, code, expiresAt: new Date(entry.expiresAt).toISOString(), ttlSeconds: Math.round(ttl / 1000) };
+      return { id, code, expiresAt: new Date(entry.expiresAt).toISOString(), ttlSeconds: Math.round(life / 1000) };
     },
 
     /** 只有签发人能看自己码的状态。 */
@@ -149,7 +157,7 @@ export function createPairingStore(options: { now?: () => number; ttlMs?: number
       if (entry.state === "bound" || entry.state === "redeeming") return { ok: false, reason: "used" };
       if (entry.state === "cancelled" || entry.expiresAt <= now()) return { ok: false, reason: "expired" };
       entry.state = "redeeming";
-      return { ok: true, pairingId: entry.id, ownerUserId: entry.ownerUserId };
+      return { ok: true, pairingId: entry.id, ownerUserId: entry.ownerUserId, kind: entry.kind };
     },
 
     complete(pairingId: string, device: { id: string; name: string }) {

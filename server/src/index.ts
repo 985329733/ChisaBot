@@ -1194,6 +1194,7 @@ const hostAccessBroker = createHostAccessBroker(Date.now, {
 
 // PC 节点（docs/pc-node.md）：设备登记在数据库，在线连接在内存里的 hub。
 const deviceStore = createDeviceStore(database);
+await deviceStore.ensure();
 const deviceHub = createDeviceHub({ store: deviceStore, confirm: confirmations.deviceHook });
 confirmations.setDeviceDecider((approvalId, approved) => deviceHub.decide(approvalId, approved, "web"));
 // 2026-10-14：旧版登记、能力仍是出厂「全部关闭」且没人改过配置的电脑 → 新默认「全部询问」（每次审批）。
@@ -1224,6 +1225,24 @@ const deviceToolsFor = async (
       .get(await actorFor(actorId), botId)
       .then((profile) => profile?.name ?? null)
       .catch(() => null);
+    // device_upload / device_download：机器人自己的云端工作区（和聊天文件同一个通道）。
+    const gateway = computerGateway;
+    const workspace = gateway?.writeBytes
+      ? {
+          write: async (path: string, bytes: Buffer) => {
+            await gateway.writeBytes!(botId, { id: actorId, userId: actorId, initiator: PERSON_INITIATOR }, { path, base64: bytes.toString("base64") });
+            return true;
+          },
+          read: async (path: string) => {
+            const file = await gateway.downloadFile(botId, { id: actorId, userId: actorId, initiator: PERSON_INITIATOR }, { path });
+            if (file.bytes > 200 * 1024 * 1024) {
+              await file.body.cancel().catch(() => {});
+              throw new Error(`文件 ${path} 超过 200 MB。`);
+            }
+            return { bytes: Buffer.from(await new Response(file.body).arrayBuffer()), name: file.name };
+          },
+        }
+      : undefined;
     return deviceTools({
       store: deviceStore,
       hub: deviceHub,
@@ -1232,6 +1251,7 @@ const deviceToolsFor = async (
       devices,
       botName,
       ...(initiator ? { initiator } : {}),
+      ...(workspace ? { workspace } : {}),
     });
   } catch (error) {
     console.error(
@@ -3908,6 +3928,7 @@ const app = createApp(
           requireUser,
           auditStore: bootAuditStore,
           toolsFor: (actorId, botId) => deviceToolsFor(actorId, botId),
+          ...(config.appDistDir ? { appDistDir: config.appDistDir } : {}),
         }),
       ],
     ],

@@ -9,6 +9,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { createCodeOps } = require("./code-ops");
 
 const OUTPUT_CAP = 64 * 1024;
 const LIST_CAP = 500;
@@ -248,6 +249,16 @@ function createOps(options = {}) {
   const hooks = options.hooks || {};
   const P = pathApi(platform);
   let memoryClipboard = "";
+  const code = createCodeOps({ platform, resolveInRoots });
+
+  /** 完全访问模式（ctx.fullAccess）：任意绝对路径；相对路径相对于第一个允许的文件夹或主目录。 */
+  async function resolvePath(requested, ctx) {
+    if (!ctx.fullAccess) return resolveInRoots(requested, ctx.allowedRoots, platform);
+    const raw = typeof requested === "string" ? requested.trim() : "";
+    const base = (ctx.allowedRoots && ctx.allowedRoots[0]) || os.homedir();
+    const expanded = raw.startsWith("~") ? P.join(os.homedir(), raw.slice(1)) : raw;
+    return expanded ? (P.isAbsolute(expanded) ? P.resolve(expanded) : P.resolve(base, expanded)) : P.resolve(base);
+  }
 
   async function systemInfo() {
     const screen = hooks.screenInfo ? await hooks.screenInfo().catch(() => null) : null;
@@ -275,29 +286,19 @@ function createOps(options = {}) {
     };
   }
 
-  async function shell(args, ctx) {
-    const command = String(args.command || "");
-    if (!command.trim()) throw new OpError("命令为空。");
-    const timeoutMs = Math.min(Math.max(Number(args.timeoutSec) || 60, 1), 600) * 1000;
-    let cwd;
-    if (args.cwd) {
-      cwd = P.resolve(String(args.cwd));
-      if (!fs.existsSync(cwd)) throw new OpError(`工作目录不存在：${cwd}`);
-    }
-    const result =
-      platform === "win32"
-        ? await runPowerShell(command, { cwd, timeoutMs, signal: ctx.signal })
-        : await runProcess("/bin/sh", ["-c", command], { cwd, timeoutMs, signal: ctx.signal, platform });
-    return { shell: platform === "win32" ? "powershell" : "sh", ...result };
+  /** 运行命令：Windows = PowerShell，其它 = bash / zsh / sh；支持 session（持久目录和环境变量）、elevated（完全访问）。 */
+  function shell(args, ctx) {
+    return code.table.shell(args, ctx);
   }
 
   async function listFiles(args, ctx) {
     const roots = ctx.allowedRoots || [];
+    if (!args.path && ctx.fullAccess && !roots.length) args = { ...args, path: os.homedir() };
     if (!args.path) {
       if (!roots.length) await resolveInRoots("", roots, platform);
       return { roots: roots.map((root) => ({ path: root, exists: fs.existsSync(root) })) };
     }
-    const dir = await resolveInRoots(args.path, roots, platform);
+    const dir = await resolvePath(args.path, ctx);
     const stat = await fsp.stat(dir).catch(() => null);
     if (!stat) throw new OpError(`不存在：${dir}`);
     if (!stat.isDirectory()) throw new OpError(`不是文件夹：${dir}`);
@@ -318,7 +319,9 @@ function createOps(options = {}) {
   }
 
   async function readFile(args, ctx) {
-    const file = await resolveInRoots(args.path, ctx.allowedRoots, platform);
+    // 带行号范围 = 按行读取（大文件也只读需要的那几行）
+    if (args.startLine !== undefined || args.endLine !== undefined) return code.table.read_range(args, ctx);
+    const file = await resolvePath(args.path, ctx);
     const stat = await fsp.stat(file).catch(() => null);
     if (!stat) throw new OpError(`文件不存在：${file}`);
     if (!stat.isFile()) throw new OpError(`不是文件：${file}`);
@@ -341,7 +344,7 @@ function createOps(options = {}) {
   }
 
   async function writeFile(args, ctx) {
-    const file = await resolveInRoots(args.path, ctx.allowedRoots, platform);
+    const file = await resolvePath(args.path, ctx);
     const content = String(args.content ?? "");
     await fsp.mkdir(P.dirname(file), { recursive: true });
     let backup = null;
@@ -469,10 +472,14 @@ function createOps(options = {}) {
     open,
     clipboard_read: clipboardRead,
     clipboard_write: clipboardWrite,
+    ...Object.fromEntries(Object.entries(code.table).filter(([name]) => name !== "shell")),
   };
 
   return {
     platform,
+    /** 这个客户端支持的全部操作（hello.features），服务器据此判断旧客户端缺哪些。 */
+    features: Object.keys(table),
+    stopAll: (reason) => code.stopAll(reason),
     async run(operation, args, ctx = {}) {
       const fn = table[operation];
       if (!fn) throw new OpError(`不支持的操作：${operation}`);
