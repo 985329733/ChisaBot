@@ -15,6 +15,7 @@ import {
   IconShieldCheck,
   IconSparkles,
   IconWorld,
+  IconWorldWww,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type * as React from "react";
@@ -53,6 +54,12 @@ const PERSONAL: RailGroup[] = [
         sub: "机器人照着做的方法",
         icon: IconSparkles,
         linkOptions: { to: "/settings/skills" },
+      },
+      {
+        title: "页面",
+        sub: "机器人做的网页，链接可分享",
+        icon: IconWorldWww,
+        linkOptions: { to: "/settings/pages" },
       },
       {
         title: "账号连接",

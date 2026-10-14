@@ -207,6 +207,7 @@ import { createMemoryNotes } from "./memory-notes/service";
 import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createGithub } from "./github/service";
+import { createPages } from "./pages/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -1262,6 +1263,25 @@ await vault.ensure();
 /** GitHub 账号连接（DESIGN.md §53）：令牌在保险箱（保留名 github），读直接做，写先在聊天里确认。 */
 const github = createGithub(database, { vault, apiBase: process.env.CHISABOT_GITHUB_API_BASE });
 await github.ensure();
+/** 页面（DESIGN.md §54）：机器人做的单页网页，/p/<随机串>/ 公开可看（沙箱 CSP），设置 → 页面。 */
+const pages = createPages(database, {
+  publicUrl: process.env.CHISABOT_PUBLIC_URL?.trim() || null,
+  ...(computerGateway
+    ? {
+        readBotFile: async ({ ownerUserId, botId, path, initiator }: { ownerUserId: string; botId: string; path: string; initiator?: AuditInitiator }) => {
+          const actor = await actorFor(ownerUserId);
+          if (!(await agentProfileStore.get(actor, botId))) throw new Error("That Bot is not available to this owner.");
+          const file = await computerGateway.downloadFile(botId, { id: actor.id, userId: actor.id, ...(initiator ? { initiator } : {}) }, { path });
+          if (file.bytes > 8 * 1024 * 1024 + 1) {
+            await file.body.cancel().catch(() => {});
+            throw new Error(`file too large: ${path}`);
+          }
+          return { bytes: new Uint8Array(await new Response(file.body).arrayBuffer()), name: file.name };
+        },
+      }
+    : {}),
+});
+await pages.ensure();
 /** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */
 const chisaSkills = createChisaSkills({
   store: pluginStore,
@@ -1328,6 +1348,7 @@ const loadToolsForActor =
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : chisaSkills.tools(actorId, botId)),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : vault.tools(actorId, botId, initiator)),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : await github.tools(actorId, botId, initiator).catch(() => [])),
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : pages.tools(actorId, botId, initiator)),
     ...(await grantedTools({
       store: pluginStore,
       botId,
@@ -3674,6 +3695,7 @@ const app = createApp(
       ...memoryNotes.tools(actorId, botId),
       ...chisaSkills.tools(actorId, botId),
       ...vault.tools(actorId, botId, initiator ?? undefined),
+      ...pages.tools(actorId, botId, initiator ?? undefined),
       ...(name.startsWith("github_") ? await github.tools(actorId, botId, initiator ?? undefined) : []),
     ].find((candidate) => candidate.name === name);
     if (memory) {
@@ -3837,6 +3859,9 @@ const app = createApp(
       ["/api/chisa-skills", chisaSkills.routes(requireUser)],
       ["/api/vault", vault.routes(requireUser)],
       ["/api/github", github.routes(requireUser)],
+      ["/api/pages", pages.routes(requireUser)],
+      // 公开页面：不用登录（沙箱 CSP，见 server/src/pages/service.ts）。
+      ["/p", pages.publicRoutes()],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",
