@@ -2223,8 +2223,10 @@ workflowEngineInstance = createWorkflowEngine({
 const chatShots = await createChatShots(database);
 // 全端同步：每个人每个机器人的「当前对话」存在服务器上，网页 / PC / 手机打开同一段（bot-threads.ts，DESIGN.md §42）。
 const botThreads = await createBotThreads(database, localBackend?.control);
-// 聊天里的链接预览卡（link-preview/service.ts）：只连公网；没有 og:image 时由内置浏览器截图（仅共享计算机部署）。
+// 聊天里的链接预览卡（link-preview/service.ts，DESIGN.md §31 / §48）：只连公网；没有 og:image 时的截图默认关闭，
+// CHISABOT_LINK_PREVIEW_SHOTS=1 才由内置浏览器截（仅共享计算机部署）。
 const linkPreviews = await createLinkPreviews(database, {
+  screenshots: process.env.CHISABOT_LINK_PREVIEW_SHOTS === "1",
   ...(config.computer?.provider === "shared"
     ? { computer: { baseUrl: config.computer.baseUrl, ...(config.computer.token ? { token: config.computer.token } : {}) } }
     : {}),

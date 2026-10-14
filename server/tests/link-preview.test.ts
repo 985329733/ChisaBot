@@ -15,7 +15,7 @@ import {
   detectCharset,
   parsePage,
 } from "../src/link-preview/parse";
-import { normalizePreviewUrl, sniffImage } from "../src/link-preview/service";
+import { degradedTitle, normalizePreviewUrl, sniffImage } from "../src/link-preview/service";
 
 describe("SSRF 防护：哪些地址不能连", () => {
   test("IPv4 内网、本机、元数据、保留段", () => {
@@ -374,5 +374,31 @@ describe("网页解析", () => {
     expect(
       sniffImage(new TextEncoder().encode("<html>not an image</html>")),
     ).toBeNull();
+  });
+});
+
+describe("兜底卡（DESIGN.md §48）", () => {
+  test("标题：像文件名就用文件名，网页 / 目录用域名", () => {
+    expect(degradedTitle("https://github.com/ChisaAlter/ChisaBot/releases/download/v0.1.7/ChisaBot-PC-0.1.7-x64-setup.exe")).toBe(
+      "ChisaBot-PC-0.1.7-x64-setup.exe",
+    );
+    expect(degradedTitle("https://www.example.com/docs/")).toBe("example.com");
+    expect(degradedTitle("https://www.example.com/index.html")).toBe("example.com");
+    expect(degradedTitle("https://a.cn/%E6%8A%A5%E5%91%8A.pdf")).toBe("报告.pdf");
+  });
+
+  test("云元数据、IPv6 映射、十进制 / 十六进制写法的本机地址都不能预览", () => {
+    for (const url of [
+      "http://169.254.169.254/latest/meta-data/",
+      "http://[::ffff:169.254.169.254]/",
+      "http://[fd00:ec2::254]/",
+      "http://2130706433/",
+      "http://0x7f000001/",
+      "http://127.1/",
+      "http://metadata.google.internal/",
+      "gopher://example.com/",
+    ])
+      expect(normalizePreviewUrl(url)).toBeNull();
+    expect(normalizePreviewUrl("https://example.com/a#b")).toBe("https://example.com/a");
   });
 });

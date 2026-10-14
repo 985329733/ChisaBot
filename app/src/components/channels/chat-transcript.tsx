@@ -60,6 +60,7 @@ import {
   HiddenMarkdownImage,
   ImagePile,
   MessageRichPreviews,
+  RichBotStreamdown,
 } from "@/components/rich-previews/rich-previews";
 import { friendlyError } from "@/lib/chat/friendly-error";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
@@ -787,7 +788,8 @@ const TranscriptMessage = memo(function TranscriptMessage({
                  * closing token arrives, so the answer visibly rewrites itself as it lands. This
                  * closes them for the duration.
                  */
-                <SmoothStreamdown components={richMarkdownComponents}>{text}</SmoothStreamdown>
+                // 单独一行的链接变成下面的链接卡，正文里那一行拿掉（DESIGN.md §48）。
+                <RichBotStreamdown components={richMarkdownComponents} text={text} />
               )}
             </BubbleContent>
           </Bubble>

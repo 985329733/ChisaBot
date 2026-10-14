@@ -4543,6 +4543,8 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   --tw-prose-body: var(--on-primary);
 }
 .bot-chat-sky .copilotKitUserMessage .cpk\:bg-muted :is(p, li, span, a, code) { color: inherit; }
+/* 长网址在气泡里折行，不撑出气泡（§48 实测：用户贴的 GitHub 网址冲出了气泡右边）。 */
+.bot-chat-sky .copilotKitUserMessage .cpk\:bg-muted { overflow-wrap: anywhere; min-width: 0; }
 .bot-chat-sky .copilotKitAssistantMessage > .cpk\:prose:has(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4) {
   width: fit-content;
   max-width: 100%;
@@ -5069,38 +5071,69 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .bot-chat-sky .copilotKitAssistantMessage[data-cb-turn="step"] .rp-stack { display: none; }
 .bot-chat-sky .copilotKitUserMessage .rp-stack { width: min(80%, 420px); }
 
-/* 链接卡：图在上、字在下；没有图时是一行紧凑卡 */
-.rp-links { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; max-width: 100%; }
-.rp-stack[data-align="end"] .rp-links { justify-content: flex-end; }
+/* 链接卡（2026-10-14 改版，DESIGN.md §48）：一行一张的紧凑卡——左边 48px 方块（og 图缩略图，没有就站点图标），
+ * 右边标题一行 + 「标签 · 图标 域名」一行；固定 64px 高，骨架同尺寸，出卡不跳版。1–3 张一组，宽栏并排、窄栏竖排。
+ * 悬停：上浮 2px + 阴影 / 亮一层玻璃淡入（只动 transform / opacity，180ms）。 */
+.rp-links {
+  display: grid; gap: 8px; width: 100%; max-width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 272px), 1fr));
+}
+.rp-links[data-count="1"] { grid-template-columns: minmax(0, min(100%, 420px)); }
+.rp-stack[data-align="end"] .rp-links { justify-content: end; }
+/* 放不下两列（< 560px）就竖排，每张最宽 420px；手机 / 窄栏（≤ 480px）撑满。 */
+@container (max-width: 559px) { .rp-links, .rp-links[data-count] { grid-template-columns: minmax(0, min(100%, 420px)); } }
+@container (max-width: 480px) { .rp-links, .rp-links[data-count] { grid-template-columns: minmax(0, 1fr); } }
 .rp-link {
-  display: flex; flex-direction: column; width: min(320px, 100%); min-width: 0; overflow: hidden;
+  position: relative; isolation: isolate; display: flex; align-items: center; gap: 10px;
+  height: 64px; min-width: 0; padding: 7px 12px 7px 7px; box-sizing: border-box;
   border-radius: var(--r-md); border: 1px solid var(--stroke); background: var(--glass-1);
   box-shadow: var(--shadow-1), var(--inset-hl); backdrop-filter: blur(var(--blur-1)) saturate(1.2);
-  color: var(--ink-1); text-decoration: none !important;
-  transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
-  animation: rp-in var(--dur-2) var(--ease-out) both;
+  color: var(--ink-1); text-decoration: none !important; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 180ms var(--ease-out);
+  animation: rp-in var(--dur-2) var(--ease-out) backwards;
 }
-.rp-link:hover { transform: translateY(-1px); box-shadow: var(--shadow-2), var(--inset-hl); background: var(--glass-2); }
+/* 悬停时的「更亮的玻璃」和「更深的阴影」各是一层，只淡入淡出（不动画 box-shadow / 背景色）。 */
+.rp-link::before, .rp-link::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 180ms var(--ease-out); }
+.rp-link::before { z-index: -1; background: var(--glass-2); border: 1px solid var(--stroke-2, var(--stroke)); }
+.rp-link::after { z-index: -2; box-shadow: var(--shadow-2); }
+@media (hover: hover) {
+  .rp-link:hover { transform: translateY(-2px); }
+  .rp-link:hover::before, .rp-link:hover::after { opacity: 1; }
+  .rp-link:hover .rp-link-go { opacity: 1; transform: none; }
+}
+.rp-link:active { transform: translateY(0) scale(0.985); transition-duration: 90ms; }
 .rp-link:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 2px; }
-.rp-link-media { position: relative; aspect-ratio: 1.91 / 1; overflow: hidden; background: var(--glass-2); border-bottom: 1px solid var(--line); }
-.rp-link-media img { display: block; width: 100%; height: 100%; object-fit: cover; animation: rp-fade var(--dur-2) var(--ease-out) both; }
-.rp-link-media[data-kind="shot"] img { object-position: top center; }
-.rp-link-media-wait { position: absolute; inset: 0; display: block; }
-.rp-link-body { display: flex; flex-direction: column; gap: 3px; padding: 9px 12px 10px; min-width: 0; }
-.rp-link-site { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-12); line-height: 18px; color: var(--ink-3); }
-.rp-link-icon { flex: none; width: 16px; height: 16px; border-radius: 4px; object-fit: contain; background: rgba(255, 255, 255, 0.6); }
-.rp-link-icon-fallback { background: none; color: var(--ink-3); }
-.rp-link-site-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; color: var(--ink-2); }
-.rp-link-domain { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.rp-link-domain::before { content: "·"; margin-right: 6px; }
-.rp-link-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--fs-14); font-weight: 500; line-height: 1.45; color: var(--ink-1); overflow-wrap: anywhere; }
-.rp-link-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--fs-13); line-height: 1.5; color: var(--ink-3); }
-.rp-link-skel { pointer-events: none; }
-.rp-link-skel .rp-link-media { border-bottom-color: transparent; }
+.rp-link:focus-visible .rp-link-go { opacity: 1; transform: none; }
+.rp-link-tile {
+  position: relative; flex: none; display: grid; place-items: center; width: 48px; height: 48px; overflow: hidden;
+  border-radius: var(--r-sm); background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-3);
+}
+.rp-link-tile > img { display: block; animation: rp-fade var(--dur-2) var(--ease-out) backwards; }
+/* og 图多是 1.91:1 的分享图：方块放不下，缩略图用 76×48（约 1.6:1）居中裁；接近方形的图（logo）整张放进去。 */
+.rp-link-tile[data-kind="image"] { width: 76px; background: var(--glass-2); }
+.rp-link-tile[data-kind="image"] > img { width: 100%; height: 100%; object-fit: cover; }
+.rp-link-tile[data-kind="image"][data-square] > img { object-fit: contain; }
+.rp-link-tile[data-kind="icon"] > img { width: 24px; height: 24px; object-fit: contain; border-radius: 5px; }
+.rp-link-tile[data-kind="none"] > svg { width: 22px; height: 22px; }
+.rp-link-body { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.rp-link-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-14); font-weight: 500; line-height: 20px; color: var(--ink-1); }
+.rp-link-meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-12); line-height: 18px; color: var(--ink-3); }
+.rp-link-label {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  padding: 0 6px; border-radius: var(--r-xs); background: var(--accent-blue-soft); color: var(--accent-blue-ink); font-weight: 500;
+}
+.rp-link-icon { flex: none; width: 14px; height: 14px; border-radius: 3px; object-fit: contain; }
+.rp-link-domain { flex: 0 1 auto; min-width: 40px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rp-link-label + .rp-link-domain, .rp-link-label + .rp-link-icon + .rp-link-domain { flex-shrink: 0; max-width: 55%; }
+.rp-link-go { flex: none; width: 16px; height: 16px; margin-left: -2px; color: var(--ink-3); opacity: 0; transform: translate(-2px, 2px); transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
+@media (hover: none) { .rp-link-go { opacity: 0.55; transform: none; } }
+.rp-link-skel { pointer-events: none; cursor: default; }
+.rp-link-skel .rp-link-tile { border-color: transparent; }
 .rp-skel-bar { display: block; height: 12px; border-radius: 6px; }
-.rp-skel-bar + .rp-skel-bar { height: 14px; margin-top: 4px; }
-.dark .rp-link-icon { background: rgba(255, 255, 255, 0.85); }
-@container (max-width: 360px) { .rp-link { width: 100%; } }
+.rp-skel-bar + .rp-skel-bar { height: 10px; margin-top: 6px; }
+.dark .rp-link-tile[data-kind="icon"] { background: rgba(255, 255, 255, 0.9); }
+/* 暗色下黑色图标（GitHub 等）看不见：小图标垫一块白底。 */
+.dark .rp-link-icon { background: rgba(255, 255, 255, 0.9); padding: 1px; box-sizing: border-box; }
 
 /* 图片：单张 */
 .rp-images { display: flex; max-width: 100%; }
@@ -5213,11 +5246,14 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 @keyframes rp-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes rp-zoom-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .rp-link, .rp-image-single, .rp-pile, .rp-file { animation: rp-fade var(--dur-2) linear both; }
+  .rp-image-single, .rp-pile, .rp-file { animation: rp-fade var(--dur-2) linear both; }
+  .rp-link { animation: rp-fade var(--dur-2) linear backwards; }
   .rp-lightbox-img { animation: rp-fade var(--dur-2) linear both; }
   /* 不做位移动画：摊开 / 收起、悬停上浮直接到位。 */
-  .rp-link, .rp-image-single, .rp-pile, .rp-pile-card, .rp-lightbox-img { transition-property: opacity, box-shadow, background-color; }
-  .rp-link:hover, .rp-image-single:hover { transform: none; }
+  .rp-image-single, .rp-pile, .rp-pile-card, .rp-lightbox-img { transition-property: opacity, box-shadow, background-color; }
+  .rp-link, .rp-link-go { transition-property: opacity; }
+  .rp-link:hover, .rp-link:active, .rp-image-single:hover { transform: none; }
+  .rp-link-go { transform: none; }
 }
 
 /* ==========================================================================================

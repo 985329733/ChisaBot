@@ -1,4 +1,5 @@
 import {
+  IconArrowUpRight,
   IconDownload,
   IconFile,
   IconFileCode,
@@ -30,19 +31,24 @@ import {
   extensionOf,
   extractRichContent,
   formatBytes,
+  type LinkRef,
+  splitLinkLines,
 } from "@/lib/rich-previews/extract";
+import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { Lightbox, type LightboxImage } from "./lightbox";
 
 /**
  * 聊天富预览（2026-10-13；DESIGN.md §31）：
- * - 链接卡：消息里的网址（最多 3 个）在气泡下面变成玻璃卡片——预览图、图标、标题、域名，点开新标签页。
+ * - 链接卡（DESIGN.md §48）：单独占一行的链接（最多 3 个）在正文下面变成紧凑玻璃卡——缩略图 / 站点图标、
+ *   标题、域名、可选标签（`[下载 0.1.7](网址)`），整张可点、新标签页打开（PC / 安卓客户端交给系统浏览器）。
  *   数据来自 `GET /api/link-preview`（服务器只连公网、图片也由服务器转存，浏览器不直接访问第三方）。
- *   取的时候是同形状骨架；取不到就整张卡不出现（不报错）。
+ *   取的时候是同尺寸骨架；取不到就画「图标 + 域名」的兜底卡，照样能点。
  * - 图片：一张就是一张图卡；两张以上叠成一摞（每张轻微倾斜），悬停 / 聚焦 / 第一次轻点时摊开，点哪张
  *   就从哪张打开看大图（{@link Lightbox}）。
  * - 文件：图标 + 文件名 + 类型 · 大小 + 下载。
  *
- * 流式回复时文字一直在变：等文字停下约 0.9 秒再找网址，不会拿半截网址去取预览。
+ * 流式回复时：写完的行（后面已经有换行）立刻出卡；最后一行要等文字停下约 0.9 秒（或后面来了换行）才算写完，
+ * 之前它如果像一行链接，就先藏起来、卡片位置放骨架——不会拿半截网址去取预览，也不会先闪一行网址。
  */
 
 export type LinkPreviewData = {
@@ -56,6 +62,8 @@ export type LinkPreviewData = {
   imageKind: "og" | "shot" | "direct" | "none";
   imagePending: boolean;
   favicon: string | null;
+  /** 网页没取到（被拦 / 超时 / 不是网页）：只有域名和站点图标的兜底卡。 */
+  degraded?: boolean;
 };
 
 class PreviewMissing extends Error {}
@@ -110,13 +118,10 @@ function previewQuery(url: string) {
 /**
  * 文字停下 `ms` 毫秒后才返回它（流式回复时不追着半截文字跑）。
  *
- * 刚挂载时先用「去掉最后一个没写完的词」的文字：历史消息里句中的网址立刻出卡片，结尾那个网址可能还在
- * 流式输出，等停下再算。
+ * 刚挂载时当作已经写完（历史消息、重放的记录立刻出卡）；之后每变一次都要再停 `ms` 才算写完。
  */
 export function useSettledText(text: string, ms = 900): string {
-  const [settled, setSettled] = useState(() =>
-    /[\s。！？.!?)）]$/.test(text) ? text : text.replace(/\S+$/, ""),
-  );
+  const [settled, setSettled] = useState(text);
   useEffect(() => {
     if (settled === text) return;
     const timer = window.setTimeout(() => setSettled(text), ms);
@@ -137,85 +142,128 @@ function hostOf(url: string): string {
 // 链接卡
 // ---------------------------------------------------------------------------------------------
 
-function LinkCard({ url }: { url: string }) {
-  const { data, isPending, isError } = useQuery(previewQuery(url));
+/** 兜底卡用的短地址：github.com/ChisaAlter/Chis… */
+function shortUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = decodeURIComponent(u.pathname).replace(/\/$/, "");
+    const text = `${u.hostname.replace(/^www\./, "")}${path}`;
+    return text.length > 48 ? `${text.slice(0, 47)}…` : text;
+  } catch {
+    return url;
+  }
+}
+
+function isSquarish(img: HTMLImageElement): boolean {
+  return img.naturalHeight > 0 && img.naturalWidth / img.naturalHeight < 1.25;
+}
+
+function LinkCardSkeleton() {
+  return (
+    <div aria-hidden className="rp-link rp-link-skel" data-testid="link-card-skeleton">
+      <span className="rp-link-tile sky-skel-block" />
+      <span className="rp-link-body">
+        <span className="rp-skel-bar sky-skel-bar" style={{ width: "78%" }} />
+        <span className="rp-skel-bar sky-skel-bar" style={{ width: "40%" }} />
+      </span>
+    </div>
+  );
+}
+
+function LinkCard({ link }: { link: LinkRef }) {
+  const { data, isPending, isError } = useQuery(previewQuery(link.url));
   const [imageBroken, setImageBroken] = useState(false);
   const [iconBroken, setIconBroken] = useState(false);
-  if (isError) return null;
-  if (isPending || !data) {
-    return (
-      <div aria-hidden className="rp-link rp-link-skel">
-        <div className="rp-link-media sky-skel-block" />
-        <div className="rp-link-body">
-          <span className="rp-skel-bar sky-skel-bar" style={{ width: "42%" }} />
-          <span className="rp-skel-bar sky-skel-bar" style={{ width: "88%" }} />
-        </div>
-      </div>
-    );
-  }
-  const showImage = (data.image && !imageBroken) || data.imagePending;
-  const site =
-    data.siteName && data.siteName !== data.title ? data.siteName : data.domain;
+  // 接近方形的 og 图（logo）整张放进缩略图，宽的分享图居中裁（styles.css §48）。
+  const [square, setSquare] = useState(false);
+  if (isPending && !isError) return <LinkCardSkeleton />;
+  const domain = data?.domain || hostOf(link.url);
+  const degraded = !data || data.degraded === true;
+  const image =
+    data?.image && data.imageKind !== "none" && !imageBroken ? data.image : null;
+  const favicon = data?.favicon && !iconBroken ? data.favicon : null;
+  const title = data?.title || domain;
+  // 兜底卡标题就是域名时，第二行给短地址，不要两行都是同一个域名。
+  const meta = title === domain ? shortUrl(link.url) : domain;
+  const kind = image ? "image" : favicon ? "icon" : "none";
   return (
     <a
+      aria-label={`${link.label ? `${link.label}：` : ""}${title}（${domain}），在新窗口打开`}
       className="rp-link"
-      data-has-image={showImage ? "" : undefined}
-      href={data.url}
+      data-degraded={degraded ? "" : undefined}
+      data-testid="link-card"
+      href={link.url}
       rel="noopener noreferrer"
       target="_blank"
-      title={data.finalUrl}
+      title={data?.finalUrl || link.url}
     >
-      {showImage ? (
-        <div className="rp-link-media" data-kind={data.imageKind}>
-          {data.image && !imageBroken ? (
-            <img
-              alt=""
-              decoding="async"
-              loading="lazy"
-              onError={() => setImageBroken(true)}
-              src={data.image}
-            />
-          ) : (
-            <span className="sky-skel-block rp-link-media-wait" />
-          )}
-        </div>
-      ) : null}
-      <div className="rp-link-body">
-        <span className="rp-link-site">
-          {data.favicon && !iconBroken ? (
+      <span
+        className="rp-link-tile"
+        data-kind={kind}
+        data-square={kind === "image" && square ? "" : undefined}
+      >
+        {image ? (
+          <img
+            alt=""
+            decoding="async"
+            loading="lazy"
+            onError={() => setImageBroken(true)}
+            onLoad={(event) => setSquare(isSquarish(event.currentTarget))}
+            // 已经在缓存里的图可能在 React 挂上 onLoad 之前就加载完了：挂载时再量一次。
+            ref={(img) => {
+              if (img?.complete && img.naturalWidth > 0) setSquare(isSquarish(img));
+            }}
+            referrerPolicy="no-referrer"
+            src={image}
+          />
+        ) : favicon ? (
+          <img
+            alt=""
+            decoding="async"
+            onError={() => setIconBroken(true)}
+            referrerPolicy="no-referrer"
+            src={favicon}
+          />
+        ) : (
+          <IconWorld aria-hidden />
+        )}
+      </span>
+      <span className="rp-link-body">
+        <span className="rp-link-title">{title}</span>
+        <span className="rp-link-meta">
+          {link.label ? <span className="rp-link-label">{link.label}</span> : null}
+          {image && favicon ? (
             <img
               alt=""
               className="rp-link-icon"
               onError={() => setIconBroken(true)}
-              src={data.favicon}
+              src={favicon}
             />
-          ) : (
-            <IconWorld
-              aria-hidden
-              className="rp-link-icon rp-link-icon-fallback"
-            />
-          )}
-          <span className="rp-link-site-name">{site}</span>
-          {site !== data.domain ? (
-            <span className="rp-link-domain">{data.domain}</span>
           ) : null}
+          <span className="rp-link-domain">{meta}</span>
         </span>
-        <span className="rp-link-title">{data.title || data.domain}</span>
-        {data.description && !showImage ? (
-          <span className="rp-link-desc">{data.description}</span>
-        ) : null}
-      </div>
+      </span>
+      <IconArrowUpRight aria-hidden className="rp-link-go" />
     </a>
   );
 }
 
-function LinkPreviewCardsInner({ urls }: { urls: readonly string[] }) {
-  if (urls.length === 0) return null;
+function LinkPreviewCardsInner({
+  links,
+  pending = false,
+}: {
+  links: readonly LinkRef[];
+  /** 流式中最后一行像是一行链接：多放一个骨架占位。 */
+  pending?: boolean;
+}) {
+  const count = links.length + (pending ? 1 : 0);
+  if (count === 0) return null;
   return (
-    <div className="rp-links" data-count={urls.length}>
-      {urls.map((url) => (
-        <LinkCard key={url} url={url} />
+    <div className="rp-links" data-count={count} data-testid="link-cards">
+      {links.map((link) => (
+        <LinkCard key={link.url} link={link} />
       ))}
+      {pending ? <LinkCardSkeleton key="pending" /> : null}
     </div>
   );
 }
@@ -559,14 +607,27 @@ function MessageRichPreviewsInner({
   media?: MessageMedia;
 }) {
   const settled = useSettledText(text);
+  // 用户消息是一次发完的；机器人消息在文字停下前最后一行不算写完。
+  const final = align === "end" || settled === text;
+  const split = useMemo(() => splitLinkLines(text, { final }), [text, final]);
   const found = useMemo(() => extractRichContent(settled), [settled]);
   const fromText = useResolvedImages(found.images);
   const images = useMemo(
     () => [...(media?.images ?? []), ...fromText],
     [media?.images, fromText],
   );
+  const imageSet = useMemo(() => new Set(found.images.map((i) => i.src)), [found.images]);
+  const links = useMemo(
+    () => split.links.filter((l) => !imageSet.has(l.url)),
+    [split.links, imageSet],
+  );
   const files = media?.files ?? [];
-  if (images.length === 0 && files.length === 0 && found.links.length === 0)
+  if (
+    images.length === 0 &&
+    files.length === 0 &&
+    links.length === 0 &&
+    !split.pending
+  )
     return null;
   return (
     <div className="rp-stack" data-align={align}>
@@ -578,8 +639,20 @@ function MessageRichPreviewsInner({
           ))}
         </div>
       ) : null}
-      <LinkPreviewCards urls={found.links} />
+      <LinkPreviewCards links={links} pending={split.pending} />
     </div>
+  );
+}
+
+/**
+ * 给 Markdown 渲染的正文：出了链接卡的那几行拿掉（和 {@link MessageRichPreviews} 用同一套判断，DESIGN.md §48）。
+ * 只用于机器人消息；用户自己的消息原样显示。
+ */
+export function useDisplayText(text: string): string {
+  const settled = useSettledText(text);
+  return useMemo(
+    () => splitLinkLines(text, { final: settled === text }).display,
+    [text, settled],
   );
 }
 
@@ -608,6 +681,20 @@ export function MessageRichPreviews(
     <WithPreviewClient>
       <MessageRichPreviewsInner {...props} />
     </WithPreviewClient>
+  );
+}
+
+/** 机器人的 Markdown 正文（频道聊天用）：出卡的链接行拿掉，内联图片不画。 */
+export function RichBotStreamdown({
+  text,
+  components,
+}: {
+  text: string;
+  components: Record<string, unknown>;
+}) {
+  const display = useDisplayText(text);
+  return (
+    <SmoothStreamdown components={components as never}>{display}</SmoothStreamdown>
   );
 }
 
