@@ -127,12 +127,13 @@ export function PcLinkHint() {
     goDevices();
   };
 
+  // 关键的半句放前面：窄窗口（小窗模式 420px）胶囊会截断后半句。
   const title =
     problem === "outdated"
-      ? `ChisaBot PC 需要重新安装（当前 ${local?.version}，不会自动更新）`
+      ? `需要重装 ChisaBot PC · 当前 ${local?.version} 不会自动更新`
       : problem === "enroll"
-        ? "这台电脑还没登记，机器人用不了它"
-        : "这台电脑没连上，机器人暂时用不了它";
+        ? "这台电脑还没登记 · 机器人用不了它"
+        : "这台电脑没连上 · 机器人暂时用不了它";
   const action =
     problem === "outdated" ? "怎么装" : busy ? (problem === "enroll" ? "登记中…" : "连接中…") : problem === "enroll" ? "登记" : "重新连接";
   const Icon = problem === "outdated" ? IconDeviceDesktopDown : IconPlugConnected;
