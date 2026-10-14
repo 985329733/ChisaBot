@@ -548,6 +548,7 @@ const CUSTOM_RULES = [
   `icon 只能写这些名字（Tabler 图标）：${ICON_NAMES.join(" ")}。`,
   "每一项都能带动作：组件或 List / Timeline / KeyValue 的每一行可写 href（http(s) 链接，新标签页打开）、ask（替用户发一句话）、copy（复制的文字）。时间字段（List.items[].time、Timeline.items[].time、RelativeTime.time、Countdown.target）写 ISO 带时区，如 2026-10-13T09:00:00+08:00。",
   "数列（Chart.data / series[].data、Sparkline.data、Metric.spark、HeatStrip.values）写数字数组，按时间先后；Chart.labels 与数据一一对应，写短（10/13、09:00）。",
+  "只是要用户点开一到三个网页（下载页、入口、文档）时不要用 render_ui：在回复里把链接单独放一行（或一行 `[标签](网址)`），聊天界面会自动画成链接卡。",
   "按钮只用 send_message、open_link、copy_text、refresh_panel 或内置的 setState / pushState / removeState / validateForm；不要使用 confirm 字段。",
   "用户要的是「面板」（放在右侧面板栏、长期保留的小工具）时不要用 render_ui：有 proposePanelDraft 工具就用它保存；没有就请用户点右栏面板的「新建」后再说一遍。",
   "send_message 只是替用户发一条消息给你，真正的操作（发送邮件、付款、删除等）仍由你在下一轮用工具完成，并照常经过审批。",

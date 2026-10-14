@@ -19,7 +19,11 @@ import { decodeHtml, displayDomain, parsePage } from "./parse";
  *   `/api/link-preview/asset/:id` 读——用户的浏览器不会直接去第三方网站拉图（不暴露谁在看、不怕防盗链）。
  * - 没有 og:image 的网页：交给内置浏览器（agent-computer `/preview-shot`，独立的无痕浏览器、每个请求同样
  *   经过 SSRF 检查）截一张 1200×630 的图。截图在后台做，先回标题等信息并标 `imagePending`，前端过几秒再问。
- * - 结果缓存在 `chisabot_link_previews`：成功 24 小时，失败 30 分钟；同一网址同时只取一次。
+ * - 结果缓存在 `chisabot_link_previews`：成功 24 小时，失败 / 兜底卡 30 分钟；同一网址同时只取一次。
+ * - 网页取不到（对方 4xx/5xx、超时、不是网页）时不再让卡片消失：回一张兜底卡（`degraded`：标题是文件名或域名，
+ *   图标取站点根目录的 /favicon.ico，同样经过 SSRF 检查和转存）。被拦的内网地址仍然 422。
+ * - 截图（没有 og:image 时）默认关闭：链接卡改成 48px 缩略图后用不上大图（2026-10-14，§48）；
+ *   `CHISABOT_LINK_PREVIEW_SHOTS=1` 打开。
  * - 两张表启动时 CREATE TABLE IF NOT EXISTS（和 chat-shots 同一做法），写入时顺手清理过期的。
  */
 
@@ -35,6 +39,11 @@ export type LinkPreview = {
   imageKind: "og" | "shot" | "direct" | "none";
   imagePending: boolean;
   favicon: string | null;
+  /**
+   * 网页没取到（对方报错 / 超时 / 不是网页，例如下载文件）：只有「标题 = 文件名或域名 + 站点图标」的兜底卡。
+   * 被 SSRF 拦下的不算，那种直接 422（DESIGN.md §48）。
+   */
+  degraded?: boolean;
 };
 
 type ComputerTarget = { baseUrl: string; token?: string };
@@ -61,6 +70,20 @@ export function normalizePreviewUrl(raw: string): string | null {
   const url = verdict.url;
   url.hash = "";
   return url.toString();
+}
+
+/** 兜底卡的标题：网址最后一段像文件名（ChisaBot-0.1.7.exe、report.pdf）就用它，否则用域名。 */
+export function degradedTitle(url: string): string {
+  const domain = displayDomain(url);
+  try {
+    const last = new URL(url).pathname.split("/").pop() ?? "";
+    const name = decodeURIComponent(last);
+    if (/\.[a-z0-9]{1,8}$/i.test(name) && name.length <= 120 && !/\.(html?|php|aspx?|jsp)$/i.test(name))
+      return name;
+  } catch {
+    /* 保持域名 */
+  }
+  return domain;
 }
 
 function keyOf(url: string) {
@@ -112,7 +135,7 @@ export function sniffImage(bytes: Uint8Array): string | null {
 
 export async function createLinkPreviews(
   database: Database,
-  options: { computer?: ComputerTarget } = {},
+  options: { computer?: ComputerTarget; screenshots?: boolean } = {},
 ) {
   await database.$client.unsafe(`CREATE TABLE IF NOT EXISTS chisabot_link_previews (
     url_key text PRIMARY KEY, url text NOT NULL, ok boolean NOT NULL, data jsonb NOT NULL,
@@ -149,8 +172,10 @@ export async function createLinkPreviews(
     url: string,
     ok: boolean,
     data: unknown,
+    short = false,
   ) {
-    const ttl = ok ? `${OK_TTL_HOURS} hours` : `${FAIL_TTL_MINUTES} minutes`;
+    const ttl =
+      ok && !short ? `${OK_TTL_HOURS} hours` : `${FAIL_TTL_MINUTES} minutes`;
     await database.$client.unsafe(
       `INSERT INTO chisabot_link_previews (url_key, url, ok, data, fetched_at, expires_at)
        VALUES ($1, $2, $3, $4::jsonb, now(), now() + $5::interval)
@@ -251,6 +276,45 @@ export async function createLinkPreviews(
     })().finally(() => shotsRunning.delete(key));
   }
 
+  /** 取不到网页时的兜底卡：标题 = 文件名（像下载链接时）或域名，图标 = 站点根目录 /favicon.ico。 */
+  async function degradedPreview(
+    url: string,
+    key: string,
+    finalUrl = url,
+    reason = "fetch",
+  ): Promise<LinkPreview> {
+    const domain = displayDomain(url);
+    const title = degradedTitle(url);
+    let favicon: string | null = null;
+    // 连不上 / 超时的站点，图标多半也取不到：不再白等一轮。
+    if (reason !== "fetch") try {
+      favicon = await fetchImage(
+        new URL("/favicon.ico", url).toString(),
+        ICON_MAX,
+        true,
+      );
+    } catch {
+      favicon = null;
+    }
+    const preview: LinkPreview = {
+      url,
+      finalUrl,
+      title,
+      siteName: "",
+      domain,
+      description: "",
+      image: null,
+      imageKind: "none",
+      imagePending: false,
+      favicon,
+      degraded: true,
+    };
+    await writeCache(key, url, true, { ...preview, reason }, true).catch(
+      () => {},
+    );
+    return preview;
+  }
+
   async function build(url: string, key: string): Promise<LinkPreview | null> {
     let page: Awaited<ReturnType<typeof guardedFetch>>;
     try {
@@ -260,16 +324,14 @@ export async function createLinkPreviews(
         timeoutMs: PAGE_TIMEOUT,
       });
     } catch (error) {
-      await writeCache(key, url, false, {
-        error: error instanceof BlockedUrlError ? "blocked" : "fetch",
-      }).catch(() => {});
-      return null;
+      if (error instanceof BlockedUrlError) {
+        await writeCache(key, url, false, { error: "blocked" }).catch(() => {});
+        return null;
+      }
+      return degradedPreview(url, key, url, "fetch");
     }
     if (page.status < 200 || page.status >= 400) {
-      await writeCache(key, url, false, {
-        error: `status ${page.status}`,
-      }).catch(() => {});
-      return null;
+      return degradedPreview(url, key, page.url, `status ${page.status}`);
     }
     const domain = displayDomain(page.url);
     // 网址本身就是一张图：图就是预览。
@@ -304,8 +366,8 @@ export async function createLinkPreviews(
       page.contentType.includes("html") ||
       /<html|<head|<meta/i.test(page.body.subarray(0, 2048).toString("latin1"));
     if (!isHtml) {
-      await writeCache(key, url, false, { error: "not-html" }).catch(() => {});
-      return null;
+      // 下载文件、PDF、接口……：兜底卡（标题是文件名），域名用原链接的（GitHub 下载会跳到别的存储域名）。
+      return degradedPreview(url, key, page.url, "not-html");
     }
     const parsed = parsePage(decodeHtml(page.contentType, page.body), page.url);
     const [image, favicon] = await Promise.all([
@@ -327,7 +389,8 @@ export async function createLinkPreviews(
         return null;
       })(),
     ]);
-    const wantShot = !image && Boolean(options.computer);
+    const wantShot =
+      !image && Boolean(options.computer) && options.screenshots === true;
     const preview: LinkPreview = {
       url,
       finalUrl: page.url,
@@ -354,7 +417,11 @@ export async function createLinkPreviews(
     if (cached?.fresh) {
       const preview = cached.ok ? (cached.data as LinkPreview) : null;
       // 截图那一步如果因为重启丢了，补做。
-      if (preview?.imagePending && !shotsRunning.has(key))
+      if (
+        preview?.imagePending &&
+        options.screenshots === true &&
+        !shotsRunning.has(key)
+      )
         startScreenshot(key, preview);
       return { preview, cached: true };
     }

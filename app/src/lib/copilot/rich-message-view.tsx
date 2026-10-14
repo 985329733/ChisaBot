@@ -9,6 +9,7 @@ import {
   HiddenMarkdownImage,
   type MessageMedia,
   MessageRichPreviews,
+  useDisplayText,
 } from "@/components/rich-previews/rich-previews";
 import { WorkerResultRow } from "@/components/chat/worker-card";
 import { useReadMark } from "./thread-inbox";
@@ -151,8 +152,13 @@ function withHiddenImages(components?: Record<string, unknown>) {
 const RICH_MARKDOWN =
   typeof BASE_MARKDOWN === "function"
     ? function RichMarkdownRenderer(props: MarkdownProps) {
+        // 单独一行的链接由下面的链接卡代替，正文里那一行拿掉（DESIGN.md §48）。
+        const content = useDisplayText(
+          typeof props.content === "string" ? props.content : "",
+        );
         return createElement(BASE_MARKDOWN as ComponentType<MarkdownProps>, {
           ...props,
+          ...(typeof props.content === "string" ? { content } : {}),
           components: withHiddenImages(props.components),
         });
       }

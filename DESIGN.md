@@ -534,7 +534,7 @@
 
 机器人聊天（`lib/copilot/rich-message-view.tsx`）和频道聊天（`chat-transcript.tsx`）共用 `components/rich-previews/`，样式在 `styles.css` 的 `.rp-*`。预览画在消息根节点里、正文下面，turn-compaction 收起过程话时预览一起收起；开场一句不带预览。
 
-- **链接卡**：一条消息最多 3 张（`MAX_LINK_CARDS`），代码块里的链接不算。卡宽 `min(320px, 100%)`，`--glass-1` 底、`--stroke` 边、`--r-md` 圆角；有图时图在上（1.91:1，`object-fit: cover`，截图从顶部对齐），下面是「图标 站点名 · 域名」一行（12px，`--ink-3`）+ 标题两行截断（14px，500）；没有图时多一行两行截断的描述。悬停上浮 1px + `--glass-2`。加载中是同尺寸骨架（`sky-skel-*`），不跳版。取不到预览就不画卡，正文里的链接照常可点。
+- **链接卡**（2026-10-14 已由 §48 替换：只有单独一行的链接出卡、紧凑 64px 卡、兜底卡；下面是旧版）：一条消息最多 3 张（`MAX_LINK_CARDS`），代码块里的链接不算。卡宽 `min(320px, 100%)`，`--glass-1` 底、`--stroke` 边、`--r-md` 圆角；有图时图在上（1.91:1，`object-fit: cover`，截图从顶部对齐），下面是「图标 站点名 · 域名」一行（12px，`--ink-3`）+ 标题两行截断（14px，500）；没有图时多一行两行截断的描述。悬停上浮 1px + `--glass-2`。加载中是同尺寸骨架（`sky-skel-*`），不跳版。取不到预览就不画卡，正文里的链接照常可点。
 - **预览数据只走服务器**：`GET /api/link-preview?url=`（`server/src/link-preview/`）抓页面、读 og / twitter / title，图片和图标由服务器下载转存（`/api/link-preview/asset/:id`），浏览器从不直连第三方。og:image 失败会重试一次；再没有就请 agent-computer `POST /preview-shot` 截一张 1200×630（独立无痕 Chromium，所有请求经 `guardedFetch` 代取，内网 / 本机 / 元数据地址一律拒绝，见 `shared/net/ssrf.ts`）。截图期间卡片图位是骨架。
 - **图片**：消息里的 Markdown 图片不内联画（`components={{ img: HiddenMarkdownImage }}`，和别的 markdown 渲染器叠加），统一收进正文下方：1 张 = 单图卡（最大 320×300，按比例）；2 张以上 = **一摞**（176×132 白边卡片轻微错角叠放，左下角「🖼 N」计数，超过 4 张最后一张显示「+N」）。桌面悬停 / 键盘聚焦摊开，手机第一次轻点只摊开、再点才打开；摊开间距按容器宽度算，窄栏（≤300px 容器缩到 144×108）和手机都不出界。
 - **看大图**（`lightbox.tsx`）：全屏深色玻璃（`rgba(8,12,22,.82)` + blur），顶栏「序号 / 总数 + 图片说明（alt 优先，其次文件名）」和 放大 / 缩小 / 下载 / 关闭；左右箭头和键盘 ← → 切换，Esc 或点空白关闭；双击在 1× / 2.5× 间切，滚轮和 ＋－ 缩放到 1–4×，放大后可拖动；底部圆点指示。手机隐藏左右箭头，靠左右滑动。打开时焦点在关闭键，关闭后回到原处，背后页面不滚动。计算机截图卡也用同一个看大图。
@@ -883,3 +883,32 @@
 - 删掉的：页头空话说明「这个机器人为您做什么…」、头像旁重复的职责和角色、「已暂停，轻点以恢复」整宽大按钮、「消息 xx / 开始对话」行、三个空任务分区、英文残留（「Nothing (badges only)」、英文复数计数）。「更新发到哪里」（推送 / Slack / Teams / 短信，对所有机器人生效）不属于某个机器人，搬到「通知」页（`/reachability`，`components/bot-profile/update-routing.tsx`）。
 - 样式在 styles.css「机器人资料页」一段（`.bp-*`、`.ph.has-media`），只用 Skyglass 令牌，亮暗自动；焦点按 §46（无蓝色）。
 
+
+## 48. 链接卡：像 Hark 一样，一个要点开的链接一张卡（2026-10-14）
+
+用户：要 Hark 聊天里那种链接卡——每个链接一张卡，站点图标 / logo（有 og:image 就用缩略图）、页面标题、域名、可选短标签（如「下载 0.1.7」），整张可点、新标签页 / 系统浏览器打开，悬停轻微上浮。§31 的链接卡（大图在上）由本节替换。
+
+### 48.1 什么时候出卡
+- **只有单独占一行的链接出卡**：一行只有网址（可带行尾标点、外面可包 `**`）、一行只有 `<网址>`、或一行只有 `[标签](网址)`。句子中间的链接（「详见 [文档](…)」「来源：https://…」）只是正文里可点的链接；列表项（`- https://…`）、引用里的链接也不出卡——那多半是来源列表。代码块里的不算。
+- 一条消息最多 3 张（`MAX_LINK_CARDS`），同一网址（忽略 `#`）只出一张；第 4 个起的链接行留在正文里。
+- **出卡的那一行从正文里拿掉**（`splitLinkLines` → `display`），不会「一行网址 + 一张卡」重复。机器人聊天在 `RichMarkdownRenderer`（`useDisplayText`），频道聊天在 `RichBotStreamdown`；用户自己的消息原样显示，只在下面加卡。复制消息复制的仍是原文。
+- `[标签](网址)` 的标签显示在卡上（去掉 Markdown 记号；本身就是网址 / 域名的不要；最长 40 字）。
+- 判断规则只有一份：`app/src/lib/rich-previews/extract.ts`（`parseLinkLine` / `splitLinkLines` / `looksLikePartialLinkLine`），出卡和拿掉正文用同一个结果。
+
+### 48.2 卡片
+- 一张卡固定 **64px** 高：左边一块缩略图——有 og:image 时是 76×48（`--r-sm`，og 分享图多是 1.91:1，方块放不下，居中 cover 裁；接近方形的图（宽高比 < 1.25，多是 logo）整张 contain 放进去）；没有就是 48×48 站点图标块（图标 24px 居中，暗色下垫白底），再没有就是地球图标。右边两行：标题（14/500，一行省略）+「标签胶囊 · （有缩略图时的 14px 小图标）域名」（12px，`--ink-3`；标签是 `--accent-blue-soft` 底、`--accent-blue-ink` 字的小胶囊，挤的时候标签先省略、域名保留；暗色下小图标垫白底，黑色的 GitHub 图标才看得见）；右侧一个 ↗（桌面悬停 / 键盘聚焦时浮现，触屏常显淡色）。
+- 整张卡是一个原生 `<a target="_blank" rel="noopener noreferrer">`：中键、⌘ 点击照常；PC 客户端由 `setWindowOpenHandler` 交给系统浏览器，安卓客户端 `shouldOverrideUrlLoading` 交给系统浏览器（客户端不用更新）。`aria-label` =「标签：标题（域名），在新窗口打开」。
+- **一组 1–3 张，放在正文后面**：CSS grid，`auto-fit, minmax(272px, 1fr)`（容器 ≥ 560px 才并排）；放不下两列就竖排、每张最宽 420px；容器 ≤ 480px（手机、窄栏、用户气泡下）竖排撑满。实测 1280 宽窗口的聊天列约 540px，所以桌面上一般是竖排三张 420px 卡。
+- **悬停**：上浮 2px（`transform`）+ 两层伪元素淡入（亮一层的 `--glass-2` 玻璃、`--shadow-2` 阴影），只动 transform / opacity，180ms `--ease-out`；按下回到 0 并 0.985。进场动画 `rp-in` 用 `backwards` 填充（以前 `both` 把进场的 `transform: none` 一直留着，悬停上浮根本不生效）。`prefers-reduced-motion`：不位移、不缩放，只淡入 / 淡出。
+- **不跳版**：取预览时是同尺寸骨架（`sky-skel-*`）；兜底卡也是 64px。流式时最后一行如果像一行链接的开头（`htt`、`https://gi…`、`[标签](https://…`），正文里先藏起来、卡片位置放一个骨架；后面来了换行或文字停下约 0.9 秒才算写完、才去取预览——不拿半截网址取预览，也不先闪一行网址再消失。历史消息 / 重放挂载时直接按写完处理，立刻出卡。卡片在消息末尾，贴底时平滑跟随（§35）。
+- **兜底卡**：服务器取不到网页也不让卡片消失——标题是文件名（下载链接，如 `ChisaBot-PC-0.1.7-x64-setup.exe`）或域名，标题就是域名时第二行显示短地址（`github.com/ChisaAlter/…`），图标是站点 `/favicon.ico`（服务器转存）或地球。被 SSRF 拦下 / 限速时浏览器自己画同样的兜底卡（地球图标），照样能点。
+
+### 48.3 服务器
+- `GET /api/link-preview?url=`（`server/src/link-preview/`）照旧：要登录、按人限速 40 次 / 分钟、只连公网（`shared/net/ssrf.ts` + `guarded-fetch.ts`：DNS 解析后逐个检查、IP 钉死、每跳重定向重新检查、只 http(s)、不带账号密码、HTML 读到 400KB 就停、图片 ≤ 3MB / 图标 ≤ 200KB、8 秒超时、浏览器 UA）。图片和图标由服务器下载转存（`/api/link-preview/asset/:id`，按字节认格式、svg 带沙箱 CSP），浏览器从不直连第三方。缓存在数据库：成功 24 小时，失败 / 兜底卡 30 分钟。
+- 新增兜底：对方 4xx/5xx、不是网页（下载文件、PDF、接口）时回 `degraded: true` 的预览（`degradedTitle`）；连不上 / 超时时也回兜底卡（不再等一轮图标）。内网 / 本机 / 元数据地址仍然 422。
+- 没有 og:image 时的内置浏览器截图默认**关闭**（48px 缩略图用不上 1200×630 的大图，还占一个浏览器）；`CHISABOT_LINK_PREVIEW_SHOTS=1` 打开。
+
+### 48.4 机器人怎么用
+- 系统提示词（`shared/bot-prompt.ts` `LINK_CARD_GUIDANCE`，并进 `WORK_STYLE_GUIDANCE`）：要用户点开或去操作的网页（下载页、注册 / 登录入口、文档首页、刚做好的页面）把链接单独放一行，或一行 `[简短标签](网址)`；一条回复最多 3 张、放在正文后面、不在卡片外再写一遍；来源 / 参考资料 / 顺带提到的网站写在句子里，不做成卡片。render_ui 规则（`shared/json-render/catalog.ts`）加一条：只是要用户点开一到三个网页时不用 render_ui。
+- 用户气泡里的长网址折行（`overflow-wrap: anywhere`），不再冲出气泡（实测时发现的旧问题，顺手修）。
+- 验证：单测 `app/tests/rich-previews-extract.test.ts`（出卡规则、拿掉正文、流式最后一行）、`app/tests/link-cards.test.tsx`（卡片内容 / 标签 / 兜底卡 / 骨架 / 正文拿掉）、`server/tests/link-preview.test.ts`（SSRF、兜底标题）；`tests/chat-scroll/regression.sh` 不许有滚动跳动。
