@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { EventType, type BaseEvent } from "@ag-ui/client";
 import { Observable } from "rxjs";
+import { type FallbackUse, withFallbackListener } from "./agents/model-fallback";
 
 /**
  * 输入框里的「上下文」读数（DESIGN.md §25）：这一轮对话现在有多大。
@@ -26,7 +27,7 @@ export type ContextUsage = {
   model?: string;
 };
 
-type Meter = { last?: ContextUsage };
+type Meter = { last?: ContextUsage; fallback?: FallbackUse };
 const meters = new AsyncLocalStorage<Meter>();
 
 const count = (value: unknown): number | undefined =>
@@ -121,14 +122,25 @@ export function meterLanguageModel<T>(model: T): T {
 export function meterRun(run: () => Observable<BaseEvent>): Observable<BaseEvent> {
   return new Observable<BaseEvent>((subscriber) => {
     const meter: Meter = {};
-    const subscription = meters.run(meter, () =>
+    /*
+     * 这一轮主模型额度用完 / 不可用、换了备用模型（agents/model-fallback.ts）：记在 RUN_FINISHED 的
+     * metadata.modelFallback，对话里那一轮末尾显示一行淡色小字（DESIGN.md §61）。第一次换的为准。
+     */
+    const onFallback = (use: FallbackUse) => {
+      meter.fallback ??= use;
+    };
+    const subscription = meters.run(meter, () => withFallbackListener(onFallback, () =>
       run().subscribe({
         next: (event) => {
-          if (event.type === EventType.RUN_FINISHED && meter.last) {
+          if (event.type === EventType.RUN_FINISHED && (meter.last || meter.fallback)) {
             const finished = event as BaseEvent & { metadata?: Record<string, unknown> };
             subscriber.next({
               ...finished,
-              metadata: { ...(finished.metadata ?? {}), contextUsage: meter.last },
+              metadata: {
+                ...(finished.metadata ?? {}),
+                ...(meter.last ? { contextUsage: meter.last } : {}),
+                ...(meter.fallback ? { modelFallback: meter.fallback } : {}),
+              },
             } as BaseEvent);
             return;
           }
@@ -137,7 +149,7 @@ export function meterRun(run: () => Observable<BaseEvent>): Observable<BaseEvent
         error: (error) => subscriber.error(error),
         complete: () => subscriber.complete(),
       }),
-    );
+    ));
     return () => subscription.unsubscribe();
   });
 }

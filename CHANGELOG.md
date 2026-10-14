@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 备用模型：设置 → 模型 新增「备用模型」，管理员排好顺序（最多 8 个），主模型额度用完（429 / 402 / quota）或模型服务 5xx / 过载时按这个顺序换下一个（以前只能自动挑同平台的模型，或改环境变量）；换过模型的那一轮，对话末尾有一行淡色小字「主模型额度用完，已改用 X」，刷新后还在。管理员自检（`/api/admin/smoke`、`smoke.sh`）也走同一套回退：主模型用不了但备用模型答上了算通过，结果里 `fallback` 写明换成了谁——部署不再因为免费额度用完而误回滚。设置存在 `enterprise_settings`（`model_fallbacks`，不新建表，可回滚）。服务器 + 网页。见 DESIGN.md §61、`docs/models.md`。
 - 瘦身 P3：仓库里删掉不进任何发布物的上游目录（Tauri 桌面端、Expo 移动端、13 个外部框架适配器、Helm chart、SPIRE、supervisor、多余示例、上游笔记本全栈脚本与 docker-compose、上游 CI / 桌面签名 / 镜像发布流程）。服务端镜像、PC、Android 不受影响，部署行为不变。CI「ChisaBot checks」改成和镜像一样的 hoisted 安装，server typecheck 终于是绿的。见 `docs/slimming.md`。
 - 瘦身 P4a：已经隐藏 / 重定向的上游页面代码删掉（人员与角色、企业控制、身份提供者、自动学习、组件游乐场、组件库、旧管理员设备页、群聊），旧地址仍然跳到新位置；机器人设置窗去掉「交接」「例行任务」两栏，接管窗口去掉「录制成工作流…」。只改网页，数据不动。见 `docs/slimming.md`。
 - 生图 / 识图模型：设置 → 图片生成 并入 设置 → 模型 的「生图模型」（原配置不动，旧地址自动跳转），旁边新增「识图模型」：默认「跟随主模型」（图片直接给聊天模型），也可以选一个 OpenAI 兼容的看图模型——选了以后上传的图片先由它写详细描述和图中文字（按文件缓存，只描述一次），再交给聊天模型，机器人还能用 `image_inspect` 追问细节；聊天模型在模型目录里标明不能看图时自动用识图模型。每个人可以在 设置 → 生图与识图 换成自己的接口 / 密钥 / 模型（不设就用管理员的默认）。密钥加密、只显示末四位；普通用户只能填公网接口。新表 `chisabot_media_models`、`chisabot_image_descriptions`（开机建表，可回滚）。见 DESIGN.md §59、`docs/chat-files.md`。

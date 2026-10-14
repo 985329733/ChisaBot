@@ -47,6 +47,7 @@
 | [CB-032](#cb-032) | 安卓签名改为 CI 内签名（需要仓库 Actions secrets） | 0.2.0 release | `type: chore` · `area: android` · `area: infra` · `P2` · `status: needs-user` |
 | [CB-033](#cb-033) | 生产跨部署 stale-chunk 测试待跑 | 成熟度 Maturity | `type: chore` · `area: infra` · `P2` |
 | [CB-034](#cb-034) | 用真实账号验证 GitHub 连接与 IM 接入 | 成熟度 Maturity | `type: chore` · `area: github` · `area: im` · `P2` · `status: needs-user` |
+| [CB-035](#cb-035) | 备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退 | 成熟度 Maturity | `type: bug` · `area: models` · `area: chat` · `P0` |
 
 ## CB-001
 
@@ -663,6 +664,28 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [ ] 用户连接一个 fine-grained GitHub 令牌：读仓库 + 一次确认后的写操作
 - [ ] 至少一个 IM 平台真实收发
 - [ ] 问题逐条开 issue
+
+## CB-035
+
+**备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: models` `area: chat` `P0`
+
+#### 背景
+
+2026-10-15 01:50 生产默认模型 `clinepass/cline-free/mimo-v2.6-flash` 每日免费额度用完（429，约 19 小时），发布自检失败。§60.1 的回退只能挑同平台模型、
+不能由管理员指定，对话里也看不出换了模型。运维上已把默认模型换成 `clinepass/cline-free/muse-spark-1.3-contributor`。见 DESIGN.md §61。
+
+#### 验收标准
+
+- [x] 设置 → 模型 →「备用模型」有序列表（添加 / 上移 / 下移 / 移除 / 保存，最多 8 个），存 `enterprise_settings.model_fallbacks`
+- [x] 429 / 402 / quota 和 5xx / 529 在没有输出前按列表换模型；400 / 401 / 网络错误不换
+- [x] 换过的那一轮在对话里有一行淡色小字「主模型额度用完，已改用 X」，刷新后仍在
+- [x] `/api/admin/smoke` 走同一套回退并在结果里写明
+- [x] 单元测试、预览 e2e（模拟 429 模型）、生产检查（临时机器人）
+
+#### 相关
+
+- DESIGN.md §61、docs/models.md、server/src/agents/model-fallback*.ts
 
 ## 已完成
 

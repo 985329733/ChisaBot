@@ -238,10 +238,15 @@ let fallbackCatalog: () => Promise<string[]> = async () => [];
 export function setModelFallbackCatalog(catalog: () => Promise<string[]>): void {
   fallbackCatalog = catalog;
 }
+/** 管理员排好的「备用模型」（设置 → 模型，DESIGN.md §61；index.ts 接上）。 */
+let fallbackConfigured: () => Promise<string[]> = async () => [];
+export function setModelFallbackList(list: () => Promise<string[]>): void {
+  fallbackConfigured = list;
+}
 /** 聊天回合用的模型：额度用完（429 等）时自动换同平台的其它模型重发（DESIGN.md §60）。 */
 export function fallbackConnectionModel(model: RuntimeModel, apiKey: string | null) {
   return fallbackLanguageModel(connectionLanguageModel(model, apiKey), model.defaultModel, {
-    candidates: fallbackCandidates(fallbackCatalog),
+    candidates: fallbackCandidates(() => fallbackCatalog(), process.env, () => fallbackConfigured()),
     build: (id) => connectionLanguageModel({ ...model, defaultModel: id }, apiKey),
   });
 }

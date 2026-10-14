@@ -5054,6 +5054,11 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
   border: 1px solid var(--line); border-radius: 999px; background: var(--glass-1); font-size: 12px; line-height: 20px; color: var(--ink-3);
 }
 .bot-chat-sky [data-cb-stopped]::after { content: "◼ 已停止"; }
+/* §61 主模型额度用完、这一轮改用了备用模型：一行淡色小字，不是提示条，不占对话以外的版面。 */
+.bot-chat-sky [data-cb-fallback]:not([data-cb-stopped])::after {
+  content: attr(data-cb-fallback); display: block; margin: 4px 0 0 4px; font-size: 12px; line-height: 18px; color: var(--ink-3);
+}
+.bot-chat-sky [data-cb-fallback][data-cb-stopped]::after { content: "◼ 已停止 · " attr(data-cb-fallback); }
 .bot-chat-sky .copilotKitUserMessage[data-cb-stopped]::after,
 .bot-chat-sky [data-cb-stopped]:has(> .copilotKitUserMessage)::after { margin-left: auto; margin-right: 4px; }
 /* 频道聊天：过程话一行淡色小字（chat-transcript.tsx TranscriptMessage tone="step"） */
@@ -6665,3 +6670,11 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .media-body .img-probe { margin-top: 16px; }
 .media-personal-link { font-size: 13px; color: var(--accent-blue); white-space: nowrap; }
 .media-personal-link:hover { text-decoration: underline; }
+
+/* §61 设置 → 模型 →「备用模型」：排好顺序的列表 + 添加 / 保存。 */
+.fb-models { margin-top: 16px; }
+.fb-list { padding: 4px 0; }
+.fb-empty { padding: 16px 20px; font-size: 13px; color: var(--ink-3); }
+.fb-rank { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; background: var(--glass-2); font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.fb-add { min-width: 220px; }
