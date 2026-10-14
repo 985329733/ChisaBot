@@ -38,8 +38,8 @@ const READ_TOOLS = new Set(["list_files", "read_file", "search"]);
 function builtinToolGate(profile, tool, args, ctx) {
   if (profile === "full") return null;
   const roots = ctx.roots && ctx.roots.length ? ctx.roots : [ctx.workdir];
-  // 在一次性副本 / 沙盒里：工作目录本身就是工作区。
-  const scope = [ctx.workdir, ...roots];
+  // 在一次性副本里：只有副本本身是工作区（原文件夹里的改动要等用户点「应用改动」）；直接模式下是工作区文件夹。
+  const scope = ctx.disposable ? [ctx.workdir] : [ctx.workdir, ...roots];
   if (READ_TOOLS.has(tool)) {
     const target = path.resolve(ctx.workdir, String(args.path || "."));
     return isInside(target, scope) ? null : "要读的位置不在工作区文件夹里";

@@ -226,6 +226,7 @@ function createAgentRuntime(options) {
             network: message.network,
             containerImage: message.containerImage,
             disposable: prep.mode !== "direct",
+            origin: message.cwd,
             signal: controller.signal,
             model,
             approve: async (operation, summary) => {

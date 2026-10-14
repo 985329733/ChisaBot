@@ -55,6 +55,17 @@ function clip(text, max = OUTPUT_CAP) {
   return text.length > max ? `${text.slice(0, max)}\n…（输出太长，后面省略 ${text.length - max} 字）` : text;
 }
 
+/** 一次性副本：原文件夹（ctx.origin）下的绝对路径改写成副本（ctx.workdir）里的同一位置。 */
+function mapIntoCopy(args, ctx) {
+  if (!ctx.disposable || !ctx.origin || !args || typeof args.path !== "string" || !path.isAbsolute(args.path)) return args;
+  const win = process.platform === "win32";
+  const norm = (p) => (win ? path.resolve(p).toLowerCase() : path.resolve(p));
+  const origin = norm(ctx.origin);
+  const target = norm(args.path);
+  if (target !== origin && !target.startsWith(origin.endsWith(path.sep) ? origin : origin + path.sep)) return args;
+  return { ...args, path: path.join(ctx.workdir, path.relative(origin, target)) };
+}
+
 function resolveIn(workdir, p) {
   return path.resolve(workdir, String(p || "."));
 }
@@ -271,7 +282,9 @@ function systemPrompt(ctx) {
     "你是 ChisaBot 的本地 agent，正在用户自己的电脑上替云端机器人完成一件事。用工具读写文件、搜索、运行命令，做完用中文写一段简短的结果（做了什么、改了哪些文件、还有什么没做）。",
     `工作目录：${ctx.workdir}（相对路径都相对它）。系统：${process.platform}。`,
     `权限档位：${ctx.profile === "readonly" ? "只读——不要改文件、不要运行会改东西的命令" : ctx.profile === "workspace" ? "工作区——只改工作目录里的文件" : "完全访问"}。档位之外的操作会先请用户批准，被拒绝就换别的办法或说明。`,
-    ctx.disposable ? "你在一次性副本里工作：改动要用户确认后才会合回原文件夹，放心改，但只改和任务有关的。" : "你直接在用户的文件夹里工作，改动立即生效，谨慎。",
+    ctx.disposable
+      ? `你在一次性副本里工作（原文件夹 ${ctx.origin || "?"} 的副本就是工作目录）：只用相对路径或工作目录里的路径，不要 cd 到原文件夹；改动要用户确认后才会合回原文件夹，放心改，但只改和任务有关的。`
+      : "你直接在用户的文件夹里工作，改动立即生效，谨慎。",
     ctx.network ? "" : "这台电脑的这个任务不能联网（命令访问网络会失败）。",
     "不要输出密钥、密码。不要一次读很大的文件，用 search 和 read_file 的 offset/limit。",
   ]
@@ -308,6 +321,9 @@ async function runBuiltin(ctx) {
         messages.push({ role: "tool", toolCallId: call.toolCallId, toolName: call.toolName, output: "参数不是合法的 JSON。" });
         continue;
       }
+      // 一次性副本里：模型常按原文件夹的绝对路径写（任务里就是这么说的）——换成副本里的同一个位置，
+      // 免得绕过「应用改动」直接改了原文件夹（2026-10-15 e2e 里真的发生过）。
+      args = mapIntoCopy(args, ctx);
       const line = describe(call.toolName, args);
       ctx.emit("tool", line, line);
       const reason = builtinToolGate(ctx.profile, call.toolName, args, ctx);
@@ -332,4 +348,4 @@ async function runBuiltin(ctx) {
   return { summary: `${finalText || "步骤用完了（最多 40 步），没有做完。"}`, steps: MAX_STEPS, incomplete: true };
 }
 
-module.exports = { runBuiltin, executeTool, localModel, TOOLS, describe, systemPrompt };
+module.exports = { runBuiltin, executeTool, localModel, TOOLS, describe, systemPrompt, mapIntoCopy };
