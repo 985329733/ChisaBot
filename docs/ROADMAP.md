@@ -30,7 +30,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | [CB-001](BACKLOG.md#cb-001) | 审批卡片与审批偏好 | Hark parity | `feat/approvals` |
 | [CB-002](BACKLOG.md#cb-002) | 生图 / 识图模型设置，每人可覆盖 | Hark parity | `feat/model-media` |
 | [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先） | 成熟度 | `fix/maturity-1` |
-| [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块 | 精简 | — |
+| [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块（分 P4b-1…） | 精简 | `chore/slim-p4b-*` |
 | [CB-012](BACKLOG.md#cb-012) | 项目维护与文档系统（本页） | 成熟度 | `chore/pm-system` |
 
 ## 接下来

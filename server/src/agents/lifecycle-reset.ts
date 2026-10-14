@@ -36,7 +36,8 @@ import {
   routines,
   workItems,
 } from "../db/schema";
-import { PROACTIVE_RUN_KIND } from "../proactive/engine";
+/** Work kind the removed upstream proactive engine queued (slimming P4b); reset still clears old rows. */
+const PROACTIVE_RUN_KIND = "proactive.run";
 import type { AgentActor } from "./profile-types";
 import { WAKE_UP_KIND } from "./wake-up";
 

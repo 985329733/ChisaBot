@@ -51,3 +51,14 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 - **只被它们用到的组件 / lib** 一起删：gallery、carousel、questionnaire、主动研究面板、可达性（delivery）、群聊、旧记忆（`lib/memory.ts`）、主动研究（`lib/proactive.ts`）、演示录制（`lib/demonstrations.ts`）、旧技能编辑、旧例行任务列表、人员 / 企业 / 身份提供者 / 学习的查询与修改等；对应的 10 个测试文件。
 - 测试夹具里 `mock.module("@/components/layout/sidebar-toggle")` 改成提供全部导出（bun 的模块 mock 会漏到后面的文件里，缺 `TopBarOwnsSidebarToggle` 会在 glass-shell 处报「测试之间未处理的错误」）。
 - 不动：审批 / 确认卡、设备、定时任务、保险箱、GitHub、页面、聊天文件 / 图片、模型设置、IM、技能、记忆、例行任务后端。
+
+## P4b 关服务端模块（表保留）
+
+原则：模块不再构造、路由不再挂载、代码删掉；**数据库表和旧数据一律不动**（回滚镜像即可恢复，DROP 留到 P5）。分几个小 PR 做：
+
+| PR | 模块 | 处理 | 前端 |
+|---|---|---|---|
+| P4b-1 | 演示录制（`/api/demonstrations/*`，`demonstrations/` 的 store/recording/draft/schedule/routes） | 删 | P4a 已删「录制成工作流…」与 `lib/demonstrations.ts` |
+| P4b-1 | 上游个人记忆（`/api/memory`、`memory/` 的 store/ingestion/routes，每分钟的 `memorySweep`） | 删；§50 的长期记忆（`memory-notes/`）不受影响，`memory/tools.ts` 里每轮读记忆的中间件保留 | P4a 已删 `lib/memory.ts` |
+| P4b-1 | 主动研究（`/api/proactive/*`，`proactive/` 的 engine/store/routes） | 删；`proactive/restriction.ts`、`private-share.ts` 是通用的只读 / 私密分享守卫，保留。生命周期重置仍会清旧的 `proactive.run` 队列行 | P4a 已删 `lib/proactive.ts` |
+| P4b-1 | 意图路由（`POST /api/route`，`routing/` 的 classify/routes/service） | 删；`routing/model.ts`（工具选择用的模型补全）保留。审计类型 `channel.routed` 不再写，旧行照常显示 | 删 `lib/channels/route.ts`；「选了机器人再开对话」不再先发一条路由审计 |
