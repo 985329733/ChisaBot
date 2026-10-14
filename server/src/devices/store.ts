@@ -171,8 +171,9 @@ export function createDeviceStore(database: Database) {
     if (!ids.length || !fullAccessColumn) return map;
     try {
       const rows = (await database.$client.unsafe(
-        "SELECT id, full_access_until FROM devices WHERE id = ANY($1) AND full_access_until IS NOT NULL",
-        [ids],
+        // postgres.js 的 unsafe 不会把 JS 数组编码成 text[]（会变成 "a,b" → malformed array literal），所以用逗号拼接再拆。
+        "SELECT id, full_access_until FROM devices WHERE id = ANY(string_to_array($1, ',')) AND full_access_until IS NOT NULL",
+        [ids.join(",")],
       )) as unknown as { id: string; full_access_until: Date | string }[];
       for (const row of rows) map.set(row.id, new Date(row.full_access_until).toISOString());
     } catch {

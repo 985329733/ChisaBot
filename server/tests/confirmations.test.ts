@@ -252,5 +252,25 @@ describe.skipIf(!url)("confirmations service", () => {
     expect(decided).toEqual(["hub-1", true]);
     await new Promise((r) => setTimeout(r, 50));
     expect((await pendingFor("call-dev")).status).toBe("approved");
+
+    // 设备改文件：卡片带着色的 diff（DESIGN.md §XX）
+    await withConfirmTurn(turn(), () =>
+      withConfirmToolCall("call-edit", "device_edit_file", () =>
+        confirm.deviceHook.opened({
+          approvalId: "hub-2",
+          ownerUserId: owner,
+          botId: "b",
+          deviceName: "我的 PC",
+          operationLabel: "修改文件",
+          summary: "修改 /work/a.js（1 处）",
+          args: { path: "/work/a.js" },
+          diff: "--- a/work/a.js\n+++ b/work/a.js\n@@ -1 +1 @@\n-let i = 1;\n+let i = 0;",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      ),
+    );
+    const editCard = await pendingFor("call-edit");
+    const diffRow = editCard.details.find((d: { diff?: boolean }) => d.diff);
+    expect(diffRow?.value).toContain("+let i = 0;");
   });
 });

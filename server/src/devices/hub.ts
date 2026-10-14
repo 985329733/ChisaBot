@@ -103,6 +103,8 @@ export type DeviceConfirmLink = {
     operationLabel: string;
     summary: string;
     args: unknown;
+    /** 写文件 / 补丁的改动预览（unified diff），卡片里着色显示。 */
+    diff?: string | null;
     expiresAt: string;
   }): Promise<void>;
   closed(approvalId: string, decision: "approve" | "deny" | "expired", by: string): Promise<void>;
@@ -327,6 +329,7 @@ export function createDeviceHub(options: {
             operationLabel: OPERATION_LABEL[input.operation] ?? input.operation,
             summary: input.summary,
             args: input.args,
+            diff: view.diff ?? null,
             expiresAt: view.expiresAt,
           })
           .catch((error) => console.warn(JSON.stringify({ type: "device-confirm-card-failed", reason: errorText(error) })));
