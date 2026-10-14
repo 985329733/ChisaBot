@@ -21,7 +21,7 @@
 | [CB-006](#cb-006) | 设备「完全访问」模式（像本地 OpenClaw / Hermes） | 设备核心 Devices core | `type: feat` · `area: devices` · `area: approvals` · `P1` · `status: in-progress` |
 | [CB-007](#cb-007) | 本地 agent 运行时与 agent 选择（可选） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: devices` · `P1` · `status: in-progress` |
 | [CB-008](#cb-008) | 本地 agent 的沙箱 / 权限配置档 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: approvals` · `P1` · `status: in-progress` |
-| [CB-009](#cb-009) | 瘦身 P3：删不发布的目录 + 修 server-typecheck CI | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: in-progress` |
+| [CB-009](#cb-009) | 瘦身 P3：删不发布的目录 + 修 server-typecheck CI | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: done` |
 | [CB-010](#cb-010) | 瘦身 P4a：删前端死页 | 精简 Slim | `type: chore` · `area: slim` · `area: settings` · `P1` · `status: done` |
 | [CB-011](#cb-011) | 瘦身 P4b：不再构造上游服务端模块（表保留） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: in-progress` |
 | [CB-012](#cb-012) | 项目维护与文档系统（labels / milestones / ROADMAP / ADR / 模板） | 成熟度 Maturity | `type: docs` · `area: docs` · `P1` · `status: in-progress` |
@@ -32,7 +32,7 @@
 | [CB-017](#cb-017) | 真机验证：Windows PC 客户端与安卓手机 | 0.2.0 release | `type: chore` · `area: pc` · `area: android` · `P1` · `status: needs-user` |
 | [CB-018](#cb-018) | 用户的电脑需要手动重装 PC 0.1.7（0.2.x 不会自动更新） | 0.2.0 release | `type: chore` · `area: pc` · `P1` · `status: needs-user` |
 | [CB-019](#cb-019) | 发版 0.2.0（PC + Android） | 0.2.0 release | `type: chore` · `area: infra` · `area: pc` · `area: android` · `P1` |
-| [CB-020](#cb-020) | CI「ChisaBot checks」server-typecheck 在 main 上一直失败 | 精简 Slim | `type: bug` · `area: infra` · `P1` |
+| [CB-020](#cb-020) | CI「ChisaBot checks」server-typecheck 在 main 上一直失败 | 精简 Slim | `type: bug` · `area: infra` · `P1` · `status: done` |
 | [CB-021](#cb-021) | 一轮里两次 page_update 会出两张同一页面的卡片 | 成熟度 Maturity | `type: bug` · `area: pages` · `area: chat` · `P2` |
 | [CB-022](#cb-022) | 只读工具的结果没有卡片（只有文字） | 成熟度 Maturity | `type: feat` · `area: chat` · `P2` |
 | [CB-023](#cb-023) | 后台任务卡片在参数流完前显示笼统的「正在交给后台…」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` |
@@ -209,7 +209,7 @@
 ## CB-009
 
 **瘦身 P3：删不发布的目录 + 修 server-typecheck CI**  
-里程碑：精简 Slim · 标签：`type: chore` `area: slim` `area: infra` `P1` `status: in-progress`
+里程碑：精简 Slim · 标签：`type: chore` `area: slim` `area: infra` `P1` `status: done`
 
 #### 背景
 
@@ -217,16 +217,16 @@
 
 #### 验收标准
 
-- [ ] 上述目录删除，examples/fintech 测试夹具替换或保留并说明
-- [ ] 根 package.json workspaces、Dockerfile、bun.lock、deps 指纹同步修改；一键完整更新在预览上成功
-- [ ] CI「ChisaBot checks」server-typecheck 变绿（关联 issue 一起关掉）
-- [ ] docs/slimming.md 记 P3 结果；CHANGELOG
+- [x] 上述目录删除，examples/fintech 测试夹具保留（多个测试与 scripts/create-zh-tenant.ts 用它），worker/ 挪到 P4b（依赖指纹）
+- [x] P3 没改依赖指纹（bun.lock / package.json / Dockerfile 一字未动）→ 快速更新；worker/ 与依赖变化放 P4b
+- [x] CI「ChisaBot checks」server-typecheck 变绿（关联 issue 一起关掉）
+- [x] docs/slimming.md 记 P3 结果；CHANGELOG
 
 #### 相关
 
 - 审查报告 §5；docs/slimming.md
 
-> 进行中：worker cb-slim-2 / cb-slim-backend。完成时在 PR 里 `Backlog: CB-009`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：#113（见 docs/slimming.md「P3」）。
 
 ## CB-010
 
@@ -402,7 +402,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 ## CB-020
 
 **CI「ChisaBot checks」server-typecheck 在 main 上一直失败**  
-里程碑：精简 Slim · 标签：`type: bug` `area: infra` `P1`
+里程碑：精简 Slim · 标签：`type: bug` `area: infra` `P1` `status: done`
 
 #### 背景
 
@@ -410,9 +410,9 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 
 #### 验收标准
 
-- [ ] server-typecheck 在 CI 变绿并保持
-- [ ] 修复方式写进 docs/development.md
-- [ ] 计划随瘦身 P3 一起修
+- [x] server-typecheck 在 CI 变绿（#113：CI 改 `bun install --linker hoisted`，同镜像）
+- [x] 修复方式写进 docs/development.md、docs/slimming.md
+- [x] 随瘦身 P3 一起修（#113）
 
 ## CB-021
 
