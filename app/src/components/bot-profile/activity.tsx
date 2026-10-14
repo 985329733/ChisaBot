@@ -74,7 +74,7 @@ function linkFor(item: ActivityItem) {
   }
 }
 
-function ActivityRow({
+export function ActivityRow({
   agentId,
   item,
 }: {

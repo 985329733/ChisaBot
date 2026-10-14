@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { UpdateRoutingSection } from "@/components/bot-profile/update-routing";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -321,6 +322,7 @@ function ReachabilityPage() {
           )}
         </section>
       </div>
+      <UpdateRoutingSection />
     </PageShell>
   );
 }

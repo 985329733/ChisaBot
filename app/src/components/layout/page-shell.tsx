@@ -51,7 +51,10 @@ export function PageHeader({
   description,
   action,
   className,
+  media,
 }: {
+  /** 标题左边的头像 / 图标（机器人资料页，DESIGN.md §46）。 */
+  media?: React.ReactNode;
   eyebrow?: React.ReactNode;
   title: React.ReactNode;
   description?: React.ReactNode;
@@ -59,7 +62,8 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("ph", className)} data-slot="page-header">
+    <header className={cn("ph", media ? "has-media" : null, className)} data-slot="page-header">
+      {media ? <div className="ph-media">{media}</div> : null}
       <div className="ph-main">
         {eyebrow ? <div className="ph-eyebrow">{eyebrow}</div> : null}
         <h1 className="ph-title page-title">{title}</h1>
@@ -76,10 +80,13 @@ export function PageShell({
   className,
   description,
   eyebrow,
+  media,
   title,
   width,
   backButton,
 }: {
+  /** 标题左边的头像 / 图标。 */
+  media?: React.ReactNode;
   /** Sits at the header's right. For the page's one primary verb, if it has one. */
   action?: React.ReactNode;
   children: React.ReactNode;
@@ -148,7 +155,7 @@ export function PageShell({
             : undefined
         }
       >
-        <PageHeader action={action} description={description} eyebrow={crumbs} title={title} />
+        <PageHeader action={action} description={description} eyebrow={crumbs} media={media} title={title} />
         {children}
       </div>
     </div>
