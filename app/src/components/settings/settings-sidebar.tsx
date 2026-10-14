@@ -1,5 +1,6 @@
 import {
   IconAdjustmentsHorizontal,
+  IconAlarm,
   IconBookmark,
   IconBrain,
   IconCloudDownload,
@@ -54,6 +55,12 @@ const PERSONAL: RailGroup[] = [
         sub: "机器人照着做的方法",
         icon: IconSparkles,
         linkOptions: { to: "/settings/skills" },
+      },
+      {
+        title: "定时任务",
+        sub: "提醒和按时间自动做的事",
+        icon: IconAlarm,
+        linkOptions: { to: "/settings/schedules" },
       },
       {
         title: "页面",

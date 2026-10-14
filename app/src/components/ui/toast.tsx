@@ -58,6 +58,18 @@ export const toast = {
     });
     return id;
   },
+  /** 带一个按钮的提示（定时任务结果的「查看」，DESIGN.md §55）。 */
+  action: (text: string, label: string, onClick: () => void, duration = 8000) => {
+    let id = 0;
+    id = push("info", text, duration, {
+      label,
+      onClick: () => {
+        dismiss(id);
+        onClick();
+      },
+    });
+    return id;
+  },
   dismiss,
 };
 
