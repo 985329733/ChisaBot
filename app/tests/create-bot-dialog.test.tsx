@@ -1,12 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router";
 import { act, cleanup, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -67,15 +61,8 @@ afterEach(() => {
 
 function draw(screen: ReactNode) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: ["/"] }),
-    routeTree: createRootRoute({ component: () => screen }),
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
+  // 新建表单不用路由；RouterProvider 在 happy-dom 里首帧是空的（composing-enter 的老测试就卡在这）。
+  return render(<QueryClientProvider client={queryClient}>{screen}</QueryClientProvider>);
 }
 
 test("one step, empty fields, no preset roles, no visibility or location choice", async () => {

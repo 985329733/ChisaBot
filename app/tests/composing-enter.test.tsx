@@ -145,7 +145,7 @@ test("a coworker's name is not saved by the Enter that confirms a composed chara
     (client) => client.setQueryData(agentKeys.detail(PROFILE.id), PROFILE),
   );
 
-  fireEvent.click(await view.findByRole("button", { name: "Edit name" }));
+  fireEvent.click(await view.findByRole("button", { name: "编辑 名称" }));
   const field = view.getByDisplayValue(PROFILE.name);
   await type(field, "経費");
 
@@ -193,7 +193,7 @@ test("a boundary rule is not saved by the Enter that confirms a composed charact
     client.setQueryData(computerKeys.policy(), POLICY),
   );
 
-  const field = await view.findByLabelText("A rule, written in CEL");
+  const field = await view.findByLabelText("规则，用 CEL 编写");
   expect(field.getAttribute("spellcheck")).toBe("false");
   expect(field.getAttribute("autocorrect")).toBe("off");
   expect(field.getAttribute("autocapitalize")).toBe("off");
