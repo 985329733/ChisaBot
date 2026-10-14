@@ -197,6 +197,7 @@ import { createIntelligenceClient } from "./intelligence-client";
 import { createLocalConversations } from "./local-conversations";
 import { createBotThreads } from "./bot-threads";
 import { createChatShots } from "./chat-shots";
+import { createImService, type ImService, imConnectionOf } from "./im/service";
 import { createLinkPreviews } from "./link-preview/service";
 import { clearLearningRevisionFallback } from "./learning/runtime";
 import { createLearningSettingsStore } from "./learning/settings";
@@ -1279,9 +1280,16 @@ const teamBots = createTeamBots({
     ),
 });
 
+/** IM 接入（server/src/im，DESIGN.md §48）：下面才建；IM 回合的工具按连接的开关裁剪。 */
+let imService: ImService | undefined;
 const loadToolsForActor =
   (actorId: string, initiator: AuditInitiator = PERSON_INITIATOR) =>
-  async (botId: string) => [
+  async (botId: string) => {
+    // IM 回合（initiator = routine「im:<连接>」）：网页才能显示的工具（render_ui、面板）不给；
+    // 电脑 / 设备类工具只有连接里打开了「允许使用电脑和设备」才给。
+    const imConnection = imConnectionOf(initiator);
+    const imDevices = !imConnection || imService?.allowsDevices(imConnection) === true;
+    return [
     ...wakeUpTools({
       store: wakeUpStore,
       ownerUserId: actorId,
@@ -1302,22 +1310,24 @@ const loadToolsForActor =
       // A Team Bot reaches its owner's accounts, and a teammate's own only with their consent.
       credentialActorFor: teamBots.credentialActorFor(actorId, botId),
     })),
-    ...hostAccessTools({
-      broker: hostAccessBroker,
-      botId,
-      actorId,
-      auditStore: bootAuditStore,
-      initiator,
-    }),
-    ...(await deviceToolsFor(actorId, botId, initiator)),
+    ...(imDevices
+      ? hostAccessTools({
+          broker: hostAccessBroker,
+          botId,
+          actorId,
+          auditStore: bootAuditStore,
+          initiator,
+        })
+      : []),
+    ...(imDevices ? await deviceToolsFor(actorId, botId, initiator) : []),
     // 生成式界面（json-render，取代 A2UI）：与 /api/capabilities 的 generativeUi 同一个开关。
-    ...(config.generativeUi ? renderUiTools() : []),
+    ...(config.generativeUi && !imConnection ? renderUiTools() : []),
     // 内置联网（web_search / web_fetch）：先搜、再读，浏览器留给需要点击 / 登录 / 给人看的时候。
     ...webTools(),
     // 实时面板（server/src/live-panels）：右栏会自己刷新的卡片，规范与 render_ui 同一套组件。
     // 后台刷新面板的无头回合（initiator 是 lp_… 的 routine）只拿 panel_update / panel_fail / panel_list，且只能动那一张：
     // 以前它也拿到 panel_refresh，刷新里又触发一次刷新，回合叠回合（2026-10-13 实测）。
-    ...(config.generativeUi
+    ...(config.generativeUi && !imConnection
       ? livePanelService.tools(actorId, botId, initiator.kind === "routine" && initiator.id.startsWith("lp_") ? { refreshOf: initiator.id } : {})
       : []),
     // 工作流（docs/workflows.md）：在聊天和长期任务里运行工作流；工作流自己的步骤拿不到。
@@ -1329,6 +1339,7 @@ const loadToolsForActor =
       initiator,
     }),
   ];
+  };
 
 /** One person's standing instructions, for both the /api/settings routes and every run they start. */
 const userInstructionsStore = createUserInstructionsStore(database);
@@ -1968,6 +1979,40 @@ const routineRunner = createRoutineRunner({
   channelStore,
   runTurn: governedTurnRunner,
 });
+
+/*
+ * IM 接入（server/src/im，DESIGN.md §48，docs/im.md）：QQ / 微信 / 飞书 / 企业微信 / 钉钉 / Telegram 的消息
+ * 交给连接选的机器人回答。回合用自己的运行器：电脑工具只在连接打开「允许使用电脑和设备」时给，单轮最长 10 分钟。
+ */
+const imTurnRunner = createTurnRunner({
+  intelligence: routineIntelligence,
+  runner: routineAgentRunner,
+  components: { store: componentStore, auditStore: bootAuditStore },
+  buildAgentFor,
+  toolsForTurn: async (input) => {
+    const connection = imConnectionOf(input.initiator);
+    if (!connection || !imService?.allowsDevices(connection)) return [];
+    return workerComputerTools(input);
+  },
+  learningContainerForThread: (input) =>
+    copilotRuntime.learning?.containerForThread(input) ?? Promise.resolve(undefined),
+  turnTimeoutMs: 10 * 60_000,
+});
+imService = createImService({
+  database,
+  encryptionKey: config.keyEncryptionKey,
+  runTurn: imTurnRunner,
+  botAvailable: async (ownerUserId, agentId) => {
+    try {
+      const profile = await agentProfileStore.get(await actorFor(ownerUserId), agentId);
+      return Boolean(profile && !profile.deletedAt);
+    } catch {
+      return false;
+    }
+  },
+  isSuspension: (error) => error instanceof HeadlessToolSuspension,
+});
+await imService.ensure();
 
 const panelTaskService = createNormalPanelTaskService({
   database,
@@ -3761,6 +3806,7 @@ const app = createApp(
       ["/api/live-panels", livePanelService.routes(requireUser)],
       ["/api/chat-shots", chatShots.routes(requireUser)],
       ["/api/bot-threads", botThreads.routes(requireUser)],
+      ["/api/im", imService!.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",
@@ -4057,6 +4103,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     groupSweep.stop();
     for (const sweep of deliverySweeps) sweep.stop();
     void Promise.allSettled([
+      imService?.stopAll() ?? Promise.resolve(),
       channelActivityListener.stop(),
       policyListener.stop(),
       // Started only where handing work between Bots is switched on, so it is often not there.
@@ -4067,3 +4114,13 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 console.info(`OpenBot server listening on http://127.0.0.1:${port}`);
+
+// IM 接入：服务起来以后再连各平台（适配器自己断线重连）。CHISABOT_IM=0 关掉（不连任何平台）。
+if (process.env.CHISABOT_IM !== "0") {
+  setTimeout(() => {
+    void imService
+      ?.startAll()
+      .then((count) => count && console.info(JSON.stringify({ type: "im-started", connections: count })))
+      .catch((error) => console.error(JSON.stringify({ type: "im-start-failed", reason: String(error) })));
+  }, 3000);
+}

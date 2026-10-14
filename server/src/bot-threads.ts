@@ -156,7 +156,7 @@ export async function createBotThreads(database: Database, control?: BotThreadRu
         `SELECT id, name, jsonb_array_length(messages) AS count, updated_at,
            (SELECT m->'content' FROM jsonb_array_elements(messages) m WHERE m->>'role' = 'user' LIMIT 1) AS first
          FROM openbot_local_threads
-         WHERE owner_user_id = $1 AND agent_id = $2 AND id NOT LIKE 'worker-%' AND jsonb_array_length(messages) > 0
+         WHERE owner_user_id = $1 AND agent_id = $2 AND id NOT LIKE 'worker-%' AND id NOT LIKE 'im-%' AND jsonb_array_length(messages) > 0
          ORDER BY updated_at DESC LIMIT 30`,
         [ownerUserId, agentId],
       );
