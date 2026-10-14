@@ -87,6 +87,8 @@ bun run typecheck
 
 自托管模板及认证网关放在 `deploy/`，详见 [部署说明](deploy/README.zh-CN.md)。数据库连接、加密密钥、登录与模型连接需要按自己的环境配置。密码、模型密钥、数据库备份与浏览器资料不写入仓库。
 
+项目维护：[路线图（看板）](docs/ROADMAP.md) · [Backlog](docs/BACKLOG.md) · [架构](docs/architecture.md) · [架构决策 ADR](docs/adr/README.md) · [参与开发](CONTRIBUTING.md) · [文档目录](docs/README.md)。
+
 本分支保留上游 `OPENBOT_*` 环境变量、内部包名、协议标识和数据目录，兼容已有部署和数据。产品展示名称为 **ChisaBot**。
 
 `OPENBOT_SINGLE_USER=true` 只用于本地开发或由认证网关保护的内部服务；对外入口必须配置登录保护。详细能力边界与源码位置见 [分支说明](docs/chisabot.md)。

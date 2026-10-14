@@ -73,7 +73,7 @@ expires.
 
 ## See also
 
-- [Architecture](../architecture.md) — where plugins, grants, policy and audit sit.
+- [Architecture](../openbot-architecture.md) — where plugins, grants, policy and audit sit.
 - [Configuration](../configuration.md) — `OPENBOT_PUBLIC_URL`, `OPENBOT_APP_URL`, `KEY_ENCRYPTION_KEY`.
 - [Notion's own guide](https://developers.notion.com/guides/mcp/build-mcp-client) to building an MCP
   client against its hosted server.

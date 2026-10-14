@@ -1,0 +1,43 @@
+name: 缺陷 Bug
+description: 行为不对、回归、报错
+title: "[bug] "
+labels: ["type: bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 你看到的 vs 你期望的。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: 在哪里
+      multiple: true
+      options: [网页（电脑）, 网页（手机）, ChisaBot PC, ChisaBot Android, IM, 服务器 / 部署]
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 设置 → 系统更新 或 /api/version 显示的版本和提交号；客户端版本。
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图 / 日志
+      description: 请去掉密钥、令牌和私人信息。
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 怎样算修好（验收标准）
+      placeholder: "- [ ] …"

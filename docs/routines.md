@@ -114,7 +114,7 @@ cap and the fatigue rule; the worker that fires them. Four follow-ups were liste
 [#193](https://github.com/CopilotKit/OpenBot/issues/193), which is now closed; the first of them has
 been built. Audit rows now say what started the run they came out of, so a
 routine's action is told apart from the same person's own by reading the row rather than by
-correlating timestamps against `routine_runs`. See [Architecture](architecture.md#what-started-a-run). Still open:
+correlating timestamps against `routine_runs`. See [Architecture](openbot-architecture.md#what-started-a-run). Still open:
 there is no admin view of
 other people's routines, only the owner-scoped page each person sees for their own; there is no
 per-deployment or per-Bot cap on how many routines may be running at once beyond the sweep's own claim
@@ -122,7 +122,7 @@ limit; and a tenant package cannot yet ship routines the way it ships agents, ch
 
 ## See also
 
-- [Architecture](architecture.md) — where the routines sweep sits beside the computer culler on the
+- [Architecture](openbot-architecture.md) — where the routines sweep sits beside the computer culler on the
   shared work queue.
 - [Coworkers](coworkers.md) — durable Bot profiles and channels, which a routine posts into.
 - [Configuration](configuration.md) — `WORKER_SHARED_SECRET`, `SERVER_INTERNAL_URL`.
