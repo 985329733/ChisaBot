@@ -65,7 +65,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
-| 2026-10-15 | 瘦身 P4a：删前端死页（约 1.07 万行） | #PRNUM | [slimming.md](slimming.md) · DESIGN §57 |
+| 2026-10-15 | 瘦身 P4a：删前端死页（约 1.2 万行） | #116 | [slimming.md](slimming.md) · DESIGN §57 |
 | 2026-10-15 | 瘦身 P2：示例部署包精简、开机清孤儿授权 / 包技能 / 包频道 | #110 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P1：导航收敛 | #109 | DESIGN §57 |
 | 2026-10-14 | 聊天文件与图片生成 | #108 | DESIGN §56 · [chat-files.md](chat-files.md) |

@@ -243,7 +243,7 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 - [x] app tsc / build / DOM 测试全过；初始 JS 不变大
 - [x] docs/slimming.md、CHANGELOG
 
-> 完成：PR feat/slim-p4a（见 docs/slimming.md「P4a」）。
+> 完成：#116（见 docs/slimming.md「P4a」）。
 
 ## CB-011
 
