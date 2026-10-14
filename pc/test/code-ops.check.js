@@ -255,6 +255,11 @@ test("core: full access needs local acceptance and skips local confirm", async (
   FakeWS.last.handlers.message(JSON.stringify({ type: "call", id: "2", operation: "shell", args: { command: "x" }, timeoutMs: 1000 }));
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(localPrompts, 1);
+  // CB-030：「打开」能启动任意程序，也要本机确认
+  FakeWS.last.handlers.message(JSON.stringify({ type: "config", device: { ...device, capabilities: { shell: "allow", open: "allow" }, fullAccess: false, fullAccessUntil: null } }));
+  FakeWS.last.handlers.message(JSON.stringify({ type: "call", id: "3", operation: "open", args: { target: "calc.exe", args: ["/c", "evil"] }, timeoutMs: 1000 }));
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(localPrompts, 2);
   agent.stop();
 });
 

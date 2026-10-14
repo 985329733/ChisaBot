@@ -14,7 +14,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 |---|---|---|
 | [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图已上线；审批、生图/识图设置在做；简报、Google 账号最后 | 7 / 10 已上线 |
 | [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2、P3、P4a 已上线；P4b 在做 |
-| [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 在做 |
+| [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问已上线；本地 agent 在做 |
 | [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 扫查在做 |
 | [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
 
@@ -22,9 +22,6 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 条目 | 内容 | 里程碑 | 分支 |
 |---|---|---|---|
-| [CB-004](BACKLOG.md#cb-004) | 设备上的编码工具：云端机器人读 / 改 / 写本地代码（P0） | 设备核心 | `feat/devices-1` |
-| [CB-005](BACKLOG.md#cb-005) | 无界面设备节点（Linux / macOS） | 设备核心 | `feat/devices-1` |
-| [CB-006](BACKLOG.md#cb-006) | 设备「完全访问」模式 | 设备核心 | `feat/devices-1` |
 | [CB-007](BACKLOG.md#cb-007) | 本地 agent 运行时与 agent 选择 | 设备核心 | `feat/local-agent-1` |
 | [CB-008](BACKLOG.md#cb-008) | 本地 agent 沙箱 / 权限配置档 | 设备核心 | `feat/local-agent-1` |
 | [CB-001](BACKLOG.md#cb-001) | 审批卡片与审批偏好 | Hark parity | `feat/approvals` |
@@ -37,7 +34,6 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 条目 | 内容 | 为什么排在这 |
 |---|---|---|
-| [CB-030](BACKLOG.md#cb-030) | 设备「打开」能力可执行任意命令 | 完全访问上线前要先把能力边界理清 |
 | [CB-018](BACKLOG.md#cb-018) | 用户电脑手动重装 PC 0.1.7 | 需要用户；设备核心验收依赖它 |
 | [CB-017](BACKLOG.md#cb-017) | 真机验证 Windows / 安卓 | 需要用户；0.2.0 发版前 |
 | [CB-019](BACKLOG.md#cb-019) | 发版 0.2.0 | 设备核心 + 审批合并之后 |
@@ -63,6 +59,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
+| 2026-10-15 | 设备核心：编码工具、完全访问、服务器节点 chisabot-node（0.1.8；CB-004/005/006） | #PRNUM | DESIGN §XX · [pc-node.md](pc-node.md) §12–§14 · ADR-0009 |
 | 2026-10-15 | 瘦身 P3：删不发布的上游目录（约 10 万行）+ CI「ChisaBot checks」修绿 | #113 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4a：删前端死页（约 1.2 万行） | #116 | [slimming.md](slimming.md) · DESIGN §57 |
 | 2026-10-15 | 瘦身 P2：示例部署包精简、开机清孤儿授权 / 包技能 / 包频道 | #110 | [slimming.md](slimming.md) |

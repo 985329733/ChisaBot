@@ -52,8 +52,8 @@ export const CAPABILITY_INFO: Record<
   },
   open: {
     label: "打开应用 / 网址",
-    description: "用默认浏览器打开网址，或启动应用程序。",
-    dangerous: false,
+    description: "用默认浏览器打开网址，或启动应用程序（可以带参数启动任意程序，和命令行一样危险）。",
+    dangerous: true,
   },
   clipboard: {
     label: "剪贴板",

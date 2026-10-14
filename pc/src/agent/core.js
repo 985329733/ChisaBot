@@ -43,7 +43,8 @@ function capabilityFor(operation, args = {}) {
   return OPERATION_CAPABILITY[operation];
 }
 
-const DANGEROUS = new Set(["shell", "files_write", "input"]);
+// open 也算：它能 Start-Process / xdg-open 任意程序（带参数），等同命令行（CB-030）。
+const DANGEROUS = new Set(["shell", "files_write", "input", "open"]);
 
 function wsUrlFor(serverUrl) {
   const url = new URL(serverUrl);

@@ -53,7 +53,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 | `files_write` 写入文件 | 覆盖前备份为 `*.chisabot-bak`，可追加 | 询问 | 高 |
 | `screenshot` 截图 | Electron `desktopCapturer` 主屏，物理分辨率截取后缩放到 ≤1600 宽；无 Electron 时 PowerShell `CopyFromScreen` 兜底 | 询问 | 中 |
 | `input` 鼠标键盘 | `SetCursorPos` / `mouse_event`（DPI aware，物理像素坐标）、`SendKeys` 输入文字和按键 | 询问 | 高 |
-| `open` 打开应用 / 网址 | http/https 用默认浏览器；其它用 `Start-Process`；拒绝 `javascript:` `file:` `data:` | 询问 | 中 |
+| `open` 打开应用 / 网址 | http/https 用默认浏览器；其它用 `Start-Process`；拒绝 `javascript:` `file:` `data:` | 询问 | 高（能带参数启动任意程序，0.1.8 起本机确认，CB-030） |
 | `clipboard` 剪贴板 | 读 / 写文字 | 询问 | 中 |
 
 **默认「询问」（2026-10-14，0.1.7）**：新登记的电脑七项能力都是「询问」——机器人直接调用，PC 弹窗和网页 / 手机的「等待你审批」卡片谁先点算谁，2 分钟无人处理按拒绝；高风险项（命令行、写文件、鼠标键盘）在「允许」时也照样本机确认。以前默认全部「关闭」，用户不进权限页手动打开就什么都做不了。旧设备迁移：服务器启动时（`deviceStore.adoptAskDefaults`，幂等，`CHISABOT_DEVICE_ASK_DEFAULTS=0` 关掉）把能力仍是出厂「全部关闭」、并且审计里没有 `config_changed` / `kill_switch_*`（= 没人改过）的电脑改成「询问」，写审计 `defaults_ask`。默认文件夹：PC 0.1.7 的 `hello.suggestedRoots`（桌面、文档、下载），服务器只在文件夹列表为空且没人改过时采用（审计 `defaults_roots`）。手机绑定的设备仍是「关闭」（不是节点）。
