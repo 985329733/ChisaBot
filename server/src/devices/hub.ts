@@ -76,6 +76,16 @@ export type InvokeInput = {
   diff?: string | null;
 };
 
+/**
+ * 本地 agent / 权限档位（server/src/local-agents/，docs/local-agents.md）挂进来的扩展点：
+ * 不认识的节点消息交给它；能力是「允许」的操作先问它在不在档位之内（之外改成审批）。
+ */
+export type DeviceHubExtension = {
+  onMessage?(record: DeviceRecord, message: { type: string } & Record<string, unknown>): Promise<void> | void;
+  onHello?(record: DeviceRecord): Promise<void> | void;
+  gate?(record: DeviceRecord, operation: DeviceOperation, args: Record<string, unknown>): Promise<string | null> | string | null;
+};
+
 type HubStore = Pick<DeviceStore, "get" | "touch" | "update" | "audit" | "finishAudit"> &
   Partial<Pick<DeviceStore, "seedRoots">>;
 
@@ -128,6 +138,7 @@ export function createDeviceHub(options: {
   const screenshots = new Map<string, Screenshot>();
   let confirm = options.confirm;
   const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  let extension: DeviceHubExtension | null = null;
 
   function send(connection: Connection | undefined, message: ServerToDevice) {
     if (!connection) return false;
@@ -287,8 +298,10 @@ export function createDeviceHub(options: {
   function requestApproval(
     record: DeviceRecord,
     input: InvokeInput,
+    onCreated?: (id: string) => void,
   ): Promise<{ approved: boolean; by: string }> {
     const id = randomUUID();
+    onCreated?.(id);
     const createdAt = now();
     const chat = input.actorType !== "user" && (confirm?.linkable() ?? false);
     const ttlMs = chat ? Math.max(approvalTtlMs, CHAT_APPROVAL_TTL_MS) : approvalTtlMs;
@@ -414,6 +427,7 @@ export function createDeviceHub(options: {
               if (Array.isArray(suggestedRoots) && store.seedRoots)
                 await store.seedRoots(record.id, suggestedRoots).catch(() => false);
               await pushConfig(record.id);
+              void Promise.resolve(extension?.onHello?.(record)).catch(() => {});
               return;
             }
             case "result": {
@@ -456,6 +470,10 @@ export function createDeviceHub(options: {
               });
               return;
             default:
+              if (extension?.onMessage)
+                await Promise.resolve(extension.onMessage(record, message as unknown as { type: string } & Record<string, unknown>)).catch((error) =>
+                  console.warn("device extension message failed", error),
+                );
               return;
           }
         },
@@ -506,6 +524,31 @@ export function createDeviceHub(options: {
       });
     },
 
+    setExtension(next: DeviceHubExtension | null) {
+      extension = next;
+    },
+
+    /** 给在线设备发一条扩展协议消息（本地 agent）。离线返回 false。 */
+    sendRaw(deviceId: string, message: { type: string } & Record<string, unknown>) {
+      const connection = connections.get(deviceId);
+      if (!connection) return false;
+      try {
+        connection.socket.send(JSON.stringify(message));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    /** 走同一套审批（PC 弹窗 + 网页 / 手机「等待你审批」卡片），给本地 agent 的启动和档位之外的操作用。 */
+    requestUserApproval(
+      record: DeviceRecord,
+      input: { bot: { id: string; name: string | null }; operation: DeviceOperation; summary: string },
+      onCreated?: (approvalId: string) => void,
+    ) {
+      return requestApproval(record, { device: record, operation: input.operation, args: {}, bot: input.bot, summary: input.summary }, onCreated);
+    },
+
     listApprovals(ownerUserId: string | null): DeviceApprovalView[] {
       return [...approvals.values()]
         .filter((a) => ownerUserId === null || a.ownerUserId === ownerUserId)
@@ -539,6 +582,14 @@ export function createDeviceHub(options: {
       let policy = full ? "allow" : capability ? (record.capabilities as DeviceCapabilities)[capability] : "allow";
       // git push 总要人点头（完全访问除外）：推送是对外可见、难撤回的操作。
       if (!full && policy === "allow" && input.operation === "git" && input.args.subcommand === "push") policy = "ask";
+      // 权限档位（docs/local-agents.md）：档位之外的操作，能力是「允许」也改成先审批；从不放宽。完全访问开着时不再收紧。
+      if (!full && policy === "allow" && extension?.gate) {
+        const reason = await Promise.resolve(extension.gate(record, input.operation, input.args)).catch(() => "档位检查失败");
+        if (reason) {
+          policy = "ask";
+          input = { ...input, summary: `${input.summary}（${reason}）` };
+        }
+      }
       const started = now();
       const auditId = await store.audit({
         deviceId: record.id,

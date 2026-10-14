@@ -324,6 +324,8 @@ function createNodeAgent(options) {
         send({ type: "pong" });
         return;
       default:
+        // 本地 agent 运行时（agent-runtime/）等扩展：不认识的消息交给它。
+        if (options.onExtra) options.onExtra(message);
     }
   }
 
@@ -462,6 +464,10 @@ function createNodeAgent(options) {
         options.ops.stopAll?.("paused");
       }
       return send({ type: "set_config", ...patch });
+    },
+    /** 扩展协议（本地 agent）用：发一条消息，离线返回 false。 */
+    sendRaw(message) {
+      return send(message);
     },
     reportLocal(action, outcome, summary) {
       send({ type: "local_audit", action, outcome, summary });

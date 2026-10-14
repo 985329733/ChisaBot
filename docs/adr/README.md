@@ -7,10 +7,11 @@
 |---|---|---|
 | [0001](0001-bots-only-left-column.md) | 左栏只列机器人，没有对话列表 | 已采纳 |
 | [0002](0002-devices-belong-to-account.md) | 设备属于账号，不属于某个机器人 | 已采纳 |
-| [0003](0003-cloud-agent-device-nodes.md) | 默认云端 agent + 设备节点，本地 agent 运行时可选 | 已采纳（本地 agent 在做） |
+| [0003](0003-cloud-agent-device-nodes.md) | 默认云端 agent + 设备节点，本地 agent 运行时可选 | 已采纳（本地 agent 见 ADR-0010） |
 | [0004](0004-vault-design.md) | 密钥保险箱：机器人能用、看不到 | 已采纳 |
 | [0005](0005-pages-sandbox.md) | 页面放在同源 `/p/`，CSP sandbox 隔离 | 已采纳 |
 | [0006](0006-schedules-independent-of-routines.md) | 定时任务独立实现，不依赖上游 routines | 已采纳 |
 | [0007](0007-version-reset-0-1-0.md) | 版本号归正为 0.1.0，各端对齐 | 已采纳 |
 | [0008](0008-pr-per-feature-serial-deploy.md) | 一功能一 PR，串行部署，做好一版就发 | 已采纳 |
 | [0009](0009-device-full-access.md) | 设备「完全访问」：有时限、只能主人打开的总开关 | 已采纳 |
+| [0010](0010-local-agent-handoff.md) | 本地 agent 按任务交接；档位只收紧，完全访问 = 设备开关 | 已采纳 |

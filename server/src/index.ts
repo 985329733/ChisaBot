@@ -297,6 +297,7 @@ import { createVoiceSessionStore } from "./voice/sessions";
 import { createVoiceSummarizer } from "./voice/summary";
 import { repeatAfterEach } from "./work/loop";
 import { createWorkerService, type WorkerService } from "./workers/service";
+import { createLocalAgentService, type LocalAgentService } from "./local-agents/service";
 import {
   createWorkQueue,
   DEFAULT_MAX_ATTEMPTS,
@@ -2067,6 +2068,34 @@ confirmations.setResume(async ({ ownerUserId, agentId, threadId, requestId, text
     forwardedProps: { chisabotConfirmResume: { id: requestId } },
   });
 });
+
+/**
+ * 本地 agent 与权限档位（server/src/local-agents，docs/local-agents.md）：设备的只读 / 工作区 / 完全访问档位挂在
+ * 设备 hub 上（档位之外的 device_* 操作改成先审批）；机器人用 device_agent_run 把任务交给电脑上的 Claude Code /
+ * Codex / 内置循环，进度回到聊天卡片，结果回到对话。
+ */
+let localAgents: LocalAgentService | undefined;
+try {
+  localAgents = createLocalAgentService({
+    database,
+    hub: deviceHub,
+    deviceStore,
+    ...(localBackend ? { inbox: localBackend.inbox, control: localBackend.control } : {}),
+    deliverTurn: governedTurnRunner,
+    agentOfThread: async (threadId) => {
+      const rows = await database.$client.unsafe<{ agent_id: string }[]>("SELECT agent_id FROM openbot_local_threads WHERE id = $1", [threadId]);
+      return rows[0]?.agent_id ?? null;
+    },
+    resolveConnectionForAgent: resolveRuntimeConnectionForAgent,
+  });
+  await localAgents.ensure();
+  const interrupted = await localAgents.recover();
+  if (interrupted) console.log(JSON.stringify({ type: "local-agent-tasks-interrupted-by-restart", count: interrupted }));
+  deviceHub.setExtension(localAgents.extension);
+} catch (error) {
+  console.warn("local agents unavailable", error);
+  localAgents = undefined;
+}
 /** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
 const isChannelThread = async (threadId: string) =>
   (await database.$client.unsafe("SELECT 1 FROM intelligence_channel_mappings WHERE thread_id = $1 LIMIT 1", [threadId])).length > 0;
@@ -2549,11 +2578,25 @@ const actorAgentResolver = createActorAgentResolver({
             )()),
           ]
         : delegated;
+      // 本地 agent（docs/local-agents.md）：人自己的回合和结果交回的回合（同委派），有在线电脑时才给。
+      const localAgentTools =
+        localAgents && delegating
+          ? await restrictNamedToolsForWorkflow(initiator, async () => {
+              const botName = await agentProfileStore
+                .get(await actorFor(actorId), botId)
+                .then((profile) => profile?.name ?? null)
+                .catch(() => null);
+              const owner = await pluginStore.agentOwner(botId).catch(() => undefined);
+              if (typeof owner === "string" && owner !== actorId) return [];
+              return localAgents!.tools({ ownerUserId: actorId, botId, botName, threadId: input.threadId });
+            })().catch(() => [])
+          : [];
+      const withLocal = localAgentTools.length ? [...tools, ...localAgentTools] : tools;
       const sessionId = props?.panelAuthoring?.sessionId;
       if (typeof sessionId !== "string" || !sessionId || sessionId.length > 128)
-        return tools;
+        return withLocal;
       return [
-        ...tools,
+        ...withLocal,
         ...(await restrictNamedToolsForWorkflow(initiator, () =>
           panels.authoring.tools({ actorId, botId }, sessionId),
         )()),
@@ -3716,6 +3759,7 @@ const app = createApp(
       // 公开页面：不用登录（沙箱 CSP，见 server/src/pages/service.ts）。
       ["/p", pages.publicRoutes()],
       ["/api/schedules", schedules.routes(requireUser)],
+      ...(localAgents ? [["/api/local-agents", localAgents.routes(requireUser)] satisfies [string, unknown]] : []),
       ["/api/chat-files", chatFiles.routes(requireUser)],
       ["/api/confirmations", confirmations.routes(requireUser)],
       ["/api/media-models", chatFiles.media.routes(requireUser)],

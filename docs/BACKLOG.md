@@ -19,8 +19,8 @@
 | [CB-004](#cb-004) | 设备上的编码工具：云端机器人读 / 改 / 写本地代码 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: pc` · `P0` · `status: done` |
 | [CB-005](#cb-005) | 无界面设备节点：Linux / macOS 服务器也能当设备 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: infra` · `P1` · `status: done` |
 | [CB-006](#cb-006) | 设备「完全访问」模式（像本地 OpenClaw / Hermes） | 设备核心 Devices core | `type: feat` · `area: devices` · `area: approvals` · `P1` · `status: done` |
-| [CB-007](#cb-007) | 本地 agent 运行时与 agent 选择（可选） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: devices` · `P1` · `status: in-progress` |
-| [CB-008](#cb-008) | 本地 agent 的沙箱 / 权限配置档 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: approvals` · `P1` · `status: in-progress` |
+| [CB-007](#cb-007) | 本地 agent 运行时与 agent 选择（可选） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: devices` · `P1` · `status: done` |
+| [CB-008](#cb-008) | 本地 agent 的沙箱 / 权限配置档 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: approvals` · `P1` · `status: done` |
 | [CB-009](#cb-009) | 瘦身 P3：删不发布的目录 + 修 server-typecheck CI | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: done` |
 | [CB-010](#cb-010) | 瘦身 P4a：删前端死页 | 精简 Slim | `type: chore` · `area: slim` · `area: settings` · `P1` · `status: done` |
 | [CB-011](#cb-011) | 瘦身 P4b：不再构造上游服务端模块（表保留） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: in-progress` |
@@ -183,7 +183,7 @@
 ## CB-007
 
 **本地 agent 运行时与 agent 选择（可选）**  
-里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: devices` `P1` `status: in-progress`
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: devices` `P1` `status: done`
 
 #### 背景
 
@@ -191,17 +191,17 @@
 
 #### 验收标准
 
-- [ ] 设备上能登记可用的本地 agent 运行时；机器人资料页能选「云端（默认）/ 某台设备上的某个 agent」
-- [ ] 本地 agent 的输出以同样的聊天流式、卡片、停止语义呈现
-- [ ] 设备离线时如实提示，不静默失败
-- [ ] 文档：架构图更新、docs/ 新页面、ADR 补充
+- [x] 设备上自动检测可用的本地 agent（Claude Code / Codex / OpenCode / Gemini CLI / Aider + 内置循环），设置 → 设备 → 本地 agent 选默认；聊天里可以点名。**改动**：不做「机器人资料页整体换成本地 agent 回答」，改为按任务交接（ADR-0010 写明原因）
+- [x] 本地 agent 的输出以聊天任务卡片呈现（实时输出、停止、改动、应用 / 放弃），结果回到同一段对话（沿用 §38）
+- [x] 设备离线 / 没装 / 档位不允许时，机器人拿到中文原因，卡片不出现
+- [x] 文档：docs/local-agents.md（含 OpenBot 服务器 agent 与 Claude Code / Codex 的对比）、ADR-0010、DESIGN.md §66
 
-> 进行中：worker cb-localagent，分支 feat/local-agent-1。完成时在 PR 里 `Backlog: CB-007`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：PR feat/local-agent-1（`Backlog: CB-007`）。真机 Windows / macOS 验证归 CB-017。
 
 ## CB-008
 
 **本地 agent 的沙箱 / 权限配置档**  
-里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: approvals` `P1` `status: in-progress`
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: approvals` `P1` `status: done`
 
 #### 背景
 
@@ -209,11 +209,11 @@
 
 #### 验收标准
 
-- [ ] 至少三档配置，界面上一句话说清每档能做什么
-- [ ] 配置档在服务器强制执行并写审计（不只靠本地 agent 自觉）
-- [ ] 和「完全访问」模式、审批偏好不冲突，文档写明优先级
+- [x] 三档：只读 / 工作区 / 完全访问，界面上每档一句话；完全访问 = ADR-0009 的设备开关（有时限）
+- [x] 档位在服务器的设备 hub 上强制执行（档位之外 → 审批卡片，摘要写明档位），改档位写设备审计；内置 agent 在电脑上按真实路径再判一次
+- [x] 和完全访问、审批偏好不冲突：只收紧不放宽，优先级写在 docs/local-agents.md §2 和 ADR-0010；隔离方式（worktree / 副本 / bubblewrap / sandbox-exec / Docker / WSL）和联网开关
 
-> 进行中：worker cb-localagent。完成时在 PR 里 `Backlog: CB-008`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：PR feat/local-agent-1（`Backlog: CB-008`）。
 
 ## CB-009
 

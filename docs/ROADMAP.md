@@ -14,7 +14,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 |---|---|---|
 | [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图已上线；审批、生图/识图设置在做；简报、Google 账号最后 | 7 / 10 已上线 |
 | [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2、P3、P4a、P4b-1、P4b-2 已上线；P4b-3 在做，剩企业闸门 / SSO / 语音 |
-| [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问已上线；本地 agent 在做 |
+| [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问 / 本地 agent 已上线；待真机验证 |
 | [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 扫查在做 |
 | [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
 
@@ -22,8 +22,6 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 条目 | 内容 | 里程碑 | 分支 |
 |---|---|---|---|
-| [CB-007](BACKLOG.md#cb-007) | 本地 agent 运行时与 agent 选择 | 设备核心 | `feat/local-agent-1` |
-| [CB-008](BACKLOG.md#cb-008) | 本地 agent 沙箱 / 权限配置档 | 设备核心 | `feat/local-agent-1` |
 | [CB-001](BACKLOG.md#cb-001) | 审批卡片与审批偏好 | Hark parity | `feat/approvals` |
 | [CB-002](BACKLOG.md#cb-002) | 生图 / 识图模型设置，每人可覆盖 | Hark parity | `feat/model-media` |
 | [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先 → 新朋友视角） | 成熟度 | `fix/maturity-*`（批 2 #122 已合并） |

@@ -17,6 +17,8 @@ import { SCHEDULE_MARKER } from "../../../../shared/schedules";
 import { ConfirmResumeRow, isConfirmResume, MessageConfirmCards } from "@/components/chat/confirm-card";
 import { useReadMark } from "./thread-inbox";
 import { WORKER_RESULT_MARKER } from "./workers";
+import { LocalAgentResultRow } from "@/components/chat/local-agent-card";
+import { LOCAL_AGENT_RESULT_MARKER } from "../../../../shared/local-agents";
 import { renderUnvirtualizedMessageList } from "./message-list";
 import { ZH_MESSAGE_VIEW } from "./reasoning-zh";
 
@@ -110,6 +112,14 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
     return (
       <div className="copilotKitMessage worker-result-msg cpk:pt-6" data-copilotkit="" data-testid="schedule-fired-message">
         <ScheduleFiredRow messageId={props.message.id} text={text} />
+      </div>
+    );
+  }
+  // 本地 agent 任务交回来的结果（docs/local-agents.md）：同样是一行结果卡。
+  if (text.startsWith(LOCAL_AGENT_RESULT_MARKER)) {
+    return (
+      <div className="copilotKitMessage worker-result-msg cpk:pt-6" data-copilotkit="" data-testid="local-agent-result-message">
+        <LocalAgentResultRow messageId={props.message.id} text={text} />
       </div>
     );
   }
