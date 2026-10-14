@@ -205,6 +205,7 @@ import { createMemoryIngestion } from "./memory/ingestion";
 import { createMemoryStore } from "./memory/store";
 import { createMemoryNotes } from "./memory-notes/service";
 import { createChisaSkills } from "./skills-chisa/tools";
+import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -1254,6 +1255,9 @@ const proactiveReadOnlyRefs = createReadOnlyClassifier(pluginStore);
 /** 长期记忆（DESIGN.md §50）：每轮开头的记忆用法 + 笔记；上游 personal_memories 不再给机器人。 */
 const memoryNotes = createMemoryNotes(database);
 await memoryNotes.ensure();
+/** 密钥保险箱（DESIGN.md §52）：API 密钥 / 令牌，值不进模型；api_request 按域名替换。 */
+const vault = createVault(database, { encryptionKey: config.keyEncryptionKey });
+await vault.ensure();
 /** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */
 const chisaSkills = createChisaSkills({
   store: pluginStore,
@@ -1266,6 +1270,7 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
   [
     await memoryNotes.context(ownerUserId, botId).catch(() => ""),
     await chisaSkills.catalog(ownerUserId).catch(() => ""),
+    VAULT_GUIDANCE,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -1316,6 +1321,7 @@ const loadToolsForActor =
     // 长期记忆（server/src/memory-notes，DESIGN.md §50）：一个人的所有机器人共用；后台刷新面板的回合不给。
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : memoryNotes.tools(actorId, botId)),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : chisaSkills.tools(actorId, botId)),
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : vault.tools(actorId, botId, initiator)),
     ...(await grantedTools({
       store: pluginStore,
       botId,
@@ -3658,7 +3664,7 @@ const app = createApp(
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
     const { name, args, botId, actorId, initiator } = input;
-    const memory = [...memoryNotes.tools(actorId, botId), ...chisaSkills.tools(actorId, botId)]
+    const memory = [...memoryNotes.tools(actorId, botId), ...chisaSkills.tools(actorId, botId), ...vault.tools(actorId, botId, initiator ?? undefined)]
       .find((candidate) => candidate.name === name);
     if (memory) {
       const text = await memory.execute(args);
@@ -3819,6 +3825,7 @@ const app = createApp(
       ["/api/im", imService!.routes(requireUser)],
       ["/api/memory-notes", memoryNotes.routes(requireUser)],
       ["/api/chisa-skills", chisaSkills.routes(requireUser)],
+      ["/api/vault", vault.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",

@@ -8,6 +8,7 @@ import {
   IconKey,
   IconLayoutGrid,
   IconListDetails,
+  IconLock,
   IconMessageChatbot,
   IconPlug,
   IconPuzzle,
@@ -58,6 +59,12 @@ const PERSONAL: RailGroup[] = [
         sub: "已连接的应用、保存的登录",
         icon: IconPlug,
         linkOptions: { to: "/settings/connected-accounts" },
+      },
+      {
+        title: "密钥",
+        sub: "API 密钥和令牌，机器人用但看不到",
+        icon: IconLock,
+        linkOptions: { to: "/settings/vault" },
       },
       {
         title: "设备",
