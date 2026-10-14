@@ -19,6 +19,8 @@ export type VaultSecretView = {
   createdAt: string;
   updatedAt: string;
   lastUsedAt: string | null;
+  /** 由别处管理的密钥（如 `github` = 设置 → 账号连接 → GitHub），这里不能编辑、删除，`api_request` 也不能用。 */
+  managedBy?: "github";
 };
 
 export type VaultRequestView = {
@@ -38,4 +40,10 @@ export function domainAllowed(host: string, domains: readonly string[]): boolean
     const d = domain.toLowerCase();
     return d.startsWith("*.") ? h === d.slice(2) || h.endsWith(d.slice(1)) : h === d;
   });
+}
+
+/** 保留的名字：由专门的连接管理（DESIGN.md §53 GitHub），保险箱页面和 `api_request` 都不能直接用。 */
+const RESERVED = new Map<string, "github">([["github", "github"]]);
+export function vaultReserved(name: string): "github" | undefined {
+  return RESERVED.get(name);
 }

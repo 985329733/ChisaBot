@@ -6402,3 +6402,46 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .vault-card-in { flex: 1 1 200px; min-width: 0; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--glass-2); font-family: var(--font-code); font-size: 13px; color: var(--ink-1); outline: none; }
 .vault-card-in:focus { border-color: var(--ink-3); }
 .vault-card-in::placeholder { font-family: inherit; color: var(--ink-4); }
+
+/* GitHub 账号连接（DESIGN.md §53）：设置里的连接行 + 连接弹窗步骤 + 聊天里的写操作确认卡片。 */
+.im-row-main.is-static { cursor: default; }
+.gh-avatar { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; background: var(--glass-2); }
+.gh-mark { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; color: #fff; background: #1f2328; }
+.dark .gh-mark { color: #1f2328; background: #f0f3f6; }
+.gh-login { white-space: nowrap; margin-left: 6px; font-family: var(--font-code); font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.gh-state { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.gh-state::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.gh-state.is-ok { color: var(--success); background: var(--success-soft); }
+.gh-state.is-bad { color: var(--danger); background: var(--danger-soft); }
+.gh-steps { display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.gh-steps > li { display: flex; gap: 12px; align-items: flex-start; }
+.gh-step-n { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; margin-top: 1px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--accent-blue-ink); background: var(--accent-blue-soft); }
+.gh-step-t { font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.gh-step-s { margin-top: 4px; font-size: 13px; line-height: 1.55; color: var(--ink-3); }
+.gh-step-link { display: inline-flex; align-items: center; gap: 6px; height: 32px; margin-top: 10px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--glass-2); font-size: 13px; font-weight: 500; color: var(--ink-1); text-decoration: none; transition: background var(--dur-1), transform var(--dur-1); }
+.gh-step-link:hover { background: var(--glass-hover); }
+.gh-step-link:active { transform: scale(.98); }
+.gh-step-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-line); }
+.gh-card { max-width: 520px; margin: 4px 0; padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--glass-3); box-shadow: var(--shadow-1); transition: opacity var(--dur-2); }
+.gh-card-h { display: flex; gap: 12px; align-items: flex-start; }
+.gh-card-ico { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; color: var(--warn); background: var(--warn-soft); transition: color var(--dur-2), background var(--dur-2); }
+.gh-card[data-state="done"] .gh-card-ico { color: var(--success); background: var(--success-soft); }
+.gh-card[data-state="failed"] .gh-card-ico { color: var(--danger); background: var(--danger-soft); }
+.gh-card[data-state="stopped"] .gh-card-ico { color: var(--ink-3); background: var(--glass-hover); }
+.gh-card-t { font-size: 14px; font-weight: 600; color: var(--ink-1); overflow-wrap: anywhere; }
+.gh-card-s { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--ink-3); overflow-wrap: anywhere; }
+.gh-card[data-state="failed"] .gh-card-s { color: var(--danger); }
+.gh-card-p { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); }
+.gh-card-pt { font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--ink-1); overflow-wrap: anywhere; }
+.gh-card-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.gh-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 12px; color: var(--ink-2); background: var(--glass-hover); }
+.gh-chip.is-code { font-family: var(--font-code); color: var(--accent-blue-ink); background: var(--accent-blue-soft); }
+.gh-card-body { max-height: 180px; margin-top: 8px; overflow: auto; font-size: 13px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; overscroll-behavior: contain; }
+.gh-card-pt + .gh-card-body, .gh-card-chips + .gh-card-body { margin-top: 8px; }
+.gh-card-p > .gh-card-body:first-child { margin-top: 0; }
+.gh-card-body.is-empty { color: var(--ink-4); }
+.gh-card-f { display: flex; gap: 8px; margin-top: 12px; }
+.gh-card-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 13px; font-weight: 500; color: var(--accent-blue-ink); text-decoration: none; }
+.gh-card-link:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) { .gh-card, .gh-card-ico, .gh-step-link { transition: none; } }
+@media (max-width: 520px) { .gh-check { display: none; } }

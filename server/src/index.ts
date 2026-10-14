@@ -206,6 +206,7 @@ import { createMemoryStore } from "./memory/store";
 import { createMemoryNotes } from "./memory-notes/service";
 import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
+import { createGithub } from "./github/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -1258,6 +1259,9 @@ await memoryNotes.ensure();
 /** 密钥保险箱（DESIGN.md §52）：API 密钥 / 令牌，值不进模型；api_request 按域名替换。 */
 const vault = createVault(database, { encryptionKey: config.keyEncryptionKey });
 await vault.ensure();
+/** GitHub 账号连接（DESIGN.md §53）：令牌在保险箱（保留名 github），读直接做，写先在聊天里确认。 */
+const github = createGithub(database, { vault, apiBase: process.env.CHISABOT_GITHUB_API_BASE });
+await github.ensure();
 /** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */
 const chisaSkills = createChisaSkills({
   store: pluginStore,
@@ -1271,6 +1275,7 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
     await memoryNotes.context(ownerUserId, botId).catch(() => ""),
     await chisaSkills.catalog(ownerUserId).catch(() => ""),
     VAULT_GUIDANCE,
+    await github.guidance(ownerUserId).catch(() => ""),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -1322,6 +1327,7 @@ const loadToolsForActor =
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : memoryNotes.tools(actorId, botId)),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : chisaSkills.tools(actorId, botId)),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : vault.tools(actorId, botId, initiator)),
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : await github.tools(actorId, botId, initiator).catch(() => [])),
     ...(await grantedTools({
       store: pluginStore,
       botId,
@@ -3664,8 +3670,12 @@ const app = createApp(
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
     const { name, args, botId, actorId, initiator } = input;
-    const memory = [...memoryNotes.tools(actorId, botId), ...chisaSkills.tools(actorId, botId), ...vault.tools(actorId, botId, initiator ?? undefined)]
-      .find((candidate) => candidate.name === name);
+    const memory = [
+      ...memoryNotes.tools(actorId, botId),
+      ...chisaSkills.tools(actorId, botId),
+      ...vault.tools(actorId, botId, initiator ?? undefined),
+      ...(name.startsWith("github_") ? await github.tools(actorId, botId, initiator ?? undefined) : []),
+    ].find((candidate) => candidate.name === name);
     if (memory) {
       const text = await memory.execute(args);
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
@@ -3826,6 +3836,7 @@ const app = createApp(
       ["/api/memory-notes", memoryNotes.routes(requireUser)],
       ["/api/chisa-skills", chisaSkills.routes(requireUser)],
       ["/api/vault", vault.routes(requireUser)],
+      ["/api/github", github.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",
