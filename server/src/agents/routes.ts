@@ -73,7 +73,7 @@ export function parseAgentInput(
   if (typeof roleDescription !== "string") return roleDescription;
 
   /*
-   * 所有机器人都是私有的（2026-10-14 用户：「所有的机器人都是私有」，DESIGN.md §45）。界面不再提供
+   * 所有机器人都是私有的（2026-10-14 用户：「所有的机器人都是私有」，DESIGN.md §46）。界面不再提供
    * 「公开」，这里也不再接受：旧客户端照旧发 visibility 也不报错，但不管发什么都按私有存。
    */
   const visibility = "private" as const;

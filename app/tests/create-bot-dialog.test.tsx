@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 
 /**
- * 新建机器人（DESIGN.md §45.2）：一步完成；名称 / 职责 / 提示词从空白开始、没有示例角色；
+ * 新建机器人（DESIGN.md §46.2）：一步完成；名称 / 职责 / 提示词从空白开始、没有示例角色；
  * 没有「谁可以看到它」「它在哪里运行」；发出去的一律私有、不带端点。
  */
 

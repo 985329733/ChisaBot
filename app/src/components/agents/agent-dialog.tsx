@@ -253,7 +253,7 @@ function GeneralSection({
         name: profile.name,
         title: profile.title,
         roleDescription: profile.roleDescription,
-        // 一律私有（DESIGN.md §45）。
+        // 一律私有（DESIGN.md §46）。
         visibility: "private",
         /*
          * Not a built-in coworker's endpoint. That is the managed Bot's own address, which nobody

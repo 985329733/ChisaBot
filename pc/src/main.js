@@ -16,6 +16,7 @@
  */
 const path = require("node:path");
 const os = require("node:os");
+const fs = require("node:fs");
 const {
   app,
   BrowserWindow,
@@ -87,6 +88,21 @@ function clientInfo() {
     hostname: os.hostname(),
     arch: os.arch(),
   };
+}
+
+/**
+ * 建议的默认「允许的文件夹」：桌面、文档、下载（0.1.7 起随 hello 发给服务器）。服务器只在这台电脑的
+ * 文件夹列表为空、从没被人改过配置时采用；文件操作仍按能力（默认「询问」）逐次审批。
+ */
+function suggestedRoots() {
+  const roots = [];
+  for (const name of ["desktop", "documents", "downloads"]) {
+    try {
+      const dir = app.getPath(name);
+      if (dir && fs.existsSync(dir)) roots.push(dir);
+    } catch {}
+  }
+  return roots;
 }
 
 // ---------- 窗口 ----------
@@ -558,7 +574,7 @@ function startAgent() {
     serverUrl: local.serverUrl,
     getToken: () => config.getToken(),
     ops,
-    clientInfo: clientInfo(),
+    clientInfo: { ...clientInfo(), suggestedRoots: suggestedRoots() },
     getAgent: (url) => proxyAgentFor(url),
     approve: (request) => askApproval(request),
     local: () => ({ paused: config.get().localPaused, forceLocalApproval: config.get().forceLocalApproval }),
@@ -1205,7 +1221,7 @@ function registerIpc() {
     if (agent?.state === "revoked" && agentDetail !== "设备令牌无效") {
       const ok = await confirmLocal({
         title: "重新登记这台电脑？",
-        description: "这台电脑之前被撤销了关联。重新登记后它会作为新设备出现在设备列表里，所有能力仍默认关闭。",
+        description: "这台电脑之前被撤销了关联。重新登记后它会作为新设备出现在设备列表里，能力默认「询问」（每次要你批准）。",
         confirmLabel: "重新登记",
       });
       if (!ok) return { status: "cancelled", message: "已取消。", state: webLocalState() };

@@ -160,7 +160,8 @@ export function deviceGuidance(
   if (online.length) {
     lines.push(
       "When the person asks whether you can see, reach or use their computer, the answer is yes for the online one(s): say so plainly and use the device_* tools (device_* acts on THEIR computer; computer_* acts on your cloud browser). Never claim you only have an isolated browser.",
-      "Each capability (命令行、读取文件、写入文件、截图、鼠标键盘、打开应用 / 网址、剪贴板) is off until the person turns it on. If a request needs one that is off, say which one and tell them to turn it on in 设置 → 设备 → the computer → 权限, then try again; do not pretend to have done it.",
+      "Capabilities marked 每次需用户批准 (the default for a newly linked computer) work right away: just call the device_* tool; ChisaBot shows the person an approval prompt on that computer and on the web/phone, and the call returns once they approve (or is refused if they deny or nobody answers within 2 minutes). Say in one short line that they will see a prompt to approve; do not ask for permission in chat first. File tools only reach the computer's 允许的文件夹 (listed by device_list as allowedRoots); outside them use device_run_shell if it is available.",
+      "A capability that is off was switched off by the person (命令行、读取文件、写入文件、截图、鼠标键盘、打开应用 / 网址、剪贴板). If a request needs one that is off, say which one and tell them they can set it to 询问 in 设置 → 设备 → the computer → 权限, then try again; do not pretend to have done it.",
     );
   } else {
     lines.push(

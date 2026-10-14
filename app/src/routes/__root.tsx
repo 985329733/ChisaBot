@@ -15,6 +15,7 @@ import { PageLoaderHost } from "@/components/ui/page-loader";
 import { Toaster } from "@/components/ui/toast";
 import { UpdateBanner } from "@/components/update-banner";
 import { InstallHint } from "@/components/install-hint";
+import { PcLinkHint } from "@/components/pc-link-hint";
 import type { RouterContext } from "../router-context";
 import "@fontsource-variable/inter/wght.css";
 
@@ -142,6 +143,7 @@ function RootComponent() {
           <Toaster />
           <UpdateBanner />
           <InstallHint />
+          <PcLinkHint />
         </TooltipProvider>
       </ThemeProvider>
       </MotionConfig>

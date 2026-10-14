@@ -182,7 +182,7 @@ describe("agent input parser", () => {
     });
   });
 
-  // 所有机器人都是私有（DESIGN.md §45）：发什么 visibility 都按私有存，缺省也不报错。
+  // 所有机器人都是私有（DESIGN.md §46）：发什么 visibility 都按私有存，缺省也不报错。
   test.each([["public"], [undefined], [1], ["friends"]])(
     "stores every Bot as private whatever visibility is sent (%p)",
     (visibility) => {
