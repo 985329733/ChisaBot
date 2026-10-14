@@ -78,9 +78,9 @@ export const PageCard = memo(function PageCard({ pageId, pendingTitle, failed }:
         </div>
         {page?.published ? (
           <span className="page-card-actions">
-            <a className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "page-card-open")} href={url} rel="noopener noreferrer" target="_blank">
+            <a aria-label="打开页面" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "page-card-open")} href={url} rel="noopener noreferrer" target="_blank" title="打开页面">
               <IconExternalLink className="size-4" />
-              {"打开"}
+              <span className="page-card-open-label">{"打开"}</span>
             </a>
             <CopyButton size="sm" value={url} variant="outline">
               {"复制链接"}
