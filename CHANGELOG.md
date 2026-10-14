@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 生图 / 识图模型：设置 → 图片生成 并入 设置 → 模型 的「生图模型」（原配置不动，旧地址自动跳转），旁边新增「识图模型」：默认「跟随主模型」（图片直接给聊天模型），也可以选一个 OpenAI 兼容的看图模型——选了以后上传的图片先由它写详细描述和图中文字（按文件缓存，只描述一次），再交给聊天模型，机器人还能用 `image_inspect` 追问细节；聊天模型在模型目录里标明不能看图时自动用识图模型。每个人可以在 设置 → 生图与识图 换成自己的接口 / 密钥 / 模型（不设就用管理员的默认）。密钥加密、只显示末四位；普通用户只能填公网接口。新表 `chisabot_media_models`、`chisabot_image_descriptions`（开机建表，可回滚）。见 DESIGN.md §59、`docs/chat-files.md`。
 - 瘦身 P2：示例部署包 `examples/zh-CN` 不再自带机器人和频道（每人第一次进来自动得到私有的「助手」），共享技能只留两个与连接器无关的。服务启动时清理部署包里已不声明的包技能、从没用过的包频道和授给已删除机器人的授权（`CHISABOT_ORPHAN_SWEEP=0` 关掉）；删机器人时一并收回它的授权。用户自己的技能、用过的频道不动。升级前建议 `pg_dump` 这几张表（skills、skill_tools、plugin_grants、channels、channel_agents）。只改服务器。见 `docs/slimming.md`。
 - 导航收敛（瘦身 P1）：顶栏只剩字标、左栏开关和窗口按钮；左栏只有搜索和机器人；账号菜单 = 个人资料 · 设置 · 定时任务 · 待处理 · 绑定手机 · 暗色 · 退出；设置左栏分「个人 / 管理 / 高级」。凭据并入「模型密钥」，技能管理并入 设置 → 技能，审计改名「活动记录」；右栏不再显示上游旧面板系统（数据保留）。旧地址（`/agents`、`/team-bots`、`/memory`、`/reachability`、`/responsibilities`、`/routines`、`/skills`、`/settings/passwords`）自动跳到新位置。只改网页。见 DESIGN.md §57。
 - 聊天文件与图片生成：机器人聊天可以用 ＋、拖拽、粘贴上传文件（单个 ≤ 20 MB），存进机器人工作区；文件卡显示图片缩略图、PDF 可预览；机器人能把工作区文件交给你（`file_share`）、画图和改图。图片生成由管理员在 设置 → 图片生成 打开（默认关；支持 MiniMax image-01 等，「改图」在 MiniMax 上是以原图为参考重画）。新表 `chisabot_chat_files`、`chisabot_image_settings`（开机建表，可回滚）。见 DESIGN.md §56、`docs/chat-files.md`。

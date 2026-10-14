@@ -63,6 +63,16 @@ function providerNameOf(label: unknown): string | undefined {
   const name = at >= 0 ? label.slice(at + 3).trim() : "";
   return name && name.length <= 80 ? name : undefined;
 }
+/** 目录说这个模型能不能看图：modalities.input / input_modalities / capabilities.vision / supports_vision。 */
+export function imageInputOf(row: Record<string, unknown>): boolean | undefined {
+  const input = object(row.modalities) ? row.modalities.input : row.input_modalities;
+  if (Array.isArray(input) && input.length) return input.some((m) => typeof m === "string" && /image|vision/i.test(m));
+  const caps = object(row.capabilities) ? row.capabilities : undefined;
+  if (caps && typeof caps.vision === "boolean") return caps.vision;
+  if (typeof row.supports_vision === "boolean") return row.supports_vision;
+  if (typeof row.supports_image_input === "boolean") return row.supports_image_input;
+  return undefined;
+}
 function project(body: unknown): ModelCatalogEntry[] {
   if (
     !object(body) ||
@@ -99,6 +109,7 @@ function project(body: unknown): ModelCatalogEntry[] {
       row.context_window ?? row.context_length ?? row.max_input_tokens;
     const providerName = providerNameOf(row.magpie_label);
     const maxOutput = row.max_output_tokens ?? row.max_completion_tokens;
+    const supportsImages = imageInputOf(row);
     models.push({
       id: row.id,
       label,
@@ -116,6 +127,7 @@ function project(body: unknown): ModelCatalogEntry[] {
       maxOutput <= 1e8
         ? { maxOutputTokens: maxOutput }
         : {}),
+      ...(supportsImages === undefined ? {} : { supportsImages }),
     });
   }
   return models;

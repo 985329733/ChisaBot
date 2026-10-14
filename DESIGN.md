@@ -66,6 +66,7 @@
 | [55](#55-定时任务与提醒对话里设到点回到那段对话2026-10-14) | 定时任务与提醒：对话里设，到点回到那段对话 | 2026-10-14 |
 | [56](#56-聊天文件与图片生成上传进工作区文件卡画图改图2026-10-14) | 聊天文件与图片生成：上传进工作区、文件卡、画图改图 | 2026-10-14 |
 | [57](#57-导航收敛一个私人助手只需要一套导航2026-10-14) | 导航收敛：一个私人助手只需要一套导航 | 2026-10-14 |
+| [59](#59-生图模型识图模型在模型设置里配每个人可以换成自己的2026-10-15) | 生图模型、识图模型：在模型设置里配，每个人可以换成自己的 | 2026-10-15 |
 
 ## 0. 总原则
 
@@ -1108,3 +1109,16 @@
 - `server/src/confirmations/`：`classify.ts`（分类、规则判断，纯函数）、`context.ts`（回合 / 工具调用的 AsyncLocalStorage：`local-conversations.ts` 包回合、`copilot.ts` 包每次工具执行）、`service.ts`（表 `chisabot_confirm_prefs` / `chisabot_confirm_rules` / `chisabot_confirm_requests`，开机建，回滚安全；`wrap()` 包住 `loadToolsForActor` 给的所有工具；设备 hub 挂钩；路由 `/api/confirmations/*`）。
 - 上游 `server/src/approvals`（规则 allow / pre_approved / ask / hand_off、安全规则、审批收件箱）原样保留；`/approvals` 页照旧可用，聊天里上游的审批卡换成这一套外观、文字中文。
 - 其他功能要加「先问一下」：调用 `confirmations.check({ category, tool, title, target, details, matchText, digest, initiator })`，返回 ok 才做。
+## 59. 生图模型、识图模型：在模型设置里配，每个人可以换成自己的（2026-10-15）
+
+用户原话：「生图，识图，可以在模型设置里，让用户单独配置。」
+
+- **设置 → 模型**（管理员）在「聊天模型」下面多两节，都是所有人的**默认**：
+  - **生图模型**（`#image-model`）：就是 §56 原来的 设置 → 图片生成，整块搬过来（开关「允许机器人生成图片」、接口类型 MiniMax / OpenAI 兼容、接口地址、生成 / 修改模型、API 密钥、「检查（不生成图片）」）。数据仍在 `chisabot_image_settings` 那一行，不迁移、不改结构，生产原配置（MiniMax image-01 + 环境变量密钥，已打开）原样生效。旧地址 `/admin/images` 跳到 `/admin/models#image-model`；设置左栏「管理」组去掉「图片生成」。节标题右边「只给自己换？去 生图与识图」。
+  - **识图模型**（`#vision-model`）：分段「跟随主模型（默认）| 单独的识图模型」。单独的 = OpenAI 兼容 `/chat/completions`（消息里带 data: 图片）：接口地址、模型、API 密钥，「检查（发一张小图）」发一张 32×32 红图问颜色（一次很小的调用）。
+- **设置 → 生图与识图**（`/settings/media`，个人组，所有人）：同样两节，只对自己的机器人生效。生图「用默认 | 我自己的」，识图「用默认 | 跟随主模型 | 我自己的」；「用默认」时下面一行写默认是什么（「默认：MiniMax · image-01」/「管理员还没打开…」）。切回「用默认」不删已存的密钥，再切回来不用重填。普通用户只能填公网接口地址（服务器不替人打内网）；管理员不限。
+- **密钥**：AES-GCM 加密存（`chisabot_media_models`，主键 (owner_user_id, kind)，owner '' = 管理员默认识图）；接口和页面只给末四位（「已保存（末四位 1234），留空不改」），输入框保存后清空；只在发请求那一刻解开，永远不进机器人上下文。
+- **解析顺序**：生图 = 个人「我自己的」（齐全）→ 管理员默认（打开且齐全）→ 没有（机器人拿不到画图工具，会告诉用户去哪里打开）。管理员关掉默认时，设了自己生图模型的人照样能画。识图 = 个人「我自己的」→ 个人「跟随主模型」→ 管理员「单独的识图模型」→ 跟随主模型；跟随主模型但模型目录明确说主模型不能看图（Magpie `modalities.input` 没有 image，`ModelCatalogEntry.supportsImages = false`）时退回管理员的识图模型，再没有就给机器人一句说明（请用户去配识图模型）；目录没说就当能看。
+- **识图怎么用**：上传的图片在模型那边（attachment-parts 的 `cf:` 引用）不再给原图，而是识图模型写的详细描述 + OCR（先整体、再细节、图里的字逐字抄），前面一句「你看不到原图，按描述回答，描述里没有的用 image_inspect 问，不要编」。描述按 (文件, 接口地址+模型) 缓存在 `chisabot_image_descriptions`，同一张图每轮重放历史都不再调用；并发同一张只调一次；删文件连描述一起删。6 小时前上传、又没有描述的老图不批量描述（避免一轮几十次调用），只给一句「需要时用 image_inspect」。识图失败时主模型能看图就退回原图，否则如实说明。
+- **机器人工具** `image_inspect {question, source?}`：有识图模型时才给，让识图模型看指定图片回答具体问题（不缓存）。每轮的文件说明里多一句识图的用法。
+- 接口：管理员 `GET /api/media-models/default`、`PUT /default/image`、`PUT /default/vision`；个人 `GET /me`、`PUT /me/image`、`PUT /me/vision`；`POST /test/image`、`POST /test/vision`（`scope: default | personal`，不填密钥用已存的）。§56 的 `/api/chat-files/settings/image*` 保留兼容。

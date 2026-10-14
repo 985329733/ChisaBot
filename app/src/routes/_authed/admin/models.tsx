@@ -1,9 +1,12 @@
 import { IconCheck, IconKey, IconNetwork } from "@tabler/icons-react";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ImageDefaultCard, VisionDefaultCard } from "@/components/settings/media-models";
+import { ErrorCard } from "@/components/ui/skyglass";
+import { mediaAdminQueryOptions } from "@/lib/media-models";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { PageSection, PageShell } from "@/components/layout/page-shell";
+import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -78,7 +81,38 @@ function ModelSettingsPage() {
       ) : (
         <ModelSettingsForm config={settings.data} />
       )}
+      <MediaDefaults />
     </PageShell>
+  );
+}
+
+/**
+ * 生图模型 / 识图模型（DESIGN.md §59）：所有人的默认。原来的 设置 → 图片生成（/admin/images）并到这里，
+ * 旧地址跳到 #image-model。每个人可以在 设置 → 生图与识图 里换成自己的。
+ */
+function MediaDefaults() {
+  const media = useQuery(mediaAdminQueryOptions());
+  const personal = (
+    <Link className="media-personal-link" to="/settings/media">
+      {"只给自己换？去 生图与识图"}
+    </Link>
+  );
+  if (media.isPending) return <PageSkeleton rows={3} />;
+  if (media.error || !media.data)
+    return <ErrorCard action={<Button onClick={() => media.refetch()} variant="outline">{"重试"}</Button>} title={media.error?.message ?? "无法加载生图 / 识图设置"} />;
+  return (
+    <>
+      <div className="media-anchor" id="image-model">
+        <PageSection action={personal} description="机器人画图、改图（image_generate / image_edit）用的模型，所有人的默认。每张图按模型价格计费。" title="生图模型">
+          <ImageDefaultCard current={media.data.image} />
+        </PageSection>
+      </div>
+      <div className="media-anchor" id="vision-model">
+        <PageSection description="聊天里上传的图片怎么让机器人看懂，所有人的默认。" title="识图模型">
+          <VisionDefaultCard current={media.data.vision} />
+        </PageSection>
+      </div>
+    </>
   );
 }
 
