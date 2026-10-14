@@ -210,6 +210,12 @@ export interface ComputerGateway {
     actor: ActionActor,
     input: WriteFileInput,
   ): Promise<WriteFileResult>;
+  /** 原样写字节（聊天上传 / 生成的图片，DESIGN.md §56）；和 writeFile 同一个决策与审计意图。可选：测试替身不必实现。 */
+  writeBytes?(
+    botId: string,
+    actor: ActionActor,
+    input: { path: string; base64: string },
+  ): Promise<{ path: string; bytes: number }>;
   control(botId: string, requestId?: string): Promise<ControlState>;
   requestHelp(
     botId: string,
@@ -1204,6 +1210,16 @@ export function createComputerGateway(
         actor,
         { filePath: input.path },
         () => post<WriteFileResult>(botId, "/files/write", input),
+      );
+    },
+
+    writeBytes(botId: string, actor: ActionActor, input: { path: string; base64: string }) {
+      return govern(
+        "computer_write_file",
+        botId,
+        actor,
+        { filePath: input.path },
+        () => post<{ path: string; bytes: number }>(botId, "/files/write-bytes", input, undefined, 120_000),
       );
     },
   };

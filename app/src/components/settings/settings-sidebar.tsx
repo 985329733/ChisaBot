@@ -11,6 +11,7 @@ import {
   IconListDetails,
   IconLock,
   IconMessageChatbot,
+  IconPhoto,
   IconPlug,
   IconPuzzle,
   IconShieldCheck,
@@ -101,6 +102,7 @@ const ADMIN: RailGroup[] = [
     label: "模型",
     items: [
       { title: "模型", sub: "接口、默认模型、Magpie 网关", icon: IconBrain, linkOptions: { to: "/admin/models" } },
+      { title: "图片生成", sub: "机器人画图、改图用的模型", icon: IconPhoto, linkOptions: { to: "/admin/images" } },
       { title: "凭据", sub: "部署持有的密钥和令牌", icon: IconKey, linkOptions: { to: "/admin/credentials" } },
     ],
   },

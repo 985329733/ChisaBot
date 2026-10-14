@@ -5,6 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { BotComposerContext, BotModelInput } from "@/components/agents/bot-model-input";
+import { botAttachments } from "@/lib/chat-files";
 import { defaultAgentId } from "@/lib/agents/default-agent";
 import {
   type AgentProfile,
@@ -193,6 +194,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）：机器人开始用计算机时自动切过去，停手后切回。
   useComputerAutoWatch(agentId, watch === true, showComputer);
   const composer = useMemo(() => ({ name, onNewTopic: startNew }), [name, startNew]);
+  const attachments = useMemo(() => botAttachments(agentId), [agentId]);
   /*
    * 生成式界面里的「问一句」（DESIGN.md §29）：按钮的 send_message、列表行 / 磁贴的 ask。以前机器人
    * 对话里没有 ConversationProvider，这些点了没反应（只有频道聊天能用）。右栏面板不在这棵树里，
@@ -278,6 +280,8 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
             <CopilotChat
               input={BotModelInput}
               agentId={agentId}
+              // 上传的文件存进机器人工作区 uploads/，消息里只放本站地址（DESIGN.md §56）。
+              attachments={attachments}
               labels={BOT_CHAT_LABELS}
               // 「正在思考… / 思考了 3 秒」中文，流式时不展开英文推理（reasoning-zh.tsx）；
               // 消息下面的链接卡 / 图片一摞 / 文件卡（rich-message-view.tsx，DESIGN.md §31）。

@@ -196,7 +196,19 @@ function BotModelInputComponent(props: CopilotChatInputProps) {
               {mode === "transcribe" ? <div className="bot-composer-field">{audioRecorder}</div> : textArea}
               <div className="glass-composer-toolbar bot-composer-toolbar">
                 <div className="bot-composer-left">
-                  {onAddFile || (toolsMenu && toolsMenu.length > 0) ? (
+                  {onAddFile && !(toolsMenu && toolsMenu.length > 0) ? (
+                    // 只有「添加附件」一项时 ＋ 直接打开选文件，不再弹一个只有一项的菜单（DESIGN.md §56）。
+                    <button
+                      aria-label={"添加附件"}
+                      className="glass-composer-icon bot-composer-add"
+                      data-testid="copilot-add-file"
+                      onClick={onAddFile}
+                      title={"添加图片或文件（≤ 20 MB），也可以拖进来或粘贴"}
+                      type="button"
+                    >
+                      <IconPlus className="size-[18px]" />
+                    </button>
+                  ) : onAddFile || (toolsMenu && toolsMenu.length > 0) ? (
                     addMenuButton
                   ) : (
                     <span className="bot-composer-add-off" title="这个机器人暂不支持附件">

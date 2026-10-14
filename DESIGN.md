@@ -983,3 +983,13 @@
 - **通知**：任务跑完，网页右下角出一条带「查看」的提示（`components/schedules/notifier.tsx`，每 20 秒问一次，只报打开页面之后的）；页面在后台且允许了浏览器通知时再发系统通知。
 - **机器人工具**：`schedule_create` / `schedule_list` / `schedule_update`（名字、说明、时间、时区、`paused`）/ `schedule_cancel` / `schedule_skip_next` / `schedule_run_now`。人自己的回合、IM 回合、到点的回合、后台结果交回的回合有；后台任务本身、面板刷新、群聊没有。上游 `schedule_follow_up` 保留，只给机器人自己回头检查用。
 - **设置 → 定时任务**（`/settings/schedules`，左栏「技能」下面）：分「进行中 / 已暂停 / 最近结束（7 天）」三组卡片，一行一个：闹钟图标（进行中蓝、其他灰）· 名字 · 时间安排 + 机器人名 chip（IM 来的加「IM」chip）· 第二行「下次 明天 09:00 · 上次已完成 · 3 分钟前 · 结果摘要（单行截断）」；右侧「立即运行」（按钮状态机：启动中… → 已开始）· 暂停开关 · ⋯（立即运行 / 跳过下一次 / 打开对话 / 删除…）。窄于 640px 时「立即运行」只在 ⋯ 里。点行打开详情弹窗：到点时做什么、下次运行、最近 5 次运行（状态色 · 时间 · 结果）。删除先确认，不可撤销。
+
+## 56. 聊天文件与图片生成：上传进工作区、文件卡、画图改图（2026-10-14）
+
+用户原话：「把 hark 的功能，都给 chisabot」——第八项：图片生成 / 修改 + 文件卡。
+
+- **上传**（机器人聊天）：输入框 ＋（只有这一项时直接打开选文件，不弹一项的菜单）、拖进聊天（中文提示「松手上传」）、粘贴都行，单个 ≤ 20 MB，最多同时传 3 个。文件先 POST `/api/chat-files`，存成一行 `chisabot_chat_files`（字节在库里、按人隔离），同时写进这个机器人工作区 `uploads/<文件名>`（撞名加 `-2`）。消息里只放 `/api/chat-files/<id>`：用户气泡上方按 §31 显示图片（一摞 / 看大图）或文件卡；模型那边由 attachment-parts 当 `cf:` 引用按人读取——图片给原图，小文本给内容，PDF / Office / 压缩包给一句「已保存在工作区 uploads/…，可以用 pdftotext 等处理」。
+- **文件卡**（§31 的 `FileCard` 加强）：本站位图把类型图标换成 36px 缩略图，点缩略图或文件名开看大图（同一个 Lightbox，有下载）；PDF 多一个「预览」（眼睛图标）打开玻璃弹窗，里面是浏览器自带阅读器；下载按钮对聊天文件加 `?download=1` 强制附件。服务端只对 png/jpeg/gif/webp/pdf 内联，其他（含 SVG、HTML）一律 `application/octet-stream` 附件 + `nosniff` + 沙箱 CSP。
+- **机器人工具**（`server/src/chat-files/`）：`file_share {path, title?}` 把工作区文件交给用户（快照一份进库，聊天里出文件卡；不要贴路径或 workspace.local 链接）；`chat_files_recent` 列最近的上传 / 生成；`image_generate {prompt, aspect_ratio?}`、`image_edit {prompt, source?, aspect_ratio?}`（source = 文件 id / `/api/chat-files/…` / 工作区路径，不写 = 这个聊天最近一张图）。生成 / 改好的图存进库 + 工作区 `images/<时间>-<提示词>.png`。工具结果最后一行 `⟦chisabot:files⟧[…]` 给网页画卡，模型读前面那句人话。后台刷新面板的回合不给这些工具。
+- **画图卡**（`lib/copilot/chat-file-tools.tsx`，render-only）：进行中 = 和成图同画幅的玻璃骨架（最宽 320px），一道蓝色光泽从左扫到右（只动 transform，减少动效时不扫）+ 居中小胶囊「🖼 正在画图… / 正在改图…」；完成 = §31 单图卡（点开看大图、下载），失败不画卡，由机器人用话说明。
+- **设置 → 图片生成**（`/admin/images`，管理员，左栏「模型」组）：开关「允许机器人生成图片」（默认关；关着时机器人拿不到画图工具，会告诉用户请管理员打开）；接口类型 MiniMax（image-01，`/v1/image_generation`，修改 = 主体参考图生成，不是逐像素修图）或 OpenAI 兼容（`/v1/images/generations` + `/v1/images/edits`，gpt-image、new-api / One API 等）；接口地址、生成模型、修改模型（留空同生成）、API 密钥（加密存，只显示末四位；留空时 MiniMax 沿用部署环境变量 MINIMAX_API_KEY，或 OPENAI_BASE_URL 指向 minimax 时的 OPENAI_API_KEY）。「检查（不生成图片）」：MiniMax 发空提示词看鉴权，OpenAI 兼容读 /models，都不花钱。

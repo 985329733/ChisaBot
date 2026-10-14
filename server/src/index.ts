@@ -210,6 +210,7 @@ import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createGithub } from "./github/service";
 import { createPages } from "./pages/service";
 import { createSchedules } from "./schedules/service";
+import { createChatFiles } from "./chat-files/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -1283,7 +1284,31 @@ const pages = createPages(database, {
       }
     : {}),
 });
+/** 聊天文件 + 图片生成（DESIGN.md §56）：上传进工作区、file_share 文件卡、image_generate / image_edit。 */
+const chatFiles = createChatFiles(database, {
+  encryptionKey: config.keyEncryptionKey,
+  ownsBot: async (owner, bot) => (await agentProfileStore.get(await actorFor(owner), bot).catch(() => null)) !== null,
+  ...(computerGateway?.writeBytes
+    ? {
+        workspace: {
+          write: async (owner: string, bot: string, path: string, bytes: Buffer) => {
+            await computerGateway.writeBytes!(bot, { id: owner, userId: owner, initiator: PERSON_INITIATOR }, { path, base64: bytes.toString("base64") });
+            return true;
+          },
+          read: async (owner: string, bot: string, path: string) => {
+            const file = await computerGateway.downloadFile(bot, { id: owner, userId: owner, initiator: PERSON_INITIATOR }, { path });
+            if (file.bytes > 20 * 1024 * 1024) {
+              await file.body.cancel().catch(() => {});
+              throw new Error(`文件 ${path} 超过 20 MB。`);
+            }
+            return { bytes: Buffer.from(await new Response(file.body).arrayBuffer()), name: file.name };
+          },
+        },
+      }
+    : {}),
+});
 await pages.ensure();
+await chatFiles.ensure();
 /** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */
 const chisaSkills = createChisaSkills({
   store: pluginStore,
@@ -1298,6 +1323,7 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
     await chisaSkills.catalog(ownerUserId).catch(() => ""),
     VAULT_GUIDANCE,
     await github.guidance(ownerUserId).catch(() => ""),
+    await chatFiles.guidance().catch(() => ""),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -1351,6 +1377,7 @@ const loadToolsForActor =
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : vault.tools(actorId, botId, initiator)),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : await github.tools(actorId, botId, initiator).catch(() => [])),
     ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : pages.tools(actorId, botId, initiator)),
+    ...(initiator.kind === "routine" && initiator.id.startsWith("lp_") ? [] : await chatFiles.tools(actorId, botId, initiator).catch(() => [])),
     ...(await grantedTools({
       store: pluginStore,
       botId,
@@ -1433,7 +1460,10 @@ const loadInstructionsForActor = (actorId: string) => () =>
  */
 const loadAttachmentForActor =
   (actorId: string) => (id: string, threadId: string) =>
-    loadAttachmentForTurn(database, { actorId, threadId }, id);
+    // 机器人私聊里上传的文件（`cf:` 引用，DESIGN.md §56）只按人取：私聊不是频道，没有成员表可查。
+    id.startsWith("cf:")
+      ? chatFiles.loadForTurn(actorId, id.slice(3))
+      : loadAttachmentForTurn(database, { actorId, threadId }, id);
 
 /**
  * That the files on a message went out in it, recorded when a turn turns out to be a send.
@@ -3741,6 +3771,7 @@ const app = createApp(
       ...vault.tools(actorId, botId, initiator ?? undefined),
       ...pages.tools(actorId, botId, initiator ?? undefined),
       ...(name.startsWith("github_") ? await github.tools(actorId, botId, initiator ?? undefined) : []),
+      ...(/^(image_|file_share$|chat_files_)/.test(name) ? await chatFiles.tools(actorId, botId, initiator ?? undefined).catch(() => []) : []),
     ].find((candidate) => candidate.name === name);
     if (memory) {
       const text = await memory.execute(args);
@@ -3907,6 +3938,7 @@ const app = createApp(
       // 公开页面：不用登录（沙箱 CSP，见 server/src/pages/service.ts）。
       ["/p", pages.publicRoutes()],
       ["/api/schedules", schedules.routes(requireUser)],
+      ["/api/chat-files", chatFiles.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",

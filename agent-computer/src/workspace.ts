@@ -351,6 +351,29 @@ export function createWorkspace(
       });
       return { path: requested, bytes, appended: options.append === true };
     },
+
+    /**
+     * 原样写入字节（聊天里上传的文件、生成的图片，DESIGN.md §56）。同一套路径约束；上限单独给
+     * （默认 25MB），因为文本写入的 1MB 上限是为模型一次写的笔记定的，不是为一张照片。
+     */
+    async writeBytes(
+      requested: string,
+      contents: Uint8Array,
+      maxBytes = 25 * 1024 * 1024,
+    ): Promise<{ path: string; bytes: number }> {
+      if (!(contents instanceof Uint8Array)) {
+        throw new WorkspaceFileError("The contents to write must be bytes.");
+      }
+      if (contents.byteLength > maxBytes) {
+        throw new WorkspaceFileError(
+          `That is ${contents.byteLength} bytes and the limit is ${maxBytes}.`,
+        );
+      }
+      const full = await resolvePath(requested, true);
+      await mkdir(dirname(full), { recursive: true });
+      await writeFile(full, contents);
+      return { path: requested, bytes: contents.byteLength };
+    },
   };
 }
 
