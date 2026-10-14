@@ -2385,6 +2385,26 @@ button.chat-bottom-pill:hover {
 .glass-dark.async-raw[data-btn-state="success"] .btn-face[data-face="status"] { color: #4ade80; }
 .async-raw[data-btn-state="error"] .btn-face[data-face="status"] { color: var(--destructive); }
 .async-raw .btn-glyph { width: 16px; height: 16px; flex: none; }
+/* 重新生成 / 编辑后重发（DESIGN.md §67）：用户消息的动作靠右；原地编辑框占满气泡那一列。 */
+.chat-msg-actions[data-align="end"] { justify-content: flex-end; }
+.chat-msg-editor {
+  width: min(100%, 36rem);
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 18px;
+  background: var(--glass-2, rgba(255, 255, 255, 0.55));
+  border: 1px solid var(--line-strong, rgba(120, 140, 170, 0.28));
+  backdrop-filter: blur(12px);
+  animation: chat-msg-editor-in 0.18s ease-out both;
+}
+.chat-msg-editor-input { min-height: 3.5rem; max-height: 40vh; resize: none; background: transparent; }
+.chat-msg-editor-bar { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.chat-msg-editor-hint { margin-right: auto; font-size: 12px; color: var(--glass-ink-3); }
+@keyframes chat-msg-editor-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chat-msg-editor { animation: none; } }
 .chat-msg-action[data-btn-state="success"] { color: #16a34a; }
 .dark .chat-msg-action[data-btn-state="success"] { color: #4ade80; }
 .chat-msg-action[data-btn-state="error"] { color: var(--destructive); }

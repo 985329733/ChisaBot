@@ -42,6 +42,7 @@ function fakeDatabase(threads: Record<string, ThreadRow> = {}, events: Record<st
       return [{ owner: row?.owner_user_id ?? null, locked: row?.locked ?? null, seq: seq ? String(seq) : null, inbox: null }];
     }
     if (q.startsWith("SELECT max(updated_at) AS at FROM chisabot_workers")) return [{ at: null }];
+    if (q.startsWith("SELECT count(*)::text AS n FROM chisabot_thread_truncations")) return [{ n: params[0] === "t1" ? "3" : "0" }];
     if (q.startsWith("SELECT id, name, jsonb_array_length(messages)")) {
       // 只模拟 WHERE 条件：自己的、这个机器人的、不是 worker-*、有消息；按 updated 倒序。
       return Object.entries(threads)
@@ -110,13 +111,13 @@ describe("bot thread pointer", () => {
     await routes.request("/bot-a", put({ threadId: "t1" }));
     const reply = await (await routes.request("/bot-a/sync?threadId=t1")).json();
     expect(reply.current.threadId).toBe("t1");
-    expect(reply.thread).toEqual({ threadId: "t1", seq: "42", running: true, workers: null, inbox: null });
+    expect(reply.thread).toEqual({ threadId: "t1", seq: "42", running: true, workers: null, inbox: null, revision: "3" });
   });
 
   test("sync on a brand-new thread (no row yet) is an empty, idle conversation", async () => {
     const routes = await app(fakeDatabase());
     const reply = await (await routes.request("/bot-a/sync?threadId=t-fresh")).json();
-    expect(reply.thread).toEqual({ threadId: "t-fresh", seq: "0", running: false, workers: null, inbox: null });
+    expect(reply.thread).toEqual({ threadId: "t-fresh", seq: "0", running: false, workers: null, inbox: null, revision: "0" });
   });
 
   test("sync never describes someone else's thread", async () => {

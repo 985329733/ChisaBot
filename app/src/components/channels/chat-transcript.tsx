@@ -56,6 +56,8 @@ import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
+import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
+import { isEditableUserText } from "@/lib/copilot/regenerate";
 import {
   FileCard,
   HiddenMarkdownImage,
@@ -681,19 +683,28 @@ function ResponsibilityFiring({
 const richMarkdownComponents = { ...markdownComponents, img: HiddenMarkdownImage };
 
 const TranscriptMessage = memo(function TranscriptMessage({
+  canRegenerate = false,
   commandNames = "",
   delay,
+  editable = false,
+  messageId,
   role,
   text,
   tone,
 }: {
+  /** 这是最后一轮的回答：下面带「重新生成」（DESIGN.md §67）。 */
+  canRegenerate?: boolean;
   commandNames?: string;
   delay: number;
+  /** 用户自己发的一条：下面带「编辑」，点了气泡原地变编辑框（DESIGN.md §67）。 */
+  editable?: boolean;
+  messageId?: string;
   role: "user" | "assistant";
   text: string;
   /** compactTurns：开场一句 / 过程话 / 结果。过程话画成一行淡色小字，开场和过程都没有复制。 */
   tone?: "lead" | "step" | "final" | undefined;
 }) {
+  const [editing, setEditing] = useState(false);
   const isUser = role === "user";
   if (!isUser && tone === "step") {
     return (
@@ -730,6 +741,16 @@ const TranscriptMessage = memo(function TranscriptMessage({
   const origin = isUser ? splitChatOrigin(text) : null;
   const said = origin ? origin.text : text;
   const invoked = isUser ? splitSkillChip(said, commandNames) : null;
+
+  if (isUser && editing && messageId) {
+    return (
+      <MessageRow align={align}>
+        <MessageContent className="w-full">
+          <MessageEditor initial={said} messageId={messageId} onClose={() => setEditing(false)} />
+        </MessageContent>
+      </MessageRow>
+    );
+  }
 
   return (
     <MessageRow align={align}>
@@ -794,7 +815,21 @@ const TranscriptMessage = memo(function TranscriptMessage({
           </Bubble>
           {/* 链接卡 / 图片一摞（DESIGN.md §31）；开场一句不带。 */}
           {tone === "lead" ? null : <MessageRichPreviews align={align} text={isUser ? said : text} />}
-          {isUser || !text.trim() || tone === "lead" ? null : <CopyMessage text={text} />}
+          {isUser ? (
+            editable && messageId ? (
+              <div className="chat-msg-actions" data-align="end">
+                <EditAction onEdit={() => setEditing(true)} />
+              </div>
+            ) : null
+          ) : !text.trim() ? null : tone === "lead" ? (
+            canRegenerate ? (
+              <div className="chat-msg-actions">
+                <RegenerateAction />
+              </div>
+            ) : null
+          ) : (
+            <CopyMessage text={text} extra={canRegenerate ? <RegenerateAction /> : null} />
+          )}
         </Arriving>
       </MessageContent>
     </MessageRow>
@@ -802,7 +837,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
 });
 
 /** A quiet copy action under a Bot's answer; shows on hover, always reachable by keyboard. */
-function CopyMessage({ text }: { text: string }) {
+function CopyMessage({ text, extra }: { text: string; extra?: React.ReactNode }) {
   const copy = useAsyncAction(() => writeClipboard(text), {
     errorToast: "复制失败，请手动选择文本复制。",
   });
@@ -837,6 +872,7 @@ function CopyMessage({ text }: { text: string }) {
           ))}
         </span>
       </button>
+      {extra}
     </div>
   );
 }
@@ -1733,6 +1769,8 @@ export function ChatTranscript({
 
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
   const anchorRows = anchorRowIds(items);
+  // 重新生成挂在最后一轮最后一段看得见的回答下面；回答进行中谁都不挂（DESIGN.md §67）。
+  const regenerateId = busy ? null : lastAnswerId(items, compact.hidden);
 
   /*
    * One decider per mounted transcript, so opening a different channel starts the cascade over and
@@ -1903,8 +1941,11 @@ export function ChatTranscript({
                   scrollAnchor={anchorRows.has(item.id)}
                 >
                   <TranscriptMessage
+                    canRegenerate={item.id === regenerateId}
                     commandNames={commandNames}
                     delay={delays.delayFor(item.id, index, items.length)}
+                    editable={!busy && isPersonSentMessage(item.role, item.text) && isEditableUserText(item.text)}
+                    messageId={item.id}
                     role={item.role}
                     text={item.text}
                     tone={compact.tone.get(item.id)}
@@ -1932,6 +1973,20 @@ export function ChatTranscript({
 }
 
 const EMPTY_STOPS: ReadonlySet<string> = new Set();
+
+/**
+ * 最后一轮（最后一条用户自己发的消息之后）最后一段看得见的回答文字；没有为 null。重新生成挂在它下面。
+ */
+export function lastAnswerId(items: readonly TranscriptItem[], hidden: ReadonlySet<string>): string | null {
+  for (let at = items.length - 1; at >= 0; at -= 1) {
+    const item = items[at]!;
+    if (item.kind === "attachments") return null;
+    if (item.kind !== "text") continue;
+    if (isPersonSentMessage(item.role, item.text)) return null;
+    if (item.role === "assistant" && item.text.trim() && !hidden.has(item.id)) return item.id;
+  }
+  return null;
+}
 
 /**
  * 一轮收成「开场一句 → 结果」（频道聊天版，规则与 lib/copilot/turn-compaction.ts 相同，2026-10-13 第四轮）。

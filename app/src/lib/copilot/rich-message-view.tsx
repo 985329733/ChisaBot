@@ -1,10 +1,14 @@
 import {
+  CopilotChatAssistantMessage,
+  type CopilotChatAssistantMessageProps,
   CopilotChatToolCallsView,
   type CopilotChatToolCallsViewProps,
   CopilotChatUserMessage,
   type CopilotChatUserMessageProps,
 } from "@copilotkit/react-core/v2";
-import { type ComponentType, createElement, useMemo } from "react";
+import { type ComponentType, createElement, useMemo, useState } from "react";
+import { MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
+import { isEditableUserText, useMessageActions } from "./regenerate";
 import {
   HiddenMarkdownImage,
   type MessageMedia,
@@ -106,6 +110,8 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
   const media = useMemo(() => mediaOf(content), [content]);
   const text = textOf(content);
   const justRead = useReadMark(props.message.id);
+  const actions = useMessageActions();
+  const [editing, setEditing] = useState(false);
   // 后台任务交回来的结果（DESIGN.md §38.2）：一行结果卡，不是用户气泡。
   // 定时任务到点放进来的消息（DESIGN.md §55）：一行「定时任务」，不是用户气泡。
   if (text.startsWith(SCHEDULE_MARKER)) {
@@ -138,8 +144,19 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
       </div>
     );
   }
+  if (editing) {
+    return (
+      <div className="copilotKitMessage copilotKitUserMessage cpk:flex cpk:flex-col cpk:items-end cpk:pt-10" data-copilotkit="" data-message-id={props.message.id}>
+        <MessageEditor initial={text} messageId={props.message.id} onClose={() => setEditing(false)} />
+      </div>
+    );
+  }
   return (
-    <CopilotChatUserMessage {...props}>
+    <CopilotChatUserMessage
+      {...props}
+      // 「编辑」（DESIGN.md §67）：没在回答时才有；点了气泡原地变编辑框。
+      {...(actions?.canAct && text.trim() && isEditableUserText(text) ? { onEditMessage: () => setEditing(true) } : {})}
+    >
       {({ messageRenderer, toolbar, message }) => (
         <div
           className="copilotKitMessage copilotKitUserMessage cpk:flex cpk:flex-col cpk:items-end cpk:group cpk:pt-10"
@@ -200,13 +217,39 @@ const RICH_MARKDOWN =
         ),
       };
 
+/** 最后一条用户消息之后最后一条有文字的回答（「重新生成」挂在它下面）。 */
+export function lastAnswerMessageId(messages: readonly { id: string; role: string; content?: unknown }[] | undefined): string | null {
+  if (!messages) return null;
+  for (let at = messages.length - 1; at >= 0; at -= 1) {
+    const message = messages[at]!;
+    if (message.role === "user") return null;
+    if (message.role === "assistant" && typeof message.content === "string" && message.content.trim()) return message.id;
+  }
+  return null;
+}
+
+/**
+ * 机器人消息：自带组件 + 我们的插槽；最后一轮的回答工具栏里加「重新生成」（DESIGN.md §67）。
+ * 工具栏本来就只在有文字、且这条不在流式时出现；没在回答（canAct）时才加。
+ */
+function RichAssistantMessage(props: CopilotChatAssistantMessageProps) {
+  const actions = useMessageActions();
+  const lastId = actions?.lastAnswerId !== undefined ? actions.lastAnswerId : lastAnswerMessageId(props.messages as never);
+  const isLastAnswer = actions?.canAct === true && lastId === props.message.id;
+  return (
+    <CopilotChatAssistantMessage
+      {...(BASE_ASSISTANT as object)}
+      {...props}
+      toolCallsView={RichToolCallsView as never}
+      markdownRenderer={RICH_MARKDOWN as never}
+      additionalToolbarItems={isLastAnswer ? <RegenerateAction /> : props.additionalToolbarItems}
+    />
+  );
+}
+
 export const RICH_MESSAGE_VIEW = {
   ...ZH_MESSAGE_VIEW,
-  assistantMessage: {
-    ...BASE_ASSISTANT,
-    toolCallsView: RichToolCallsView,
-    markdownRenderer: RICH_MARKDOWN,
-  },
+  assistantMessage: RichAssistantMessage,
   userMessage: RichUserMessage,
   // 不虚拟化：长会话里流式回复时视口不再跳回更早的记录（message-list.tsx，DESIGN.md §35）。
   children: renderUnvirtualizedMessageList,

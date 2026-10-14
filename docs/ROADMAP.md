@@ -25,7 +25,6 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | [CB-001](BACKLOG.md#cb-001) | 审批卡片与审批偏好 | Hark parity | `feat/approvals` |
 | [CB-002](BACKLOG.md#cb-002) | 生图 / 识图模型设置，每人可覆盖 | Hark parity | `feat/model-media` |
 | [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先 → 新朋友视角） | 成熟度 | `fix/maturity-*`（批 2 #122 已合并） |
-| [CB-042](BACKLOG.md#cb-042) | 重新生成 / 编辑后重发（方案见 BACKLOG） | 成熟度 | 下一批 |
 | [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块（分 P4b-1…） | 精简 | `chore/slim-p4b-*` |
 | [CB-012](BACKLOG.md#cb-012) | 项目维护与文档系统（本页） | 成熟度 | `chore/pm-system` |
 
@@ -58,6 +57,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
+| 2026-10-15 | 重新生成 / 编辑后重发，所有设备一致（CB-042） | #PR | DESIGN §67 |
 | 2026-10-15 | 朋友账号：邀请链接、网关签名身份、按人隔离（CB-040） | #128 | DESIGN §65、[accounts.md](accounts.md)、ADR-0011 |
 | 2026-10-15 | 频道聊天刷新 / 换设备接着看正在写的回答（CB-041 P0、CB-043） | #124 | DESIGN §64 |
 | 2026-10-15 | 成熟度 2：只填名字建机器人、空聊天「试试这样问」（CB-003） | #122 | DESIGN §63 |

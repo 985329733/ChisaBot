@@ -40,6 +40,14 @@ import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import type { ThreadActivity } from "@/lib/copilot/bot-thread";
 import { useThreadActivity, withStoredTail } from "@/lib/copilot/thread-activity";
+import {
+  contentText,
+  lastUserIndex,
+  MessageActionsContext,
+  type TruncateMode,
+  truncateConversation,
+  withEditedText,
+} from "@/lib/copilot/regenerate";
 import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
@@ -733,6 +741,8 @@ export function ChannelChat({
     trimmed: string,
     skillInstructions: string[],
     attachments: Attachment[],
+    /** 重新生成 / 编辑后重发（§67）：原样发这份内容（带着原来的附件段），不再从文字和附件拼。 */
+    contentOverride?: Message["content"],
   ) => {
     // Wait briefly for the runtime agent instance before adding the message.
     if (!isReadyRef.current) {
@@ -829,10 +839,10 @@ export function ChannelChat({
       () => void modelQueryClient.invalidateQueries({ queryKey: panelKeys.session(runtimeAgentId) }),
     );
     target.addMessage({
-      content: toMessageContent(trimmed, attachments),
+      content: contentOverride ?? toMessageContent(trimmed, attachments),
       id: newId(),
       role: "user",
-    });
+    } as Message);
     report(trimmed || describeAttachments(attachments), null);
 
     // Providers reject later turns if prior tool calls have no result; repair before sending.
@@ -898,12 +908,13 @@ export function ChannelChat({
     text: string,
     skillInstructions: string[] = [],
     attachments: Attachment[] = [],
+    contentOverride?: Message["content"],
   ) => {
     const trimmed = text.trim();
     // A pasted screenshot with no caption is still a message to send: `canSendDraft` already
     // unlocks the button for exactly this case, so refusing it here would leave the button
     // enabled and inert.
-    if (!trimmed && attachments.length === 0) return "";
+    if (!trimmed && attachments.length === 0 && contentOverride === undefined) return "";
 
     // Seeds, component actions and voice calls share the same gate as the composer.
     assertModelSelectionNotSaving(modelQueryClient, runtimeAgentId);
@@ -919,7 +930,7 @@ export function ChannelChat({
       void setChannelBusy({ channelId: channel.id, busy: true });
     }
     try {
-      return await deliver(trimmed, skillInstructions, attachments);
+      return await deliver(trimmed, skillInstructions, attachments, contentOverride);
     } finally {
       turnsRef.current -= 1;
       setTurnsInFlight(turnsRef.current);
@@ -1003,6 +1014,44 @@ export function ChannelChat({
     copilotkit.stopAgent({ agent });
   };
 
+  /*
+   * 重新生成 / 编辑后重发（DESIGN.md §67，CB-042）：服务器先从那条用户消息起截掉（只认本人的对话、没在回答），
+   * 本机截到同一处，再照常发一轮——重新生成原样发原来的内容（新 id），编辑发改过的文字（附件留着）。
+   * 回答进行中按钮不出现；万一撞上（别的设备刚发了一句）服务器回 409，按钮 ✕ + 原因。
+   */
+  const resendFrom = async (fromMessageId: string, mode: TruncateMode, content: Message["content"]) => {
+    if (turnsRef.current > 0 || agentRef.current.isRunning) throw new Error("机器人正在回答，等它说完再试。");
+    await truncateConversation(channel.threadId, fromMessageId, mode);
+    const target = agentRef.current;
+    const at = target.messages.findIndex((message) => message.id === fromMessageId);
+    if (at >= 0) target.setMessages(target.messages.slice(0, at) as typeof target.messages);
+    setRunError(null);
+    setLocalStops((previous) => {
+      if (!previous.has(fromMessageId)) return previous;
+      const next = new Set(previous);
+      next.delete(fromMessageId);
+      return next;
+    });
+    // 发送失败时 say 会抛：按钮 ✕，对话里照常显示失败原因（runError），用户那条留着可以再点重新生成。
+    await sayRef.current(contentText(content), [], [], content);
+  };
+  const resendRef = useRef(resendFrom);
+  resendRef.current = resendFrom;
+  const regenerate = useCallback(async () => {
+    const list = agentRef.current.messages;
+    const at = lastUserIndex(list);
+    if (at < 0) throw new Error("没有可以重新生成的回答。");
+    const user = list[at]!;
+    await resendRef.current(user.id, "regenerate", user.content as Message["content"]);
+  }, []);
+  const editAndResend = useCallback(async (messageId: string, text: string) => {
+    const user = agentRef.current.messages.find((message) => message.id === messageId);
+    if (!user || user.role !== "user") throw new Error("这条消息已经不在了，刷新看看。");
+    const content = withEditedText(user.content, text);
+    if (content === null) throw new Error("消息不能是空的。");
+    await resendRef.current(messageId, "edit", content as Message["content"]);
+  }, []);
+
   /**
    * Component buttons speak as user turns without forcing every transcript card to re-render.
    *
@@ -1044,6 +1093,11 @@ export function ChannelChat({
     reportChatRunning(chatBusy);
     return () => reportChatRunning(false);
   }, [chatBusy]);
+  const canResend = !chatBusy && channel.active && !restoring && !modelSaving;
+  const messageActions = useMemo(
+    () => ({ canAct: canResend, regenerate, edit: editAndResend }),
+    [canResend, regenerate, editAndResend],
+  );
 
   return (
     // Activity renderers resolve their agent through this SDK context. It must match useAgent's
@@ -1053,6 +1107,7 @@ export function ChannelChat({
       threadId={channel.threadId}
     >
       <ConversationProvider ask={askFromComponent}>
+        <MessageActionsContext.Provider value={messageActions}>
         <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
           <VoiceCallWidget
             call={call}
@@ -1233,6 +1288,7 @@ export function ChannelChat({
             }}
           />
         </div>
+        </MessageActionsContext.Provider>
       </ConversationProvider>
     </CopilotChatConfigurationProvider>
   );

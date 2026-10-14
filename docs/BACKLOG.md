@@ -747,9 +747,9 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 
 #### 验收标准
 
-- [ ] 最后一条回答「重新生成」；用户最后一条消息「编辑」后重发，旧的后续消息被替换（所有设备一致）
+- [x] 最后一条回答「重新生成」；用户消息「编辑」后重发，旧的后续消息被替换（所有设备一致）（频道聊天 + `/bot`；截断接口 + 墓碑 + 同步版本号，DESIGN.md §67；e2e：两台设备、刷新后一致）
 
-#### 方案（2026-10-15 成熟度扫查记下，未做）
+#### 方案（2026-10-15 成熟度扫查记下；已按此实现，见 DESIGN.md §67——截断接口挂在 `/api/copilotkit/threads/<id>/truncate`，版本号用 `chisabot_thread_truncations` 行数）
 
 - 服务器：`POST /api/bot-threads/:agentId/truncate {threadId, fromMessageId}`——只允许截最后一条用户消息那一轮、且对话没在跑；`openbot_local_threads.messages` 截到这条之前，`openbot_local_events` 删掉从第一个提到这条用户消息的事件（它那一轮的 RUN_STARTED）起的全部事件，写审计。重新生成 = 截掉最后一条用户消息再原样重发（换新 id，这样新一轮的 RUN_STARTED 带上它，回放里才看得到）；编辑 = 截掉后发新内容。
 - 别的设备：截断后事件序号会变小再变大，单靠 `seq` 不可靠——同步戳里加一个对话版本（截断时 +1，如 `openbot_local_threads.updated_at` 或新列），版本变了就 `join("rebuild")`。

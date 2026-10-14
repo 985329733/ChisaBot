@@ -6,6 +6,7 @@ import { estimateTokens, readingFromRunFinished, type ThreadContextReading } fro
 import { withConfirmTurn } from "./confirmations/context";
 import { anchorsPresent, INBOX_TEXT_LIMIT, newSteerSession, ThreadInbox, type TranscriptInjection, weaveMessages, withSteering } from "./thread-inbox";
 import type { Database } from "./db/client";
+import { afterTruncate, dropTombstoned, ensureTruncationTable, tombstones, TruncateError, truncateThread, workersSince } from "./thread-truncate";
 
 /** Errors also satisfy the existing history reader's platform-error contract. */
 export class LocalConversationError extends Error {
@@ -301,7 +302,9 @@ class PostgresAgentRunner extends AgentRunner {
       void (async () => {
         const row = await this.store.thread(request.threadId);
         const known = new Set([...row.messages.map((message) => message.id), ...running.injections.map((item) => item.message.id)]);
-        for (const message of request.input.messages) {
+        // 截断过的消息（旧设备还拿着）不进收件箱（DESIGN.md §67）。
+        const dead = await tombstones(this.store.database, request.threadId);
+        for (const message of dropTombstoned(request.input.messages, dead)) {
           if (known.has(message.id) || message.role !== "user") continue;
           await this.inbox.enqueue({ threadId: request.threadId, ownerUserId: row.owner_user_id, message });
         }
@@ -436,7 +439,13 @@ class PostgresAgentRunner extends AgentRunner {
       started = true;
       // Read after claiming so a prior run finishing during acquisition cannot leave stale history.
       const row = await this.store.thread(threadId);
-      prepared = prepareConversationMessages(row.messages, input.messages, request.persistedInputMessages);
+      // 重新生成 / 编辑后重发截掉的消息（DESIGN.md §67）：还没收到截断的旧设备会把它们一起发上来，滤掉，不让它们复活。
+      const dead = await tombstones(this.store.database, threadId);
+      prepared = prepareConversationMessages(
+        row.messages,
+        dropTombstoned(input.messages, dead),
+        request.persistedInputMessages ? dropTombstoned(request.persistedInputMessages, dead) : undefined,
+      );
       const oldIds = new Set(row.messages.map((message) => message.id));
       newMessages.push(...prepared.visible.filter((message) => !oldIds.has(message.id)));
       // 排队过、后来被客户端当普通消息发出来的：由这一轮负责回答。
@@ -630,6 +639,7 @@ export async function createLocalConversations(database: Database): Promise<Loca
   )`);
   await database.$client.unsafe("CREATE INDEX IF NOT EXISTS openbot_local_events_thread_sequence ON openbot_local_events(thread_id, sequence)");
   await database.$client.unsafe("CREATE INDEX IF NOT EXISTS openbot_local_threads_owner_updated ON openbot_local_threads(owner_user_id, updated_at DESC)");
+  await ensureTruncationTable(database);
   const store = new ConversationStore(database);
   const client = new LocalConversationClient(store);
   const inbox = new ThreadInbox(database);
@@ -776,6 +786,28 @@ export async function createLocalConversations(database: Database): Promise<Loca
         if (operation === "inbox") return Response.json({ running: runner.isActive(threadId), items: await inbox.list(threadId) });
         if (operation === "workers") return Response.json({ workers: workers ? await workers.list(threadId, actorId) : [] });
         if (!operation) return Response.json({ thread: record(row) });
+      }
+      if (operation === "truncate" && request.method === "POST") {
+        // 重新生成 / 编辑后重发（DESIGN.md §67，CB-042）：从这条用户消息起截掉，客户端随后照常发新的一轮。
+        const body = await request.json() as { fromMessageId?: unknown; mode?: unknown };
+        const fromMessageId = typeof body.fromMessageId === "string" ? body.fromMessageId : "";
+        if (!fromMessageId || fromMessageId.length > 200) throw new LocalConversationError("Message id is required", 400);
+        const mode = body.mode === "regenerate" || body.mode === "edit" ? body.mode : "resend";
+        if (runner.isActive(threadId)) throw new LocalConversationError("机器人正在回答，等它说完（或先停止）再重发", 409);
+        let result: Awaited<ReturnType<typeof truncateThread>>;
+        try {
+          result = await truncateThread(database, { threadId, ownerUserId: actorId, fromMessageId, mode });
+        } catch (error) {
+          if (error instanceof TruncateError) throw new LocalConversationError(error.message, error.status);
+          throw error;
+        }
+        await afterTruncate(database, { threadId, ownerUserId: actorId, removedToolCalls: result.removedToolCalls });
+        if (workers) {
+          for (const workerId of await workersSince(database, threadId, actorId, result.cutAt))
+            await workers.cancel(threadId, workerId, actorId, { quiet: true }).catch(() => {});
+        }
+        console.log(JSON.stringify({ type: "thread-truncated", threadId, mode, removed: result.removed.length, revision: result.revision }));
+        return Response.json({ ok: true, removed: result.removed, kept: result.kept, revision: result.revision });
       }
       if (operation === "inbox" && request.method === "POST") {
         // 正在回答时又发来的一条：进收件箱（这一轮的下一步读进去）。没在跑就告诉客户端照常发送。
