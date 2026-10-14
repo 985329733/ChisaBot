@@ -1,6 +1,7 @@
 import {
   IconArrowUpRight,
   IconDownload,
+  IconEye,
   IconFile,
   IconFileCode,
   IconFileSpreadsheet,
@@ -35,6 +36,7 @@ import {
   splitLinkLines,
 } from "@/lib/rich-previews/extract";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Lightbox, type LightboxImage } from "./lightbox";
 
 /**
@@ -555,14 +557,33 @@ function FileCardInner({
   const meta = [ext ? ext.toUpperCase() : "文件", formatBytes(bytes)]
     .filter(Boolean)
     .join(" · ");
+  // 本站文件才预览（DESIGN.md §56）：位图出缩略图、点开看大图；PDF 出「预览」。
+  const sameOrigin = url.startsWith("/") && !url.startsWith("//");
+  const isImage = sameOrigin && /^image\/(png|jpeg|gif|webp)$/.test(mimeType ?? "");
+  const isPdf = sameOrigin && (mimeType === "application/pdf" || ext === "pdf");
+  const downloadHref = url.startsWith("/api/chat-files/") ? `${url}?download=1` : url;
+  const [viewing, setViewing] = useState(false);
+  const [thumbBroken, setThumbBroken] = useState(false);
   return (
-    <div className="rp-file">
-      <span aria-hidden className="rp-file-icon" data-ext={ext || undefined}>
-        <Icon className="size-5" />
-      </span>
+    <div className="rp-file" data-preview={isImage && !thumbBroken ? "image" : isPdf ? "pdf" : undefined}>
+      {isImage && !thumbBroken ? (
+        <button aria-label={`查看 ${label}`} className="rp-file-thumb" onClick={() => setViewing(true)} type="button">
+          <img alt="" decoding="async" loading="lazy" onError={() => setThumbBroken(true)} src={url} />
+        </button>
+      ) : (
+        <span aria-hidden className="rp-file-icon" data-ext={ext || undefined}>
+          <Icon className="size-5" />
+        </span>
+      )}
       <a
         className="rp-file-text"
         href={url}
+        onClick={(event) => {
+          if (isImage && !thumbBroken) {
+            event.preventDefault();
+            setViewing(true);
+          }
+        }}
         rel="noopener noreferrer"
         target="_blank"
         title={label}
@@ -570,15 +591,33 @@ function FileCardInner({
         <span className="rp-file-name">{label}</span>
         <span className="rp-file-meta">{meta}</span>
       </a>
+      {isPdf ? (
+        <button aria-label={`预览 ${label}`} className="rp-file-dl" data-testid="file-preview" onClick={() => setViewing(true)} title="预览" type="button">
+          <IconEye className="size-4" />
+        </button>
+      ) : null}
       <a
         aria-label={`下载 ${label}`}
         className="rp-file-dl"
         download={label}
-        href={url}
+        href={downloadHref}
         title="下载"
       >
         <IconDownload className="size-4" />
       </a>
+      {viewing && isImage ? (
+        <Lightbox images={[{ src: url, name: label, alt: label }]} onClose={() => setViewing(false)} startIndex={0} />
+      ) : null}
+      {isPdf ? (
+        <Dialog onOpenChange={setViewing} open={viewing}>
+          <DialogContent className="rp-pdf-dialog">
+            <DialogHeader>
+              <DialogTitle className="truncate">{label}</DialogTitle>
+            </DialogHeader>
+            {viewing ? <iframe className="rp-pdf-frame" src={url} title={label} /> : null}
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

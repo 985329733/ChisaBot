@@ -3,6 +3,7 @@ import {
   classifyAttachment,
   MAX_EXTRACTED_CHARACTERS,
 } from "../../../shared/attachments";
+import { CHAT_FILE_URL_PREFIX } from "../../../shared/chat-files";
 
 /**
  * What `load` hands back for an attachment id: the bytes and the metadata
@@ -49,6 +50,11 @@ function attachmentIdFor(part: unknown): string | null {
   if (!isRecord(part) || !isRecord(part.source)) return null;
   const source = part.source;
   if (source.type !== "url" || typeof source.value !== "string") return null;
+  // 机器人私聊里上传的文件（DESIGN.md §56）：`/api/chat-files/<id>` → `cf:<id>`，由 index.ts 的加载器按人取。
+  if (source.value.startsWith(CHAT_FILE_URL_PREFIX)) {
+    const id = source.value.slice(CHAT_FILE_URL_PREFIX.length).split(/[?#]/)[0] ?? "";
+    return id ? `cf:${id}` : null;
+  }
   if (!source.value.startsWith(ATTACHMENT_URL_PREFIX)) return null;
   return source.value.slice(ATTACHMENT_URL_PREFIX.length);
 }

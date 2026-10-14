@@ -1304,6 +1304,30 @@ serve<StreamData>({
         }
       }
 
+      // 字节写入（聊天上传 / 生成的图片，DESIGN.md §56）：JSON { path, base64 }。
+      if (url.pathname === "/files/write-bytes" && request.method === "POST") {
+        const body = (await request.json().catch(() => null)) as {
+          path?: unknown;
+          base64?: unknown;
+        } | null;
+        if (typeof body?.base64 !== "string") {
+          return json({ error: "The bytes to write are required." }, 400);
+        }
+        try {
+          return json(
+            await workspace.writeBytes(
+              String(body?.path ?? ""),
+              Buffer.from(body.base64, "base64"),
+            ),
+          );
+        } catch (error) {
+          return json(
+            { error: describe(error, "The file could not be written.") },
+            fileStatus(error),
+          );
+        }
+      }
+
       if (url.pathname === "/files/write" && request.method === "POST") {
         const body = (await request.json().catch(() => null)) as {
           path?: unknown;
