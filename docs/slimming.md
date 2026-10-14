@@ -22,6 +22,26 @@
 - **删机器人时**同一个事务里收回它的 `plugin_grants`。
 - 上线前在生产 `pg_dump` 了受影响的表（`skills`、`skill_tools`、`plugin_grants`、`channels`、`channel_agents`）到 `/opt/openbot-zh/backups/`，恢复就是把这份 SQL 导回去。
 
+## P3 删不发布的目录（2026-10-15）
+
+先核对过哪些目录进发布物：服务端镜像（根 `Dockerfile` / `deploy/Dockerfile.zh` 只拷 `app server shared examples scripts agent-computer docker`）、PC 客户端 `pc/`（Electron）、Android `android/`、CI（`chisabot.yml`、`release.yml`、`security_zizmor.yml`）。这些一律保留。删掉的都不进任何发布物：
+
+| 删除 | 原来是什么 |
+|---|---|
+| `desktop/` | 上游 Tauri 桌面端（ChisaBot PC 用 `pc/`） |
+| `mobile/` | 上游 Expo 移动端（Android 用 `android/`） |
+| `agent-adk/ag2/agno/bot/claude-sdk/crewai/langgraph/langgraph-agui/langroid/llamaindex/mastra/microsoft/pydantic-ai/strands` | 外部框架适配器（`agent-computer` 保留，它进镜像） |
+| `charts/`、`spire/`、`supervisor/` | Helm chart、SPIRE 身份、每机器人一台计算机的 supervisor 进程 |
+| `examples/{langgraph-bot,mastra-bot,pydantic-ai-bot}` | 上游示例（`examples/fintech` 还是测试夹具，暂留） |
+| 根 `docker-compose.yml`、`scripts/{start,stop,processes,require-bash}.sh` 及其测试 | 上游笔记本全栈（起 agent-bot / agent-langgraph / supervisor / SPIRE）；ChisaBot 部署走 `deploy/start.sh` |
+| `.github/workflows/{ci,desktop,desktop-signing,publish-release,release-pr}.yml`、`.github/published-images.json` | 上游的全量手动 CI、桌面端构建签名、往 ghcr.io/copilotkit 发镜像的发布流程 |
+| `Tauri-signing-SKILL.md`、`prompt.txt`、`scripts/check-new-values-keys.ts`、`scripts/check-rendered-chart.ts` | 上游遗留 |
+| 只测被删目录的测试 | `tests/{agent-bot,compose}.test.ts`、`server/tests/{learning-mastra,mobile-links,handoff-caps-defaults}.test.ts`，`connector-tokens-never-reach-computer` 去掉 supervisor 那一半 |
+
+**刻意没动：** `worker/`（根 workspaces、两个 Dockerfile 和更新器的依赖指纹都列着它，删它会让依赖指纹变化、触发一次完整构建）——放到 P4b 和去掉 Slack/Teams/Twilio 依赖一起做，只做一次完整构建。依赖指纹（`bun.lock`、各 `package.json`、`Dockerfile`、`docker/`）在 P3 里一个字节都没改，所以这次是快速更新。
+
+**修好「ChisaBot checks」：** CI 的 `bun install` 默认是隔离链接，`shared/` 不是 workspace，里面 import 的 `zod`、`@json-render/core`、`@json-render/react/schema` 只在 `server/`、`app/` 的 node_modules 里，所以 server typecheck 报 TS2307 再连锁一串 TS7006，bun 测试运行时也解析不到（镜像一直用 `--linker hoisted`，所以本地是绿的）。现在 CI 和镜像一样 `bun install --frozen-lockfile --linker hoisted`；`app` 里两处 `@ag-ui/client`（没声明的传递依赖）改成从 `@ag-ui/core` / `@copilotkit/react-core/v2` 取类型；CI 先 `app build`（重新生成 `routeTree.gen.ts`，提交里的那份总落后于并行 PR 新加的路由）再 `app typecheck`。
+
 ## P4a 删前端死页
 
 P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 万行，只改网页，服务器与数据库不动）：

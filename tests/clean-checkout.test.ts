@@ -26,7 +26,7 @@ const rootManifest = manifest(".");
 const workspaces = rootManifest.workspaces ?? [];
 
 /** Packages with their own manifest that the root install does not reach. */
-const OUTSIDE_THE_WORKSPACES = ["agent-computer", "supervisor"] as const;
+const OUTSIDE_THE_WORKSPACES = ["agent-computer"] as const;
 
 describe("a clone that has only run bun install", () => {
   test.each(OUTSIDE_THE_WORKSPACES)(

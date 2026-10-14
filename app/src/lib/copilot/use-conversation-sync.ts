@@ -1,4 +1,4 @@
-import type { AbstractAgent } from "@ag-ui/client";
+import type { AbstractAgent } from "@copilotkit/react-core/v2";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { ThreadActivity } from "./bot-thread";
