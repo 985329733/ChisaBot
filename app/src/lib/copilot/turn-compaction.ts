@@ -49,16 +49,56 @@ export function useStoppedTurnIds(threadId: string | null | undefined): Set<stri
   return ids;
 }
 
+/**
+ * 换过备用模型的轮次（DESIGN.md §61）：用户消息 id → 「主模型额度用完，已改用 X」。
+ * 服务器从这一轮的 RUN_FINISHED 读出来；每轮结束后 1.5 秒重读一次（同「已停止」）。
+ */
+export function useFallbackTurns(threadId: string | null | undefined): Map<string, string> {
+  const [turns, setTurns] = useState<Map<string, string>>(() => new Map());
+  useEffect(() => {
+    setTurns(new Map());
+    if (!threadId) return;
+    let alive = true;
+    const load = () =>
+      fetch(`/api/copilotkit/threads/${encodeURIComponent(threadId)}/fallbacks`, { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : { turns: [] }))
+        .then((body: { turns?: { userMessageId?: string; notice?: string }[] }) => {
+          if (!alive) return;
+          const next = new Map<string, string>();
+          for (const turn of body.turns ?? []) if (turn.userMessageId && turn.notice) next.set(turn.userMessageId, turn.notice);
+          setTurns((previous) => (sameMap(previous, next) ? previous : next));
+        })
+        .catch(() => {});
+    void load();
+    const onRunning = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail === false) setTimeout(load, 1500);
+    };
+    window.addEventListener("chisabot-chat-running", onRunning);
+    return () => {
+      alive = false;
+      window.removeEventListener("chisabot-chat-running", onRunning);
+    };
+  }, [threadId]);
+  return turns;
+}
+
+function sameMap(a: Map<string, string>, b: Map<string, string>) {
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) if (b.get(key) !== value) return false;
+  return true;
+}
+
 const idOf = (el: Element) => el.getAttribute("data-message-id") ?? el.querySelector("[data-message-id]")?.getAttribute("data-message-id") ?? null;
 
 export function useTurnCompaction(
   root: RefObject<HTMLElement | null>,
   key: string,
-  options: { messages?: () => readonly MessageLike[]; stopped?: Set<string> } = {},
+  options: { messages?: () => readonly MessageLike[]; stopped?: Set<string>; fallbacks?: Map<string, string> } = {},
 ) {
   const opts = useRef(options);
   opts.current = options;
   const stoppedKey = [...(options.stopped ?? [])].sort().join(",");
+  const fallbackKey = [...(options.fallbacks ?? new Map<string, string>())].map(([id, text]) => `${id}=${text}`).sort().join(",");
   useEffect(() => {
     const host = root.current;
     if (!host) return;
@@ -134,10 +174,15 @@ export function useTurnCompaction(
         // 「已停止」挂在这一轮最后一个看得见的元素上（什么都没有就挂在用户消息上）。
         const visible = turn.els.filter((el) => !el.hasAttribute("data-cb-hidden") && !el.hasAttribute("data-cb-folded"));
         const anchor = isStopped ? (visible[visible.length - 1] ?? turn.user) : null;
+        // 「主模型额度用完，已改用 X」（§61）：淡色小字挂在这一轮最后一个看得见的元素后面；还在跑时不挂。
+        const notice = !live && userId ? opts.current.fallbacks?.get(userId) : undefined;
+        const noticeAnchor = notice ? (visible[visible.length - 1] ?? turn.user) : null;
         for (const el of [turn.user, ...turn.els]) {
           if (!el) continue;
           const want = el === anchor;
           if (want !== el.hasAttribute("data-cb-stopped")) want ? el.setAttribute("data-cb-stopped", "") : el.removeAttribute("data-cb-stopped");
+          const text = el === noticeAnchor ? notice! : null;
+          if (text !== el.getAttribute("data-cb-fallback")) text ? el.setAttribute("data-cb-fallback", text) : el.removeAttribute("data-cb-fallback");
         }
       });
     };
@@ -161,6 +206,6 @@ export function useTurnCompaction(
       observer.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: stoppedKey re-applies when the server's list arrives.
-  }, [root, key, stoppedKey]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: stoppedKey / fallbackKey re-apply when the server's lists arrive.
+  }, [root, key, stoppedKey, fallbackKey]);
 }

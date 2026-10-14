@@ -159,6 +159,7 @@ import {
   runtimeModelForEnvironment,
   setModelOutputLimitResolver,
   setModelFallbackCatalog,
+  setModelFallbackList,
   type ToolSelection,
 } from "./copilot";
 import {
@@ -296,6 +297,7 @@ import { createMagpieService, readMagpieWebKey } from "./magpie";
 import { readRunningBuild } from "./build-info";
 import { createSystemUpdateRoutes, createSystemUpdateService } from "./system-update";
 import { createAdminSmokeRoutes } from "./admin-smoke";
+import { createModelFallbackService, createModelFallbackStore } from "./agents/model-fallback-settings";
 import { createSelfHostBanner } from "./self-host-banner";
 import { createTeamBots } from "./team-bots/team-bots";
 import {
@@ -1117,6 +1119,9 @@ setModelOutputLimitResolver(async (modelId) =>
   (await modelCatalog.list()).models.find((entry) => entry.id === modelId)?.maxOutputTokens,
 );
 setModelFallbackCatalog(async () => (await modelCatalog.list()).models.map((entry) => entry.id));
+// 设置 → 模型 →「备用模型」（DESIGN.md §61）：管理员排好的顺序优先于环境变量 / 同平台自动挑选。
+const modelFallbacks = createModelFallbackService({ store: createModelFallbackStore(database) });
+setModelFallbackList(() => modelFallbacks.models());
 /*
  * Magpie, the model gateway. MAGPIE_ADMIN_URL (e.g. http://magpie:3430) plus its web key
  * (MAGPIE_WEB_KEY_FILE, readable only by the API user) turn on 管理后台 → 模型平台 Magpie and the
@@ -3980,6 +3985,7 @@ const app = createApp(
           resolveConnectionForAgent: resolveRuntimeConnectionForAgent,
         }),
       ],
+      ["/api/admin/model-fallbacks", modelFallbacks.routes(requireUser)],
       [
         "/api/admin/system-update",
         createSystemUpdateRoutes({

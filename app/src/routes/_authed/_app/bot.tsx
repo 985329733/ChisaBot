@@ -22,7 +22,7 @@ import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { queueMessage } from "@/lib/copilot/thread-inbox";
 import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
 import { RICH_MESSAGE_VIEW } from "@/lib/copilot/rich-message-view";
-import { useStoppedTurnIds, useTurnCompaction } from "@/lib/copilot/turn-compaction";
+import { useFallbackTurns, useStoppedTurnIds, useTurnCompaction } from "@/lib/copilot/turn-compaction";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 
 /** 机器人聊天里 CopilotChat 自带的英文文案，换成与频道聊天一致的中文。 */
@@ -178,9 +178,12 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
   const skyRef = useRef<HTMLDivElement | null>(null);
   const { agent: chatAgent } = useAgent({ agentId });
   const stoppedTurns = useStoppedTurnIds(threadId);
+  // 主模型额度用完、这一轮换了备用模型：那一轮末尾一行淡色小字（DESIGN.md §61）。
+  const fallbackTurns = useFallbackTurns(threadId);
   useTurnCompaction(skyRef, `${agentId}:${threadId ?? ""}`, {
     messages: () => chatAgent.messages as never,
     stopped: stoppedTurns,
+    fallbacks: fallbackTurns,
   });
   const { watch } = Route.useSearch();
   const navigate = Route.useNavigate();

@@ -123,3 +123,33 @@ test("prompt and answer check", () => {
   expect(smokeAnswered("185", 85)).toBe(false);
   expect(smokeAnswered("", 85)).toBe(false);
 });
+
+test("self-test passes through a fallback model when the main model is out of quota, and says so (§61)", async () => {
+  const { fallbackLanguageModel, resetModelCooldowns } = await import("../src/agents/model-fallback");
+  resetModelCooldowns();
+  const quota = Object.assign(new Error("Daily free limit reached. Try again in 18h 14m"), { statusCode: 429 });
+  const logs: string[] = [];
+  const response = await post(
+    app(
+      "admin",
+      async (_c, prompt) => {
+        const primary = { modelId: "p", doGenerate: async () => { throw quota; } };
+        const backup = { modelId: "b", doGenerate: async () => ({ text: solve(prompt) }) };
+        const wrapped = fallbackLanguageModel(primary, "clinepass/cline-free/mimo", {
+          candidates: async () => ["clinepass/cline-free/step-5-preview"],
+          build: () => backup,
+          log: () => {},
+        });
+        return ((await wrapped.doGenerate({})) as { text: string }).text;
+      },
+      { logs },
+    ),
+  );
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.ok).toBe(true);
+  expect(body.fallback).toEqual({ from: "clinepass/cline-free/mimo", to: "clinepass/cline-free/step-5-preview", reason: "quota" });
+  expect(body.message).toContain("主模型额度用完，已改用 step-5-preview");
+  expect(logs[0]).toContain("fallback=clinepass/cline-free/step-5-preview");
+  resetModelCooldowns();
+});

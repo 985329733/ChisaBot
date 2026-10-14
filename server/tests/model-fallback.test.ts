@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
   cooldownMs,
   coolingDown,
+  type FallbackUse,
   fallbackCandidates,
   fallbackLanguageModel,
+  fallbackNotice,
+  fallbackReason,
   isQuotaError,
   resetModelCooldowns,
+  withFallbackListener,
 } from "../src/agents/model-fallback";
 
 function apiError(statusCode: number, message: string) {
@@ -124,5 +128,71 @@ describe("model fallback on quota errors", () => {
     expect(await fallbackCandidates(catalog, { CHISABOT_MODEL_FALLBACKS: "codex/g, clinepass/p ,clinepass/b" })("clinepass/p")).toEqual(["codex/g", "clinepass/b"]);
     expect(await fallbackCandidates(catalog, { CHISABOT_MODEL_FALLBACKS: "off" })("clinepass/p")).toEqual([]);
     expect(await fallbackCandidates(catalog, {})("gpt-4o")).toEqual([]);
+  });
+
+  test("5xx / overloaded fall back too (short cooldown); 400/401/network do not", async () => {
+    expect(fallbackReason(DAILY)).toBe("quota");
+    expect(fallbackReason(apiError(503, "service unavailable"))).toBe("unavailable");
+    expect(fallbackReason(apiError(529, "overloaded"))).toBe("unavailable");
+    expect(fallbackReason(apiError(500, "upstream exploded"))).toBe("unavailable");
+    expect(fallbackReason(apiError(400, "invalid tool schema"))).toBe(null);
+    expect(fallbackReason(apiError(401, "invalid api key"))).toBe(null);
+    expect(fallbackReason(new Error("network down"))).toBe(null);
+    let t = 0;
+    const primary = fakeModel("p", async () => {
+      throw apiError(503, "service unavailable");
+    });
+    const backup = fakeModel("b", async () => ({ ok: "b" }));
+    const wrapped = fallbackLanguageModel(primary.model, "m/p", {
+      candidates: async () => ["m/b"],
+      build: () => backup.model,
+      now: () => t,
+      log: () => {},
+    });
+    const seen: FallbackUse[] = [];
+    expect(await withFallbackListener((use) => seen.push(use), () => wrapped.doStream({}))).toEqual({ ok: "b" });
+    expect(seen).toEqual([{ from: "m/p", to: "m/b", reason: "unavailable" }]);
+    expect(coolingDown("m/p", 60_000)).toBe(true);
+    expect(coolingDown("m/p", 2 * 60_000 + 1)).toBe(false);
+  });
+
+  test("announces the switch to the listener of this run only, with the cooled reason on later turns", async () => {
+    const primary = fakeModel("p", async () => {
+      throw DAILY;
+    });
+    const backup = fakeModel("b", async () => ({ ok: true }));
+    const wrapped = fallbackLanguageModel(primary.model, "c/p", { candidates: async () => ["c/b"], build: () => backup.model, log: () => {} });
+    const a: FallbackUse[] = [];
+    const b: FallbackUse[] = [];
+    await withFallbackListener((use) => a.push(use), () => wrapped.doStream({}));
+    // 下一轮主模型在冷却，直接用备用模型，提示仍然说「额度用完」。
+    await withFallbackListener((use) => b.push(use), () => wrapped.doGenerate({}));
+    expect(a).toEqual([{ from: "c/p", to: "c/b", reason: "quota" }]);
+    expect(b).toEqual([{ from: "c/p", to: "c/b", reason: "quota" }]);
+    // 没有监听者也照常工作。
+    expect(await wrapped.doStream({})).toEqual({ ok: true });
+  });
+
+  test("a primary that answers announces nothing", async () => {
+    const primary = fakeModel("p", async () => ({ ok: "p" }));
+    const wrapped = fallbackLanguageModel(primary.model, "c/p", { candidates: async () => ["c/b"], build: () => null, log: () => {} });
+    const seen: FallbackUse[] = [];
+    expect(await withFallbackListener((use) => seen.push(use), () => wrapped.doStream({}))).toEqual({ ok: "p" });
+    expect(seen).toEqual([]);
+  });
+
+  test("candidates: the admin list wins over env and catalog, keeps its order, drops the primary", async () => {
+    const catalog = async () => ["clinepass/a", "clinepass/p", "clinepass/b"];
+    const admin = async () => ["codex/x", "clinepass/p", "clinepass/b"];
+    expect(await fallbackCandidates(catalog, { CHISABOT_MODEL_FALLBACKS: "off" }, admin)("clinepass/p")).toEqual(["codex/x", "clinepass/b"]);
+    // 空的管理员列表 = 不指定，退回环境变量 / 目录。
+    expect(await fallbackCandidates(catalog, {}, async () => [])("clinepass/p")).toEqual(["clinepass/a", "clinepass/b"]);
+    // 读管理员列表失败也不影响回答。
+    expect(await fallbackCandidates(catalog, {}, async () => { throw new Error("db down"); })("clinepass/p")).toEqual(["clinepass/a", "clinepass/b"]);
+  });
+
+  test("notice text uses the short model name", () => {
+    expect(fallbackNotice({ to: "clinepass/cline-free/step-5-preview", reason: "quota" })).toBe("主模型额度用完，已改用 step-5-preview");
+    expect(fallbackNotice({ to: "codex/gpt-5.6-luna", reason: "unavailable" })).toBe("主模型暂时不可用，已改用 gpt-5.6-luna");
   });
 });

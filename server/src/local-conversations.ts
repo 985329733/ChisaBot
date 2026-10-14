@@ -1,3 +1,4 @@
+import { fallbackNotice } from "./agents/model-fallback";
 import { compactEvents, EventType, type AbstractAgent, type BaseEvent, type Message } from "@ag-ui/client";
 import { AgentRunner, createRunEventFinalizer, type AgentRunnerConnectRequest, type AgentRunnerRunRequest, type AgentRunnerStopRequest } from "@copilotkit/runtime/v2";
 import { Observable, ReplaySubject, Subject } from "rxjs";
@@ -249,6 +250,7 @@ const MAX_SEGMENTS = 8;
 const EMPTY_THREAD_READS: Record<string, unknown> = {
   context: { context: null },
   stopped: { userMessageIds: [] },
+  fallbacks: { turns: [] },
   inbox: { running: false, items: [] },
   workers: { workers: [] },
 };
@@ -688,6 +690,38 @@ export async function createLocalConversations(database: Database): Promise<Loca
     }
     return [...ids];
   };
+  /**
+   * 「主模型额度用完，已改用 X」（DESIGN.md §61）：换过备用模型的那些轮次（RUN_FINISHED 的
+   * metadata.modelFallback），同「已停止」一样用开启那一轮的用户消息 id 表示。只读，不进对话。
+   */
+  const fallbackTurns = async (threadId: string, messages: readonly Message[]) => {
+    const rows = await database.$client.unsafe<{ fallback: { from?: unknown; to?: unknown; reason?: unknown }; started: { input?: { messages?: { id?: string }[] } } | null }[]>(
+      `SELECT f.event->'metadata'->'modelFallback' AS fallback,
+              (SELECT s.event FROM openbot_local_events s
+                WHERE s.thread_id = f.thread_id AND s.run_id = f.run_id AND s.event->>'type' = 'RUN_STARTED'
+                ORDER BY s.sequence ASC LIMIT 1) AS started
+       FROM openbot_local_events f
+       WHERE f.thread_id = $1 AND f.event->>'type' = 'RUN_FINISHED' AND f.event->'metadata' ? 'modelFallback'
+       ORDER BY f.sequence DESC LIMIT 50`, [threadId],
+    );
+    if (!rows.length) return [];
+    const position = new Map(messages.map((message, index) => [message.id, index]));
+    const turns = new Map<string, { userMessageId: string; from: string; to: string; reason: string; notice: string }>();
+    for (const { fallback, started } of rows) {
+      if (typeof fallback?.to !== "string" || typeof fallback.from !== "string") continue;
+      const indexes = (started?.input?.messages ?? []).map((message) => position.get(String(message.id))).filter((index): index is number => index !== undefined);
+      if (!indexes.length) continue;
+      // 输入里最后一条用户消息开启的这一轮（一轮拆成几次运行时，同一条用户消息只记一次）。
+      for (let at = Math.max(...indexes); at >= 0; at--) {
+        const message = messages[at];
+        if (message?.role !== "user") continue;
+        const reason = fallback.reason === "unavailable" ? "unavailable" : "quota";
+        if (!turns.has(message.id)) turns.set(message.id, { userMessageId: message.id, from: fallback.from, to: fallback.to, reason, notice: fallbackNotice({ to: fallback.to, reason }) });
+        break;
+      }
+    }
+    return [...turns.values()];
+  };
   const runner = new PostgresAgentRunner(store, client, inbox);
   let workers: ThreadWorkerRoutes | undefined;
 
@@ -737,6 +771,7 @@ export async function createLocalConversations(database: Database): Promise<Loca
         if (operation === "state") return Response.json({ state: row.state });
         if (operation === "context") return Response.json({ context: await contextReading(threadId, row.messages) });
         if (operation === "stopped") return Response.json({ userMessageIds: await stoppedTurns(threadId, row.messages) });
+        if (operation === "fallbacks") return Response.json({ turns: await fallbackTurns(threadId, row.messages) });
         if (operation === "events") return Response.json({ events: compactEvents((await store.events(threadId)).map((event) => event.event)) });
         if (operation === "inbox") return Response.json({ running: runner.isActive(threadId), items: await inbox.list(threadId) });
         if (operation === "workers") return Response.json({ workers: workers ? await workers.list(threadId, actorId) : [] });

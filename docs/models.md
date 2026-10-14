@@ -143,3 +143,14 @@ flowchart LR
   （例如 `clinepass/`）的其它模型，按目录顺序最多 3 个。
 - 其它错误不回退；管理员自检不回退。日志：`{"type":"model-fallback","event":"primary-quota"|"used",…}`。
 - 代码：`server/src/agents/model-fallback.ts`；见 DESIGN.md「成熟度 1」一节。
+
+## 备用模型（管理员排序，2026-10-15）
+
+设置 → 模型 →「备用模型」：主模型额度用完（429 / 402 / quota）或模型服务 5xx / 过载时，按这里排好的顺序换下一个（最多 8 个）。
+
+- 优先级：这里的列表 → `CHISABOT_MODEL_FALLBACKS` → 同平台自动挑选。列表为空 = 不指定。
+- 存在 `enterprise_settings`（key `model_fallbacks`），接口 `GET/PUT /api/admin/model-fallbacks`（仅管理员），服务端缓存 30 秒。
+- 冷却：额度按错误里写的恢复时间；5xx 2 分钟。400 / 401 / 网络错误不换。
+- 换过的那一轮，对话末尾一行淡色小字「主模型额度用完，已改用 X」（`GET /api/copilotkit/threads/:id/fallbacks`）。
+- 管理员自检 `/api/admin/smoke` 也走回退，结果里 `fallback` 写明换成了谁。
+- 代码：`server/src/agents/model-fallback.ts`、`server/src/agents/model-fallback-settings.ts`、`app/src/components/settings/fallback-models.tsx`；见 DESIGN.md §61。

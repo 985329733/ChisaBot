@@ -20,8 +20,9 @@ import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import type { AppVariables } from "./auth/guards";
 import { requireAdmin } from "./auth/guards";
+import { type FallbackUse, fallbackNotice, withFallbackListener } from "./agents/model-fallback";
 import {
-  connectionLanguageModel,
+  fallbackConnectionModel,
   type RuntimeModelConnection,
 } from "./copilot";
 import { withModelConnectionScope } from "./model-connection-context";
@@ -44,6 +45,11 @@ export type SmokeResult = {
   /** 模型回复的前 200 个字（排查用）。 */
   reply: string;
   message: string;
+  /**
+   * 主模型额度用完 / 不可用、自检改用了备用模型（DESIGN.md §61）：和聊天同一套回退，所以自检
+   * 通过就说明「用户此刻发消息能得到回答」。`model` 仍是配置的主模型。
+   */
+  fallback?: FallbackUse;
 };
 
 type Generate = (
@@ -52,13 +58,13 @@ type Generate = (
   signal: AbortSignal,
 ) => Promise<string>;
 
-/** 默认的生成：和聊天同一个 AI SDK 客户端，非流式、短回复。 */
+/** 默认的生成：和聊天同一个 AI SDK 客户端（含额度用完时的备用模型），非流式、短回复。 */
 export const generateWithConnection: Generate = async (
   connection,
   prompt,
   signal,
 ) => {
-  const model = connectionLanguageModel(connection.model, connection.apiKey);
+  const model = fallbackConnectionModel(connection.model, connection.apiKey);
   const result = await model.doGenerate({
     prompt: [{ role: "user", content: [{ type: "text", text: prompt }] }],
     // 会先「思考」的模型要留够余量，不然思考用完了正文是空的。
@@ -142,11 +148,18 @@ export function createAdminSmokeRoutes(options: {
       const start = performance.now();
       let reply = "";
       let failure: string | null = null;
+      let fallback: FallbackUse | undefined;
       try {
-        reply = await generate(
-          connection,
-          smokePrompt(question),
-          AbortSignal.timeout(options.timeoutMs ?? SMOKE_TIMEOUT_MS),
+        reply = await withFallbackListener(
+          (use) => {
+            fallback ??= use;
+          },
+          () =>
+            generate(
+              connection,
+              smokePrompt(question),
+              AbortSignal.timeout(options.timeoutMs ?? SMOKE_TIMEOUT_MS),
+            ),
         );
       } catch (error) {
         const name = error instanceof Error ? error.name : "";
@@ -169,16 +182,17 @@ export function createAdminSmokeRoutes(options: {
         echoed: answered,
         reply: reply.slice(0, 200),
         message:
-          failure ??
+          (failure ??
           (answered
             ? "自检通过：模型正确回答了测试题。"
             : ok
               ? "自检通过：模型有回复（答案没对上，但连接和模型往返正常）。"
-              : "模型返回了空回复。"),
+              : "模型返回了空回复。")) + (fallback && !failure ? `（${fallbackNotice(fallback)}）` : ""),
+        ...(fallback ? { fallback } : {}),
       };
       // 秘密不进日志：只有结果、模型名和耗时。
       log(
-        `[admin-smoke] ok=${result.ok} answered=${answered} model=${result.model} agent=${agentId ?? "-"} ${latencyMs}ms`,
+        `[admin-smoke] ok=${result.ok} answered=${answered} model=${result.model}${fallback ? ` fallback=${fallback.to}` : ""} agent=${agentId ?? "-"} ${latencyMs}ms`,
       );
       return context.json(result, result.ok ? 200 : 502);
     });

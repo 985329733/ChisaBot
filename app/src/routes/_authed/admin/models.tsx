@@ -2,6 +2,7 @@ import { IconCheck, IconKey, IconNetwork } from "@tabler/icons-react";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageDefaultCard, VisionDefaultCard } from "@/components/settings/media-models";
+import { FallbackModelsCard } from "@/components/settings/fallback-models";
 import { ErrorCard } from "@/components/ui/skyglass";
 import { mediaAdminQueryOptions } from "@/lib/media-models";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -81,6 +82,13 @@ function ModelSettingsPage() {
       ) : (
         <ModelSettingsForm config={settings.data} />
       )}
+      {settings.data ? (
+        <div className="media-anchor" id="fallback-models">
+          <PageSection description="主模型额度用完或暂时不可用时，按这个顺序换下一个，对话里会有一行小字说明。" title="备用模型">
+            <FallbackModelsCard mainModel={settings.data.model} />
+          </PageSection>
+        </div>
+      ) : null}
       <MediaDefaults />
     </PageShell>
   );

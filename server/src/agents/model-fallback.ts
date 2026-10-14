@@ -1,5 +1,5 @@
 /**
- * 模型额度用完时自动换一个能用的模型（DESIGN.md「成熟度」一节）。
+ * 模型额度用完 / 暂时不可用时自动换一个能用的模型（DESIGN.md §60 成熟度 1，§61 备用模型）。
  *
  * 2026-10-15 生产实测：默认模型 clinepass/cline-free/mimo-v2.6-flash 的每日免费额度一用完，
  * 每个机器人的每次回答都要等 AI SDK 重试三次（十几秒到两分多钟），然后弹一条英文报错
@@ -13,7 +13,31 @@
  * 全部候选都失败时抛出原来的错误（界面照旧显示，见 app 的错误翻译）。
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 type Model = Record<string, unknown> & { modelId?: string };
+
+/** 为什么换了模型：额度 / 限流（quota），或者模型服务 5xx / 过载（unavailable）。 */
+export type FallbackReason = "quota" | "unavailable";
+export type FallbackUse = { from: string; to: string; reason: FallbackReason };
+type FallbackListener = (use: FallbackUse) => void;
+
+/*
+ * 谁想知道「这一轮换了模型」：聊天运行（context-usage.ts meterRun → RUN_FINISHED 的
+ * metadata.modelFallback → 对话里的淡色小字）和管理员自检（admin-smoke.ts）。AsyncLocalStorage，
+ * 运行之间互不串。
+ */
+const listeners = new AsyncLocalStorage<FallbackListener>();
+export function withFallbackListener<T>(listener: FallbackListener, run: () => T): T {
+  return listeners.run(listener, run);
+}
+function announce(use: FallbackUse) {
+  try {
+    listeners.getStore()?.(use);
+  } catch {
+    // 记录失败不影响回答。
+  }
+}
 type Call = (options: unknown) => Promise<unknown>;
 
 export type FallbackDeps = {
@@ -26,8 +50,11 @@ export type FallbackDeps = {
 };
 
 const cooldown = new Map<string, number>();
+/** 冷却的原因（后续回合直接跳过它时，提示仍然说得对）。 */
+const cooledReason = new Map<string, FallbackReason>();
 export function resetModelCooldowns() {
   cooldown.clear();
+  cooledReason.clear();
 }
 export function coolingDown(modelId: string, now = Date.now()): boolean {
   const until = cooldown.get(modelId);
@@ -65,6 +92,20 @@ export function isQuotaError(error: unknown): boolean {
   return false;
 }
 
+const UNAVAILABLE_TEXT = /overloaded|service unavailable|bad gateway|upstream (error|request failed)|temporarily unavailable/i;
+
+/**
+ * 这个错误值不值得换模型：额度 / 限流 → quota；模型服务 5xx / 529 过载 → unavailable；
+ * 其它（400 参数错、401 密钥错、网络断）→ null，照常报错（换模型也救不了，或者会掩盖配置问题）。
+ */
+export function fallbackReason(error: unknown): FallbackReason | null {
+  if (isQuotaError(error)) return "quota";
+  const { status, text } = errorParts(error);
+  if (status !== undefined && (status === 529 || (status >= 500 && status <= 504))) return "unavailable";
+  if (status === undefined && /\b(50[0234]|529)\b/.test(text) && UNAVAILABLE_TEXT.test(text)) return "unavailable";
+  return null;
+}
+
 /** 「Try again in 19h 51m」/「retry after 30s」→ 毫秒；读不出来就 10 分钟，最多 24 小时。 */
 export function cooldownMs(error: unknown): number {
   const { text } = errorParts(error);
@@ -76,6 +117,11 @@ export function cooldownMs(error: unknown): number {
   return 10 * 60_000;
 }
 
+/** 冷却多久：额度按错误里写的恢复时间；服务不可用 2 分钟（多半是一时的）。 */
+function cooldownFor(error: unknown, reason: FallbackReason): number {
+  return reason === "quota" ? cooldownMs(error) : 2 * 60_000;
+}
+
 export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: FallbackDeps): T {
   if (!model || typeof model !== "object") return model;
   const now = deps.now ?? Date.now;
@@ -84,17 +130,23 @@ export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: Fall
   const wrap = (property: "doStream" | "doGenerate") => async (options: unknown) => {
     const primaryCall = (target[property] as Call).bind(model);
     let firstError: unknown = null;
+    let reason: FallbackReason = "quota";
     if (!coolingDown(primaryId, now())) {
       try {
         return await primaryCall(options);
       } catch (error) {
-        if (!isQuotaError(error)) throw error;
-        const ms = cooldownMs(error);
+        const why = fallbackReason(error);
+        if (!why) throw error;
+        const ms = cooldownFor(error, why);
         cooldown.set(primaryId, now() + ms);
         firstError = error;
-        log({ type: "model-fallback", event: "primary-quota", model: primaryId, cooldownMinutes: Math.round(ms / 60000) });
+        reason = why;
+        log({ type: "model-fallback", event: why === "quota" ? "primary-quota" : "primary-unavailable", model: primaryId, cooldownMinutes: Math.round(ms / 60000) });
       }
+    } else {
+      reason = cooledReason.get(primaryId) ?? "quota";
     }
+    if (firstError) cooledReason.set(primaryId, reason);
     const list = await deps.candidates(primaryId).catch(() => [] as string[]);
     for (const id of list) {
       if (id === primaryId || coolingDown(id, now())) continue;
@@ -104,10 +156,13 @@ export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: Fall
       try {
         const result = await call(options);
         log({ type: "model-fallback", event: "used", model: primaryId, fallback: id });
+        announce({ from: primaryId, to: id, reason });
         return result;
       } catch (error) {
-        if (!isQuotaError(error)) throw error;
-        cooldown.set(id, now() + cooldownMs(error));
+        const why = fallbackReason(error);
+        if (!why) throw error;
+        cooldown.set(id, now() + cooldownFor(error, why));
+        cooledReason.set(id, why);
         firstError ??= error;
       }
     }
@@ -124,18 +179,33 @@ export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: Fall
   }) as unknown as T;
 }
 
-/** 候选模型：CHISABOT_MODEL_FALLBACKS，否则目录里同平台前缀的其它模型（最多 3 个）。 */
+/**
+ * 候选模型，按优先级：
+ * 1. 管理员在 设置 → 模型 →「备用模型」里排好的列表（configured，DESIGN.md §61）；
+ * 2. 环境变量 CHISABOT_MODEL_FALLBACKS（逗号分隔；off / 0 关闭自动挑选）；
+ * 3. 目录里与当前模型同平台前缀的其它模型（最多 3 个）。
+ * 只返回目录里存在的模型的规则只用于第 3 条；管理员列表照填写的顺序，目录暂时读不到也照用。
+ */
 export function fallbackCandidates(
   catalog: () => Promise<string[]>,
   env: Record<string, string | undefined> = process.env,
+  configured: () => Promise<string[]> = async () => [],
 ): (primary: string) => Promise<string[]> {
   return async (primary) => {
-    const configured = env.CHISABOT_MODEL_FALLBACKS?.trim();
-    if (configured === "off" || configured === "0") return [];
-    if (configured) return configured.split(",").map((s) => s.trim()).filter((s) => s && s !== primary);
+    const admin = (await configured().catch(() => [] as string[])).filter((id) => id && id !== primary);
+    if (admin.length) return admin;
+    const fromEnv = env.CHISABOT_MODEL_FALLBACKS?.trim();
+    if (fromEnv === "off" || fromEnv === "0") return [];
+    if (fromEnv) return fromEnv.split(",").map((s) => s.trim()).filter((s) => s && s !== primary);
     const slash = primary.indexOf("/");
     if (slash <= 0) return [];
     const prefix = primary.slice(0, slash + 1);
     return (await catalog()).filter((id) => id !== primary && id.startsWith(prefix)).slice(0, 3);
   };
+}
+
+/** 对话里那行淡色小字（DESIGN.md §61）：模型 id 只留最后一段（clinepass/cline-free/step-5 → step-5）。 */
+export function fallbackNotice(use: Pick<FallbackUse, "to" | "reason">): string {
+  const short = use.to.split("/").filter(Boolean).pop() || use.to;
+  return use.reason === "unavailable" ? `主模型暂时不可用，已改用 ${short}` : `主模型额度用完，已改用 ${short}`;
 }
