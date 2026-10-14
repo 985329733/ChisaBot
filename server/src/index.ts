@@ -1175,6 +1175,16 @@ const hostAccessBroker = createHostAccessBroker(Date.now, {
 // PC 节点（docs/pc-node.md）：设备登记在数据库，在线连接在内存里的 hub。
 const deviceStore = createDeviceStore(database);
 const deviceHub = createDeviceHub({ store: deviceStore });
+// 2026-10-14：旧版登记、能力仍是出厂「全部关闭」且没人改过配置的电脑 → 新默认「全部询问」（每次审批）。
+// 幂等，用户自己关掉的不动；CHISABOT_DEVICE_ASK_DEFAULTS=0 关掉。
+if (process.env.CHISABOT_DEVICE_ASK_DEFAULTS !== "0") {
+  try {
+    const adopted = await deviceStore.adoptAskDefaults();
+    if (adopted.length) console.log(JSON.stringify({ type: "device-defaults-ask", count: adopted.length }));
+  } catch (error) {
+    console.warn("adopting device ask defaults failed", error);
+  }
+}
 const deviceToolsFor = async (
   actorId: string,
   botId: string,

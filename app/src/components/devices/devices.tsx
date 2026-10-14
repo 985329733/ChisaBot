@@ -543,7 +543,7 @@ export function ConnectionCard({
             pcConnected
               ? `已连接${thisPc ? `为「${thisPc.name}」` : ""} · 客户端 ${local.version}`
               : local.needsEnroll
-                ? `${local.statusText}。点「登记这台电脑」用当前登录重新关联，所有能力仍默认关闭。`
+                ? `${local.statusText}。点「登记这台电脑」用当前登录重新关联，能力默认「询问」（每次要你批准）。`
                 : `${local.statusText} · 客户端 ${local.version}${local.networkRoute ? ` · ${local.networkRoute}` : ""}`
           }
           title={
@@ -606,7 +606,7 @@ export function AddDeviceCard() {
           </li>
           <li>
             <b>{"用 ChisaBot 账号密码登录"}</b>
-            <span>{"登录后这台电脑会出现在下方列表里。所有能力默认关闭，按需在这里或 PC 上打开。"}</span>
+            <span>{"登录后这台电脑会出现在下方列表里。能力默认「询问」：机器人每次操作都会弹窗请你批准，可以在这里改成「允许」或「关闭」。"}</span>
           </li>
         </ol>
       </Card>
@@ -635,7 +635,7 @@ export function AddPhoneCard() {
 export function NoDevices() {
   return (
     <EmptyState
-      description="在电脑上安装 ChisaBot PC 客户端并用这个账号登录，或用安卓 App 扫「绑定手机」的二维码，它就会出现在这里。电脑关联后你的每个机器人都能在你开启的能力范围内使用它（能力默认全部关闭）；手机只用来登录聊天。"
+      description="在电脑上安装 ChisaBot PC 客户端并用这个账号登录，或用安卓 App 扫「绑定手机」的二维码，它就会出现在这里。电脑关联后你的每个机器人都能在你开启的能力范围内使用它（能力默认「询问」，每次操作要你批准）；手机只用来登录聊天。"
       icon={<IconDeviceDesktop className="size-6" />}
       title="还没有关联的设备"
     />
@@ -742,7 +742,7 @@ export function DevicePermissions({ device, isThisPc = false }: { device: Device
     <>
       <section className="device-section">
         <h2 className="device-section-t">{"能力"}</h2>
-        <p className="device-section-s">{"默认全部关闭。「询问」= 每次在这台电脑的弹窗或这里确认；「允许」= 直接执行。所有操作都会记录。"}</p>
+        <p className="device-section-s">{"新电脑默认全部「询问」。「询问」= 每次在这台电脑的弹窗或这里确认；「允许」= 直接执行。所有操作都会记录。"}</p>
         <Card>
           {DEVICE_CAPABILITIES.map((capability) => {
             const info = CAPABILITY_INFO[capability];

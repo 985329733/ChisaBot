@@ -5,9 +5,15 @@ import {
   type DeviceCapabilities,
   type DeviceView,
   defaultCapabilities,
+  initialCapabilities,
+  isFactoryOff,
+  isMobilePlatform,
   normalizeCapabilities,
 } from "../../../shared/devices";
 import { MOBILE_PLATFORMS } from "../../../shared/devices";
+
+/** 有人（网页 / 手机 / PC 本机）改过这台电脑配置时写的审计动作。系统自动迁移不算。 */
+export const USER_CONFIG_ACTIONS = ["config_changed", "kill_switch_on", "kill_switch_off"] as const;
 import type { Database } from "../db/client";
 import { deviceAuditEvents, deviceBotAccess, devices } from "../db/schema";
 
@@ -156,7 +162,7 @@ export function createDeviceStore(database: Database) {
     return (await hydrate([row]))[0] ?? null;
   }
 
-  return {
+  const store = {
     get,
 
     async list(ownerUserId: string | null): Promise<DeviceRecord[]> {
@@ -181,17 +187,21 @@ export function createDeviceStore(database: Database) {
       const token = newDeviceToken();
       const id = `dev_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
       const hostname = short(input.hostname, 120);
+      const platform = short(input.platform, 32) ?? "unknown";
       await database.insert(devices).values({
         id,
         ownerUserId: input.ownerUserId,
         name: cleanName(input.name, hostname ?? "我的电脑"),
-        platform: short(input.platform, 32) ?? "unknown",
+        platform,
         osVersion: short(input.osVersion, 120),
         hostname,
         arch: short(input.arch, 32),
         clientVersion: short(input.clientVersion, 32),
         tokenHash: hashDeviceToken(token),
-        capabilities: defaultCapabilities() as unknown as Record<string, unknown>,
+        // 电脑默认全部「询问」（每次审批）；手机不是节点，保持关闭。
+        capabilities: (isMobilePlatform(platform)
+          ? defaultCapabilities()
+          : initialCapabilities()) as unknown as Record<string, unknown>,
         allowedRoots: [] as unknown as Record<string, unknown>,
         paused: false,
         lastIp: input.ip ?? null,
@@ -316,6 +326,84 @@ export function createDeviceStore(database: Database) {
       return hydrate(rows.map((row) => row.device));
     },
 
+    /** 有没有人改过这台电脑的配置（能力 / 文件夹 / 名称 / 紧急停止）。 */
+    async everConfigured(id: string): Promise<boolean> {
+      const rows = await database
+        .select({ id: deviceAuditEvents.id })
+        .from(deviceAuditEvents)
+        .where(
+          and(
+            eq(deviceAuditEvents.deviceId, id),
+            inArray(deviceAuditEvents.action, [...USER_CONFIG_ACTIONS]),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
+
+    /**
+     * 一次性迁移（开机时跑，幂等）：旧版登记、能力仍是出厂「全部关闭」、而且从没被人改过配置的电脑，
+     * 改成新的默认「全部询问」。用户自己关掉的（有 config_changed 记录）不动；手机、已撤销的不动。
+     * 每台写一条审计「系统：默认权限改为每次询问」。返回改了的设备 id。
+     */
+    async adoptAskDefaults(): Promise<string[]> {
+      const rows = await database
+        .select()
+        .from(devices)
+        .where(and(isNull(devices.revokedAt), notInArray(devices.platform, [...MOBILE_PLATFORMS])));
+      const changed: string[] = [];
+      for (const device of await hydrate(rows)) {
+        if (!isFactoryOff(device.capabilities)) continue;
+        if (await store.everConfigured(device.id)) continue;
+        await database
+          .update(devices)
+          .set({ capabilities: initialCapabilities() as unknown as Record<string, unknown> })
+          .where(eq(devices.id, device.id));
+        await store.audit({
+          deviceId: device.id,
+          ownerUserId: device.ownerUserId,
+          actorType: "system",
+          actorId: null,
+          actorName: "系统",
+          action: "defaults_ask",
+          summary: "默认权限改为「每次询问」：机器人可以申请使用这台电脑，每次操作都要你批准。不想要可在 权限 里改回「关闭」。",
+          outcome: "succeeded",
+          detail: null,
+          durationMs: null,
+        });
+        changed.push(device.id);
+      }
+      return changed;
+    },
+
+    /**
+     * PC 建议的默认文件夹（hello.suggestedRoots）：只在列表为空且从没被人改过配置时采用。返回是否采用。
+     */
+    async seedRoots(id: string, suggested: unknown): Promise<boolean> {
+      const roots = cleanRoots(suggested).slice(0, 5);
+      if (!roots.length) return false;
+      const current = await get(id);
+      if (!current || current.revoked || current.allowedRoots.length) return false;
+      if (await store.everConfigured(id)) return false;
+      await database
+        .update(devices)
+        .set({ allowedRoots: roots as unknown as Record<string, unknown> })
+        .where(eq(devices.id, id));
+      await store.audit({
+        deviceId: id,
+        ownerUserId: current.ownerUserId,
+        actorType: "system",
+        actorId: null,
+        actorName: "系统",
+        action: "defaults_roots",
+        summary: `默认允许的文件夹：${roots.join("、")}`,
+        outcome: "succeeded",
+        detail: null,
+        durationMs: null,
+      });
+      return true;
+    },
+
     async audit(input: AuditInput): Promise<string> {
       const id = randomUUID();
       await database.insert(deviceAuditEvents).values({
@@ -383,6 +471,7 @@ export function createDeviceStore(database: Database) {
       }));
     },
   };
+  return store;
 }
 
 export type DeviceStore = ReturnType<typeof createDeviceStore>;

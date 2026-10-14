@@ -18,7 +18,7 @@ import { platformIcon } from "./devices";
 /**
  * 机器人这一侧的「电脑操作」（docs/pc-node.md §7）：这个人账号下关联的设备。
  *
- * 设备属于账号，不属于某个机器人：每个机器人都能用在线设备（能力默认关闭，逐台开启；审批、审计、紧急停止
+ * 设备属于账号，不属于某个机器人：每个机器人都能用在线设备（新电脑能力默认「询问」，每次操作要你批准，可逐台改；审批、审计、紧急停止
  * 照常）。这里只是列出设备和它们开了什么，点进去改能力；以前的「允许这个机器人」开关已经取消。
  */
 export function BotComputerAccess({ compact }: { agentId?: string; botName?: string; compact?: boolean }) {
