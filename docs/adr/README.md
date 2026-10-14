@@ -13,3 +13,4 @@
 | [0006](0006-schedules-independent-of-routines.md) | 定时任务独立实现，不依赖上游 routines | 已采纳 |
 | [0007](0007-version-reset-0-1-0.md) | 版本号归正为 0.1.0，各端对齐 | 已采纳 |
 | [0008](0008-pr-per-feature-serial-deploy.md) | 一功能一 PR，串行部署，做好一版就发 | 已采纳 |
+| [0009](0009-device-full-access.md) | 设备「完全访问」：有时限、只能主人打开的总开关 | 已采纳 |

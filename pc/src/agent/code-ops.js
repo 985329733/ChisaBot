@@ -331,8 +331,32 @@ function createCodeOps(options = {}) {
 
   // ---------- 写 ----------
 
+  /** 文件所在的 git 工作区根（向上找 .git 目录；.git 是文件的 worktree / submodule 不算），找不到返回 null。 */
+  function gitRootOf(file) {
+    let dir = path.dirname(file);
+    for (let i = 0; i < 64; i++) {
+      try {
+        if (fs.statSync(path.join(dir, ".git")).isDirectory()) return dir;
+      } catch {}
+      const parent = path.dirname(dir);
+      if (parent === dir) return null;
+      dir = parent;
+    }
+    return null;
+  }
+
+  /**
+   * 改前备份。git 仓库里的文件备份到 <仓库>/.git/chisabot-backups/<相对路径>（不会变成未跟踪文件、不会被误提交），
+   * 其它地方照旧放在旁边 <文件>.chisabot-bak。
+   */
   async function backupOf(file) {
-    const backup = `${file}.chisabot-bak`;
+    const root = gitRootOf(file);
+    let backup = `${file}.chisabot-bak`;
+    if (root) {
+      const rel = path.relative(root, file);
+      if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) backup = path.join(root, ".git", "chisabot-backups", rel);
+    }
+    await fsp.mkdir(path.dirname(backup), { recursive: true });
     await fsp.copyFile(file, backup);
     return backup;
   }

@@ -150,7 +150,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 | --- | --- | --- | --- |
 | `device_search` | `search` | 读取文件 | 类似 ripgrep：`pattern`（正则，`literal` 按字面）+ `glob`（`*.ts`、`src/**/*.py`、`*.{js,jsx}`），返回 文件:行号:内容（可带上下文）；默认跳过 node_modules / .git / dist 等和二进制、>4MB 文件；最多 1000 条、5 万个文件、60 秒 |
 | `device_read_file`（带 `startLine`/`endLine`） | `read_range` | 读取文件 | 流式按行读，带行号「N│」，一次最多 2000 行，返回 `totalLines` / `more` |
-| `device_edit_file` | `edit_file` | 写入文件 | 一处或多处 `oldText → newText`：必须逐字一致且唯一（出现多次时报出行号，`replaceAll` 全部替换），任何一处失败整个不改；保留 CRLF；备份 `*.chisabot-bak`；返回 unified diff 和 +/- 行数；`dryRun` 只看 diff |
+| `device_edit_file` | `edit_file` | 写入文件 | 一处或多处 `oldText → newText`：必须逐字一致且唯一（出现多次时报出行号，`replaceAll` 全部替换），任何一处失败整个不改；保留 CRLF；备份（git 仓库里的文件在 `.git/chisabot-backups/<相对路径>`，不会出现在 `git status` 里；其它地方是旁边的 `*.chisabot-bak`）；返回 unified diff 和 +/- 行数；`dryRun` 只看 diff |
 | `device_apply_patch` | `apply_patch` | 写入文件 | unified diff（多文件、`/dev/null` 新建 / 删除、改名）；先全部校验再统一写盘；允许行号偏移，空白不同再宽松匹配一次 |
 | `device_git` | `git` | 只读子命令（status / diff / log / show / branch 列表 / remote -v / blame / ls-files / stash list）= 读取文件；其余 = 命令行 | 不经过 shell，参数逐个传；禁止 `--output` `--exec` `--upload-pack` `-c` 等会执行或写任意文件的参数；`GIT_TERMINAL_PROMPT=0`；**push 每次都要人批准**（能力是「允许」也问，完全访问除外） |
 | `device_run_shell`（`background: true`）/ `device_shell_output` / `device_shell_kill` | `exec_start` / `exec_poll` / `exec_list` / `exec_kill` | 命令行 | 后台命令：立刻返回 `jobId` 和开头输出（最多等 `waitMs`），之后按字节偏移 `since` 取新输出（可等最多 25 秒），每个任务保留最后 2MB；默认最长 2 小时，同时最多 20 个，结束 1 小时后清理；紧急停止 / 撤销时全部结束 |

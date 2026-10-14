@@ -102,7 +102,7 @@ function DevicesPage() {
         ) : (
           <>
             <ApprovalsCard approvals={list.data.approvals} />
-            {/* 「机器人能用的电脑」只算电脑：扫码绑定的手机只用来登录聊天（DESIGN.md §33）。 */}
+            {/* 「机器人能用的设备」只算电脑和服务器：扫码绑定的手机只用来登录聊天（DESIGN.md §33）。 */}
             <ConnectionCard
               devices={active.filter(
                 (device) => !isMobilePlatform(device.platform),

@@ -285,3 +285,15 @@ test("core: declining full access turns it off on the server", async () => {
   assert.equal(agent.fullAccess, false);
   agent.stop();
 });
+
+test("edit in a git repo backs up into .git/chisabot-backups, not next to the file", async () => {
+  const repo = path.join(root, "gitrepo");
+  fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+  fs.mkdirSync(path.join(repo, "src"), { recursive: true });
+  const file = path.join(repo, "src", "b.js");
+  fs.writeFileSync(file, "let i = 1;\n");
+  const r = await ops.run("edit_file", { path: "gitrepo/src/b.js", edits: [{ oldText: "let i = 1;", newText: "let i = 0;" }] }, ctx);
+  assert.equal(r.backup, path.join(repo, ".git", "chisabot-backups", "src", "b.js"));
+  assert.equal(fs.readFileSync(r.backup, "utf8"), "let i = 1;\n");
+  assert.ok(!fs.existsSync(`${file}.chisabot-bak`));
+});

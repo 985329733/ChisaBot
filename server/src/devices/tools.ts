@@ -547,7 +547,7 @@ export function deviceTools(options: {
         name: "device_edit_file",
         ref: "devices/edit_file",
         description:
-          "精确修改用户设备上的文件：edits 里每处 oldText → newText（oldText 必须逐字一致且唯一，否则整个不改并说明原因）。改前自动备份为 .chisabot-bak，返回 unified diff。改代码优先用它，不要整文件重写。",
+          "精确修改用户设备上的文件：edits 里每处 oldText → newText（oldText 必须逐字一致且唯一，否则整个不改并说明原因）。改前自动备份（git 仓库里在 .git/chisabot-backups/），返回 unified diff。改代码优先用它，不要整文件重写。",
         parameters: schemas.edit,
         execute: async (input) => {
           const args = schemas.edit.parse(input ?? {});

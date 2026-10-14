@@ -548,7 +548,7 @@ export function ConnectionCard({
       : "这台电脑还没有关联到你的账号。";
   return (
     <Card className="device-connection">
-      <SettingRow description={summary} title="机器人能用的电脑">
+      <SettingRow description={summary} title="机器人能用的设备">
         <span className={cn("device-badge", online.length ? "is-ok" : "is-warn")}>
           <span aria-hidden className={cn("device-dot", online.length && "is-ok")} />
           {online.length ? `${online.length} 台在线` : "没有在线设备"}
