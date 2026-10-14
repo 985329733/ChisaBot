@@ -73,7 +73,6 @@ import {
   REFUSAL_MARKER,
   toolResultFailed,
 } from "@/lib/plugins/tool-result";
-import { readTeamBotConsent } from "@/lib/team-bots";
 import { cn } from "@/lib/utils";
 import { VOICE_CHAT_ACTIVITY, type VoiceChatEntry } from "@/lib/voice/archive";
 import {
@@ -87,7 +86,6 @@ import {
   toVisibleChatItems,
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
-import { TeamBotConsentCard } from "./team-bot-consent";
 import { ToolRenderBoundary } from "./tool-boundary";
 import { ToolLine } from "./tool-line";
 import { VoiceChatCard } from "./voice-chat-card";
@@ -1514,9 +1512,6 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
    * server's copy is what the model is told and "Refused." in front of a reason is right for it.
    */
   const body = refused ? answer?.slice(REFUSAL_MARKER.length).trim() : answer;
-  // A Team Bot asking to use this person's own account draws its consent card, not the sentence.
-  const consent = refused ? readTeamBotConsent(body) : null;
-  if (consent) return <TeamBotConsentCard {...consent} />;
   /*
    * 桌面宿主（host_*）工具被拒绝，几乎都是因为电脑没连上 / 没授权文件夹。这是用户能处理的事，
    * 所以不当成过程行藏起来，而是一句中文提示，告诉他去哪里处理。

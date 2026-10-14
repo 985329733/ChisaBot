@@ -62,3 +62,7 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 | P4b-1 | 上游个人记忆（`/api/memory`、`memory/` 的 store/ingestion/routes，每分钟的 `memorySweep`） | 删；§50 的长期记忆（`memory-notes/`）不受影响，`memory/tools.ts` 里每轮读记忆的中间件保留 | P4a 已删 `lib/memory.ts` |
 | P4b-1 | 主动研究（`/api/proactive/*`，`proactive/` 的 engine/store/routes） | 删；`proactive/restriction.ts`、`private-share.ts` 是通用的只读 / 私密分享守卫，保留。生命周期重置仍会清旧的 `proactive.run` 队列行 | P4a 已删 `lib/proactive.ts` |
 | P4b-1 | 意图路由（`POST /api/route`，`routing/` 的 classify/routes/service） | 删；`routing/model.ts`（工具选择用的模型补全）保留。审计类型 `channel.routed` 不再写，旧行照常显示 | 删 `lib/channels/route.ts`；「选了机器人再开对话」不再先发一条路由审计 |
+| P4b-2 | 推送与可达性（Slack / Teams / 短信 Twilio / 手机推送，`/api/delivery*` 与 webhooks，`delivery/` 的 router/routes/opentag/push/twilio） | 删；`delivery/store.ts`、`types.ts` 保留（`delivery_*` 表、Slack 触发器读绑定表时用）；内部的 `deliveryNotifications` 变成空操作。生产没有配置任何推送通道、绑定 0 条 | P4a 已删 `lib/delivery.ts`、`/reachability` 重定向 |
+| P4b-2 | 群聊（`/api/groups`） | 路由删掉；`channels/group.ts` 里的群聊服务保留（只被机器人交接用，交接也默认关了）。旧的多机器人对话打开时显示「已不再支持」 | 删 `/group` 链接（左栏、对话页跳转、频道事件里的群聊刷新） |
+| P4b-2 | 团队机器人（`/api/team-bots`） | 路由删掉；`team-bots/team-bots.ts` 的访问判断保留（机器人一律私有后只是一条恒为自己的路径） | 删同意卡片 `team-bot-consent` 与 `lib/team-bots` |
+| P4b-2 | 机器人之间交接（`hand_off`、群里 @ 别的机器人） | `BOT_HANDOFF_MAX_DEPTH` 默认改为 `0`：不给工具、不跑交接队列；设成 `1` 恢复上游行为 | 机器人设置窗里外部机器人的「回调令牌」面板删掉（外部框架适配器 P3 已删） |

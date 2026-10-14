@@ -445,7 +445,7 @@ computers. Reactivating them lifts a deny-list entry SCIM wrote, never one an ad
 
 | Variable                   | Meaning                                                                                     |
 | -------------------------- | ------------------------------------------------------------------------------------------- |
-| `BOT_HANDOFF_MAX_DEPTH`    | How many Bots deep a chain may go. `0` switches the capability off entirely. Default `1`.    |
+| `BOT_HANDOFF_MAX_DEPTH`    | How many Bots deep a chain may go. `0` switches the capability off entirely. Default `0` (off since slimming P4b; `1` restores the upstream behaviour).    |
 | `BOT_HANDOFF_MAX_PER_RUN`  | How many other Bots one run may address. Default `3`.                                        |
 
 Both refuse rather than truncate, and both are refused at start-up if they are not whole numbers of

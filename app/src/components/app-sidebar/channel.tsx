@@ -124,12 +124,7 @@ export const Channel = memo(function Channel({
       <ContextMenu>
         <ContextMenuTrigger>
           <Link
-            // Two or more Bots is a group conversation, which has its own shared transcript.
-            to={
-              participantIds.length > 1
-                ? "/group/$channelId"
-                : "/channel/$channelId"
-            }
+            to="/channel/$channelId"
             params={{ channelId }}
             type="button"
             className="flex flex-row py-2 px-2 gap-2 items-center w-full hover:bg-foreground/5 rounded-lg [contain-intrinsic-size:auto_3.25rem] [content-visibility:auto]"

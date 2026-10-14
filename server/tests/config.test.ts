@@ -1089,9 +1089,9 @@ describe("AGENT_ENDPOINT_ALLOWED_HOSTS", () => {
  * cap, and find out at the first loop.
  */
 describe("how far a Bot may hand work on", () => {
-  test("defaults to one level and three per run", () => {
+  test("defaults to off (depth 0; slimming P4b) and three per run", () => {
     const config = loadConfig({ ...baseEnvironment });
-    expect(config.handoff).toEqual({ maxDepth: 1, maxPerRun: 3 });
+    expect(config.handoff).toEqual({ maxDepth: 0, maxPerRun: 3 });
   });
 
   test("a deployment can widen or switch it off", () => {

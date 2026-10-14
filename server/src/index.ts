@@ -176,11 +176,6 @@ import {
   responsibilityRuns,
   routineRuns,
 } from "./db/schema";
-import { createDeliveryRouter, DELIVERY_WORK_KINDS } from "./delivery/router";
-import {
-  configuredDeliveryProviders,
-  type DeliveryScopeResolver,
-} from "./delivery/routes";
 import { createDeliveryStore } from "./delivery/store";
 import type { DeliveryScope } from "./delivery/types";
 import { DeliveryRefusedError } from "./delivery/types";
@@ -253,7 +248,6 @@ import {
 import {
   createSlackTriggerIngest,
   slackAccessFrom,
-  useSlackChannelMembership,
   useSlackTriggerIngest,
 } from "./responsibilities/slack";
 import { createResponsibilityStore } from "./responsibilities/store";
@@ -532,7 +526,8 @@ let deliveryNotifications: (
     requestId?: string;
   },
 ) => Promise<void> = async () => {
-  throw new Error("Delivery is not initialized.");
+  // Slack / Teams / SMS / push delivery was removed in slimming P4b (no transport is configured on a
+  // personal deployment). In-app notifications are unaffected; this stays as a no-op call site.
 };
 const authoriseQuestion = async (question: PersonQuestion) => {
   const source = await sourceForCoordinationRun({
@@ -889,7 +884,7 @@ const responsibilityBindings = createResponsibilityBindingStore(database, {
 /*
  * Slack access: the owner's own linked Slack identity comes from the delivery bindings (read at call
  * time; `deliveryStore` is built further down), and channel membership from the Slack pairing via
- * `useSlackChannelMembership`. Until the pairing installs that, Slack triggers are refused.
+ * `useSlackChannelMembership`, which nothing installs since slimming P4b removed the Slack pairing, so Slack triggers are refused.
  */
 const slackAccess = slackAccessFrom(async (ownerUserId, teamId) => {
   const bindings = await deliveryStore.listBindings(ownerUserId);
@@ -3024,100 +3019,6 @@ const approvalSweep = repeatAfterEach(async () => {
   }
 }, 2_000);
 const deliveryStore = createDeliveryStore(database);
-const deliveryProviders = configuredDeliveryProviders(
-  config.publicUrl ?? config.auth?.baseUrl ?? `http://localhost:${config.port}`,
-);
-// Slack channel membership for triggers is answered by OpenTag, which holds the workspace token.
-useSlackChannelMembership((input) =>
-  deliveryProviders.slack
-    ? deliveryProviders.slack.isMember(input)
-    : Promise.resolve(false),
-);
-const deliveryScopeFor: DeliveryScopeResolver = async (
-  ownerUserId,
-  channelId,
-  agentId,
-) => {
-  const person = await peopleStore.find(ownerUserId);
-  if (!person || person.revoked) return null;
-  const actor = await actorFor(ownerUserId);
-  const [channel, bot] = await Promise.all([
-    channelStore.get(actor, channelId),
-    agentProfileStore.get(actor, agentId),
-  ]);
-  return channel?.active && bot && channel.agentIds.includes(agentId)
-    ? { ownerUserId, channelId, agentId, threadId: channel.threadId }
-    : null;
-};
-const authoriseDeliveryScope = async (scope: DeliveryScope) =>
-  (await deliveryScopeFor(scope.ownerUserId, scope.channelId, scope.agentId))
-    ?.threadId === scope.threadId;
-const deliveryRouter = createDeliveryRouter({
-  store: deliveryStore,
-  queue: createWorkQueue(database),
-  owner: workOwner("delivery"),
-  providers: deliveryProviders,
-  authoriseScope: authoriseDeliveryScope,
-  notifyEvent: (event) => responsibilityEngine.ingest(event),
-  runTurn: async (input) => {
-    if (!(await authoriseDeliveryScope(input)))
-      throw new Error(
-        "The delivery owner no longer has access to this conversation.",
-      );
-    const actor = await actorFor(input.ownerUserId);
-    await channelStore.recordActivity(
-      actor,
-      input.channelId,
-      { text: input.text, agentId: null, at: new Date() },
-      { id: `delivery-input:${input.runId}` },
-    );
-    await channelStore.signalBusy(input.threadId, true);
-    try {
-      const result = await approvalContinuationRunner({
-        ownerUserId: input.ownerUserId,
-        routineId: `delivery:${input.runId}`,
-        runId: input.runId,
-        agentId: input.agentId,
-        threadId: input.threadId,
-        instruction: input.text,
-        userMessage: {
-          id: `delivery:${input.runId}`,
-          role: "user",
-          content: input.text,
-        },
-        initiator: PERSON_INITIATOR,
-        signal: input.signal,
-      });
-      if (result.replyText)
-        await channelStore.recordActivity(
-          actor,
-          input.channelId,
-          { text: result.replyText, agentId: input.agentId, at: new Date() },
-          { id: `delivery-reply:${input.runId}` },
-        );
-      return result;
-    } finally {
-      await channelStore.signalBusy(input.threadId, false);
-    }
-  },
-  audit: (event) =>
-    recordAuditEvent(bootAuditStore, {
-      actorUserId: event.ownerUserId,
-      initiator: PERSON_INITIATOR,
-      eventType:
-        event.kind === "inbound"
-          ? "delivery.received"
-          : event.kind === "sms_opt_out"
-            ? "delivery.opted_out"
-            : event.state === "failed"
-              ? "delivery.failed"
-              : "delivery.sent",
-      targetType: "channel",
-      targetId: event.channelId,
-      payload: { deliveryId: event.id, kind: event.kind, state: event.state },
-    }),
-});
-deliveryNotifications = (scope, input) => deliveryRouter.notify(scope, input);
 
 /*
  * Follow-ups a Bot scheduled for itself: one headless turn each, through the same turn runner as a
@@ -3174,21 +3075,6 @@ const wakeUpSweep = repeatAfterEach(async () => {
 const wakeUpReaper = repeatAfterEach(async () => {
   await wakeUpRunner.reap().catch(() => 0);
 }, 60 * 60_000);
-const deliverySweeps = DELIVERY_WORK_KINDS.map((kind) =>
-  repeatAfterEach(async () => {
-    try {
-      await deliveryRouter.sweep(kind);
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          type: "delivery-worker-error",
-          kind,
-          errorType: error instanceof Error ? error.name : "UnknownError",
-        }),
-      );
-    }
-  }, 2_000),
-);
 
 const personResponseOwner = workOwner("person-response");
 /**
@@ -3800,39 +3686,12 @@ const app = createApp(
   {
     approvals: approvalService,
     ...(signInService ? { passwords: signInService } : {}),
-    delivery: {
-      authenticated: {
-        store: deliveryStore,
-        router: deliveryRouter,
-        scopeFor: deliveryScopeFor,
-        listConversations: async (owner, cursor) =>
-          channelStore.list(await actorFor(owner), { cursor, limit: 100 }),
-        history: (scope) =>
-          routineIntelligence.getThreadMessages({
-            threadId: scope.threadId,
-            userId: scope.ownerUserId,
-          }),
-        slack: deliveryProviders.slack,
-        twilio: deliveryProviders.sms,
-        pushProjectId: deliveryProviders.pushProjectId,
-      },
-      webhooks: {
-        store: deliveryStore,
-        router: deliveryRouter,
-        approvals: approvalService,
-        scopeFor: deliveryScopeFor,
-        slack: deliveryProviders.slack,
-        twilio: deliveryProviders.sms,
-      },
-    },
     responsibilities: {
       store: responsibilityStore,
       engine: responsibilityEngine,
       bindings: responsibilityBindings,
       triggers: responsibilityTriggers,
     },
-    groups: groupConversations,
-    teamBots,
     lifecycle: {
       lifecycle: createBotLifecycleStore(database),
       reset: botReset,
@@ -4128,7 +3987,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     approvalSweep.stop();
     personResponseSweep.stop();
     groupSweep.stop();
-    for (const sweep of deliverySweeps) sweep.stop();
     void Promise.allSettled([
       imService?.stopAll() ?? Promise.resolve(),
       channelActivityListener.stop(),

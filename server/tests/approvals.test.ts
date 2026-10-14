@@ -532,7 +532,6 @@ test("an always-allowed action whose rule was revoked before it ran tells the Bo
 
 test("an approval preview shows what will be typed, written or sent, and still hides secrets", async () => {
   const { approvalPreview } = await import("../src/approvals/types");
-  const { approvalFields } = await import("../src/delivery/opentag");
   // computer_type, file writes, and a chat message: the payload is the thing being approved.
   expect(
     approvalPreview({ ref: "e4", text: "transfer $5,000 to acct 991" }),
@@ -546,10 +545,8 @@ test("an approval preview shows what will be typed, written or sent, and still h
     content: "rm -rf ~",
   });
   expect(
-    approvalFields(
-      approvalPreview({ channel: "C1", text: "We are shipping today" }),
-    ),
-  ).toContainEqual({ label: "text", value: "We are shipping today" });
+    approvalPreview({ channel: "C1", text: "We are shipping today" }),
+  ).toMatchObject({ text: "We are shipping today" });
   // Secrets stay hidden by key and inside values.
   expect(
     approvalPreview({

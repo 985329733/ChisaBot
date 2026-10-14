@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 瘦身 P4b-2：去掉上游的推送与可达性（Slack / Teams / 短信 / 手机推送，`/api/delivery*`）、群聊接口（`/api/groups`）、团队机器人接口（`/api/team-bots`）；机器人之间交接默认关闭（`BOT_HANDOFF_MAX_DEPTH` 默认 `0`，设 `1` 恢复）。旧的多机器人对话打开时显示「已不再支持」。网页里的群聊链接、团队机器人同意卡片、外部机器人回调令牌面板一并去掉。表和旧数据不动。见 `docs/slimming.md`。
 - 成熟度 2（新朋友第一次用）：① 新建机器人只有名称必填，职责 / 提示词可以不填（提交时补一句基本说明，之后在资料页改）。② 机器人的空聊天多了 4 个「试试这样问」，点一下就发。③ 手机上建好机器人后左栏抽屉自动收起。④ 「AI 同事」等机翻文案改成「机器人」。⑤ 模型回答到一半断开时，出错卡片说中文（以前是 `AI SDK stream error`）。只改网页。见 DESIGN.md §63。
 - 瘦身 P4b-1：服务器不再加载上游的演示录制（`/api/demonstrations`）、上游个人记忆（`/api/memory` 和每分钟的记忆同步）、主动研究（`/api/proactive`）、意图路由（`POST /api/route`）。长期记忆（设置 → 记忆）不受影响。表和旧数据不动，回滚镜像即可恢复。见 `docs/slimming.md`。
 - 备用模型：设置 → 模型 新增「备用模型」，管理员排好顺序（最多 8 个），主模型额度用完（429 / 402 / quota）或模型服务 5xx / 过载时按这个顺序换下一个（以前只能自动挑同平台的模型，或改环境变量）；换过模型的那一轮，对话末尾有一行淡色小字「主模型额度用完，已改用 X」，刷新后还在。管理员自检（`/api/admin/smoke`、`smoke.sh`）也走同一套回退：主模型用不了但备用模型答上了算通过，结果里 `fallback` 写明换成了谁——部署不再因为免费额度用完而误回滚。设置存在 `enterprise_settings`（`model_fallbacks`，不新建表，可回滚）。服务器 + 网页。见 DESIGN.md §61、`docs/models.md`。

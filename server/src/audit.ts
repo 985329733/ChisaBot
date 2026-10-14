@@ -67,10 +67,7 @@ export const auditEventTypes = [
   "credential.rotation_refused",
   "credential.revoked",
   // "channel.routed" (upstream intent routing) is no longer written since slimming P4b; old rows stay readable.
-  "delivery.received",
-  "delivery.sent",
-  "delivery.opted_out",
-  "delivery.failed",
+  // "delivery.received|sent|opted_out|failed" (Slack/Teams/SMS/push router) are no longer written since slimming P4b.
   /**
    * A channel was removed from every member's roster, and by whom.
    *
