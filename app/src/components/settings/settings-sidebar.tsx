@@ -1,5 +1,6 @@
 import {
   IconAdjustmentsHorizontal,
+  IconBookmark,
   IconBrain,
   IconCloudDownload,
   IconDeviceDesktop,
@@ -38,6 +39,12 @@ const PERSONAL: RailGroup[] = [
         /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
         exact: true,
         linkOptions: { to: "/settings" },
+      },
+      {
+        title: "记忆",
+        sub: "机器人记住的关于你的事",
+        icon: IconBookmark,
+        linkOptions: { to: "/settings/memory" },
       },
       {
         title: "账号与密码",
