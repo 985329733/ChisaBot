@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { Streamdown } from "streamdown";
+import { STREAMDOWN_ZH } from "@/lib/chat/streamdown-zh";
 import { useSmoothText } from "@/lib/chat/use-smooth-text";
 
 /**
@@ -10,7 +11,11 @@ import { useSmoothText } from "@/lib/chat/use-smooth-text";
  */
 export function SmoothStreamdown({ children, ...props }: Omit<ComponentProps<typeof Streamdown>, "children"> & { children: string }) {
   const shown = useSmoothText(children ?? "");
-  return <Streamdown {...props}>{shown}</Streamdown>;
+  return (
+    <Streamdown translations={STREAMDOWN_ZH} {...props}>
+      {shown}
+    </Streamdown>
+  );
 }
 
 /**

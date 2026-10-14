@@ -67,6 +67,7 @@
 | [56](#56-聊天文件与图片生成上传进工作区文件卡画图改图2026-10-14) | 聊天文件与图片生成：上传进工作区、文件卡、画图改图 | 2026-10-14 |
 | [57](#57-导航收敛一个私人助手只需要一套导航2026-10-14) | 导航收敛：一个私人助手只需要一套导航 | 2026-10-14 |
 | [59](#59-生图模型识图模型在模型设置里配每个人可以换成自己的2026-10-15) | 生图模型、识图模型：在模型设置里配，每个人可以换成自己的 | 2026-10-15 |
+| [60](#60-成熟度-1额度用完不再整天不能用报错说人话部署时不白屏2026-10-15) | 成熟度 1：额度回退、报错说人话、部署等待页 | 2026-10-15 |
 
 ## 0. 总原则
 
@@ -1122,3 +1123,33 @@
 - **识图怎么用**：上传的图片在模型那边（attachment-parts 的 `cf:` 引用）不再给原图，而是识图模型写的详细描述 + OCR（先整体、再细节、图里的字逐字抄），前面一句「你看不到原图，按描述回答，描述里没有的用 image_inspect 问，不要编」。描述按 (文件, 接口地址+模型) 缓存在 `chisabot_image_descriptions`，同一张图每轮重放历史都不再调用；并发同一张只调一次；删文件连描述一起删。6 小时前上传、又没有描述的老图不批量描述（避免一轮几十次调用），只给一句「需要时用 image_inspect」。识图失败时主模型能看图就退回原图，否则如实说明。
 - **机器人工具** `image_inspect {question, source?}`：有识图模型时才给，让识图模型看指定图片回答具体问题（不缓存）。每轮的文件说明里多一句识图的用法。
 - 接口：管理员 `GET /api/media-models/default`、`PUT /default/image`、`PUT /default/vision`；个人 `GET /me`、`PUT /me/image`、`PUT /me/vision`；`POST /test/image`、`POST /test/vision`（`scope: default | personal`，不填密钥用已存的）。§56 的 `/api/chat-files/settings/image*` 保留兼容。
+
+## 60. 成熟度 1：额度用完不再整天不能用、报错说人话、部署时不白屏（2026-10-15）
+
+来自成熟度扫查（docs/BACKLOG.md CB-003；问题清单与截图见 PR 描述）。
+
+**60.1 模型额度回退**（`server/src/agents/model-fallback.ts`，接在 `copilot.ts` 的 `fallbackConnectionModel`）。生产实测：默认模型
+`clinepass/cline-free/mimo-v2.6-flash` 每日免费额度一用完，每个机器人每一句都要转 14 秒到 2 分钟（AI SDK 重试 3 次），然后弹英文报错，
+一直到第二天。现在模型调用在**还没吐出任何内容之前**被拒（HTTP 429 / 402，或错误里写着 quota / daily limit / 额度），立刻用同一个连接
+换候选模型重发同一个请求；被拒的模型记一个冷却期（错误里有「Try again in 19h 51m」就按它，否则 10 分钟，最多 24 小时），冷却期内后续
+回合直接跳过它、不再白等。候选：`CHISABOT_MODEL_FALLBACKS`（逗号分隔，`off` 关闭）；没设就取模型目录里与当前模型**同一平台前缀**
+（如 `clinepass/`）的其它模型，按目录顺序最多 3 个。全部失败时抛原来的错误。其它错误（400 参数错、500、网络）不回退。服务器日志
+`{"type":"model-fallback","event":"used",…}`。管理员自检（`/api/admin/smoke`）不走回退，测的就是配置的那个模型。
+
+**60.2 一轮出错的提示说人话**（`app/src/lib/copilot/stopped-turn.ts` `friendlyStopReason`）：额度用完（带「约 N 小时 M 分钟后恢复」）、
+限流、只能在 OpenCode 里用的免费模型、密钥无效、上下文太长、超时、连不上模型、stall-guard 的「X stopped responding…」都翻成一句中文 +
+下一步（多半是「点输入框右下角的模型名，换一个模型再发」）；不认得的英文前面加「这一轮出错了：」保留原文；中文原样。
+
+**60.3 Streamdown 控件中文**（`app/src/lib/chat/streamdown-zh.ts`）：代码块 / 表格 / 图表 / 图片的工具栏提示（复制表格、下载表格、全屏查看、
+下载文件、复制代码…）。所有 `<Streamdown>` 都传 `translations={STREAMDOWN_ZH}`。
+
+**60.4 正文里的文字工具调用**（`server/src/agents/think-tags.ts`）：有的模型在拿不到某个工具时把调用写成正文
+`<tool_call><function=device_run_shell>…</tool_call>`。现在和 `<think>` 一样收进「思考」，正文换成一句「（模型把一次工具调用「名字」写成了
+文字，没有真正执行。可以让它再试一次，或换一个模型。）」。
+
+**60.5 部署时的等待页**（网关 `deploy/public/nginx.conf` + `auth-web/updating.{html,css,js}`）：后端连不上时（每次部署约 75 秒）网关的
+502/503/504 不再是 nginx 白底英文页（而且注入的「退出登录」按钮因为没有字符集被解码成乱码），换成毛玻璃的「ChisaBot 正在更新」，
+每 2 秒探一次 `/health`，通了自动重新载入原地址；状态码仍是 502，接口调用照旧按失败处理。`workspace.js` / `updating.js` 带
+`charset=utf-8`。只拦网关自己生成的错误（没开 `proxy_intercept_errors`），后端自己返回的 503 JSON 原样透传。
+
+**60.6 设备能力文案**：命令行能力说明不再只写 PowerShell（Linux / macOS 节点用 sh）。

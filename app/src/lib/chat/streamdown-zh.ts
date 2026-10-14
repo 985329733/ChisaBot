@@ -1,0 +1,38 @@
+/**
+ * Streamdown 自带控件（代码块 / 表格 / 图片 / 图表 / 链接）的中文文案。
+ * 2026-10-15 成熟度扫查：表格和代码块工具栏的提示还是英文（Copy table、Download table、View fullscreen、Copy Code…）。
+ */
+export const STREAMDOWN_ZH = {
+  close: "关闭",
+  copied: "已复制",
+  copyCode: "复制代码",
+  copyLink: "复制链接",
+  copyTable: "复制表格",
+  copyTableAsCsv: "复制为 CSV",
+  copyTableAsMarkdown: "复制为 Markdown",
+  copyTableAsTsv: "复制为 TSV",
+  downloadDiagram: "下载图表",
+  downloadDiagramAsMmd: "下载为 MMD",
+  downloadDiagramAsPng: "下载为 PNG",
+  downloadDiagramAsSvg: "下载为 SVG",
+  downloadFile: "下载文件",
+  downloadImage: "下载图片",
+  downloadTable: "下载表格",
+  downloadTableAsCsv: "下载为 CSV",
+  downloadTableAsMarkdown: "下载为 Markdown",
+  exitFullscreen: "退出全屏",
+  externalLinkWarning: "即将打开外部网站，请确认链接可信。",
+  imageNotAvailable: "图片无法显示",
+  mermaidFormatMmd: "MMD",
+  mermaidFormatPng: "PNG",
+  mermaidFormatSvg: "SVG",
+  openExternalLink: "打开外部链接？",
+  openLink: "打开链接",
+  resetView: "重置视图",
+  tableFormatCsv: "CSV",
+  tableFormatMarkdown: "Markdown",
+  tableFormatTsv: "TSV",
+  viewFullscreen: "全屏查看",
+  zoomIn: "放大",
+  zoomOut: "缩小",
+};

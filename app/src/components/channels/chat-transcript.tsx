@@ -23,6 +23,7 @@ import {
   useState,
 } from "react";
 import { Streamdown } from "streamdown";
+import { STREAMDOWN_ZH } from "@/lib/chat/streamdown-zh";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { StatusGlyph } from "@/components/ui/button";
@@ -1530,7 +1531,7 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
       running={result === undefined}
     >
       {body ? (
-        <Streamdown components={markdownComponents}>
+        <Streamdown components={markdownComponents} translations={STREAMDOWN_ZH}>
           {forDisplay(body)}
         </Streamdown>
       ) : null}

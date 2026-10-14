@@ -10,8 +10,16 @@
  * 没有标签的模型输出原样透传，一个字不改。
  */
 
-const OPEN = /<(think|thinking)>/i;
-const MAX_TAG = "</thinking>".length;
+// <tool_call>：有的模型（2026-10-15 生产实测 mimo-v2.6-flash，工具这一轮不可用时）把工具调用写成正文里的
+// 「<tool_call><function=device_run_shell>…</tool_call>」，原样进了回复气泡。当作思考收起，再补一句人话说明没有执行。
+const OPEN = /<(think|thinking|tool_call)>/i;
+const MAX_TAG = "</tool_call>".length;
+
+/** 正文里一段文字形式的工具调用 → 给人看的一句说明。 */
+export function textualToolCallNote(span: string): string {
+  const name = /<function=([\w.-]+)/.exec(span)?.[1] ?? /"name"\s*:\s*"([\w.-]+)"/.exec(span)?.[1];
+  return `（模型把一次工具调用${name ? `「${name}」` : ""}写成了文字，没有真正执行。可以让它再试一次，或换一个模型。）`;
+}
 
 type Part = { type: string; id?: string; delta?: string; [key: string]: unknown };
 export type ThinkPiece = { kind: "text" | "reasoning"; text: string };
@@ -21,6 +29,7 @@ export class ThinkSplitter {
   private inThink = false;
   private closeTag = "";
   private pending = "";
+  private span = "";
 
   push(chunk: string): ThinkPiece[] {
     this.pending += chunk;
@@ -33,9 +42,10 @@ export class ThinkSplitter {
           this.pending = this.pending.slice(m.index + m[0].length);
           this.inThink = true;
           this.closeTag = `</${m[1].toLowerCase()}>`;
+          this.span = "";
           continue;
         }
-        const keep = partialTagTail(this.pending, ["<think>", "<thinking>"]);
+        const keep = partialTagTail(this.pending, ["<think>", "<thinking>", "<tool_call>"]);
         const emit = this.pending.slice(0, this.pending.length - keep);
         if (emit) out.push({ kind: "text", text: emit });
         this.pending = this.pending.slice(this.pending.length - keep);
@@ -44,12 +54,15 @@ export class ThinkSplitter {
       const at = this.pending.toLowerCase().indexOf(this.closeTag);
       if (at >= 0) {
         if (at > 0) out.push({ kind: "reasoning", text: this.pending.slice(0, at) });
+        this.span += this.pending.slice(0, at);
         this.pending = this.pending.slice(at + this.closeTag.length).replace(/^\s+/, "");
         this.inThink = false;
+        if (this.closeTag === "</tool_call>") out.push({ kind: "text", text: `${textualToolCallNote(this.span)}\n\n` });
         continue;
       }
       const keep = partialTagTail(this.pending, [this.closeTag]);
       const emit = this.pending.slice(0, this.pending.length - keep);
+      this.span += emit;
       if (emit) out.push({ kind: "reasoning", text: emit });
       this.pending = this.pending.slice(this.pending.length - keep);
       return out;
