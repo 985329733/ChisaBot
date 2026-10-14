@@ -1,36 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { ChannelAvatar } from "@/components/channels/avatar";
-import { BotPausedBanner } from "@/components/bot-profile/pause-banner";
-import { GroupChat } from "@/components/channels/group-chat";
-import { SidebarToggle } from "@/components/layout/sidebar-toggle";
-import { channelQueryOptions } from "@/lib/channels/queries";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-/** A conversation with several Bots. The channel is an ordinary channel with more than one Bot. */
+/** 上游群聊已删除：一个机器人一段对话（瘦身 P4a，DESIGN.md §57）。 */
 export const Route = createFileRoute("/_authed/_app/group/$channelId")({
-  component: RouteComponent,
+  beforeLoad: () => {
+    throw redirect({ to: "/", replace: true });
+  },
 });
-
-function RouteComponent() {
-  const { channelId } = Route.useParams();
-  const channel = useQuery(channelQueryOptions(channelId));
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 flex min-h-12 flex-row items-center gap-1.5 px-3 py-2">
-        <SidebarToggle />
-        <ChannelAvatar
-          participantIds={channel.data?.agentIds ?? []}
-          size={22}
-        />
-        <span className="min-w-0 truncate text-sm tracking-tight">
-          {channel.data?.name ?? "组"}
-        </span>
-      </div>
-      {(channel.data?.agentIds ?? []).map((agentId) => (
-        <BotPausedBanner agentId={agentId} key={agentId} />
-      ))}
-      {/* Remounted per channel so one group's transcript never flashes in another. */}
-      <GroupChat channelId={channelId} key={channelId} />
-    </div>
-  );
-}

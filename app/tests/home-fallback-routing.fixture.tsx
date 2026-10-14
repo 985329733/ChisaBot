@@ -1,18 +1,12 @@
 import { mock } from "bun:test";
-import type { ReactNode } from "react";
+import { createContext } from "react";
 
+// Mock every export: bun's mock.module leaks into later files, and glass-shell imports
+// TopBarOwnsSidebarToggle (a missing export there is an "unhandled error between tests").
 mock.module("@/components/layout/sidebar-toggle", () => ({
+  TopBarOwnsSidebarToggle: createContext(false),
+  useSidebarToggleVisible: () => true,
+  SidebarToggle: () => <button type="button">Toggle sidebar</button>,
   SidebarToggleBar: () => <div data-testid="sidebar-toggle-bar" />,
 }));
 
-mock.module("@/components/ui/carousel", () => ({
-  Carousel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  CarouselContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  CarouselItem: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  CarouselNext: () => <button type="button">Next agents</button>,
-  CarouselPrevious: () => <button type="button">Previous agents</button>,
-}));
