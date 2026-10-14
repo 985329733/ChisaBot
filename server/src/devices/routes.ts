@@ -362,7 +362,8 @@ export function createDeviceRoutes(options: {
     const device = await store.get(id);
     if (!device) return null;
     const actor = context.var.actor;
-    if (device.ownerUserId !== actor.id && actor.role !== "admin") return null;
+    // 多账号（CB-040）：设备只归它的主人管，管理员也不能操作朋友的电脑 / 手机。
+    if (device.ownerUserId !== actor.id) return null;
     return device;
   }
 
@@ -372,7 +373,7 @@ export function createDeviceRoutes(options: {
     const list = await store.list(all ? null : actor.id);
     return context.json({
       devices: list.map((device) => hub.view(device)),
-      approvals: hub.listApprovals(all ? null : actor.id),
+      approvals: hub.listApprovals(actor.id),
     });
   });
 
@@ -429,14 +430,14 @@ export function createDeviceRoutes(options: {
 
   routes.get("/approvals", userGuard, (context) => {
     const actor = context.var.actor;
-    return context.json({ approvals: hub.listApprovals(actor.role === "admin" ? null : actor.id) });
+    return context.json({ approvals: hub.listApprovals(actor.id) });
   });
 
   routes.post("/approvals/:approvalId", userGuard, async (context) => {
     const id = context.req.param("approvalId");
     const actor = context.var.actor;
     const owner = hub.approvalOwner(id);
-    if (!owner || (owner !== actor.id && actor.role !== "admin"))
+    if (!owner || owner !== actor.id)
       return context.json({ error: "这个审批已经处理过或已过期。" }, 404);
     const body = (await context.req.json().catch(() => null)) as { decision?: unknown } | null;
     const decision = body?.decision;

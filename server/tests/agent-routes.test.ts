@@ -434,7 +434,9 @@ describe("agent lifecycle routes", () => {
     const store = fakeStore({
       async list() {
         return [
-          profile({ id: "theirs", ownerUserId: "user-1" }),
+          profile({ id: "theirs", ownerUserId: "user-1", visibility: "public" }),
+          // 多账号（CB-040）：别人的私有机器人不出现在管理员的列表里。
+          profile({ id: "their-private", ownerUserId: "user-1", visibility: "private" }),
           profile({ id: "ours", ownerUserId: administrator.id }),
         ];
       },

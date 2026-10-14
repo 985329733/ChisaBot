@@ -313,3 +313,6 @@ body.chisabot .noscript-message { color: var(--danger); }
   body.chisabot .login-section { padding: 16px 16px 72px; }
   body.chisabot .login-content { padding: 28px 22px 24px; border-radius: 24px; }
 }
+
+/* 邀请 / 重置密码表单（CB-040）：hidden 必须真的隐藏（.field 等有自己的 display）。 */
+.login-page [hidden] { display: none !important; }
