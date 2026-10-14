@@ -66,7 +66,7 @@
    - **反向 WebSocket**（协议端在家里内网、ChisaBot 在公网时用）：ChisaBot 里连接方式选「反向」，保存后弹窗会显示「地址」（`wss://你的域名/api/im/onebot/<连接id>`）和 Token；在协议端新建「WebSocket 客户端」填进去。
 3. 消息格式 array / string 都可以。
 
-自部署的人注意：如果 ChisaBot 前面有登录网关（像本仓库 `deploy/` 的登录页），要让 `/api/im/onebot/` 不经过登录校验、并支持 WebSocket 升级（和 `/api/devices/agent/` 一样）——这条路只认连接自己的 token，失败 20 次 / 10 分钟会被限速。
+自部署的人注意：如果 ChisaBot 前面有登录网关（像本仓库 `deploy/` 的登录页），要让 `/api/im/onebot/` 不经过登录校验、并支持 WebSocket 升级（和 `/api/devices/agent/` 一样）——这条路只认连接自己的 token，失败 20 次 / 10 分钟会被限速。协议端不是浏览器，连进来时不带 `Origin`：网关如果拒绝「没有 Origin 的 WebSocket 升级」（本仓库 nginx.conf 的 `$socket_origin_allowed`），要对这条路放行，同时把 `Authorization` 原样转给后端。
 
 ## 企业微信智能机器人
 
