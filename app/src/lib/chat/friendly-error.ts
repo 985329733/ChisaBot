@@ -55,6 +55,12 @@ const RULES: Array<{ test: RegExp; title: string; hint?: string; retryable?: boo
     hint: "服务商出现故障或过载，稍后重试或切换模型。",
   },
   {
+    // 模型服务商回答到一半断开（ClinePass「connection lost mid-reply … GOAWAY」，AI SDK 只剩一句「AI SDK stream error」）。成熟度扫查 F7。
+    test: /AI SDK stream error|stream error|connection lost|GOAWAY|server_shutting_down|terminated|premature close|aborted mid/i,
+    title: "模型的连接中途断开了",
+    hint: "这一轮的回答没写完。点「重试」再来一次；经常这样就换一个模型。",
+  },
+  {
     test: /failed to fetch|network|ECONN|ENOTFOUND|socket|fetch failed|网络/i,
     title: "网络连接中断",
     hint: "请检查网络后重试。",

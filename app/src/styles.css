@@ -3549,10 +3549,21 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   align-items: center;
   gap: 4px;
   pointer-events: none;
+  /* 叠在消息滚动区上面：本身不吃点击，只有「试试这样问」可点（§61）。 */
+  z-index: 2;
   animation: page-in var(--dur-3) var(--ease-out);
 }
 .chat-intro-name { margin-top: 8px; font-size: 20px; font-weight: 600; color: var(--ink-1); }
 .chat-intro-sub { font-size: 14px; color: var(--ink-3); }
+/* 空聊天的「试试这样问」（成熟度扫查 F2）：浮层里唯一可点的部分，点了就把这句发出去。 */
+.chat-intro-tries { margin-top: 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: min(560px, calc(100% - 32px)); pointer-events: auto; }
+.chat-intro-try { padding: 7px 14px; border-radius: var(--r-pill); border: 1px solid var(--glass-line, rgba(255,255,255,.5)); background: var(--glass-2); color: var(--ink-2); font-size: 13px; line-height: 1.4; cursor: pointer; transition: background var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.chat-intro-try:hover { background: var(--glass-3); color: var(--ink-1); }
+.chat-intro-try:active { transform: scale(.97); }
+.chat-intro-try:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.chat-intro-try:disabled { opacity: .5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .chat-intro-try { transition: none; } }
+.field-optional { margin-left: 6px; font-weight: 400; font-size: 12px; color: var(--ink-4); }
 
 /* ---------- Right panel column: one header row, handle only on hover ---------- */
 .rail-head { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 2px 0 4px; flex: none; }

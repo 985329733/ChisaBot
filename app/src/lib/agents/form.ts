@@ -18,8 +18,8 @@ export const agentFormSchema = z.object({
   roleDescription: z
     .string()
     .trim()
-    .min(1, "请填写角色说明。")
-    .max(1000, "角色说明最多 1000 个字。"),
+    .min(1, "请填写提示词。")
+    .max(1000, "提示词最多 1000 个字。"),
   visibility: z.enum(["public", "private"]),
   /**
    * The AG-UI endpoint this coworker runs on. Empty means the Bot in the box.
@@ -50,6 +50,22 @@ export const emptyAgentForm: AgentFormValues = {
   endpoint: "",
   authValue: "",
 };
+
+/**
+ * 新建机器人时职责、提示词可以不填（成熟度扫查 F1：新用户卡在「请填写角色说明」）。
+ * 输入框保持空白、不放模板（§46）；只在提交时补一句最基本的说明，之后可在资料页改。
+ */
+export function withCreateDefaults(values: AgentFormValues): AgentFormValues {
+  const name = values.name.trim();
+  const title = values.title.trim();
+  return {
+    ...values,
+    title: title || "私人助手",
+    roleDescription:
+      values.roleDescription.trim() ||
+      `你是「${name}」${title ? `，负责：${title}` : ""}。默认用简体中文，回答清晰、简洁、准确；不确定的事先说明，需要时用工具查证。`,
+  };
+}
 
 /** Convert form values to API input; omit an empty key so editing preserves the current credential. */
 export function agentInputFrom(values: AgentFormValues) {

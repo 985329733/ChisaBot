@@ -33,6 +33,7 @@ export function GlassShell({
       <SidebarShell className="glass-shell h-svh overflow-hidden" iconWidth="80px" width="276px">
         <GlassTopBar scope={scope} />
         <SearchHotkey scope={scope} />
+        <DrawerCloser />
         <PhoneGestures />
         {sidebar}
         <div className="glass-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-scope={scope}>
@@ -45,6 +46,20 @@ export function GlassShell({
       </SidebarShell>
     </TopBarOwnsSidebarToggle.Provider>
   );
+}
+
+/** 手机上新建机器人后抽屉自己收起，直接看到它的空聊天（成熟度扫查 F6；新建框挂在 _authed，够不着抽屉）。 */
+const CLOSE_DRAWER_EVENT = "chisabot-close-drawer";
+function DrawerCloser() {
+  const sidebar = useOptionalSidebar();
+  useEffect(() => {
+    const close = () => {
+      if (sidebar?.isMobile) sidebar.setOpenMobile(false);
+    };
+    window.addEventListener(CLOSE_DRAWER_EVENT, close);
+    return () => window.removeEventListener(CLOSE_DRAWER_EVENT, close);
+  }, [sidebar]);
+  return null;
 }
 
 /**

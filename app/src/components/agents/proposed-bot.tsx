@@ -118,7 +118,7 @@ export function ProposedBotCard({
       setRefusal(
         cause instanceof Error
           ? cause.message
-          : "未能创建 AI 同事。",
+          : "没能创建机器人。",
       );
       return;
     }
@@ -235,7 +235,7 @@ function TalkToIt({
       to="/agents"
     >
       {"打开"}
-      {name?.trim() || "AI 同事"}
+      {name?.trim() || "新机器人"}
     </Link>
   );
 }
