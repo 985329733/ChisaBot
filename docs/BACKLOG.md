@@ -48,7 +48,7 @@
 | [CB-033](#cb-033) | 生产跨部署 stale-chunk 测试待跑 | 成熟度 Maturity | `type: chore` · `area: infra` · `P2` |
 | [CB-034](#cb-034) | 用真实账号验证 GitHub 连接与 IM 接入 | 成熟度 Maturity | `type: chore` · `area: github` · `area: im` · `P2` · `status: needs-user` |
 | [CB-035](#cb-035) | 备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退 | 成熟度 Maturity | `type: bug` · `area: models` · `area: chat` · `P0` |
-| [CB-040](#cb-040) | 多用户：管理员给朋友开账号（每人独立的机器人 / 记忆 / 密钥 / 设备） | 成熟度 Maturity | `type: feat` · `area: infra` · `area: settings` · `P0` · `status: needs-user` |
+| [CB-040](#cb-040) | 多用户：管理员给朋友开账号（每人独立的机器人 / 记忆 / 密钥 / 设备） | 成熟度 Maturity | `type: feat` · `area: infra` · `area: settings` · `P0` · `status: done` |
 | [CB-041](#cb-041) | 真实聊天路径（频道聊天）刷新 / 断网后正在写的回答丢失 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` |
 | [CB-042](#cb-042) | 重新生成 / 编辑后重发 | 成熟度 Maturity | `type: feat` · `area: chat` · `P1` |
 | [CB-043](#cb-043) | 频道聊天的跨设备实时同步（手机发的桌面看不到） | 成熟度 Maturity | `type: bug` · `area: chat` · `area: pwa` · `P1` |
@@ -699,23 +699,27 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 
 ## CB-040
 
-**多用户：管理员给朋友开账号**  
-里程碑：成熟度 Maturity · 标签：`type: feat` `area: infra` `area: settings` `P0` `status: needs-user`
+**朋友账号 / 真正的多用户：邀请链接、各用各的、管理员管理账号**  
+里程碑：成熟度 Maturity · 标签：`type: feature` `area: auth` `security` `P0` `status: done`
 
 #### 背景
 
-生产以 `OPENBOT_SINGLE_USER=true` 运行：应用把每个请求都当成同一个管理员（`DEV_ACTOR`），登录网关（`deploy/public/auth/server.ts`）只有一组账号密码。把登录给朋友 = 朋友看到并能操作你所有的机器人、记忆、密钥保险箱、设备（包括你电脑上的文件）。数据层大多已按 `owner_user_id` 分好（记忆、密钥、页面、定时、设备、文件），缺的是「身份」。
-
-#### 方案（待用户拍板）
-
-网关升级成多账号（sqlite 用户表 + argon2 + 邀请码 / 管理员建号），登录后把 `用户 id / 邮箱 / 角色` 用 HMAC 签名的请求头转给应用；应用新增「受信网关」身份模式（只接受 127.0.0.1 直连 + 签名），按头建 / 找 `users` 行、角色走 `user_roles`。管理员页加「成员」：建账号、发邀请链接、停用。
+用户 2026-10-15 00:28 想把 ChisaBot 分享给朋友。生产是单用户（登录网关一个账号），共享账号 = 朋友拿到管理员的机器人、记忆、保险箱和设备。
+见 ADR-0011、docs/accounts.md、DESIGN.md §65。
 
 #### 验收标准
 
-- [ ] 管理员能在设置里建朋友账号 / 发邀请链接，朋友用自己的账号登录
-- [ ] 两个账号互相看不到机器人、对话、记忆、密钥、页面、定时、文件、设备；朋友不是管理员
-- [ ] 管理员页（模型、系统更新、活动记录）只有管理员能进
-- [ ] 隔离用两个账号的 e2e 覆盖（每张按人存的表各一条）
+- [x] 网关多账号：`accounts` / `invites` 表，Argon2id，一次性邀请（有效期）、重置密码链接、停用、删除、直接创建；原管理员账号和已有会话不变
+- [x] 网关给应用签名身份头（HMAC + 时间戳）；应用「网关身份」模式，第一次见到的朋友自动建 users / user_roles，角色以网关为准
+- [x] 手机扫码会话、PC 登录 / 登记归正确的人；停用的账号所有会话失效
+- [x] 隔离：机器人、对话、记忆、技能、保险箱、GitHub、页面、定时任务、聊天文件、生图设置、设备（含机器人的设备工具、审批）、IM、面板、审批偏好；管理页与 `/api/admin/*` 403，Magpie 403
+- [x] 设置 → 管理 → 账号：列表、邀请、停用、重置、删除；新朋友直接得到「助手」
+- [x] 单元测试（签名 / 验签、网关账号流程）+ 预览 e2e（两个用户，界面 + 直接 API）+ 生产 e2e（临时账号，验完删除）
+- [ ] 每人每日消息上限（拆到 CB-045）
+
+#### 相关
+
+- deploy/public/auth/server.ts、deploy/public/nginx.conf、server/src/auth/gateway-identity.ts、app/src/routes/_authed/admin/accounts.tsx
 
 ## CB-041
 

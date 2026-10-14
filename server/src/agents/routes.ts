@@ -383,6 +383,12 @@ export function createAgentRoutes(
           console.error("[agents] default bot seeding failed", error);
         }
       }
+      // 多账号（CB-040）：管理员能管理所有机器人，但聊天列表里不出现朋友的私有机器人。
+      const me = context.var.actor;
+      if (me.role === "admin")
+        agents = agents.filter(
+          (agent) => agent.visibility !== "private" || !agent.ownerUserId || agent.ownerUserId === me.id || agent.systemOwned || agent.assignedToMe,
+        );
       return context.json({
         agents: agents.map((agent) => dto(context.var.actor, agent)),
         // 刚建了默认「助手」（同时可能写了偏好里的 mainBotId）：前端据此刷新偏好，主机器人星标立刻出现。

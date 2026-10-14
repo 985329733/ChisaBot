@@ -417,6 +417,11 @@ export function createApp(
     extraRoutes?: (deps: {
       requireUser: MiddlewareHandler<{ Variables: AppVariables }>;
     }) => Array<[path: string, routes: Hono<any>]>;
+    /**
+     * 多账号（CB-040）：单用户部署前面有登录网关时，用网关签名的身份认人（auth/gateway-identity.ts）。
+     * 没给 = 以前的单管理员。
+     */
+    singleUserGuard?: MiddlewareHandler<{ Variables: AppVariables }>;
   } = {},
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
@@ -432,7 +437,8 @@ export function createApp(
    */
   app.get("/api/version", (context) => {
     context.header("Cache-Control", "no-store");
-    return context.json(versionPayload(readRunningBuild()));
+    // gatewayIdentity：登录网关据此确认应用认得签名身份（CB-040）；旧版本没有这个字段，网关就不放朋友账号进来。
+    return context.json({ ...versionPayload(readRunningBuild()), ...(options.singleUserGuard ? { gatewayIdentity: true } : {}) });
   });
   // Projected, never the raw runtime. config.runtime carries the Intelligence contract, including
   // INTELLIGENCE_API_KEY and the licence token, and this endpoint is reachable by anyone. Returning
@@ -587,7 +593,7 @@ export function createApp(
   // One administrator, when nothing is configured to sign anybody in. Checked first, and only ever
   // true when there is no provider, so a configured deployment cannot fall back to it.
   const requireUser = config.singleUser
-    ? createDevRequireUser()
+    ? (options.singleUserGuard ?? createDevRequireUser())
     : auth && roleRepository
       ? createRequireUser(auth, roleRepository)
       : authenticationUnavailable;

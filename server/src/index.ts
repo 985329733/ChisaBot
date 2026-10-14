@@ -105,7 +105,13 @@ import { createRoleRepository } from "./auth/guards";
 import { createIdentityProviderStore } from "./auth/identity-provider-store";
 import { createOrganizationAuth } from "./auth/organization";
 import { organizationUserStore } from "./auth/organization-store";
-import type { OpenBotRole } from "./auth/roles";
+import { type OpenBotRole, setRole } from "./auth/roles";
+import {
+  createGatewayRequireUser,
+  gatewaySecretFromEnvironment,
+  resolveGatewayRequest,
+} from "./auth/gateway-identity";
+import type { AuthenticatedActor } from "./auth/guards";
 import {
   loadAttachmentForTurn,
   markAttachmentsSent,
@@ -175,6 +181,7 @@ import {
   intelligenceChannelMappings,
   responsibilityRuns,
   routineRuns,
+  users,
 } from "./db/schema";
 import { createDeliveryStore } from "./delivery/store";
 import type { DeliveryScope } from "./delivery/types";
@@ -318,6 +325,13 @@ async function resolveRequestActor(request: Request): Promise<{
   role: OpenBotRole;
 }> {
   if (config.singleUser) {
+    if (gatewaySecret) {
+      const resolved = resolveGatewayRequest(gatewaySecret, request.headers);
+      if (resolved.kind === "refuse") throw new Error("A CopilotKit run requires a signed-in user.");
+      await provisionGatewayUser(resolved.actor);
+      const actor = resolved.actor;
+      return { id: actor.id, name: actor.id === DEV_ACTOR.id ? DEV_ACTOR.email : (actor.name ?? actor.id), role: actor.role };
+    }
     return { id: DEV_ACTOR.id, name: DEV_ACTOR.email, role: DEV_ACTOR.role };
   }
   const session = await auth?.api.getSession({ headers: request.headers });
@@ -426,6 +440,27 @@ const channelActivityListener = await startChannelActivityListener(
   channelEvents,
 );
 const roleRepository = createRoleRepository(database);
+/**
+ * 多账号（CB-040，docs/adr/0009-gateway-accounts.md）：单用户部署前面的登录网关签名告诉应用「这是谁」。
+ * 第一次见到的朋友账号在 users / user_roles 建行；角色以网关为准（管理员在网关里改）。
+ */
+const gatewaySecret = config.singleUser ? gatewaySecretFromEnvironment(process.env) : undefined;
+const provisionedGatewayUsers = new Map<string, { role: OpenBotRole; at: number }>();
+async function provisionGatewayUser(actor: AuthenticatedActor): Promise<void> {
+  if (actor.id === DEV_ACTOR.id) return;
+  const seen = provisionedGatewayUsers.get(actor.id);
+  if (seen && seen.role === actor.role && Date.now() - seen.at < 5 * 60_000) return;
+  const inserted = await database
+    .insert(users)
+    .values({ id: actor.id, email: actor.email, name: actor.name ?? actor.id, emailVerified: false })
+    .onConflictDoNothing()
+    .returning({ id: users.id });
+  await setRole(database, actor.id, actor.role);
+  // 朋友第一次进来直接到聊天（自己的「助手」），不走上游的英文引导页；名字已在邀请页设好。
+  if (inserted.length) await createOnboardingStore(database).complete(actor.id).catch(() => undefined);
+  provisionedGatewayUsers.set(actor.id, { role: actor.role, at: Date.now() });
+}
+if (gatewaySecret) console.info(JSON.stringify({ type: "gateway-identity", enabled: true }));
 const loadAgentsForActor = createRuntimeAgentLoader(
   database,
   agentVault,
@@ -1626,7 +1661,8 @@ const actorFor = async (ownerUserId: string): Promise<AgentActor> => {
   // One person, and they are an administrator. The id stays the routine owner's rather than being
   // rewritten to DEV_ACTOR's: in this mode they are the same person, and if they ever were not,
   // silently borrowing the dev actor's identity would be worse than finding nothing.
-  if (config.singleUser) return { id: ownerUserId, role: DEV_ACTOR.role };
+  // 多账号（CB-040）：朋友账号的定时任务按他自己的角色跑，不再一律当管理员。
+  if (config.singleUser && (!gatewaySecret || ownerUserId === DEV_ACTOR.id)) return { id: ownerUserId, role: DEV_ACTOR.role };
   const roles = await roleRepository.rolesForUser(ownerUserId);
   if (!roles.includes("admin") && !roles.includes("user")) {
     throw new Error("A routine requires an authorized owner.");
@@ -3729,6 +3765,7 @@ const app = createApp(
   magpie,
   {
     modelCatalogRefreshMinutes,
+    ...(gatewaySecret ? { singleUserGuard: createGatewayRequireUser(gatewaySecret, provisionGatewayUser) } : {}),
     extraRoutes: ({ requireUser }) => [
       [
         "/api/admin/smoke",

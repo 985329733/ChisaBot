@@ -25,6 +25,7 @@ import { Route as AuthedAppRoutinesRouteImport } from './routes/_authed/_app/rou
 import { Route as AuthedAppSkillsRouteImport } from './routes/_authed/_app/skills'
 import { Route as AuthedAppTeamBotsRouteImport } from './routes/_authed/_app/team-bots'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
+import { Route as AuthedAdminAccountsRouteImport } from './routes/_authed/admin/accounts'
 import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
 import { Route as AuthedAdminBoundariesRouteImport } from './routes/_authed/admin/boundaries'
 import { Route as AuthedAdminComputersRouteImport } from './routes/_authed/admin/computers'
@@ -32,6 +33,7 @@ import { Route as AuthedAdminCredentialsRouteImport } from './routes/_authed/adm
 import { Route as AuthedAdminDevicesRouteImport } from './routes/_authed/admin/devices'
 import { Route as AuthedAdminEnterpriseRouteImport } from './routes/_authed/admin/enterprise'
 import { Route as AuthedAdminIdentityProvidersRouteImport } from './routes/_authed/admin/identity-providers'
+import { Route as AuthedAdminImagesRouteImport } from './routes/_authed/admin/images'
 import { Route as AuthedAdminLearningRouteImport } from './routes/_authed/admin/learning'
 import { Route as AuthedAdminModelsRouteImport } from './routes/_authed/admin/models'
 import { Route as AuthedAdminPeopleRouteImport } from './routes/_authed/admin/people'
@@ -39,10 +41,16 @@ import { Route as AuthedAdminPlaygroundRouteImport } from './routes/_authed/admi
 import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/skills'
 import { Route as AuthedAdminSystemUpdateRouteImport } from './routes/_authed/admin/system-update'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
+import { Route as AuthedSettingsApprovalsRouteImport } from './routes/_authed/settings/approvals'
+import { Route as AuthedSettingsComponentsGalleryRouteImport } from './routes/_authed/settings/components-gallery'
 import { Route as AuthedSettingsImRouteImport } from './routes/_authed/settings/im'
+import { Route as AuthedSettingsMediaRouteImport } from './routes/_authed/settings/media'
 import { Route as AuthedSettingsMemoryRouteImport } from './routes/_authed/settings/memory'
+import { Route as AuthedSettingsPagesRouteImport } from './routes/_authed/settings/pages'
 import { Route as AuthedSettingsPasswordsRouteImport } from './routes/_authed/settings/passwords'
+import { Route as AuthedSettingsSchedulesRouteImport } from './routes/_authed/settings/schedules'
 import { Route as AuthedSettingsSkillsRouteImport } from './routes/_authed/settings/skills'
+import { Route as AuthedSettingsVaultRouteImport } from './routes/_authed/settings/vault'
 import { Route as AuthedSignInRequestIdRouteImport } from './routes/_authed/sign-in/$requestId'
 import { Route as AuthedAppAgentsIndexRouteImport } from './routes/_authed/_app/agents/index'
 import { Route as AuthedAppBotsIndexRouteImport } from './routes/_authed/_app/bots.index'
@@ -60,8 +68,6 @@ import { Route as AuthedAdminMagpieConsoleRouteImport } from './routes/_authed/a
 import { Route as AuthedAdminPluginsIndexRouteImport } from './routes/_authed/admin/plugins/index'
 import { Route as AuthedAdminPluginsKeyRouteImport } from './routes/_authed/admin/plugins/$key'
 import { Route as AuthedAdminPluginsComposioRouteImport } from './routes/_authed/admin/plugins/composio'
-import { Route as AuthedSettingsComponentsGalleryIndexRouteImport } from './routes/_authed/settings/components-gallery/index'
-import { Route as AuthedSettingsComponentsGalleryNameRouteImport } from './routes/_authed/settings/components-gallery/$name'
 import { Route as AuthedSettingsConnectedAccountsIndexRouteImport } from './routes/_authed/settings/connected-accounts/index'
 import { Route as AuthedSettingsConnectedAccountsKeyRouteImport } from './routes/_authed/settings/connected-accounts/$key'
 import { Route as AuthedSettingsDevicesIndexRouteImport } from './routes/_authed/settings/devices/index'
@@ -149,6 +155,11 @@ const AuthedAdminIndexRoute = AuthedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
+const AuthedAdminAccountsRoute = AuthedAdminAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
 const AuthedAdminAuditRoute = AuthedAdminAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -185,6 +196,11 @@ const AuthedAdminIdentityProvidersRoute =
     path: '/identity-providers',
     getParentRoute: () => AuthedAdminRouteRoute,
   } as any)
+const AuthedAdminImagesRoute = AuthedAdminImagesRouteImport.update({
+  id: '/images',
+  path: '/images',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
 const AuthedAdminLearningRoute = AuthedAdminLearningRouteImport.update({
   id: '/learning',
   path: '/learning',
@@ -220,9 +236,25 @@ const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsApprovalsRoute = AuthedSettingsApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
+const AuthedSettingsComponentsGalleryRoute =
+  AuthedSettingsComponentsGalleryRouteImport.update({
+    id: '/components-gallery',
+    path: '/components-gallery',
+    getParentRoute: () => AuthedSettingsRouteRoute,
+  } as any)
 const AuthedSettingsImRoute = AuthedSettingsImRouteImport.update({
   id: '/im',
   path: '/im',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
+const AuthedSettingsMediaRoute = AuthedSettingsMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
 const AuthedSettingsMemoryRoute = AuthedSettingsMemoryRouteImport.update({
@@ -230,14 +262,29 @@ const AuthedSettingsMemoryRoute = AuthedSettingsMemoryRouteImport.update({
   path: '/memory',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsPagesRoute = AuthedSettingsPagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
 const AuthedSettingsPasswordsRoute = AuthedSettingsPasswordsRouteImport.update({
   id: '/passwords',
   path: '/passwords',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsSchedulesRoute = AuthedSettingsSchedulesRouteImport.update({
+  id: '/schedules',
+  path: '/schedules',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
 const AuthedSettingsSkillsRoute = AuthedSettingsSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
+const AuthedSettingsVaultRoute = AuthedSettingsVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
 const AuthedSignInRequestIdRoute = AuthedSignInRequestIdRouteImport.update({
@@ -331,18 +378,6 @@ const AuthedAdminPluginsComposioRoute =
     path: '/plugins/composio',
     getParentRoute: () => AuthedAdminRouteRoute,
   } as any)
-const AuthedSettingsComponentsGalleryIndexRoute =
-  AuthedSettingsComponentsGalleryIndexRouteImport.update({
-    id: '/components-gallery/',
-    path: '/components-gallery/',
-    getParentRoute: () => AuthedSettingsRouteRoute,
-  } as any)
-const AuthedSettingsComponentsGalleryNameRoute =
-  AuthedSettingsComponentsGalleryNameRouteImport.update({
-    id: '/components-gallery/$name',
-    path: '/components-gallery/$name',
-    getParentRoute: () => AuthedSettingsRouteRoute,
-  } as any)
 const AuthedSettingsConnectedAccountsIndexRoute =
   AuthedSettingsConnectedAccountsIndexRouteImport.update({
     id: '/connected-accounts/',
@@ -400,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/routines': typeof AuthedAppRoutinesRoute
   '/skills': typeof AuthedAppSkillsRoute
   '/team-bots': typeof AuthedAppTeamBotsRoute
+  '/admin/accounts': typeof AuthedAdminAccountsRoute
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/boundaries': typeof AuthedAdminBoundariesRoute
   '/admin/computers': typeof AuthedAdminComputersRoute
@@ -407,16 +443,23 @@ export interface FileRoutesByFullPath {
   '/admin/devices': typeof AuthedAdminDevicesRoute
   '/admin/enterprise': typeof AuthedAdminEnterpriseRoute
   '/admin/identity-providers': typeof AuthedAdminIdentityProvidersRoute
+  '/admin/images': typeof AuthedAdminImagesRoute
   '/admin/learning': typeof AuthedAdminLearningRoute
   '/admin/models': typeof AuthedAdminModelsRoute
   '/admin/people': typeof AuthedAdminPeopleRoute
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/admin/system-update': typeof AuthedAdminSystemUpdateRoute
+  '/settings/approvals': typeof AuthedSettingsApprovalsRoute
+  '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
   '/settings/im': typeof AuthedSettingsImRoute
+  '/settings/media': typeof AuthedSettingsMediaRoute
   '/settings/memory': typeof AuthedSettingsMemoryRoute
+  '/settings/pages': typeof AuthedSettingsPagesRoute
   '/settings/passwords': typeof AuthedSettingsPasswordsRoute
+  '/settings/schedules': typeof AuthedSettingsSchedulesRoute
   '/settings/skills': typeof AuthedSettingsSkillsRoute
+  '/settings/vault': typeof AuthedSettingsVaultRoute
   '/sign-in/$requestId': typeof AuthedSignInRequestIdRoute
   '/admin/': typeof AuthedAdminIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
@@ -430,7 +473,6 @@ export interface FileRoutesByFullPath {
   '/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
-  '/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
   '/settings/connected-accounts/$key': typeof AuthedSettingsConnectedAccountsKeyRoute
   '/settings/devices/$deviceId': typeof AuthedSettingsDevicesDeviceIdRoute
   '/agents/': typeof AuthedAppAgentsIndexRoute
@@ -439,7 +481,6 @@ export interface FileRoutesByFullPath {
   '/admin/components/': typeof AuthedAdminComponentsIndexRoute
   '/admin/magpie/': typeof AuthedAdminMagpieIndexRoute
   '/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
-  '/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
   '/settings/devices/': typeof AuthedSettingsDevicesIndexRoute
   '/workflows/runs/$runId': typeof AuthedAppWorkflowsRunsRunIdRoute
@@ -458,6 +499,7 @@ export interface FileRoutesByTo {
   '/routines': typeof AuthedAppRoutinesRoute
   '/skills': typeof AuthedAppSkillsRoute
   '/team-bots': typeof AuthedAppTeamBotsRoute
+  '/admin/accounts': typeof AuthedAdminAccountsRoute
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/boundaries': typeof AuthedAdminBoundariesRoute
   '/admin/computers': typeof AuthedAdminComputersRoute
@@ -465,16 +507,23 @@ export interface FileRoutesByTo {
   '/admin/devices': typeof AuthedAdminDevicesRoute
   '/admin/enterprise': typeof AuthedAdminEnterpriseRoute
   '/admin/identity-providers': typeof AuthedAdminIdentityProvidersRoute
+  '/admin/images': typeof AuthedAdminImagesRoute
   '/admin/learning': typeof AuthedAdminLearningRoute
   '/admin/models': typeof AuthedAdminModelsRoute
   '/admin/people': typeof AuthedAdminPeopleRoute
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/admin/system-update': typeof AuthedAdminSystemUpdateRoute
+  '/settings/approvals': typeof AuthedSettingsApprovalsRoute
+  '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
   '/settings/im': typeof AuthedSettingsImRoute
+  '/settings/media': typeof AuthedSettingsMediaRoute
   '/settings/memory': typeof AuthedSettingsMemoryRoute
+  '/settings/pages': typeof AuthedSettingsPagesRoute
   '/settings/passwords': typeof AuthedSettingsPasswordsRoute
+  '/settings/schedules': typeof AuthedSettingsSchedulesRoute
   '/settings/skills': typeof AuthedSettingsSkillsRoute
+  '/settings/vault': typeof AuthedSettingsVaultRoute
   '/sign-in/$requestId': typeof AuthedSignInRequestIdRoute
   '/admin': typeof AuthedAdminIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
@@ -488,7 +537,6 @@ export interface FileRoutesByTo {
   '/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
-  '/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
   '/settings/connected-accounts/$key': typeof AuthedSettingsConnectedAccountsKeyRoute
   '/settings/devices/$deviceId': typeof AuthedSettingsDevicesDeviceIdRoute
   '/agents': typeof AuthedAppAgentsIndexRoute
@@ -497,7 +545,6 @@ export interface FileRoutesByTo {
   '/admin/components': typeof AuthedAdminComponentsIndexRoute
   '/admin/magpie': typeof AuthedAdminMagpieIndexRoute
   '/admin/plugins': typeof AuthedAdminPluginsIndexRoute
-  '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts': typeof AuthedSettingsConnectedAccountsIndexRoute
   '/settings/devices': typeof AuthedSettingsDevicesIndexRoute
   '/workflows/runs/$runId': typeof AuthedAppWorkflowsRunsRunIdRoute
@@ -520,6 +567,7 @@ export interface FileRoutesById {
   '/_authed/_app/routines': typeof AuthedAppRoutinesRoute
   '/_authed/_app/skills': typeof AuthedAppSkillsRoute
   '/_authed/_app/team-bots': typeof AuthedAppTeamBotsRoute
+  '/_authed/admin/accounts': typeof AuthedAdminAccountsRoute
   '/_authed/admin/audit': typeof AuthedAdminAuditRoute
   '/_authed/admin/boundaries': typeof AuthedAdminBoundariesRoute
   '/_authed/admin/computers': typeof AuthedAdminComputersRoute
@@ -527,16 +575,23 @@ export interface FileRoutesById {
   '/_authed/admin/devices': typeof AuthedAdminDevicesRoute
   '/_authed/admin/enterprise': typeof AuthedAdminEnterpriseRoute
   '/_authed/admin/identity-providers': typeof AuthedAdminIdentityProvidersRoute
+  '/_authed/admin/images': typeof AuthedAdminImagesRoute
   '/_authed/admin/learning': typeof AuthedAdminLearningRoute
   '/_authed/admin/models': typeof AuthedAdminModelsRoute
   '/_authed/admin/people': typeof AuthedAdminPeopleRoute
   '/_authed/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
   '/_authed/admin/system-update': typeof AuthedAdminSystemUpdateRoute
+  '/_authed/settings/approvals': typeof AuthedSettingsApprovalsRoute
+  '/_authed/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
   '/_authed/settings/im': typeof AuthedSettingsImRoute
+  '/_authed/settings/media': typeof AuthedSettingsMediaRoute
   '/_authed/settings/memory': typeof AuthedSettingsMemoryRoute
+  '/_authed/settings/pages': typeof AuthedSettingsPagesRoute
   '/_authed/settings/passwords': typeof AuthedSettingsPasswordsRoute
+  '/_authed/settings/schedules': typeof AuthedSettingsSchedulesRoute
   '/_authed/settings/skills': typeof AuthedSettingsSkillsRoute
+  '/_authed/settings/vault': typeof AuthedSettingsVaultRoute
   '/_authed/sign-in/$requestId': typeof AuthedSignInRequestIdRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
@@ -551,7 +606,6 @@ export interface FileRoutesById {
   '/_authed/admin/magpie/console': typeof AuthedAdminMagpieConsoleRoute
   '/_authed/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/_authed/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
-  '/_authed/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
   '/_authed/settings/connected-accounts/$key': typeof AuthedSettingsConnectedAccountsKeyRoute
   '/_authed/settings/devices/$deviceId': typeof AuthedSettingsDevicesDeviceIdRoute
   '/_authed/_app/agents/': typeof AuthedAppAgentsIndexRoute
@@ -560,7 +614,6 @@ export interface FileRoutesById {
   '/_authed/admin/components/': typeof AuthedAdminComponentsIndexRoute
   '/_authed/admin/magpie/': typeof AuthedAdminMagpieIndexRoute
   '/_authed/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
-  '/_authed/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/_authed/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
   '/_authed/settings/devices/': typeof AuthedSettingsDevicesIndexRoute
   '/_authed/_app/workflows/runs/$runId': typeof AuthedAppWorkflowsRunsRunIdRoute
@@ -583,6 +636,7 @@ export interface FileRouteTypes {
     | '/routines'
     | '/skills'
     | '/team-bots'
+    | '/admin/accounts'
     | '/admin/audit'
     | '/admin/boundaries'
     | '/admin/computers'
@@ -590,16 +644,23 @@ export interface FileRouteTypes {
     | '/admin/devices'
     | '/admin/enterprise'
     | '/admin/identity-providers'
+    | '/admin/images'
     | '/admin/learning'
     | '/admin/models'
     | '/admin/people'
     | '/admin/playground'
     | '/admin/skills'
     | '/admin/system-update'
+    | '/settings/approvals'
+    | '/settings/components-gallery'
     | '/settings/im'
+    | '/settings/media'
     | '/settings/memory'
+    | '/settings/pages'
     | '/settings/passwords'
+    | '/settings/schedules'
     | '/settings/skills'
+    | '/settings/vault'
     | '/sign-in/$requestId'
     | '/admin/'
     | '/settings/'
@@ -613,7 +674,6 @@ export interface FileRouteTypes {
     | '/admin/magpie/console'
     | '/admin/plugins/$key'
     | '/admin/plugins/composio'
-    | '/settings/components-gallery/$name'
     | '/settings/connected-accounts/$key'
     | '/settings/devices/$deviceId'
     | '/agents/'
@@ -622,7 +682,6 @@ export interface FileRouteTypes {
     | '/admin/components/'
     | '/admin/magpie/'
     | '/admin/plugins/'
-    | '/settings/components-gallery/'
     | '/settings/connected-accounts/'
     | '/settings/devices/'
     | '/workflows/runs/$runId'
@@ -641,6 +700,7 @@ export interface FileRouteTypes {
     | '/routines'
     | '/skills'
     | '/team-bots'
+    | '/admin/accounts'
     | '/admin/audit'
     | '/admin/boundaries'
     | '/admin/computers'
@@ -648,16 +708,23 @@ export interface FileRouteTypes {
     | '/admin/devices'
     | '/admin/enterprise'
     | '/admin/identity-providers'
+    | '/admin/images'
     | '/admin/learning'
     | '/admin/models'
     | '/admin/people'
     | '/admin/playground'
     | '/admin/skills'
     | '/admin/system-update'
+    | '/settings/approvals'
+    | '/settings/components-gallery'
     | '/settings/im'
+    | '/settings/media'
     | '/settings/memory'
+    | '/settings/pages'
     | '/settings/passwords'
+    | '/settings/schedules'
     | '/settings/skills'
+    | '/settings/vault'
     | '/sign-in/$requestId'
     | '/admin'
     | '/settings'
@@ -671,7 +738,6 @@ export interface FileRouteTypes {
     | '/admin/magpie/console'
     | '/admin/plugins/$key'
     | '/admin/plugins/composio'
-    | '/settings/components-gallery/$name'
     | '/settings/connected-accounts/$key'
     | '/settings/devices/$deviceId'
     | '/agents'
@@ -680,7 +746,6 @@ export interface FileRouteTypes {
     | '/admin/components'
     | '/admin/magpie'
     | '/admin/plugins'
-    | '/settings/components-gallery'
     | '/settings/connected-accounts'
     | '/settings/devices'
     | '/workflows/runs/$runId'
@@ -702,6 +767,7 @@ export interface FileRouteTypes {
     | '/_authed/_app/routines'
     | '/_authed/_app/skills'
     | '/_authed/_app/team-bots'
+    | '/_authed/admin/accounts'
     | '/_authed/admin/audit'
     | '/_authed/admin/boundaries'
     | '/_authed/admin/computers'
@@ -709,16 +775,23 @@ export interface FileRouteTypes {
     | '/_authed/admin/devices'
     | '/_authed/admin/enterprise'
     | '/_authed/admin/identity-providers'
+    | '/_authed/admin/images'
     | '/_authed/admin/learning'
     | '/_authed/admin/models'
     | '/_authed/admin/people'
     | '/_authed/admin/playground'
     | '/_authed/admin/skills'
     | '/_authed/admin/system-update'
+    | '/_authed/settings/approvals'
+    | '/_authed/settings/components-gallery'
     | '/_authed/settings/im'
+    | '/_authed/settings/media'
     | '/_authed/settings/memory'
+    | '/_authed/settings/pages'
     | '/_authed/settings/passwords'
+    | '/_authed/settings/schedules'
     | '/_authed/settings/skills'
+    | '/_authed/settings/vault'
     | '/_authed/sign-in/$requestId'
     | '/_authed/_app/'
     | '/_authed/admin/'
@@ -733,7 +806,6 @@ export interface FileRouteTypes {
     | '/_authed/admin/magpie/console'
     | '/_authed/admin/plugins/$key'
     | '/_authed/admin/plugins/composio'
-    | '/_authed/settings/components-gallery/$name'
     | '/_authed/settings/connected-accounts/$key'
     | '/_authed/settings/devices/$deviceId'
     | '/_authed/_app/agents/'
@@ -742,7 +814,6 @@ export interface FileRouteTypes {
     | '/_authed/admin/components/'
     | '/_authed/admin/magpie/'
     | '/_authed/admin/plugins/'
-    | '/_authed/settings/components-gallery/'
     | '/_authed/settings/connected-accounts/'
     | '/_authed/settings/devices/'
     | '/_authed/_app/workflows/runs/$runId'
@@ -869,6 +940,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminIndexRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
+    '/_authed/admin/accounts': {
+      id: '/_authed/admin/accounts'
+      path: '/accounts'
+      fullPath: '/admin/accounts'
+      preLoaderRoute: typeof AuthedAdminAccountsRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
     '/_authed/admin/audit': {
       id: '/_authed/admin/audit'
       path: '/audit'
@@ -916,6 +994,13 @@ declare module '@tanstack/react-router' {
       path: '/identity-providers'
       fullPath: '/admin/identity-providers'
       preLoaderRoute: typeof AuthedAdminIdentityProvidersRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/admin/images': {
+      id: '/_authed/admin/images'
+      path: '/images'
+      fullPath: '/admin/images'
+      preLoaderRoute: typeof AuthedAdminImagesRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
     '/_authed/admin/learning': {
@@ -967,11 +1052,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsIndexRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/settings/approvals': {
+      id: '/_authed/settings/approvals'
+      path: '/approvals'
+      fullPath: '/settings/approvals'
+      preLoaderRoute: typeof AuthedSettingsApprovalsRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
+    '/_authed/settings/components-gallery': {
+      id: '/_authed/settings/components-gallery'
+      path: '/components-gallery'
+      fullPath: '/settings/components-gallery'
+      preLoaderRoute: typeof AuthedSettingsComponentsGalleryRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
     '/_authed/settings/im': {
       id: '/_authed/settings/im'
       path: '/im'
       fullPath: '/settings/im'
       preLoaderRoute: typeof AuthedSettingsImRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
+    '/_authed/settings/media': {
+      id: '/_authed/settings/media'
+      path: '/media'
+      fullPath: '/settings/media'
+      preLoaderRoute: typeof AuthedSettingsMediaRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
     '/_authed/settings/memory': {
@@ -981,6 +1087,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsMemoryRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/settings/pages': {
+      id: '/_authed/settings/pages'
+      path: '/pages'
+      fullPath: '/settings/pages'
+      preLoaderRoute: typeof AuthedSettingsPagesRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
     '/_authed/settings/passwords': {
       id: '/_authed/settings/passwords'
       path: '/passwords'
@@ -988,11 +1101,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsPasswordsRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/settings/schedules': {
+      id: '/_authed/settings/schedules'
+      path: '/schedules'
+      fullPath: '/settings/schedules'
+      preLoaderRoute: typeof AuthedSettingsSchedulesRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
     '/_authed/settings/skills': {
       id: '/_authed/settings/skills'
       path: '/skills'
       fullPath: '/settings/skills'
       preLoaderRoute: typeof AuthedSettingsSkillsRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
+    '/_authed/settings/vault': {
+      id: '/_authed/settings/vault'
+      path: '/vault'
+      fullPath: '/settings/vault'
+      preLoaderRoute: typeof AuthedSettingsVaultRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
     '/_authed/sign-in/$requestId': {
@@ -1114,20 +1241,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminPluginsComposioRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
-    '/_authed/settings/components-gallery/': {
-      id: '/_authed/settings/components-gallery/'
-      path: '/components-gallery'
-      fullPath: '/settings/components-gallery/'
-      preLoaderRoute: typeof AuthedSettingsComponentsGalleryIndexRouteImport
-      parentRoute: typeof AuthedSettingsRouteRoute
-    }
-    '/_authed/settings/components-gallery/$name': {
-      id: '/_authed/settings/components-gallery/$name'
-      path: '/components-gallery/$name'
-      fullPath: '/settings/components-gallery/$name'
-      preLoaderRoute: typeof AuthedSettingsComponentsGalleryNameRouteImport
-      parentRoute: typeof AuthedSettingsRouteRoute
-    }
     '/_authed/settings/connected-accounts/': {
       id: '/_authed/settings/connected-accounts/'
       path: '/connected-accounts'
@@ -1181,6 +1294,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedAdminRouteRouteChildren {
+  AuthedAdminAccountsRoute: typeof AuthedAdminAccountsRoute
   AuthedAdminAuditRoute: typeof AuthedAdminAuditRoute
   AuthedAdminBoundariesRoute: typeof AuthedAdminBoundariesRoute
   AuthedAdminComputersRoute: typeof AuthedAdminComputersRoute
@@ -1188,6 +1302,7 @@ interface AuthedAdminRouteRouteChildren {
   AuthedAdminDevicesRoute: typeof AuthedAdminDevicesRoute
   AuthedAdminEnterpriseRoute: typeof AuthedAdminEnterpriseRoute
   AuthedAdminIdentityProvidersRoute: typeof AuthedAdminIdentityProvidersRoute
+  AuthedAdminImagesRoute: typeof AuthedAdminImagesRoute
   AuthedAdminLearningRoute: typeof AuthedAdminLearningRoute
   AuthedAdminModelsRoute: typeof AuthedAdminModelsRoute
   AuthedAdminPeopleRoute: typeof AuthedAdminPeopleRoute
@@ -1207,6 +1322,7 @@ interface AuthedAdminRouteRouteChildren {
 }
 
 const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
+  AuthedAdminAccountsRoute: AuthedAdminAccountsRoute,
   AuthedAdminAuditRoute: AuthedAdminAuditRoute,
   AuthedAdminBoundariesRoute: AuthedAdminBoundariesRoute,
   AuthedAdminComputersRoute: AuthedAdminComputersRoute,
@@ -1214,6 +1330,7 @@ const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
   AuthedAdminDevicesRoute: AuthedAdminDevicesRoute,
   AuthedAdminEnterpriseRoute: AuthedAdminEnterpriseRoute,
   AuthedAdminIdentityProvidersRoute: AuthedAdminIdentityProvidersRoute,
+  AuthedAdminImagesRoute: AuthedAdminImagesRoute,
   AuthedAdminLearningRoute: AuthedAdminLearningRoute,
   AuthedAdminModelsRoute: AuthedAdminModelsRoute,
   AuthedAdminPeopleRoute: AuthedAdminPeopleRoute,
@@ -1236,32 +1353,38 @@ const AuthedAdminRouteRouteWithChildren =
   AuthedAdminRouteRoute._addFileChildren(AuthedAdminRouteRouteChildren)
 
 interface AuthedSettingsRouteRouteChildren {
+  AuthedSettingsApprovalsRoute: typeof AuthedSettingsApprovalsRoute
+  AuthedSettingsComponentsGalleryRoute: typeof AuthedSettingsComponentsGalleryRoute
   AuthedSettingsImRoute: typeof AuthedSettingsImRoute
+  AuthedSettingsMediaRoute: typeof AuthedSettingsMediaRoute
   AuthedSettingsMemoryRoute: typeof AuthedSettingsMemoryRoute
+  AuthedSettingsPagesRoute: typeof AuthedSettingsPagesRoute
   AuthedSettingsPasswordsRoute: typeof AuthedSettingsPasswordsRoute
+  AuthedSettingsSchedulesRoute: typeof AuthedSettingsSchedulesRoute
   AuthedSettingsSkillsRoute: typeof AuthedSettingsSkillsRoute
+  AuthedSettingsVaultRoute: typeof AuthedSettingsVaultRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
-  AuthedSettingsComponentsGalleryNameRoute: typeof AuthedSettingsComponentsGalleryNameRoute
   AuthedSettingsConnectedAccountsKeyRoute: typeof AuthedSettingsConnectedAccountsKeyRoute
   AuthedSettingsDevicesDeviceIdRoute: typeof AuthedSettingsDevicesDeviceIdRoute
-  AuthedSettingsComponentsGalleryIndexRoute: typeof AuthedSettingsComponentsGalleryIndexRoute
   AuthedSettingsConnectedAccountsIndexRoute: typeof AuthedSettingsConnectedAccountsIndexRoute
   AuthedSettingsDevicesIndexRoute: typeof AuthedSettingsDevicesIndexRoute
 }
 
 const AuthedSettingsRouteRouteChildren: AuthedSettingsRouteRouteChildren = {
+  AuthedSettingsApprovalsRoute: AuthedSettingsApprovalsRoute,
+  AuthedSettingsComponentsGalleryRoute: AuthedSettingsComponentsGalleryRoute,
   AuthedSettingsImRoute: AuthedSettingsImRoute,
+  AuthedSettingsMediaRoute: AuthedSettingsMediaRoute,
   AuthedSettingsMemoryRoute: AuthedSettingsMemoryRoute,
+  AuthedSettingsPagesRoute: AuthedSettingsPagesRoute,
   AuthedSettingsPasswordsRoute: AuthedSettingsPasswordsRoute,
+  AuthedSettingsSchedulesRoute: AuthedSettingsSchedulesRoute,
   AuthedSettingsSkillsRoute: AuthedSettingsSkillsRoute,
+  AuthedSettingsVaultRoute: AuthedSettingsVaultRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
-  AuthedSettingsComponentsGalleryNameRoute:
-    AuthedSettingsComponentsGalleryNameRoute,
   AuthedSettingsConnectedAccountsKeyRoute:
     AuthedSettingsConnectedAccountsKeyRoute,
   AuthedSettingsDevicesDeviceIdRoute: AuthedSettingsDevicesDeviceIdRoute,
-  AuthedSettingsComponentsGalleryIndexRoute:
-    AuthedSettingsComponentsGalleryIndexRoute,
   AuthedSettingsConnectedAccountsIndexRoute:
     AuthedSettingsConnectedAccountsIndexRoute,
   AuthedSettingsDevicesIndexRoute: AuthedSettingsDevicesIndexRoute,
