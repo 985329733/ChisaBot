@@ -133,3 +133,13 @@ flowchart LR
 - [安全共享类型](../shared/model-selection.ts)
 - [每次运行的连接快照](../server/src/model-connection-context.ts)
 - [前端查询与同步](../app/src/lib/model-selection/queries.ts)、[跨标签通知](../app/src/lib/model-selection/sync.ts)
+
+## 额度用完时自动换模型（2026-10-15）
+
+聊天回合的模型调用在还没输出任何内容前被拒（HTTP 429 / 402，或错误里写着 quota / daily limit / 额度），服务器立刻换一个候选模型
+重发，并把被拒的模型冷却到错误里写的恢复时间（读不出来就 10 分钟，最多 24 小时）。
+
+- 候选：`CHISABOT_MODEL_FALLBACKS=模型id,模型id`；`CHISABOT_MODEL_FALLBACKS=off` 关闭。没设时取模型目录里与当前模型同一平台前缀
+  （例如 `clinepass/`）的其它模型，按目录顺序最多 3 个。
+- 其它错误不回退；管理员自检不回退。日志：`{"type":"model-fallback","event":"primary-quota"|"used",…}`。
+- 代码：`server/src/agents/model-fallback.ts`；见 DESIGN.md「成熟度 1」一节。

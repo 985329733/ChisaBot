@@ -158,6 +158,7 @@ import {
   normalizeModelBaseUrls,
   runtimeModelForEnvironment,
   setModelOutputLimitResolver,
+  setModelFallbackCatalog,
   type ToolSelection,
 } from "./copilot";
 import {
@@ -1115,6 +1116,7 @@ const modelCatalog = createModelCatalogService({
 setModelOutputLimitResolver(async (modelId) =>
   (await modelCatalog.list()).models.find((entry) => entry.id === modelId)?.maxOutputTokens,
 );
+setModelFallbackCatalog(async () => (await modelCatalog.list()).models.map((entry) => entry.id));
 /*
  * Magpie, the model gateway. MAGPIE_ADMIN_URL (e.g. http://magpie:3430) plus its web key
  * (MAGPIE_WEB_KEY_FILE, readable only by the API user) turn on 管理后台 → 模型平台 Magpie and the

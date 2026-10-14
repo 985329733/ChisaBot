@@ -29,7 +29,42 @@ export function stoppedReason(reported: unknown): string {
       : typeof reported === "string"
         ? reported
         : "";
-  return said.trim() || "机器人没有给出原因就停止了。";
+  return friendlyStopReason(said.trim()) || "机器人没有给出原因就停止了。";
+}
+
+/**
+ * 模型 / 网关报错翻成人话（2026-10-15 成熟度扫查：额度用完时顶上是一整句英文
+ * 「Failed after 3 attempts. Last error: ClinePass: Error 429: Daily free limit reached…」）。
+ * 认得的错误给一句中文 + 下一步；不认得的英文前面加「这一轮出错了：」保留原文便于排查；已经是中文的原样。
+ */
+export function friendlyStopReason(said: string): string {
+  if (!said) return "";
+  const text = said.replace(/^Failed after \d+ attempts?\.\s*(Last error:\s*)?/i, "");
+  const wait = /try again in\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?/i.exec(text);
+  const when =
+    wait && (wait[1] || wait[2])
+      ? `，约 ${[wait[1] ? `${Number(wait[1])} 小时` : "", wait[2] ? `${Number(wait[2])} 分钟` : ""].filter(Boolean).join(" ")}后恢复`
+      : "";
+  const stalled = /^(.+?) stopped responding\. Nothing arrived from it for (an? |\d+ )(second|minute)s?/i.exec(text);
+  if (stalled) {
+    const n = /^\d/.test(stalled[2]) ? Number.parseInt(stalled[2], 10) : 1;
+    return `「${stalled[1]}」${n} ${/minute/i.test(stalled[3]) ? "分钟" : "秒"}没有任何回应，这一轮已结束。再发一次试试；一直这样就换一个模型。`;
+  }
+  if (/only be used from within OpenCode/i.test(text))
+    return "这个模型只能在 OpenCode 客户端里用。点输入框右下角的模型名，换一个模型再发。";
+  if (/daily (free )?limit|free (tier|limit)|quota|insufficient.*(credit|balance)|\b402\b/i.test(text))
+    return `这个模型的额度用完了${when}。点输入框右下角的模型名，换一个模型再发。`;
+  if (/\b429\b|rate.?limit|too many requests/i.test(text))
+    return `模型请求太频繁，被暂时限流了${when}。稍等一会儿再发，或换一个模型。`;
+  if (/\b401\b|unauthori[sz]ed|invalid.*api.?key|authentication/i.test(text))
+    return "模型密钥无效或已过期。请管理员到 管理后台 → 模型 检查连接。";
+  if (/context (length|window)|maximum context|too many tokens|prompt is too long/i.test(text))
+    return "这段对话太长，超出了模型能读的范围。点 ⋯ → 新话题 重新开始。";
+  if (/timed? ?out|ETIMEDOUT|deadline/i.test(text)) return "模型太久没有回应。稍后再发，或换一个模型。";
+  if (/fetch failed|ECONNREFUSED|ECONNRESET|socket hang up|network|\b50[234]\b|bad gateway|service unavailable|overloaded/i.test(text))
+    return "暂时连不上模型服务。稍后再发，或换一个模型。";
+  if (/[\u4e00-\u9fff]/.test(said)) return said;
+  return `这一轮出错了：${text}`;
 }
 
 /**

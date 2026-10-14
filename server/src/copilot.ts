@@ -30,6 +30,7 @@ import type { AgentActor } from "./agents/profile-types";
 import { modelOverrideFromValue } from "./agents/model-selection";
 import { thinkTagLanguageModel } from "./agents/think-tags";
 import { withConfirmToolCall } from "./confirmations/context";
+import { fallbackCandidates, fallbackLanguageModel } from "./agents/model-fallback";
 import {
   executeNativeApprovalTool,
   nativeApprovalRun,
@@ -230,6 +231,19 @@ export function connectionLanguageModel(
       ? outputLimitLanguageModel(createAnthropic(options)(model.defaultModel), model.defaultModel)
       : createOpenAI(options).chat(model.defaultModel),
   );
+}
+
+/** 模型目录（index.ts 接上），给额度用完时找候选模型用（agents/model-fallback.ts）。 */
+let fallbackCatalog: () => Promise<string[]> = async () => [];
+export function setModelFallbackCatalog(catalog: () => Promise<string[]>): void {
+  fallbackCatalog = catalog;
+}
+/** 聊天回合用的模型：额度用完（429 等）时自动换同平台的其它模型重发（DESIGN.md §60）。 */
+export function fallbackConnectionModel(model: RuntimeModel, apiKey: string | null) {
+  return fallbackLanguageModel(connectionLanguageModel(model, apiKey), model.defaultModel, {
+    candidates: fallbackCandidates(fallbackCatalog),
+    build: (id) => connectionLanguageModel({ ...model, defaultModel: id }, apiKey),
+  });
 }
 
 /**
@@ -506,7 +520,7 @@ export function builtInAgentConfiguration(
       ? planModel
       : model.baseUrl || model.useApiKey === false
         ? // 每一步的用量记到当前运行的计量器（输入框的「上下文」读数，context-usage.ts）。
-          steerLanguageModel(meterLanguageModel(connectionLanguageModel(model, apiKey)))
+          steerLanguageModel(meterLanguageModel(fallbackConnectionModel(model, apiKey)))
         : `${model.provider}/${model.defaultModel}`,
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually

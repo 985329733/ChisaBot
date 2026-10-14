@@ -65,3 +65,21 @@ describe("正文里的 <think> 当作思考", () => {
     expect(r.content).toEqual([{ type: "reasoning", text: "hmm" }, { type: "text", text: "结果" }, { type: "tool-call", toolCallId: "1" }]);
   });
 });
+
+describe("textual tool calls (2026-10-15)", () => {
+  test("a <tool_call> written as text is folded and explained", () => {
+    const pieces = splitThinkTags("<tool_call><function=device_run_shell><parameter=command>uname -a<parameter=devic</tool_call>\n\n思考了几秒");
+    expect(pieces.find((p) => p.kind === "reasoning")?.text).toContain("device_run_shell");
+    const text = pieces.filter((p) => p.kind === "text").map((p) => p.text).join("");
+    expect(text).toContain("「device_run_shell」写成了文字，没有真正执行");
+    expect(text).not.toContain("<tool_call>");
+  });
+  test("split across chunks", () => {
+    const s = new ThinkSplitter();
+    const out = [...s.push("好的<tool_"), ...s.push("call>{\"name\": \"device_read_file\"}</tool"), ...s.push("_call>完成"), ...s.flush()];
+    const text = out.filter((p) => p.kind === "text").map((p) => p.text).join("");
+    expect(text.startsWith("好的")).toBe(true);
+    expect(text).toContain("「device_read_file」");
+    expect(text.endsWith("完成")).toBe(true);
+  });
+});

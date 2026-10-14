@@ -27,7 +27,7 @@ export const CAPABILITY_INFO: Record<
 > = {
   shell: {
     label: "命令行",
-    description: "在这台电脑上运行 PowerShell 命令（有超时和输出上限）。",
+    description: "在这台电脑上运行命令（Windows 用 PowerShell，macOS / Linux 用 sh），有超时和输出上限。",
     dangerous: true,
   },
   files_read: {
