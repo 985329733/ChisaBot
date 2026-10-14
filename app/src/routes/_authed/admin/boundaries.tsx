@@ -136,22 +136,20 @@ function BoundariesPage() {
     <PageShell
       description={
         <>
-          {
-            "每个机器人可以和不可以对计算机做什么。规则在每次操作发生前检查，拒绝被记录在"
-          }{" "}
+          {"机器人在电脑和浏览器上能做、不能做的事。每个操作执行前都会先过一遍规则，被拦下的会记在"}
           <Link className="underline" to="/admin/audit">
-            {"审计"}
-          </Link>{" "}
-          {"被拒绝的规则"}
+            {"活动记录"}
+          </Link>
+          {"里。"}
         </>
       }
       title={"权限规则"}
     >
       <PageSection
         description={
-          "强制执行会停止该操作。记录它并允许它在同一行写入并让操作通过，这是规则在真实流量上尝试之前如何开始拒绝任何人的方式。"
+          "「拦下」会直接阻止操作；「只记录」放行但照样记一笔，适合新规则先试跑一段时间。"
         }
-        title={"当规则匹配时"}
+        title={"命中规则时"}
       >
         <div className="mt-2 flex gap-2">
           {(["enforce", "dry-run"] as PolicyMode[]).map((mode) => (
@@ -164,44 +162,30 @@ function BoundariesPage() {
               size="sm"
               variant="outline"
             >
-              {mode === "enforce" ? "停止操作" : "记录它并允许它"}
+              {mode === "enforce" ? "拦下" : "只记录"}
             </Button>
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {policy.mode === "enforce"
-            ? "机器人已停止，并被告知哪个规则拒绝了它。"
-            : "没有停止。规则匹配的每个操作都会被记录，就像它会被拒绝一样，这是规则在切换前尝试的方式。"}
+            ? "操作被拦下，机器人会知道是哪条规则拦的。"
+            : "不拦。命中规则的操作照常执行，但会像被拦下一样记录下来。"}
         </p>
       </PageSection>
 
       <PageSection
         description={
           <>
-            {
-              "已检查，首先匹配则结束：下方不予咨询，机器人被告知拒绝它的规则。规则是CEL，可以询问关于"
-            }
-            <code>tool.name</code>, <code>intent</code>, <code>bot.id</code>,{" "}
-            <code>actor.id</code>, <code>page.url</code> {"和"}
-            <code>page.host</code>
-            {", 被操作的元素，"} <code>key</code> {"按下时，文件被触摸，"}{" "}
-            <code>command</code> {"正在运行，并且"}
-            <code>mcp.server</code>, <code>mcp.tool</code> {"和"}
-            <code>mcp.effect</code> {"用于调用他人工具。"}
-            <code>initiator.kind</code> {"表示启动运行的内容 &mdash;"}
-            <code>person</code>, <code>routine</code> {"或"}{" "}
-            <code>handoff</code> {"&mdash; 哪个"}
-            <code>actor.id</code>{" "}
-            {
-              "无法，因为计划运行携带其所有者的权限而无人监督。无法评估的规则被视为匹配，因此打错的拒绝会拒绝而不是悄悄允许本应禁止的东西。"
-            }
+            {"从上到下检查，命中第一条就拦下，机器人会知道是哪条。规则用 CEL 写，可以用到 "}
+            <code>tool.name</code>、<code>page.host</code>、<code>command</code>、<code>mcp.server</code>
+            {" 等字段。写错、无法判断的规则按「命中」处理，宁可多拦也不悄悄放行。"}
           </>
         }
-        title={"它可能永远不会"}
+        title={"永远不允许"}
       >
         {policy.deny.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            {"无规则。所有操作都被允许并记录。"}
+            {"没有禁止规则。所有操作都允许，并且都会记录。"}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -296,9 +280,9 @@ function BoundariesPage() {
 
       <PageSection
         description={
-          "地板，应用于拒绝列表未捕获的任何内容。这不是形式主义：此处空列表允许什么都没有，因此清除此处的部署拒绝每个操作而不是允许每个操作。"
+          "没被上面拦下的操作，还要在这里有一条允许规则才能执行。注意：这里清空等于什么都不允许，而不是什么都允许。"
         }
-        title={"否则它可能"}
+        title={"其余允许"}
       >
         <ul className="mt-2 space-y-1">
           {policy.allow.map((rule) => (

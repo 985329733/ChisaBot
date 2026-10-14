@@ -107,12 +107,8 @@ function ComputersPage() {
       ) : null}
 
       {isolation === "shared" ? (
-        <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          <span className="font-medium">{"每个机器人共享一个计算机。"}</span>{" "}
-          {
-            "他们共享其登录、文件和会话，因此机器人可以访问另一个登录的用户设置。"
-          }
-          <code>COMPUTER_SUPERVISOR_URL</code> {"给每个机器人自己的。"}
+        <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+          {"所有机器人共用这一台云端电脑：登录状态、文件和浏览器配置文件是同一份。一个人自用的部署这样就够了。"}
         </p>
       ) : isolation === "per-bot" ? (
         <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">

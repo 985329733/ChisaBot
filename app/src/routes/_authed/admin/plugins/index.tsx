@@ -110,7 +110,7 @@ function RouteComponent() {
   return (
     <PageShell
       description={
-        "此部署可以访问什么，以及哪些机器人可以访问它。添加插件是全账户的；哪些机器人拥有其工具在自己的页面决定。"
+        "机器人能接入的外部服务和 MCP 服务器。添加后对整个部署生效；具体哪些机器人能用，在插件自己的页面里设置。"
       }
       title={"插件"}
     >
@@ -123,7 +123,7 @@ function RouteComponent() {
         <>
           <PageSection
             description={
-              "已添加整个部署。打开一个以设置它需要什么以及哪些机器人拥有它的工具。"
+              "已经添加的插件。点开可以填配置、选择哪些机器人能用。"
             }
             title={"已连接"}
           >
@@ -190,7 +190,7 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description={"已查看，第一方服务器此构建将与之对话。打开一个以添加"}
+            description={"可以直接添加的官方服务。点开即可添加。"}
             title={"探索插件"}
           >
             {explore.length === 0 ? (
@@ -234,7 +234,7 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description={"此部署未审查的目录，通过 Composio 访问。"}
+            description={"通过 Composio 接入的更多应用（未逐个审查）。"}
             title={"更多应用"}
           >
             <PageRows>
@@ -275,7 +275,7 @@ function RouteComponent() {
                     <ItemTitle>{"Composio"}</ItemTitle>
                     <ItemDescription>
                       {
-                        "添加您的 Composio 密钥以启用工具目录。在此部署中设置 COMPOSIO_API_KEY。"
+                        "填入 Composio 密钥后才能浏览它的工具目录。"
                       }
                     </ItemDescription>
                   </ItemContent>

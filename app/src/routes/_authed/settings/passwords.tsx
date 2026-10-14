@@ -1,16 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PageShell } from "@/components/layout/page-shell";
-import { SavedLoginsSection } from "@/components/settings/saved-logins";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+/** 重复的「密码」页：保存的登录在 设置 → 账号连接 里（§57 导航收敛），重定向过去。 */
 export const Route = createFileRoute("/_authed/settings/passwords")({
-  component: PasswordsPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/settings/connected-accounts", replace: true });
+  },
 });
-
-/** 旧入口仍可访问；导航里已并入「账号与密码」。 */
-function PasswordsPage() {
-  return (
-    <PageShell title={"密码"}>
-      <SavedLoginsSection />
-    </PageShell>
-  );
-}

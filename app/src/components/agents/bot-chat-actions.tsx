@@ -2,7 +2,6 @@ import {
   IconDeviceDesktop,
   IconHistory,
   IconMessagePlus,
-  IconSettings,
 } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -13,7 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type BotChatContext, publishBotChat } from "@/lib/agents/bot-chat-context";
-import type { ChannelSummary } from "@/lib/channels/queries";
 import { getHotkey } from "@/lib/hotkeys/hotkeys";
 import { useHotkey } from "@/lib/hotkeys/use-hotkey";
 import { cn } from "@/lib/utils";
@@ -117,52 +115,28 @@ export function BotRowComputerChip({ chat }: { chat: BotChatContext | null }) {
 }
 
 /**
- * 机器人「⋯」菜单的上半部分（机器人设置 · 查看计算机 · 新话题 · 历史对话）。
+ * 机器人「⋯」菜单里和对话有关的两项：历史对话 · 新话题（DESIGN.md §57 导航收敛）。
  *
- * 对正在打开的这个机器人：直接操作当前对话（切换设置窗格 / 计算机、清空上下文）。
- * 对其他机器人：先打开它最近的对话，并带上对应的窗格；没有对话时设置去资料页、新话题去空聊天。
+ * 以前还有「机器人设置」（聊天旁的资料窗格，和资料页重复）和「查看计算机」（右栏「面板 | 计算机」切换和机器人行的
+ * 计算机图标都能做到），都去掉了；「机器人资料」在菜单第一项。
+ * 对正在打开的这个机器人直接操作当前对话；对其他机器人，新话题去它的空聊天。
  */
 export function BotChatMenuItems({
   agentId,
   chat,
-  latest,
 }: {
   agentId: string;
   chat: BotChatContext | null;
-  latest: ChannelSummary | undefined;
 }) {
   const navigate = useNavigate();
   const icon = "size-[18px] shrink-0 opacity-80";
   const topicKey = getHotkey("new-topic").combo;
-  const openLatest = (flag: "settings" | "watch") =>
-    latest
-      ? void navigate({
-          to: "/channel/$channelId",
-          params: { channelId: latest.id },
-          search: { [flag]: true } as never,
-        })
-      : void navigate({ to: "/bots/$agentId", params: { agentId } });
   return (
     <>
-      <DropdownMenuItem
-        className="glass-mi"
-        onClick={() => (chat?.canSettings ? chat.toggleSettings() : openLatest("settings"))}
-      >
-        <IconSettings className={icon} />
-        <span className="min-w-0 flex-1">
-          {chat?.canSettings && chat.settingsOpen ? "收起机器人设置" : "机器人设置"}
-        </span>
-      </DropdownMenuItem>
-      {chat?.canComputer || latest ? (
-        <DropdownMenuItem
-          className="glass-mi"
-          onClick={() => (chat?.canComputer ? chat.toggleComputer() : openLatest("watch"))}
-        >
-          <IconDeviceDesktop className={icon} />
-          <span className="min-w-0 flex-1">
-            {chat?.canComputer && chat.computerOpen ? "关闭计算机" : "查看计算机"}
-          </span>
-          {chat?.needsYou ? <span className="glass-bot-comp-dot is-inline" /> : null}
+      {chat?.canHistory ? (
+        <DropdownMenuItem className="glass-mi" onClick={() => chat.openHistory?.()}>
+          <IconHistory className={icon} />
+          <span className="min-w-0 flex-1">{"历史对话"}</span>
         </DropdownMenuItem>
       ) : null}
       <DropdownMenuItem
@@ -186,12 +160,6 @@ export function BotChatMenuItems({
           </DropdownMenuShortcut>
         ) : null}
       </DropdownMenuItem>
-      {chat?.canHistory ? (
-        <DropdownMenuItem className="glass-mi" onClick={() => chat.openHistory?.()}>
-          <IconHistory className={icon} />
-          <span className="min-w-0 flex-1">{"历史对话"}</span>
-        </DropdownMenuItem>
-      ) : null}
     </>
   );
 }

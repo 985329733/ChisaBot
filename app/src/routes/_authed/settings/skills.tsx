@@ -1,6 +1,6 @@
 import { IconDots, IconPencil, IconPlus, IconSparkles, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { SearchBox } from "@/components/memory/memory-notes";
@@ -14,6 +14,7 @@ import { Card, ErrorCard, ListRow, Toolbar } from "@/components/ui/skyglass";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { type ChisaSkill, chisaSkillKeys, chisaSkillsQueryOptions, deleteChisaSkill, saveChisaSkill } from "@/lib/chisa-skills";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/settings/skills")({
@@ -28,6 +29,7 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
 function SkillsPage() {
   const queryClient = useQueryClient();
   const list = useQuery(chisaSkillsQueryOptions());
+  const isAdmin = useQuery(currentUserQueryOptions()).data?.role === "admin";
   const [query, setQuery] = useState("");
   const [hidden, setHidden] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ open: boolean; skill: ChisaSkill | null }>({ open: false, skill: null });
@@ -106,10 +108,19 @@ function SkillsPage() {
       <SkillDialog onOpenChange={(open) => setDialog((current) => ({ ...current, open }))} open={dialog.open} skill={dialog.skill} />
       <PageShell
         action={
-          <Button onClick={() => setDialog({ open: true, skill: null })} size="sm">
-            <IconPlus />
-            {"新建技能"}
-          </Button>
+          /* 技能管理并入这里（DESIGN.md §57 导航收敛）：管理员从这里进入部署共享技能。 */
+          <div className="flex flex-wrap gap-2">
+            {isAdmin ? (
+              <Button nativeButton={false} render={<Link to="/admin/skills" />} size="sm" variant="outline">
+                <IconUsers />
+                {"共享技能管理"}
+              </Button>
+            ) : null}
+            <Button onClick={() => setDialog({ open: true, skill: null })} size="sm">
+              <IconPlus />
+              {"新建技能"}
+            </Button>
+          </div>
         }
         description="技能是你存下来的「某类事怎么做」：步骤、偏好、要用的网站、踩过的坑。你的所有机器人做事前会按需加载对得上的技能；聊天框里输入 / 加名字也能直接用。机器人摸索出一套好做法时，会问你要不要存成技能。"
         title="技能"

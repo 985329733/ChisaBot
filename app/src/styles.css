@@ -6554,3 +6554,12 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
   .cf-image-pending::before { animation: none; }
   .cf-image-pending { animation: rp-fade var(--dur-2) linear both; }
 }
+/* ── 设置左栏：默认折叠的「高级」分组 + 底部「返回聊天」（DESIGN.md §57 导航收敛） ── */
+.rail-sec-toggle { width: 100%; text-align: left; border-radius: 8px; cursor: pointer; }
+.rail-sec-toggle:hover:not(:disabled) { color: var(--ink-2); }
+.rail-sec-toggle:disabled { cursor: default; }
+.rail-sec-toggle:focus-visible { outline: 2px solid var(--ink-3); outline-offset: -2px; }
+.rail-sec-chev { flex: none; transition: transform var(--dur-1) var(--ease-out); }
+.rail-sec-chev[data-open] { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .rail-sec-chev { transition: none; } }
+.glass-topbar-mid { min-width: 0; }

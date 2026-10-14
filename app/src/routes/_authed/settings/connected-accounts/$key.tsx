@@ -245,7 +245,7 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description={"这不是您自己连接的服务。"}
+        description={"这不是你自己连接的服务。"}
         title={entry?.title ?? key}
       >
         <PageEmpty>
@@ -276,13 +276,13 @@ function RouteComponent() {
             <ItemContent>
               {/* Not "Connect your account": the row is also the connected state, and a title has to
                   read for both. */}
-              <ItemTitle>{"您的账号"}</ItemTitle>
+              <ItemTitle>{"你的账号"}</ItemTitle>
               <ItemDescription>
                 {!enabled
                   ? "管理员尚未启用此连接器，因此目前没有可连接的内容。"
                   : connection
                     ? "授予其工具的机器人将此读取为你的，并只看到你能看到的内容。"
-                    : "没有机器人可以像您一样读取此内容。连接会带您到供应商进行同意。"}
+                    : "还没有连接，机器人不能以你的身份读取这里的内容。点连接会跳到服务商页面确认授权。"}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -324,7 +324,7 @@ function RouteComponent() {
                          * had not, which is the one outcome worse than not offering it.
                          */
                         setNotice(
-                          `断开连接尚未构建。直到构建完成，请在您的 ${entry.vendor} 账户的第三方访问设置中撤销它——这将立即停止此部署读取任何内容。`,
+                          `这里还不能断开连接。请在你的 ${entry.vendor} 账号的「第三方访问」设置里撤销授权，撤销后这里立刻读不到任何内容。`,
                         )
                       }
                       className="whitespace-nowrap"
@@ -362,7 +362,7 @@ function RouteComponent() {
       {connection ? (
         <PageSection
           description={
-            "您同意的，如供应商记录的——不是要求的。两者在同意屏幕仅部分接受时不同。"
+            "服务商记录的、你实际同意的权限（授权页只部分同意时，会少于申请的权限）。"
           }
           title={"访问"}
         >

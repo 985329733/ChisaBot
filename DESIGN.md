@@ -993,3 +993,17 @@
 - **机器人工具**（`server/src/chat-files/`）：`file_share {path, title?}` 把工作区文件交给用户（快照一份进库，聊天里出文件卡；不要贴路径或 workspace.local 链接）；`chat_files_recent` 列最近的上传 / 生成；`image_generate {prompt, aspect_ratio?}`、`image_edit {prompt, source?, aspect_ratio?}`（source = 文件 id / `/api/chat-files/…` / 工作区路径，不写 = 这个聊天最近一张图）。生成 / 改好的图存进库 + 工作区 `images/<时间>-<提示词>.png`。工具结果最后一行 `⟦chisabot:files⟧[…]` 给网页画卡，模型读前面那句人话。后台刷新面板的回合不给这些工具。
 - **画图卡**（`lib/copilot/chat-file-tools.tsx`，render-only）：进行中 = 和成图同画幅的玻璃骨架（最宽 320px），一道蓝色光泽从左扫到右（只动 transform，减少动效时不扫）+ 居中小胶囊「🖼 正在画图… / 正在改图…」；完成 = §31 单图卡（点开看大图、下载），失败不画卡，由机器人用话说明。
 - **设置 → 图片生成**（`/admin/images`，管理员，左栏「模型」组）：开关「允许机器人生成图片」（默认关；关着时机器人拿不到画图工具，会告诉用户请管理员打开）；接口类型 MiniMax（image-01，`/v1/image_generation`，修改 = 主体参考图生成，不是逐像素修图）或 OpenAI 兼容（`/v1/images/generations` + `/v1/images/edits`，gpt-image、new-api / One API 等）；接口地址、生成模型、修改模型（留空同生成）、API 密钥（加密存，只显示末四位；留空时 MiniMax 沿用部署环境变量 MINIMAX_API_KEY，或 OPENAI_BASE_URL 指向 minimax 时的 OPENAI_API_KEY）。「检查（不生成图片）」：MiniMax 发空提示词看鉴权，OpenAI 兼容读 /models，都不花钱。
+
+## 57. 导航收敛：一个私人助手只需要一套导航（2026-10-14）
+
+用户批准的瘦身计划（审查报告 2026-10-14）第 1 阶段：先改入口，不动代码和数据。
+
+- **顶栏**只剩左边的字标 + 左栏开关、右边的窗口按钮（仅 PC）。中间的分段（聊天 / 长期任务 / 技能 / 工作流）去掉，网格中间留一个空占位（`.glass-topbar-mid`），左右两区位置不变。
+- **左栏**只有搜索 + 机器人（主机器人置顶）+ 列表头「＋」。底部「机器人 / 代理 / 团队 Bot / 记忆」四个上游链接和列表头「管理」都去掉；收起成图标栏时也一样。
+- **机器人「⋯」**：机器人资料 · 历史对话 · 新话题 · 面板 · 电脑操作… ‖ 设为主机器人 · 恢复运行 ‖ 删除机器人…。「机器人设置」（对话旁的资料窗格，和资料页重复）和「查看计算机」（右栏「面板 | 计算机」切换已有）去掉。
+- **账号菜单**：个人资料 · 设置 · 定时任务 · 待处理（等你批准的数量写在右边）‖ 绑定手机 ‖ 暗色外观 ‖ 退出登录。「通知」（上游 Slack/Teams/短信）和「设备管理」去掉（设备在 设置 → 设备）。定时任务去 设置 → 定时任务（`/settings/schedules`，§55）。
+- **设置左栏**分三组：**个人**（通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 密钥 · 设备 · IM 接入，后续功能页也放这里）；**管理**（仅管理员：模型 · 图片生成 · 云端浏览器 · 权限规则 · 系统更新 · 活动记录）；**高级**（默认折叠：工作流 · 插件与 MCP）。折叠组的标题是开关（`RailGroup.collapsible`，状态存 localStorage `chisabot-settings-advanced`，当前页在组里时总是展开，箭头只做 rotate 动画）。左栏卡片底部「返回聊天」是从设置回对话的路。
+- **合并的入口**：凭据 → 模型页右上「模型密钥」（页面改名「模型密钥」，面包屑回「模型」）；技能管理 → 设置 → 技能 右上「共享技能管理」（管理员）；审计改名「活动记录」；UI 组件不在导航里。
+- **旧地址重定向**：`/agents`（带 `?agent=` 去该机器人资料页）、`/team-bots` → `/bots`；`/memory` → `/settings/memory`；`/reachability` → `/settings/im`；`/responsibilities`、`/routines` → `/settings/schedules`；`/skills` → `/settings/skills`；`/settings/passwords` → `/settings/connected-accounts`（账号连接）。
+- **右栏**只有实时面板（`live_panels`）和计算机。上游旧面板系统（沙箱 HTML 面板、面板库、「新建」创作会话，表 `bot_panel_*`）不再显示，数据保留到后续阶段处理。新面板在对话里说一句。
+- **文案**：留在导航里的页面不出现环境变量名，统一用「你」，不用「您」；常驻指令的说明不再叫机器人「AI 同事」。
