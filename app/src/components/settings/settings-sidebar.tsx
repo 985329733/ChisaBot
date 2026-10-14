@@ -12,6 +12,7 @@ import {
   IconPlug,
   IconPuzzle,
   IconShieldCheck,
+  IconSparkles,
   IconWorld,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +48,12 @@ const PERSONAL: RailGroup[] = [
         linkOptions: { to: "/settings/memory" },
       },
       {
+        title: "技能",
+        sub: "机器人照着做的方法",
+        icon: IconSparkles,
+        linkOptions: { to: "/settings/skills" },
+      },
+      {
         title: "账号与密码",
         sub: "已连接的应用、保存的登录",
         icon: IconPlug,
@@ -80,7 +87,7 @@ const ADMIN: RailGroup[] = [
     label: "机器人能力",
     items: [
       { title: "插件", sub: "可接入的服务", icon: IconPuzzle, linkOptions: { to: "/admin/plugins" } },
-      { title: "技能", sub: "斜杠调用的命名指令", icon: IconFileText, linkOptions: { to: "/admin/skills" } },
+      { title: "技能管理", sub: "部署共享的技能、授权", icon: IconFileText, linkOptions: { to: "/admin/skills" } },
       { title: "云端浏览器", sub: "机器人的浏览器与登录状态", icon: IconWorld, linkOptions: { to: "/admin/computers" } },
       { title: "UI 组件", sub: "对话里可绘制的片段", icon: IconLayoutGrid, linkOptions: { to: "/admin/components" } },
       { title: "权限规则", sub: "机器人永远不能做的事", icon: IconShieldCheck, linkOptions: { to: "/admin/boundaries" } },

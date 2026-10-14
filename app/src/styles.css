@@ -6385,3 +6385,7 @@ html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="tab
 .mem-bot + .mem-bot { border-top: 1px solid var(--line); }
 .mem-bot-s { font-size: 13px; color: var(--ink-3); }
 @media (max-width: 480px) { .mem-bot-s { display: none; } }
+
+/* §51 技能：设置 → 技能 */
+.skill-slug { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-family: var(--font-code); font-size: 12px; color: var(--accent-blue-ink); background: var(--accent-blue-soft); }
+.skill-instructions { min-height: 240px; font-family: var(--font-code); font-size: 13px; line-height: 1.6; }
