@@ -10,7 +10,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { isChatRunning } from "@/lib/copilot/computer-activity";
 import {
   CONFIRM_CATEGORY_INFO,
   CONFIRM_RESUME_MARKER,
@@ -200,6 +201,17 @@ export function ConfirmRequestCard({ request, threadId }: { request: ConfirmRequ
   );
 }
 
+/** 聊天正在跑一轮（turn-compaction 广播 chisabot-chat-running）。 */
+function useChatRunning() {
+  const [running, setRunning] = useState(() => isChatRunning());
+  useEffect(() => {
+    const on = (event: Event) => setRunning(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener("chisabot-chat-running", on);
+    return () => window.removeEventListener("chisabot-chat-running", on);
+  }, []);
+  return running;
+}
+
 type ToolCallLike = { id: string };
 type MessageLike = { id: string; role: string; toolCalls?: ToolCallLike[]; toolCallId?: string };
 
@@ -212,9 +224,9 @@ export function MessageConfirmCards({ message, messages }: { message: MessageLik
   const threadId = chat?.threadId ?? null;
   const ids = useMemo(() => (message.toolCalls ?? []).map((call) => call.id).filter(Boolean), [message.toolCalls]);
   const answered = useMemo(() => new Set((messages ?? []).filter((m) => m.role === "tool" && m.toolCallId).map((m) => m.toolCallId as string)), [messages]);
-  // 只有最近几条消息里没结果的工具调用才轮询（历史里被打断、永远没结果的调用不该让页面一直轮询）。
-  const recent = (messages ?? []).slice(-4).some((m) => m.id === message.id);
-  const open = recent && ids.some((id) => !answered.has(id));
+  // 这一轮还在跑、且这条消息里有工具调用还没结果时才轮询（历史里被打断、永远没结果的调用不让页面一直轮询）。
+  const running = useChatRunning();
+  const open = running && ids.some((id) => !answered.has(id));
   const list = useThreadConfirmations(ids.length ? threadId : null, open);
   const cards = (list.data ?? []).filter((request) => request.toolCallId && ids.includes(request.toolCallId)).reverse();
   if (!cards.length) return null;
