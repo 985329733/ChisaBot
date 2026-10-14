@@ -72,7 +72,7 @@ export function StandingInstructions() {
   return (
     <PageSection
       description={
-        "适用于每个会话中的每个 AI 同事。同事的角色文本说明它做什么；这个说明你希望如何做事，例如写作风格或如何描述你的公司。"
+        "对你所有的机器人、所有对话都生效。机器人自己的说明决定它做什么；这里写你希望它们怎么做事，比如语气、写作风格、称呼。"
       }
       title={"常驻指令"}
     >
@@ -91,7 +91,7 @@ export function StandingInstructions() {
               setSaved(false);
             }}
             placeholder={
-              "我们是两个人，不是一个团队。请用英式英语书写，并且永远不要将我们的产品称为平台。"
+              "回答简洁，先说结论；中文回复，代码注释用英文。"
             }
             value={text}
           />

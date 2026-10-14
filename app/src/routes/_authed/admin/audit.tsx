@@ -81,8 +81,8 @@ function AuditPage() {
           variant="ghost"
         />
       }
-      description={"机器人采取的每个操作，以及此部署策略拒绝的每个操作。"}
-      title={"审计"}
+      description={"机器人做过的每个操作，以及被规则拦下的操作。"}
+      title={"活动记录"}
       width="wide"
     >
       <PageSection>

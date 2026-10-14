@@ -1,6 +1,7 @@
-import { IconArrowRight, IconExternalLink } from "@tabler/icons-react";
-import { Link, type LinkOptions } from "@tanstack/react-router";
+import { IconArrowRight, IconChevronRight, IconExternalLink } from "@tabler/icons-react";
+import { Link, type LinkOptions, useRouterState } from "@tanstack/react-router";
 import type * as React from "react";
+import { useState } from "react";
 import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
 import { Sidebar, SidebarContent, SidebarRail, useOptionalSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -22,7 +23,15 @@ export type RailItem = {
   exact?: boolean;
 } & ({ linkOptions: LinkOptions; href?: never } | { href: string; linkOptions?: never });
 
-export type RailGroup = { label?: string; items: RailItem[] };
+export type RailGroup = {
+  label?: string;
+  items: RailItem[];
+  /**
+   * 默认折叠的分组（设置 → 高级，DESIGN.md §57）：标题是一个开关，展开状态记在 localStorage；
+   * 当前页在组里时总是展开。收起成图标栏时照常列出。
+   */
+  collapsible?: { storageKey: string };
+};
 
 export function SectionRail({
   ariaLabel,
@@ -97,20 +106,24 @@ export function SectionRail({
           {/* DESIGN-v3 §6.1：没有「返回应用」胶囊（顶栏主导航就是回去的路），卡片顶部是区域名。 */}
           <div className="rail-title">{title}</div>
           <div className="glass-side-scroll rail-scroll scroll-fade-b">
-            {groups.map((group, gi) => (
-              <div className={cn("rail-group", gi > 0 && "mt-2")} key={group.label ?? gi}>
-                {group.label ? (
-                  <div className="glass-sec">
-                    <span>{group.label}</span>
+            {groups.map((group, gi) =>
+              group.collapsible ? (
+                <CollapsibleGroup group={group} key={group.label ?? gi} />
+              ) : (
+                <div className={cn("rail-group", gi > 0 && "mt-2")} key={group.label ?? gi}>
+                  {group.label ? (
+                    <div className="glass-sec">
+                      <span>{group.label}</span>
+                    </div>
+                  ) : null}
+                  <div className="rail-list">
+                    {group.items.map((item) => (
+                      <NavRow item={item} key={item.title} />
+                    ))}
                   </div>
-                ) : null}
-                <div className="rail-list">
-                  {group.items.map((item) => (
-                    <NavRow item={item} key={item.title} />
-                  ))}
                 </div>
-              </div>
-            ))}
+              ),
+            )}
           </div>
           <RailFooter link={footerLink} />
         </nav>
@@ -119,6 +132,55 @@ export function SectionRail({
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function readOpen(key: string) {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function CollapsibleGroup({ group }: { group: RailGroup }) {
+  const key = group.collapsible?.storageKey ?? "";
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const [stored, setStored] = useState(() => readOpen(key));
+  const here = group.items.some((item) => {
+    const to = item.linkOptions?.to;
+    return typeof to === "string" && (pathname === to || pathname.startsWith(`${to}/`));
+  });
+  const open = stored || here;
+  const toggle = () => {
+    const next = !open;
+    setStored(next);
+    try {
+      window.localStorage.setItem(key, next ? "1" : "0");
+    } catch {
+      /* 隐私模式：只在本次会话里记住 */
+    }
+  };
+  return (
+    <div className="rail-group mt-2">
+      <button
+        aria-expanded={open}
+        className="glass-sec rail-sec-toggle"
+        disabled={here}
+        onClick={toggle}
+        type="button"
+      >
+        <span>{group.label}</span>
+        <IconChevronRight aria-hidden className="rail-sec-chev size-3.5" data-open={open || undefined} />
+      </button>
+      {open ? (
+        <div className="rail-list">
+          {group.items.map((item) => (
+            <NavRow item={item} key={item.title} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

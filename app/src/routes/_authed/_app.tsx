@@ -6,7 +6,7 @@ import { SelfHostBanner } from "@/components/layout/self-host-banner";
 import { PanelRail } from "@/components/panels/panel-rail";
 
 /** Route chunks the avatar menu leads to, fetched once the app is idle so those clicks never wait. */
-const IDLE_PRELOAD = ["/_authed/settings", "/_authed/settings/passwords", "/_authed/admin"] as const;
+const IDLE_PRELOAD = ["/_authed/settings", "/_authed/settings/connected-accounts/", "/_authed/admin"] as const;
 
 function useIdleRoutePreload() {
   const router = useRouter();

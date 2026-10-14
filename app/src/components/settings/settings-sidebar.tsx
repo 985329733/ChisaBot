@@ -5,15 +5,14 @@ import {
   IconBrain,
   IconCloudDownload,
   IconDeviceDesktop,
-  IconFileText,
-  IconKey,
-  IconLayoutGrid,
   IconListDetails,
   IconLock,
   IconMessageChatbot,
   IconPhoto,
+  IconMessageCircle,
   IconPlug,
   IconPuzzle,
+  IconRoute,
   IconShieldCheck,
   IconSparkles,
   IconWorld,
@@ -26,16 +25,18 @@ import type { Sidebar } from "@/components/ui/sidebar";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 
 /**
- * 「设置」— 偏好设置与管理后台合并后的唯一左栏（2026-10-12 大幅精简）。
+ * 「设置」— 偏好设置与管理后台合并后的唯一左栏。
  *
- * ChisaBot 多为单人自部署，两套左栏、两个入口只会让人找不到东西。路由不变（/settings/*、/admin/*），
- * 只是共用这一张卡；管理员额外看到「模型 / 机器人能力 / 系统」三组。
- *
- * 已从导航移除（路由仍在，直接访问可用）：组件库、密码（并入已连接账号）、模型平台 Magpie（模型页内入口）、
- * 管理端的电脑操作（与个人端同一批设备）、自动学习、部署概览（只是本左栏的重复链接）、游乐场、谁可以进入。
+ * 导航收敛（2026-10-14，DESIGN.md §57）后分三组：
+ * - 个人：通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 密钥 · 设备 · IM 接入（后续功能页也放这里）；
+ * - 管理（仅管理员）：模型（凭据并入模型页）· 图片生成 · 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
+ * - 高级（默认折叠）：工作流 · 插件与 MCP。
+ * 技能管理并入 设置 → 技能（管理员在页内进入），UI 组件不再出现在导航里。路由都还在，旧地址会重定向。
+ * 左栏底部「返回聊天」是从设置回到对话的路（顶栏不再有分段导航）。
  */
 const PERSONAL: RailGroup[] = [
   {
+    label: "个人",
     items: [
       {
         title: "通用",
@@ -99,28 +100,22 @@ const PERSONAL: RailGroup[] = [
 
 const ADMIN: RailGroup[] = [
   {
-    label: "模型",
+    label: "管理",
     items: [
-      { title: "模型", sub: "接口、默认模型、Magpie 网关", icon: IconBrain, linkOptions: { to: "/admin/models" } },
+      { title: "模型", sub: "接口、默认模型、模型密钥", icon: IconBrain, linkOptions: { to: "/admin/models" } },
       { title: "图片生成", sub: "机器人画图、改图用的模型", icon: IconPhoto, linkOptions: { to: "/admin/images" } },
-      { title: "凭据", sub: "部署持有的密钥和令牌", icon: IconKey, linkOptions: { to: "/admin/credentials" } },
-    ],
-  },
-  {
-    label: "机器人能力",
-    items: [
-      { title: "插件", sub: "可接入的服务", icon: IconPuzzle, linkOptions: { to: "/admin/plugins" } },
-      { title: "技能管理", sub: "部署共享的技能、授权", icon: IconFileText, linkOptions: { to: "/admin/skills" } },
       { title: "云端浏览器", sub: "机器人的浏览器与登录状态", icon: IconWorld, linkOptions: { to: "/admin/computers" } },
-      { title: "UI 组件", sub: "对话里可绘制的片段", icon: IconLayoutGrid, linkOptions: { to: "/admin/components" } },
       { title: "权限规则", sub: "机器人永远不能做的事", icon: IconShieldCheck, linkOptions: { to: "/admin/boundaries" } },
+      { title: "系统更新", sub: "版本、升级与自检", icon: IconCloudDownload, linkOptions: { to: "/admin/system-update" } },
+      { title: "活动记录", sub: "所有操作记录", icon: IconListDetails, linkOptions: { to: "/admin/audit" } },
     ],
   },
   {
-    label: "系统",
+    label: "高级",
+    collapsible: { storageKey: "chisabot-settings-advanced" },
     items: [
-      { title: "系统更新", sub: "版本与升级", icon: IconCloudDownload, linkOptions: { to: "/admin/system-update" } },
-      { title: "审计", sub: "所有操作记录", icon: IconListDetails, linkOptions: { to: "/admin/audit" } },
+      { title: "工作流", sub: "多步骤的固定流程", icon: IconRoute, linkOptions: { to: "/workflows" } },
+      { title: "插件与 MCP", sub: "接入外部服务和 MCP 服务器", icon: IconPuzzle, linkOptions: { to: "/admin/plugins" } },
     ],
   },
 ];
@@ -131,6 +126,7 @@ export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
     <SectionRail
       ariaLabel={"设置分区"}
       title={"设置"}
+      footerLink={{ label: "返回聊天", to: "/", icon: IconMessageCircle }}
       groups={user?.role === "admin" ? [...PERSONAL, ...ADMIN] : PERSONAL}
       {...props}
     />

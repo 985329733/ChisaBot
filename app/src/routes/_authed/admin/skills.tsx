@@ -94,9 +94,10 @@ function RouteComponent() {
         </Button>
       }
       description={
-        "命名指令，任何人都可用斜杠调用。技能不添加能力：它只能要求机器人使用机器人已持有的内容，而每次调用仍由管理员决定并记录。"
+        "给这个部署里所有人用的技能，任何人都能用 / 加名字调用。技能不会给机器人新能力，只是告诉它怎么用已有的。"
       }
-      title={"技能"}
+      backButton={{ label: "技能", linkProps: { to: "/settings/skills" } }}
+      title={"共享技能管理"}
     >
       {error ? (
         <p className="text-destructive text-sm" role="alert">
@@ -105,7 +106,7 @@ function RouteComponent() {
       ) : null}
 
       <PageSection
-        description={"为整个部署编写。人们在他们的技能页面上编写自己的。"}
+        description={"给整个部署写的技能。每个人自己的技能在 设置 → 技能 里。"}
         title={"已安装"}
       >
         {/* A read that failed says so; `isPending` goes false on it too, and it is not "none". */}

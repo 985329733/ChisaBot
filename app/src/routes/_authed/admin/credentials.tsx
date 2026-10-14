@@ -90,7 +90,7 @@ function CredentialsPage() {
       action={
         <Button onClick={() => setAdding(true)} size="sm" variant="ghost">
           <IconPlus />
-          {"添加凭据"}
+          {"添加密钥"}
         </Button>
       }
       description={
@@ -105,7 +105,8 @@ function CredentialsPage() {
           中配置。
         </>
       }
-      title={"凭据"}
+      backButton={{ label: "模型", linkProps: { to: "/admin/models" } }}
+      title={"模型密钥"}
     >
       {/*
        * THE FORM IS NOT ON THE PAGE. A credential is added once and then lived with, so a permanent
@@ -122,7 +123,7 @@ function CredentialsPage() {
             }}
           >
             <DialogHeader>
-              <DialogTitle>{"添加凭据"}</DialogTitle>
+              <DialogTitle>{"添加密钥"}</DialogTitle>
               <DialogDescription>
                 {"为此次部署持有，一旦保存后不再显示"}
               </DialogDescription>

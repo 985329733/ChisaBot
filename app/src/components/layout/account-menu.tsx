@@ -1,12 +1,11 @@
 import {
-  IconBell,
-  IconDevices,
+  IconAlarm,
+  IconInbox,
   IconLogout,
   IconMoon,
   IconQrcode,
   IconSelector,
   IconSettings,
-  IconShieldCheck,
   IconUserCircle,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,8 +46,8 @@ function preloadAccountDialogs() {
  * 账号（DESIGN-v4）：左栏最底下一张小玻璃卡 —— 头像 + 名字 + 版本号，点开账号菜单（向上弹出）。
  * 聊天、偏好设置、管理后台三个区域都在同一个位置。左栏收起后只剩头像，菜单向右弹出。
  *
- * 菜单只放「我」的事：个人资料 · 设置 · 审批 · 通知 ‖ 绑定手机 · 设备管理（DESIGN.md §33）‖ 管理后台（管理员）‖ 暗色外观 ‖ 退出登录。
- * 其余设置项（已连接账号、密码、模型、凭据…）在偏好设置 / 管理后台的左栏里，不在这里重复。
+ * 菜单只放「我」的事（DESIGN.md §57 导航收敛）：个人资料 · 设置 · 定时任务 · 待处理（审批角标）‖ 绑定手机 ‖ 暗色外观 ‖ 退出登录。
+ * 「通知」（上游 Slack/Teams/短信可达性页）去掉了，IM 接入在设置里；设备管理在 设置 → 设备。
  */
 export function AccountMenu({
   compact = false,
@@ -178,13 +177,13 @@ export function AccountMenu({
             }}
           />
           <Row icon={<IconSettings className={icon} />} label={"设置"} onClick={() => go("/settings")} />
+          <Row icon={<IconAlarm className={icon} />} label={"定时任务"} onClick={() => go("/settings/schedules")} />
           <Row
-            hint={pending > 0 ? `${pending} 项待审批` : undefined}
-            icon={<IconShieldCheck className={icon} />}
-            label={"审批"}
+            hint={pending > 0 ? `${pending} 项` : undefined}
+            icon={<IconInbox className={icon} />}
+            label={"待处理"}
             onClick={() => go("/approvals")}
           />
-          <Row icon={<IconBell className={icon} />} label={"通知"} onClick={() => go("/reachability")} />
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="glass-sep" />
         <DropdownMenuGroup className="py-1">
@@ -198,7 +197,6 @@ export function AccountMenu({
               setPairOpen(true);
             }}
           />
-          <Row icon={<IconDevices className={icon} />} label={"设备管理"} onClick={() => go("/settings/devices")} />
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="glass-sep" />
         <DropdownMenuGroup className="py-1">

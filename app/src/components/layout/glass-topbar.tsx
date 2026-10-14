@@ -2,13 +2,8 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconMenu2,
-  IconMessageCircle,
-  IconRepeat,
-  IconRoute,
-  IconSparkles,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
@@ -18,12 +13,6 @@ import { canCompact, type DesktopWindowBridge, useDesktopWindow } from "@/lib/de
 import { PROTO_PREVIEW } from "@/lib/proto-preview";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { label: "聊天", Icon: IconMessageCircle, to: "/", match: (p: string) => p === "/" || p.startsWith("/channel") || p.startsWith("/group") || p === "/bot" || p.startsWith("/bot/") },
-  { label: "长期任务", Icon: IconRepeat, to: "/responsibilities", match: (p: string) => p.startsWith("/responsibilities") || p.startsWith("/routines") },
-  { label: "技能", Icon: IconSparkles, to: "/settings/skills", match: (p: string) => p.startsWith("/skills") || p.startsWith("/settings/skills") },
-  { label: "工作流", Icon: IconRoute, to: "/workflows", match: (p: string) => p.startsWith("/workflows") },
-] as const;
 
 export function initialsOf(name: string | null | undefined, email: string | undefined) {
   const trimmed = name?.trim();
@@ -60,12 +49,13 @@ export type ShellScope = "app" | "settings" | "admin";
 /**
  * 顶栏（DESIGN-v4）：只放「应用」和「窗口」的东西。
  *
- * 左 = 字标 + 左栏开关（宽度与左栏对齐）；中 = 主导航；右上角 = 只有窗口按钮（— □ ✕）。
+ * 左 = 字标 + 左栏开关（宽度与左栏对齐）；右上角 = 只有窗口按钮（— □ ✕）。
+ * 中间的分段导航（长期任务 / 技能 / 工作流）已去掉（DESIGN.md §57 导航收敛）：技能、工作流在设置里，
+ * 定时任务和待处理在账号菜单里，从设置回聊天走设置左栏底部的「返回聊天」。
  * 搜索在左栏卡片顶部，账号在左栏最底下，机器人菜单在聊天列头部，面板操作在面板卡片里，
  * 页面操作在各页页头——顶栏右侧不再有任何页面或账号控件。
  */
 export function GlassTopBar({ scope = "app" }: { scope?: ShellScope }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sidebar = useOptionalSidebar();
   const mobile = Boolean(sidebar?.isMobile);
   const desktop = useDesktopWindow();
@@ -106,19 +96,8 @@ export function GlassTopBar({ scope = "app" }: { scope?: ShellScope }) {
         )}
         {sidebar && !mobile ? <RosterToggle scope={scope} /> : null}
       </div>
-      {/* 窄的 PC 窗口（小窗模式，DESIGN.md §36.2）里图标常驻、只有当前一项带字；宽窗口和浏览器里图标隐藏，和以前一样。 */}
-      <nav aria-label={"主导航"} className="glass-seg">
-        {TABS.map((tab) => (
-          <Link
-            className={cn("glass-seg-item", scope === "app" && tab.match(pathname) && "is-on")}
-            key={tab.to}
-            to={tab.to}
-          >
-            <tab.Icon aria-hidden className="glass-seg-ico" />
-            <span className="glass-seg-t">{tab.label}</span>
-          </Link>
-        ))}
-      </nav>
+      {/* 中间留空（网格占位，保持左右两区位置不变）。 */}
+      <span aria-hidden className="glass-topbar-mid" />
       {/* 右区故意留空：右上角只属于窗口。 */}
       <div aria-hidden className="glass-topbar-end" />
       {desktop ? <WindowControls bridge={desktop.bridge} compact={desktop.compact} maximized={desktop.maximized} /> : null}

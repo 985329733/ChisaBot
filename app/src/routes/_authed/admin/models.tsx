@@ -1,4 +1,4 @@
-import { IconCheck, IconNetwork } from "@tabler/icons-react";
+import { IconCheck, IconKey, IconNetwork } from "@tabler/icons-react";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -42,11 +42,17 @@ function ModelSettingsPage() {
   return (
     <PageShell
       action={
-        /* Magpie 网关页已从左栏移除（2026-10-12 精简），从这里进入。 */
-        <Button nativeButton={false} render={<Link to="/admin/magpie" />} size="sm" variant="outline">
-          <IconNetwork />
-          {"Magpie 网关"}
-        </Button>
+        /* Magpie 网关页已从左栏移除（2026-10-12 精简），从这里进入；凭据并入模型（DESIGN.md §57 导航收敛），也从这里进入。 */
+        <div className="flex flex-wrap gap-2">
+          <Button nativeButton={false} render={<Link to="/admin/credentials" />} size="sm" variant="outline">
+            <IconKey />
+            {"模型密钥"}
+          </Button>
+          <Button nativeButton={false} render={<Link to="/admin/magpie" />} size="sm" variant="outline">
+            <IconNetwork />
+            {"Magpie 网关"}
+          </Button>
+        </div>
       }
       description="聊天使用的模型和接口。保存后从下一轮对话开始使用，无需重启。"
       title="模型"

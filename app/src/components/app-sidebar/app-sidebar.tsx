@@ -1,17 +1,13 @@
 import {
-  IconBolt,
-  IconBrain,
   IconDeviceDesktop,
   IconDots,
   IconLayoutDashboard,
   IconPlayerPause,
   IconPlus,
-  IconRobot,
   IconSearch,
   IconStar,
   IconStarFilled,
   IconStarOff,
-  IconUsers,
   IconTrash,
   IconUserCircle,
 } from "@tabler/icons-react";
@@ -94,13 +90,10 @@ import {
 } from "@/components/ui/tooltip";
 import { ChannelPagination } from "./channel-pagination";
 
-/** Destinations that used to be sidebar rows; settings, approvals and admin moved to the avatar menu. */
-const sideLinks = [
-  { to: "/bots", label: "机器人", icon: IconRobot },
-  { to: "/agents", label: "代理", icon: IconBolt },
-  { to: "/team-bots", label: "团队 Bot", icon: IconUsers },
-  { to: "/memory", label: "记忆", icon: IconBrain },
-] as const;
+/*
+ * 左栏只放机器人（用户 2026-10-10 的要求；DESIGN.md §57 导航收敛）：以前底部的「机器人 / 代理 / 团队 Bot / 记忆」
+ * 四个上游入口和列表头的「管理」都去掉了。记忆在 设置 → 记忆，机器人资料在每行的「⋯」里。
+ */
 
 /**
  * The roster, narrowed to what the person typed.
@@ -370,8 +363,8 @@ function BotRow({
 }
 
 /**
- * 机器人「⋯」菜单（DESIGN v4.1 §W5，原来在聊天列头部，现在在左栏机器人行）：
- * 机器人设置 · 查看计算机 · 新话题 · 自定义面板 · 电脑操作… ‖ 设为主机器人 · 机器人资料页 · 恢复运行 ‖ 删除机器人…
+ * 机器人「⋯」菜单（DESIGN v4.1 §W5，在左栏机器人行；DESIGN.md §57 导航收敛后的顺序）：
+ * 机器人资料 · 历史对话 · 新话题 · 面板 · 电脑操作… ‖ 设为主机器人 · 恢复运行 ‖ 删除机器人…
  */
 function BotMenuContent({
   bot,
@@ -425,11 +418,18 @@ function BotMenuContent({
       side={drawer ? "bottom" : "right"}
       sideOffset={drawer ? 4 : 8}
     >
-      <BotChatMenuItems agentId={bot.id} chat={chat} latest={latest} />
+      <DropdownMenuItem
+        className="glass-mi"
+        render={<Link params={{ agentId: bot.id }} to="/bots/$agentId" />}
+      >
+        <IconUserCircle className={icon} />
+        <span className="min-w-0 flex-1">{"机器人资料"}</span>
+      </DropdownMenuItem>
+      <BotChatMenuItems agentId={bot.id} chat={chat} />
       <DropdownMenuItem className="glass-mi" onClick={() => void openPanels()}>
         <IconLayoutDashboard className={icon} />
         <span className="min-w-0 flex-1">
-          <span className="block">{"自定义面板"}</span>
+          <span className="block">{"面板"}</span>
           <span className="glass-mi-sub">{"它做的仪表盘、列表和小工具"}</span>
         </span>
       </DropdownMenuItem>
@@ -442,20 +442,13 @@ function BotMenuContent({
           </span>
         </DropdownMenuItem>
       ) : null}
-      <DropdownMenuSeparator className="glass-sep" />
+      {onToggleMain || paused ? <DropdownMenuSeparator className="glass-sep" /> : null}
       {onToggleMain ? (
         <DropdownMenuItem className="glass-mi" onClick={onToggleMain}>
           {main ? <IconStarOff className={icon} /> : <IconStar className={icon} />}
           <span className="min-w-0 flex-1">{main ? "取消主机器人" : "设为主机器人"}</span>
         </DropdownMenuItem>
       ) : null}
-      <DropdownMenuItem
-        className="glass-mi"
-        render={<Link params={{ agentId: bot.id }} to="/bots/$agentId" />}
-      >
-        <IconUserCircle className={icon} />
-        <span className="min-w-0 flex-1">{"机器人资料页"}</span>
-      </DropdownMenuItem>
       {paused ? (
         <DropdownMenuItem className="glass-mi" onClick={onResume}>
           <IconPlayerPause className={icon} />
@@ -647,7 +640,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </>
           ) : (
             <>
-              {/* The list's own header: title, ＋ 新建机器人 at the top-left, 管理 on the right. */}
+              {/* 列表头：标题 + 「＋ 新建机器人」。 */}
               <div className="glass-list-head">
                 <span className="glass-list-title">{"机器人"}</span>
                 <Tooltip>
@@ -667,13 +660,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     {"新建机器人"}
                   </TooltipContent>
                 </Tooltip>
-                <Link
-                  className="glass-sec-link ml-auto"
-                  title={"管理机器人（右键机器人可设为主机器人）"}
-                  to="/bots"
-                >
-                  {"管理"}
-                </Link>
               </div>
               <div className="glass-side-scroll glass-bot-scroll scroll-fade-b">
                 <HiddenChatBotRow known={new Set(roster.map((bot) => bot.id))} />
@@ -706,20 +692,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </button>
                   ) : null}
                 </div>
-              </div>
-              <div className="glass-side-links">
-                {sideLinks.map((item) => (
-                  <Link
-                    activeProps={{ className: "is-on" }}
-                    className="glass-side-link"
-                    key={item.to}
-                    title={item.label}
-                    to={item.to}
-                  >
-                    <item.icon className="size-4" />
-                    <span>{item.label}</span>
-                  </Link>
-                ))}
               </div>
             </>
           )}
@@ -784,20 +756,6 @@ function BotMiniRail({
               onToggleMain={() => setMainBot(bot.id === mainBotId ? null : bot.id)}
               selected={selectedBotId === bot.id}
             />
-          ))}
-        </div>
-        <div className="glass-mini-links">
-          {sideLinks.map((item) => (
-            <RailTip key={item.to} label={item.label}>
-              <Link
-                activeProps={{ className: "is-on" }}
-                aria-label={item.label}
-                className="glass-mini-link"
-                to={item.to}
-              >
-                <item.icon className="size-[18px]" />
-              </Link>
-            </RailTip>
           ))}
         </div>
       </div>

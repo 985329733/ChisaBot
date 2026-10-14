@@ -154,7 +154,7 @@ function ConnectionStateUnreadable() {
   return (
     <Item size="sm">
       <ItemContent>
-        <ItemTitle>{"您的账号"}</ItemTitle>
+        <ItemTitle>{"你的账号"}</ItemTitle>
         <ItemDescription role="alert">
           {
             "账户连接状态无法加载，因此未显示任何内容。可能存在问题。重新加载页面，如果仍然存在，请检查此部署的日志。"
@@ -716,11 +716,11 @@ function RouteComponent() {
                 ) : (
                   <Item size="sm">
                     <ItemContent>
-                      <ItemTitle>{"您的账号"}</ItemTitle>
+                      <ItemTitle>{"你的账号"}</ItemTitle>
                       <ItemDescription>
                         {youConnected
-                          ? `已连接，因此授予这些工具的机器人使用您的 ${title}。其他人连接自己的。`
-                          : "连接您的账号以尝试此连接器。无需它即可完成设置，并且它仅访问您的文档。"}
+                          ? `已连接：拿到这些工具的机器人会用你的 ${title} 账号。`
+                          : "连上你的账号试试这个连接器。不连也能完成设置；它只会访问你自己的内容。"}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -1061,7 +1061,7 @@ function RouteComponent() {
               {dialog === "client"
                 ? "来自供应商控制台。该密钥存储在此部署的密钥库中，从不读取回。"
                 : dialog === "instance"
-                  ? "您自己的主机名与此供应商。在存储任何内容之前，它会根据他们的模式进行检查。"
+                  ? "你自己在这个服务商的主机名。保存前会按服务商的格式检查。"
                   : "存储在此部署的保险库中，从不读取回来。"}
             </DialogDescription>
           </DialogHeader>
