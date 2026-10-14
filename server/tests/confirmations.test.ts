@@ -253,7 +253,7 @@ describe.skipIf(!url)("confirmations service", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect((await pendingFor("call-dev")).status).toBe("approved");
 
-    // 设备改文件：卡片带着色的 diff（DESIGN.md §XX）
+    // 设备改文件：卡片带着色的 diff（DESIGN.md §62）
     await withConfirmTurn(turn(), () =>
       withConfirmToolCall("call-edit", "device_edit_file", () =>
         confirm.deviceHook.opened({

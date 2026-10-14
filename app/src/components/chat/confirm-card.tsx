@@ -263,7 +263,7 @@ export function ConfirmResumeRow({ text }: { text: string }): ReactNode {
 }
 export const isConfirmResume = (text: string) => text.startsWith(CONFIRM_RESUME_MARKER);
 
-/** 设备改文件的 unified diff：加行绿、删行红、@@ 灰（同 设置 → 设备 的 .device-diff，DESIGN.md §XX）。 */
+/** 设备改文件的 unified diff：加行绿、删行红、@@ 灰（同 设置 → 设备 的 .device-diff，DESIGN.md §62）。 */
 function DiffLines({ diff }: { diff: string }) {
   return (
     <pre className="device-diff is-approval">

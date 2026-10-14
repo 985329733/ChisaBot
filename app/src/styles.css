@@ -6680,7 +6680,7 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .fb-rank { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; background: var(--glass-2); font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
 .fb-add { min-width: 220px; }
-/* ---- §XX 设备编码工具 · 完全访问 · 服务器节点（docs/pc-node.md §12–§14） ---- */
+/* ---- §62 设备编码工具 · 完全访问 · 服务器节点（docs/pc-node.md §12–§14） ---- */
 .device-badge.is-full { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
 .device-group + .device-group { margin-top: 12px; }
 .device-group-t { margin: 0 0 6px 4px; font-size: 13px; font-weight: 500; color: var(--ink-3); }

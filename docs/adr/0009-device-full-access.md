@@ -2,7 +2,7 @@
 
 - 状态：已采纳
 - 日期：2026-10-15
-- 相关：DESIGN.md §XX、§16、§45、§58；docs/pc-node.md §12–§14；BACKLOG CB-006；列 `devices.full_access_until`
+- 相关：DESIGN.md §62、§16、§45、§58；docs/pc-node.md §12–§14；BACKLOG CB-006；列 `devices.full_access_until`
 
 ## 背景
 
