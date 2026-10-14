@@ -12,6 +12,8 @@ import {
   useDisplayText,
 } from "@/components/rich-previews/rich-previews";
 import { WorkerResultRow } from "@/components/chat/worker-card";
+import { ScheduleFiredRow } from "@/components/chat/schedule-row";
+import { SCHEDULE_MARKER } from "../../../../shared/schedules";
 import { useReadMark } from "./thread-inbox";
 import { WORKER_RESULT_MARKER } from "./workers";
 import { renderUnvirtualizedMessageList } from "./message-list";
@@ -100,6 +102,14 @@ function RichUserMessage(props: CopilotChatUserMessageProps) {
   const text = textOf(content);
   const justRead = useReadMark(props.message.id);
   // 后台任务交回来的结果（DESIGN.md §38.2）：一行结果卡，不是用户气泡。
+  // 定时任务到点放进来的消息（DESIGN.md §55）：一行「定时任务」，不是用户气泡。
+  if (text.startsWith(SCHEDULE_MARKER)) {
+    return (
+      <div className="copilotKitMessage worker-result-msg cpk:pt-6" data-copilotkit="" data-testid="schedule-fired-message">
+        <ScheduleFiredRow messageId={props.message.id} text={text} />
+      </div>
+    );
+  }
   if (text.startsWith(WORKER_RESULT_MARKER)) {
     return (
       <div className="copilotKitMessage worker-result-msg cpk:pt-6" data-copilotkit="" data-testid="worker-result-message">

@@ -7,6 +7,7 @@ import { SignInTool } from "./sign-in-tool";
 import { GithubTool } from "./github-tool";
 import { VaultTool } from "./vault-tool";
 import { PagesTool } from "./pages-tool";
+import { ScheduleTool } from "./schedule-tool";
 import { ActiveBotProvider } from "./active-bot";
 import { BotTools } from "./bot-tools";
 import { ComputerTools } from "./computer-tools";
@@ -81,6 +82,8 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
         <GithubTool />
         {/* 页面卡片（DESIGN.md §54）：page_create / page_update / page_publish 在服务器上跑，这里只画。 */}
         <PagesTool />
+        {/* 定时任务的确认卡（DESIGN.md §55）：`schedule_create` 在服务器上执行，这里只画。 */}
+        <ScheduleTool />
         {/*
           Draws a Bot bringing in another Bot. Registers no tool: `message_bot` runs on the server,
           where the grant and the caps are. A hop that happens off-screen is the thing to avoid.

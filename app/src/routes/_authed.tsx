@@ -3,6 +3,7 @@ import { currentUserQueryOptions, needsOnboarding } from "../lib/auth/queries";
 import { ProfileSetupGate } from "../components/layout/profile-dialog";
 import { CopilotProvider } from "../lib/copilot/provider";
 import { AppHotkeys } from "../lib/hotkeys/app-hotkeys";
+import { ScheduleNotifier } from "../components/schedules/notifier";
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ context, location }) => {
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/_authed")({
   component: () => (
     <CopilotProvider>
       <AppHotkeys />
+      <ScheduleNotifier />
       <Outlet />
       <ProfileSetupGate />
     </CopilotProvider>

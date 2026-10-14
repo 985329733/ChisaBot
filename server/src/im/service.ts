@@ -137,6 +137,7 @@ export function createImService(options: ImServiceOptions) {
         text text NOT NULL
       );
       CREATE INDEX IF NOT EXISTS chisabot_im_logs_connection ON chisabot_im_logs (connection_id, id DESC);
+      ALTER TABLE chisabot_im_chats ADD COLUMN IF NOT EXISTS last_inbound jsonb;
     `);
   }
 
@@ -339,6 +340,10 @@ export function createImService(options: ImServiceOptions) {
       return;
     }
     const threadId = await threadFor(row, key);
+    // 定时任务到点要主动推回这个会话（DESIGN.md §55）：记住最近一条消息的回复信息。
+    await sql
+      .unsafe("UPDATE chisabot_im_chats SET last_inbound = $3::text::jsonb WHERE connection_id = $1 AND chat_key = $2", [row.id, key, JSON.stringify(inbound)])
+      .catch(() => {});
     const content = frameInbound(platformName, inbound);
     const started = Date.now();
     void adapter.typing?.(inbound);
@@ -741,6 +746,22 @@ export function createImService(options: ImServiceOptions) {
     authorizeReverse,
     weixinQr,
     weixinQrPoll,
+    /**
+     * 主动把一段文字发到某个 IM 对话（定时任务到点，DESIGN.md §55）：按这个对话最近一条消息的回复信息发。
+     * 有的平台只许在一段时间内被动回复（QQ 官方机器人 msg_id 5 分钟、企业微信智能机器人按消息流式），过期会失败。
+     */
+    async pushToThread(threadId: string, text: string) {
+      const chat = (await sql.unsafe<{ connection_id: string; last_inbound: unknown }[]>("SELECT connection_id, last_inbound FROM chisabot_im_chats WHERE thread_id = $1", [threadId]))[0];
+      if (!chat) throw new Error("找不到这个 IM 对话（可能已经 /new 换了新话题）");
+      const entry = live.get(chat.connection_id);
+      const row = await rowById(chat.connection_id);
+      if (!entry || !row || !row.enabled) throw new Error("IM 连接没有在线");
+      let inbound = chat.last_inbound as ImInbound | string | null;
+      if (typeof inbound === "string") inbound = JSON.parse(inbound) as ImInbound;
+      if (!inbound) throw new Error("这个 IM 对话还没有可回复的消息");
+      await reply(row, entry.adapter, inbound, text);
+      log(row.id, "info", `定时任务推送（${text.length} 字）`);
+    },
     /** IM 回合能不能用电脑 / 设备类工具（连接里的开关）。 */
     allowsDevices: (connectionId: string) => allowDevicesCache.get(connectionId) === true,
     /** 测试用：当前适配器。 */

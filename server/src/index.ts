@@ -7,7 +7,7 @@ import { recoverPanelTaskStatus } from "./panels/task-status";
 import { createGovernedPanelTaskAdapter } from "./panels/task-adapter";
 import { panelTaskRequests } from "./db/schema/panels";
 import { isDeepStrictEqual } from "node:util";
-import type { AbstractAgent } from "@ag-ui/client";
+import type { AbstractAgent, Message } from "@ag-ui/client";
 import {
   IntelligenceAgentRunner,
   type CopilotKitIntelligence,
@@ -50,6 +50,7 @@ import {
   readCoordinationHandoffClaim,
 } from "./agents/handoff-tool";
 import {
+  BotPausedError,
   configureBotLifecycle,
   createBotLifecycleStore,
 } from "./agents/lifecycle";
@@ -208,6 +209,7 @@ import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createGithub } from "./github/service";
 import { createPages } from "./pages/service";
+import { createSchedules } from "./schedules/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
 import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
@@ -2061,6 +2063,30 @@ imService = createImService({
 });
 await imService.ensure();
 
+/*
+ * 定时任务 / 提醒（server/src/schedules，DESIGN.md §55，docs/schedules.md）：在对话里设，到点回到那段对话；
+ * IM 来的同时推回 IM。进程内每 15 秒扫一次（比较交换，不会重复触发）；CHISABOT_SCHEDULES_SWEEP=0 关掉扫描。
+ */
+const schedules = createSchedules(database, {
+  runTurn: governedTurnRunner,
+  runImTurn: imTurnRunner,
+  pushToIm: (threadId, text) => imService!.pushToThread(threadId, text),
+  isThreadActive: (threadId) => localBackend?.control.isActive(threadId) ?? false,
+  ...(localBackend ? { enqueueToThread: (input: { threadId: string; ownerUserId: string; message: Message }) => localBackend.inbox.enqueue({ ...input, kind: "message" }) } : {}),
+  botAvailable: async (ownerUserId, agentId) => {
+    try {
+      const profile = await agentProfileStore.get(await actorFor(ownerUserId), agentId);
+      return Boolean(profile && !profile.deletedAt);
+    } catch {
+      return true;
+    }
+  },
+  isSuspension: (error) => error instanceof HeadlessToolSuspension,
+  isPaused: (error) => error instanceof BotPausedError,
+});
+await schedules.ensure();
+if (process.env.NODE_ENV !== "test" && process.env.CHISABOT_SCHEDULES_SWEEP !== "0") schedules.start();
+
 const panelTaskService = createNormalPanelTaskService({
   database,
   createConversation: async (request) => {
@@ -2451,7 +2477,7 @@ const actorAgentResolver = createActorAgentResolver({
         input.threadId &&
         !input.threadId.startsWith("worker-") &&
         !(await isChannelThread(input.threadId).catch(() => true));
-      const tools = delegating
+      const delegated = delegating
         ? [
             ...coordinated,
             ...(await restrictNamedToolsForWorkflow(initiator, async () =>
@@ -2459,6 +2485,24 @@ const actorAgentResolver = createActorAgentResolver({
             )()),
           ]
         : coordinated;
+      // 定时任务（DESIGN.md §55）：人自己的回合、IM 回合、定时任务到点的回合、后台结果交回的回合；
+      // 后台任务本身、面板刷新、群聊不给。工具要知道「这段对话」，所以从这里给（这里有 threadId）。
+      const imOf = imConnectionOf(initiator);
+      const firing = Boolean((props as { chisabotSchedule?: unknown } | undefined)?.chisabotSchedule) || (initiator?.kind === "routine" && initiator.id.startsWith("schedule:"));
+      const scheduling =
+        input.threadId &&
+        !props?.chisabotWorker &&
+        !input.threadId.startsWith("worker-") &&
+        (!initiator || initiator.kind === "person" || Boolean(imOf) || firing || Boolean(props?.chisabotWorkerDelivery)) &&
+        !(await isChannelThread(input.threadId).catch(() => true));
+      const tools = scheduling
+        ? [
+            ...delegated,
+            ...(await restrictNamedToolsForWorkflow(initiator, async () =>
+              schedules.tools({ owner: actorId, agentId: botId, threadId: input.threadId, imConnectionId: imOf, firing }),
+            )()),
+          ]
+        : delegated;
       const sessionId = props?.panelAuthoring?.sessionId;
       if (typeof sessionId !== "string" || !sessionId || sessionId.length > 128)
         return tools;
@@ -3862,6 +3906,7 @@ const app = createApp(
       ["/api/pages", pages.routes(requireUser)],
       // 公开页面：不用登录（沙箱 CSP，见 server/src/pages/service.ts）。
       ["/p", pages.publicRoutes()],
+      ["/api/schedules", schedules.routes(requireUser)],
       ["/api/link-preview", linkPreviews.routes(requireUser)],
       [
         "/api/workflows",
@@ -4152,6 +4197,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     responsibilitySweep.stop();
     livePanelService.stop();
     wakeUpSweep.stop();
+    schedules.stop();
     wakeUpReaper.stop();
     memorySweep.stop();
     proactiveSweep.stop();
