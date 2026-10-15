@@ -71,10 +71,11 @@ describe("panel design guide", () => {
     const spec = JSON.stringify({
       root: "r",
       elements: {
-        r: { type: "Stack", props: {}, children: ["p", "l1", "l2"] },
+        r: { type: "Stack", props: {}, children: ["p", "l1", "l2", "l3"] },
         p: { type: "Products", props: { items: [1, 2, 3, 4, 5].map(item) }, children: [] },
         l1: { type: "List", props: { items: [{ title: "a" }] }, children: [] },
         l2: { type: "List", props: { items: [{ title: "b" }] }, children: [] },
+        l3: { type: "List", props: { items: [{ title: "c" }] }, children: [] },
       },
     });
     const issues = lintPanelSpec(spec, "测试").join("\n");
