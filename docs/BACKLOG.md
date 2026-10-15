@@ -55,6 +55,7 @@
 | [CB-044](#cb-044) | 登录页预填管理员账号「Ayase」 | 成熟度 Maturity | `type: bug` · `area: infra` · `P1` |
 | [CB-045](#cb-045) | 每人模型额度 / 用量上限 | 成熟度 Maturity | `type: feat` · `area: models` · `P2` |
 | [CB-046](#cb-046) | 两套聊天实现（/bot 与 /channel）收成一套 | 成熟度 Maturity | `type: chore` · `area: chat` · `P1` |
+| [CB-047](#cb-047) | 很长的对话打开时历史晚到，画面停在上面 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` |
 
 ## CB-001
 
@@ -810,9 +811,25 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [x] 定下一条主路径（ADR），另一条只做跳转；现有会话不丢 —— ADR-0013：频道聊天是唯一界面，`/bot` 经 `POST /api/channels/open-thread` 跳转（同一个 thread id，不复制消息），DESIGN.md §68
 - [x] `/bot` 独有的功能搬进频道聊天（确认卡片、服务器行、备用模型小字、回答期间插话、`chisabot-ask`、历史对话、上传进工作区）；频道对话也有委派 / 定时任务 / 本地 agent（只排除多机器人群聊）
 - [x] 所有 e2e 走用户真实点击的路径（聊天滚动、并发 e2e 改成频道选择器）
+- [x] 频道聊天发送那一刻整页往下跳（滚动回归第一次在频道上跑就红，main 同样）—— DESIGN.md §68.4
 - [ ] 第 2 步（`chore/chat-unify-2`）：删掉语音（`/api/voice`、服务器 voice、shared voice-session、前端语音组件）
 
 > 进行中：worker cb-unify，PR 1 `chore/chat-unify-1`。
+
+## CB-047
+
+**很长的对话打开时历史晚到，画面停在上面**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: chat` `P2`
+
+#### 背景
+
+2026-10-15 频道版滚动回归（CB-046）里，174 条消息的对话副本偶尔打开后不在底部（发送前离底部 2 万 px），接着发送要平滑滚很远；
+也见过发送后十几秒「较早的消息」整段补进来、画面被推走。推测：打开时读存下的对话（`readThreadMessages`，4 秒截止）超时，只剩接入快照里的尾巴，
+之后重试 / 回答结束时的再读把前面整段补到上面，滚动区没有按「贴底」保持位置。main 上同一路径未改动。
+
+#### 验收标准
+
+- [ ] 长对话打开后总在底部；历史晚到补在上面时，正在看底部的人画面不动（滚动回归 failtwice / polltick 用长对话连跑 5 次都过）
 
 ## 已完成
 
