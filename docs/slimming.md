@@ -75,7 +75,7 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 - ~~**企业控制闸门**~~ → P6-1 已删（见下）。
 - ~~**SSO / SCIM 插件与 `/api/auth/*` 里的身份提供者分支**~~ → P6-2 已删（见下）。
 - **语音**（`/api/voice`、`voice/`、网页 `voice-call-widget` 与 `lib/voice`）：生产没配置语音（没有任何 VOICE 变量），依赖 `ask_agent`；但前端和 `channel-chat.tsx` / `chat-transcript.tsx` 缠在一起（约 40 处），而这两个文件正被聊天同步（cb-qa）改，等它合并后单独一个 PR 删。
-- **`worker/`**：删它会改依赖指纹、触发一次完整构建，等有别的依赖变动时一起做。
+- ~~**`worker/`**~~ → P6-3 已删（完整构建）。
 
 ## P6 多用户之后的服务端收尾（2026-10-15）
 
@@ -85,3 +85,4 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 |---|---|---|
 | P6-1 | 删 `server/src/admin/`（`gate.ts` 每个 `/api/*` 前的能力开关闸门、`controls.ts`、`capabilities.ts`、`settings-store.ts`、`routes.ts` = `/api/admin/enterprise/*`）：能力开关（生产 0 行，全是默认允许）、模型允许名单与每轮 `model_usage` 记录、电脑动作的企业覆盖层（`setPolicyOverlay`）、MCP 允许名单、网络策略表、动作录制、长期不用的电脑自动停止、离职（offboard）、无头回合的 `headlessTurnRefusal`、审计 OpenTelemetry 导出（`telemetry/`）、`auth/sso-required.ts`；`/api/admin/people`（列表 / 改角色 / 移除 + 离职，前端早已没有入口；朋友账号由网关管理）；`auth/index.ts` 的「强制 SSO」改为恒 false（P6-2 再删整段）。审计类型里这些模块写的类型去掉（旧行照常显示） | `enterprise_settings` 表：现在只是 `model_connection`（默认模型）/ `model_fallbacks`（备用模型）两行的 KV，`model-settings.ts` / `model-fallback-settings.ts` 本来就直接读写，不经过企业控制。电脑网络策略：电脑在收到策略前拒绝一切连接，所以照旧在每次动作前和每 30 秒推一次 `allow_all`（`computer/policy-network.ts` 的 `NO_NETWORK_POLICY` / `startEgressPolicyPush`，和上游「没有组织策略行」时一样）。例行任务审计包装挪到 `routines/audit-store.ts`，`runtimeRun` 挪到 `agents/runtime-path.ts`（行为不变）。表 `capability_settings`、`network_policies`、`action_records`、`model_usage` 留到 P5 |
 | P6-2 | 删 Better Auth SSO / SCIM 插件（`@better-auth/sso`、`@better-auth/scim` 的接入）、`auth/scim.ts`、`auth/identity-provider-store.ts`、`auth/encrypt-sso-config.ts`、`app.ts` 里 `/api/auth/*` 的身份提供者分支、`auth/index.ts` 的强制 SSO / break-glass；前端 `ssoClient` 与 sign 页「公司邮箱」框。审计类型 `identity_provider.*`、`session.break_glass`、`person.*provisioned` 去掉（旧行照常显示） | Better Auth 本身（会话、`users` / `user_roles`）、网关签名身份；`sso_providers` 等表留到 P5。依赖包本身在 P6-3 从 package.json 删 |
+| P6-3 | 删 `worker/`（根 workspaces、Dockerfile、`deploy/Dockerfile.zh` 不再拷它的 package.json）、`scripts/setup-learning*.ts`、`scripts/self-hosted-learning*.ts`、`docs/automatic-learning.md`；依赖 `@better-auth/sso`、`@better-auth/scim`、`@better-auth/expo`（连同 `auth/index.ts` 的 Expo 插件与 `openbotmobile://` 信任来源）、4 个 `@opentelemetry/*`；`bun.lock` 重生成 → 依赖指纹变化，部署是完整构建 | `learning_*` 等表、`shared/learning.ts` |
