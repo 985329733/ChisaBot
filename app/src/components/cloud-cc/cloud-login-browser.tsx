@@ -106,12 +106,20 @@ export function CloudLoginBrowser({ onDone, onCancel, phone }: { onDone: (claude
     [],
   );
 
+  // 输入按顺序发：同一时间只有一个请求在路上（并发的请求可能乱序，Tab 和回车颠倒就点错了）
+  const inFlight = useRef(false);
   const flush = useCallback(() => {
     flushTimer.current = null;
     const l = loginRef.current;
-    if (!l || !queue.current.length) return;
+    if (!l || !queue.current.length || inFlight.current) return;
     const events = queue.current.splice(0, 200);
-    void client(`/api/cloud-workspace/claude/login/browser/${encodeURIComponent(l.id)}/input`, { method: "POST", body: { events } }).catch(() => {});
+    inFlight.current = true;
+    void client(`/api/cloud-workspace/claude/login/browser/${encodeURIComponent(l.id)}/input`, { method: "POST", body: { events } })
+      .catch(() => {})
+      .finally(() => {
+        inFlight.current = false;
+        if (queue.current.length) flush();
+      });
   }, []);
   const push = useCallback(
     (e: CcBrowserInput, soon = false) => {

@@ -286,8 +286,13 @@ function createRemoteBrowser(o) {
     End: { code: "End", keyCode: 35 },
   };
 
-  /** 网页发来的输入。不记录内容。 */
-  async function input(events) {
+  /** 网页发来的输入，按到达顺序一批一批执行（不并发，免得乱序）。不记录内容。 */
+  let chain = Promise.resolve();
+  function input(events) {
+    chain = chain.then(() => runInput(events)).catch(() => {});
+    return chain;
+  }
+  async function runInput(events) {
     if (!pageSession || closed) return;
     for (const e of (Array.isArray(events) ? events : []).slice(0, 200)) {
       const x = Math.max(0, Math.min(width, Number(e.x) || 0));
