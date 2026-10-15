@@ -67,6 +67,11 @@
 | [CB-056](#cb-056) | 管理页英文：插件目录说明、权限规则快捷规则说明、活动记录事件类型（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
 | [CB-057](#cb-057) | 活动记录表格在 390 宽被截掉右边几列（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `area: pwa` · `P2` |
 | [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示（完成） | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
+| [CB-061](#cb-061) | 云端 Claude Code P1：云端工作区节点 + 网页登录 Claude | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: in-progress` |
+| [CB-062](#cb-062) | 云端 Claude Code P2：左栏切换、会话、对话、审批、右栏 / 手机抽屉 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: chat` · `P1` |
+| [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` |
+| [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` |
+| [CB-065](#cb-065) | 云端 Claude Code P5：ChisaCloudCode 留还是下线 | 设备核心 Devices core | `type: chore` · `area: infra` · `P2` · `status: needs-user` |
 
 ## CB-001
 
@@ -981,6 +986,61 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 
 #### 验收标准
 - [x] 先定设计（行高 36px / 管理与高级可折叠 / 高级并入管理），再改；手机抽屉不受影响——三组都能折叠、默认只展开当前页所在的组，矮屏行高 34（DESIGN.md §71.7）
+
+## CB-061
+
+**云端 Claude Code P1：云端工作区节点 + 网页登录 Claude**  
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: infra` `P1` `status: in-progress`
+
+#### 背景
+用户 2026-10-15：在 ChisaBot 云端集成 Claude Code（设计 docs/cloud-claude-code.md、ADR-0014）。
+
+#### 验收标准
+- [ ] `deploy/cloud-node/`：非 root、cap_drop ALL、根文件系统只读、不挂 docker.sock、不用 host 网络、`--no-full-access`；防火墙丢弃到私有网段和主机
+- [ ] 设备列表里「云端工作区」在线；连其他容器 / 主机端口失败；开不了完全访问
+- [ ] 设置 → 云端工作区：用 Claude 订阅登录（授权页 → 粘授权码）、退出、重新检查；模拟 CLI 走完成功 / 出错 / 过期 / 取消 / 退出
+- [ ] 授权码和令牌不进数据库和日志（grep 检查）
+- [ ] 真实登录由用户点一次（needs-user）
+
+## CB-062
+
+**云端 Claude Code P2：左栏切换、会话、对话、审批、右栏 / 手机抽屉**  
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: chat` `P1`
+
+#### 验收标准
+- [ ] 左栏切换「机器人｜Claude Code」（记住选择）；工作区 → 会话树，先只有内置「草稿」
+- [ ] 同一个会话两轮共享上下文（`--resume`）；「新 Claude 会话」清掉上下文；停止 1 秒内生效；回答中再发一条排队
+- [ ] `npm test` 出审批卡，允许后执行、拒绝后 Claude 换办法；「本会话总是允许」；`git push` 被拒并提示「推送并开 PR」
+- [ ] 刷新 / 换设备后接着看正在写的回答
+- [ ] 右栏「这一轮」diff + 只读文件，可收起；390 宽底部抽屉能拉起能收；亮 / 暗截图
+
+## CB-063
+
+**云端 Claude Code P3：GitHub 工作区**  
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: github` `P1`
+
+#### 验收标准
+- [ ] 新建 → 从 GitHub：按钮「克隆中… → 已创建 ✓」；节点磁盘上没有 GitHub 令牌
+- [ ] 每个会话一个 worktree + `cc/…` 分支；合入工作目录（冲突时不动 `work/`）；推送并开 PR 要审批，出 PR 链接卡
+- [ ] 右栏「相对 main」「工作目录」两个视图
+
+## CB-064
+
+**云端 Claude Code P4：电脑文件夹同步**  
+里程碑：0.2.0 release · 标签：`type: feat` `area: pc` `area: agents` `P2`
+
+#### 验收标准
+- [ ] `chisabot-sync`（从 ChisaCloudCode 桌面端 Go 代码移入，逐文件确认来源）+ 自编译 MIT 版 Mutagen 0.18.1（不加 `--sspl`）
+- [ ] 同步边车 sshd 只听 127.0.0.1:2222，主机没有新端口；隧道走网关 + 一次性票
+- [ ] 五种状态、交接 ①–⑤、冲突三选项，没有一次静默覆盖；先只做 Windows；发 PC 新版
+
+## CB-065
+
+**云端 Claude Code P5：ChisaCloudCode 留还是下线**  
+里程碑：设备核心 Devices core · 标签：`type: chore` `area: infra` `P2` `status: needs-user`
+
+#### 验收标准
+- [ ] P4 上线两周后按使用情况给出建议；动 ChisaCloudCode 之前问用户
 
 ## 已完成
 

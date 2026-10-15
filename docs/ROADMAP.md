@@ -22,6 +22,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 条目 | 内容 | 里程碑 | 分支 |
 |---|---|---|---|
+| [CB-061](BACKLOG.md#cb-061) / [CB-062](BACKLOG.md#cb-062) | 云端 Claude Code：云端工作区节点 + Claude 登录（P1）→ Claude Code 标签页（P2）（[设计](cloud-claude-code.md)、ADR-0014） | 设备核心 | `feat/cloud-cc-*` |
 | [CB-047](BACKLOG.md#cb-047) / [CB-050](BACKLOG.md#cb-050) | 长对话打开时历史晚到；商品推荐带图网格（向 Hark 看齐 第五轮） | 成熟度 / Hark parity | `feat/harkchat-*` |
 
 ## 接下来
@@ -40,6 +41,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 条目 | 内容 | 条件 |
 |---|---|---|
+| [CB-063](BACKLOG.md#cb-063) / [CB-064](BACKLOG.md#cb-064) / [CB-065](BACKLOG.md#cb-065) | 云端 Claude Code P3 GitHub 工作区、P4 电脑同步（PC 新版）、P5 ChisaCloudCode 去留 | P2 上线后；P5 要问用户 |
 | [CB-015](BACKLOG.md#cb-015) | 瘦身 P4c 其余合并（旧面板、components、responsibilities、审批规则…；routines 已并入定时任务 #143） | 各自依赖的功能上线并稳定后 |
 | [CB-016](BACKLOG.md#cb-016) | 瘦身 P5 DROP 空表 | P4b 上线 ≥ 2 周 |
 | [CB-013](BACKLOG.md#cb-013) | Google 账号连接 | 用户说不急，Hark parity 最后一项 |
