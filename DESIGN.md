@@ -1389,8 +1389,6 @@ CB-003 第 3 轮（CB-051 起）。新朋友视角走一遍聊天以外的每个
 
 **71.5 验证**（71.6、71.7 同；71.7 另有 `rail.mjs` / `rail2.mjs` 量四种屏幕、点开记住、手机抽屉）：`app/tests/approvals-rules.test.tsx`（待处理三组、交给你的一步不能替你允许、没有上游开关）；预览 `sw3.mjs` 1280 亮 / 390 暗截图；`tests/chat-scroll/regression.sh` 7/7 + 链接。
 
-**71.5 验证**：`app/tests/approvals-rules.test.tsx`（待处理三组、交给你的一步不能替你允许、没有上游开关）；预览 `sw3.mjs` 1280 亮 / 390 暗截图；`tests/chat-scroll/regression.sh` 7/7 + 链接。
-
 
 ## 72. 商品 / 地点推荐：带图的卡片网格（2026-10-15，Hark 第五轮）
 
