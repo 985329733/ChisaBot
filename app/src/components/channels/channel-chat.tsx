@@ -138,12 +138,6 @@ export function channelHistoryNotice({
   return null;
 }
 
-/**
- * Insert missing durable messages before their next shared ID, keeping local content and order.
- * A shorter read can still contain missing turns after unreadable rows are filtered out. Without a
- * following shared anchor, append the missing tail: the store cannot place it among local-only rows.
- * Return the original array when nothing was added so refreshes can wait for the store to catch up.
- */
 /** 一条消息里的文字（多段内容只取文字段）。 */
 function messageText(message: Message): string {
   if (typeof message.content === "string") return message.content;
@@ -157,6 +151,12 @@ function messageText(message: Message): string {
     .join("\n");
 }
 
+/**
+ * Insert missing durable messages before their next shared ID, keeping local content and order.
+ * A shorter read can still contain missing turns after unreadable rows are filtered out. Without a
+ * following shared anchor, append the missing tail: the store cannot place it among local-only rows.
+ * Return the original array when nothing was added so refreshes can wait for the store to catch up.
+ */
 function mergeStoredMessages(local: Message[], stored: Message[]): Message[] {
   const localIds = new Set(local.map((message) => message.id));
   const seenStored = new Set<string>();
