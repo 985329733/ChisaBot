@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { callTool } from "../src/plugins/builtin-routines";
+import { callTool } from "../src/plugins/builtin-triggers";
 import { catalogueEntry, classifyTool } from "../src/plugins/catalogue";
 import { createSlackTriggerIngest } from "../src/responsibilities/slack";
 import { useTriggerTools } from "../src/responsibilities/trigger-tools";
@@ -124,12 +124,9 @@ test("list, pause, resume and delete act only on the Bot's own triggers", async 
   ]);
 });
 
-test("every routine and trigger mutation is a write, so the approvals gate sees it", () => {
+test("every trigger mutation is a write, so the approvals gate sees it", () => {
   const entry = catalogueEntry("routines");
   for (const name of [
-    "create_routine",
-    "update_routine",
-    "delete_routine",
     "create_trigger",
     "pause_trigger",
     "resume_trigger",

@@ -105,7 +105,7 @@ describe("what started a run", () => {
   test("a boundary refusal is the deployment, and is not swept up by nobody watching", async () => {
     const TARGET = target();
     await store.insert({
-      eventType: "routines.dispatch_refused",
+      eventType: "mcp.callback_refused",
       targetType: "worker",
       targetId: TARGET,
       initiator: { kind: "deployment" },

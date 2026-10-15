@@ -1058,8 +1058,9 @@
 - **到点**（`server/src/schedules/service.ts`，表 `chisabot_schedules` / `chisabot_schedule_runs`，开机建表）：进程内每 15 秒扫一次；`next_run_at` 的比较交换和插入运行记录在同一条语句里，抢到的进程才触发，新旧容器并存或多副本也不重复。往**原来那段对话**放一条「⟦chisabot:schedule:…⟧」开头的消息，网页画成一行（和后台任务结果同款：闹钟图标 · 「定时任务「x」到点了（今天 09:00）」· 详情展开看说明），机器人照说明做完在下面回复。对话正被一轮占着就排进那一轮的收件箱；来自 IM 的任务用 IM 的回合跑，回复同时推回那个 IM 会话（按最近一条消息的回复信息；QQ 官方机器人 / 企业微信智能机器人的被动回复有时效，过期会失败并记在结果里）。机器人删了 → 任务自动取消；原对话没了 → 用这个机器人最近的对话。
 - **停机错过**：周期任务晚了超过 30 分钟就跳过这一次（记「已跳过」），从现在排下一次，不补发；一次性提醒晚 6 小时以内照发并注明晚了多少，更晚记「错过」。
 - **通知**：任务跑完，网页右下角出一条带「查看」的提示（`components/schedules/notifier.tsx`，每 20 秒问一次，只报打开页面之后的）；页面在后台且允许了浏览器通知时再发系统通知。
-- **机器人工具**：`schedule_create` / `schedule_list` / `schedule_update`（名字、说明、时间、时区、`paused`）/ `schedule_cancel` / `schedule_skip_next` / `schedule_run_now`。人自己的回合、IM 回合、到点的回合、后台结果交回的回合有；后台任务本身、面板刷新、群聊没有。上游 `schedule_follow_up` 保留，只给机器人自己回头检查用。
+- **机器人工具**：`schedule_create` / `schedule_list` / `schedule_update`（名字、说明、时间、时区、`paused`）/ `schedule_cancel` / `schedule_skip_next` / `schedule_run_now`。上游 Routines 的 `create_routine` / `list_routines` / `update_routine` / `delete_routine` 在瘦身 P4c（2026-10-15）删掉，定时只剩这一套。人自己的回合、IM 回合、到点的回合、后台结果交回的回合有；后台任务本身、面板刷新、群聊没有。上游 `schedule_follow_up` 保留，只给机器人自己回头检查用。
 - **设置 → 定时任务**（`/settings/schedules`，左栏「技能」下面）：分「进行中 / 已暂停 / 最近结束（7 天）」三组卡片，一行一个：闹钟图标（进行中蓝、其他灰）· 名字 · 时间安排 + 机器人名 chip（IM 来的加「IM」chip）· 第二行「下次 明天 09:00 · 上次已完成 · 3 分钟前 · 结果摘要（单行截断）」；右侧「立即运行」（按钮状态机：启动中… → 已开始）· 暂停开关 · ⋯（立即运行 / 跳过下一次 / 打开对话 / 删除…）。窄于 640px 时「立即运行」只在 ⋯ 里。点行打开详情弹窗：到点时做什么、下次运行、最近 5 次运行（状态色 · 时间 · 结果）。删除先确认，不可撤销。
+- **只有一套（瘦身 P4c，2026-10-15）**：上游 Routines（表 `routines` / `routine_runs`，按频道发、cron、`/api/routines`、`/internal/routines/run` + `WORKER_SHARED_SECRET` 的进程内扫描、宿主机 `openbot-zh-routines.timer`、`fire-routines.ts`）整套删掉，表留到 P5；`/routines` 重定向到 `/settings/schedules`。机器人资料「动态」里的定时项、重置 / 删除机器人提示里的「N 个定时任务」都读 `chisabot_schedules`（重置会取消这个机器人为你设的进行中 / 已暂停任务）。无头回合的运行器挪到 `server/src/turns/`，审计里无头回合的 initiator 仍记 `routine`（数据格式不变）。
 
 ## 56. 聊天文件与图片生成：上传进工作区、文件卡、画图改图（2026-10-14）
 
@@ -1092,7 +1093,7 @@
 
 ### 58.1 哪些事算「有后果」（四类）
 - **对外发消息**：代你给别人发消息、邮件，在群里 / 网站上发帖（连接器 / MCP 里名字带 send / reply / post / email / comment… 的工具；以后的 IM 主动发送、发邮件接同一个入口）。
-- **删除**：删除文件、机器人、任务、面板等（`delete_routine` / `delete_trigger` / `panel_remove`，连接器里带 delete / remove / trash… 的工具）。
+- **删除**：删除文件、机器人、任务、面板等（`delete_trigger` / `panel_remove` / `page_delete`，连接器里带 delete / remove / trash… 的工具）。
 - **付款购买**：下单、付款、转账、订阅。**一律先问，不能改成直接做**（安全底线）；设置里这一行的「直接做」是禁用的，规则也不能设成直接做。
 - **操作你的电脑**：只问在 设置 → 设备 → 权限 里设成「询问」的能力（§45）；「关闭」的照旧用不了；偏好改成「直接做」= 询问的能力不再弹窗。
 - 不拦：记忆、技能、保险箱、联网、面板更新这些记录类 / 只读工具（`memory_forget` 是用户自己要求的、设置里有撤销）；`post_to_group`（机器人在群里说话）；GitHub 工具（自己有写入确认，§GitHub）。名字以 list / get / search / read… 开头的连接器工具不算。规则在 `server/src/confirmations/classify.ts`，只有这一份。

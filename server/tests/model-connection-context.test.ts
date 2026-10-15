@@ -7,7 +7,7 @@ import {
   resolveScopedModelConnection,
   withModelConnectionScope,
 } from "../src/model-connection-context";
-import { createTurnRunner } from "../src/routines/run-turn";
+import { createTurnRunner } from "../src/turns/run-turn";
 
 function connection(revision: number): RuntimeModelConnection {
   return {

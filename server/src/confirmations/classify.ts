@@ -113,7 +113,6 @@ const ARG_LABEL: Record<string, string> = {
 /** 一个工具调用在卡片上的标题（没有专门写的就用工具名）。 */
 export function titleForTool(name: string, category: ConfirmCategory): string {
   const known: Record<string, string> = {
-    delete_routine: "删除一个长期任务",
     delete_trigger: "删除一个触发器",
     panel_remove: "删除右栏的一张面板",
     page_delete: "删除一个页面（链接立刻失效，素材一起删）",

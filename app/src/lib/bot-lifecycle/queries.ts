@@ -27,7 +27,7 @@ export type BotAttention = {
 };
 
 export type ActivityKind =
-  | "routine"
+  | "schedule"
   | "responsibility"
   | "handoff"
   | "approval"
@@ -61,7 +61,8 @@ export type ResetPlan = {
   sharedConversationsKept: number;
   memorySources: number;
   memories: number;
-  routines: number;
+  /** Active or paused schedules (定时任务) the reset cancels. */
+  schedules: number;
   responsibilities: number;
   followUps: number;
   formedMemories: number;

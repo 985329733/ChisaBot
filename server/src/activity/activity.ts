@@ -1,10 +1,11 @@
 /**
  * What one Bot is doing for one person, and what it needs from them.
  *
- * READ FROM THE LEDGERS THAT ALREADY EXIST, never copied into a new one: routine runs, responsibility
- * runs, the hop queue, approval requests, saved questions and follow-ups. A second ledger would
- * drift from the first the moment one of them gained a state, and Activity would then say something
- * the routines page contradicts.
+ * READ FROM THE LEDGERS THAT ALREADY EXIST, never copied into a new one: schedules and their runs
+ * (`chisabot_schedules`, DESIGN.md §55 — they replaced upstream routines in slimming P4c),
+ * responsibility runs, the hop queue, approval requests, saved questions and follow-ups. A second
+ * ledger would drift from the first the moment one of them gained a state, and Activity would then
+ * say something the schedules page contradicts.
  *
  * EVERY QUERY IS NARROWED TO THE PERSON FIRST. A public Bot works for many people; this screen shows
  * the work done in the caller's name and nothing of anybody else's.
@@ -22,14 +23,12 @@ import {
   responsibilities,
   responsibilityEvents,
   responsibilityRuns,
-  routineRuns,
-  routines,
   workItems,
 } from "../db/schema";
 import { DEFAULT_MAX_ATTEMPTS } from "../work/queue";
 
 export type ActivityKind =
-  | "routine"
+  | "schedule"
   | "responsibility"
   | "handoff"
   | "approval"
@@ -133,58 +132,88 @@ export function createActivityStore(database: Database) {
       };
       const now = Date.now();
 
-      // Routines: the standing schedule, and each firing.
-      const ownedRoutines = await database
-        .select()
-        .from(routines)
-        .where(
-          and(
-            eq(routines.ownerUserId, ownerUserId),
-            eq(routines.agentId, agentId),
-          ),
+      // Schedules (§55): the standing ones, and each run. The table is created at boot by the
+      // schedules service, so a database without it (tests) simply has no schedules.
+      type ScheduleRow = {
+        id: string;
+        title: string;
+        instruction: string;
+        kind: string;
+        cron: string | null;
+        timezone: string;
+        status: string;
+        thread_id: string;
+        next_run_at: Date | string | null;
+      };
+      type ScheduleRunRow = {
+        id: string;
+        schedule_id: string;
+        status: string;
+        result: string | null;
+        started_at: Date | string;
+        finished_at: Date | string | null;
+      };
+      const [present] = (await database.execute<{ present: boolean }>(
+        sql`select to_regclass('public.chisabot_schedules') is not null as present`,
+      )) as unknown as { present?: boolean }[];
+      if (present?.present) {
+        const schedules = (await database.execute(
+          sql`select id, title, instruction, kind, cron, timezone, status, thread_id, next_run_at
+                from chisabot_schedules
+               where owner_user_id = ${ownerUserId} and agent_id = ${agentId}
+                 and (status in ('active', 'paused') or updated_at > now() - interval '7 days')`,
+        )) as unknown as ScheduleRow[];
+        const channelOf = await channelsForThreads(
+          schedules.map((row) => row.thread_id),
         );
-      for (const routine of ownedRoutines)
-        if (routine.enabled)
-          activity.scheduled.push({
-            id: `routine:${routine.id}`,
-            kind: "routine",
-            title: clip(routine.instruction, 120) ?? "Routine",
-            detail: `Repeats on ${routine.cron} (${routine.timezone})`,
-            status: "scheduled",
-            at: iso(routine.nextRunAt),
-            channelId: routine.channelId,
-            needsYou: false,
-            stoppable: false,
-            cancellable: false,
-          });
-      if (ownedRoutines.length > 0) {
-        const byId = new Map(
-          ownedRoutines.map((routine) => [routine.id, routine]),
-        );
-        const runs = await database
-          .select()
-          .from(routineRuns)
-          .where(inArray(routineRuns.routineId, [...byId.keys()]))
-          .orderBy(desc(routineRuns.startedAt))
-          .limit(COMPLETED_LIMIT * 2);
-        for (const run of runs) {
-          const routine = byId.get(run.routineId);
-          if (!routine) continue;
-          const item: ActivityItem = {
-            id: `routine-run:${run.id}`,
-            kind: "routine",
-            title: clip(routine.instruction, 120) ?? "Routine",
-            detail: clip(run.error),
-            status: run.status ?? "running",
-            at: iso(run.finishedAt ?? run.startedAt),
-            channelId: routine.channelId,
-            needsYou: run.status === "waiting",
-            stoppable: false,
-            cancellable: false,
-          };
-          if (run.status === null || run.status === "waiting")
-            activity.inProgress.push(item);
-          else activity.completed.push(item);
+        for (const row of schedules)
+          if (row.status === "active")
+            activity.scheduled.push({
+              id: `schedule:${row.id}`,
+              kind: "schedule",
+              title: clip(row.title || row.instruction, 120) ?? "定时任务",
+              detail:
+                row.kind === "once"
+                  ? "一次性"
+                  : `${row.cron ?? row.kind} (${row.timezone})`,
+              status: "scheduled",
+              at: iso(row.next_run_at),
+              channelId: channelOf.get(row.thread_id) ?? null,
+              needsYou: false,
+              stoppable: false,
+              cancellable: false,
+            });
+        if (schedules.length > 0) {
+          const byId = new Map(schedules.map((row) => [row.id, row]));
+          const runs = (await database.execute(
+            sql`select id, schedule_id, status, result, started_at, finished_at
+                  from chisabot_schedule_runs
+                 where owner_user_id = ${ownerUserId}
+                   and schedule_id in (${sql.join(
+                     [...byId.keys()].map((id) => sql`${id}`),
+                     sql`, `,
+                   )})
+                 order by started_at desc limit ${COMPLETED_LIMIT * 2}`,
+          )) as unknown as ScheduleRunRow[];
+          for (const run of runs) {
+            const schedule = byId.get(run.schedule_id);
+            if (!schedule) continue;
+            const item: ActivityItem = {
+              id: `schedule-run:${run.id}`,
+              kind: "schedule",
+              title: clip(schedule.title || schedule.instruction, 120) ?? "定时任务",
+              detail: clip(run.result),
+              status: run.status === "ok" ? "succeeded" : run.status,
+              at: iso(run.finished_at ?? run.started_at),
+              channelId: channelOf.get(schedule.thread_id) ?? null,
+              needsYou: false,
+              stoppable: false,
+              cancellable: false,
+            };
+            if (["running", "queued", "waiting"].includes(run.status))
+              activity.inProgress.push(item);
+            else activity.completed.push(item);
+          }
         }
       }
 

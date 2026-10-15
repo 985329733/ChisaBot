@@ -41,7 +41,7 @@ import {
 import { groupBotThreads, groupMessages } from "../db/schema/group";
 import { workItems } from "../db/schema/work";
 import type { CheckPrivateShare } from "../proactive/private-share";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import type { WorkQueue } from "../work/queue";
 
 export const GROUP_TURN_KIND = "group.turn";

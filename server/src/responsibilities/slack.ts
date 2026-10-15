@@ -171,7 +171,7 @@ export function createSlackTriggerIngest(
 }
 
 let installed: ((input: unknown) => Promise<SlackIngestResult>) | null = null;
-/** Called once by the server assembly, like `useRoutineTools`. */
+/** Called once by the server assembly, like `useTriggerTools`. */
 export function useSlackTriggerIngest(
   ingest: (input: unknown) => Promise<SlackIngestResult>,
 ) {

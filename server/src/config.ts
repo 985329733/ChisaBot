@@ -311,14 +311,6 @@ export type DeploymentConfig = {
    * than an open door.
    */
   agentToolToken?: string;
-  /**
-   * The secret the worker presents when it hands a routine run back to this server.
-   *
-   * Absent means the internal routines endpoint refuses everything, which is the correct state of a
-   * deployment with no worker — a deployment that has not asked for scheduled turns should not have a
-   * door for them standing open.
-   */
-  workerSharedSecret?: string;
 };
 
 type Environment = Record<string, string | undefined>;
@@ -1218,7 +1210,6 @@ export function loadConfig(
     );
   }
   const managedAgent = managedAgentConfig(environment);
-  const workerSharedSecret = optional(environment, "WORKER_SHARED_SECRET");
   const runtime = runtimeCapabilities(environment);
 
   return {
@@ -1260,7 +1251,6 @@ export function loadConfig(
     ...(optional(environment, "AGENT_TOOL_TOKEN")
       ? { agentToolToken: optional(environment, "AGENT_TOOL_TOKEN") as string }
       : {}),
-    ...(workerSharedSecret ? { workerSharedSecret } : {}),
   };
 }
 

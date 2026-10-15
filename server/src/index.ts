@@ -1,4 +1,3 @@
-import { dispatchClaimedRoutines, offerDueRoutines, ROUTINE_FIRE_KIND } from "./routines/sweep";
 import { createHash, randomUUID } from "node:crypto";
 import { PanelError, type PanelCapability } from "../../shared/panels/types";
 import { createPanelServices } from "./panels/service";
@@ -174,7 +173,6 @@ import {
   channels,
   intelligenceChannelMappings,
   responsibilityRuns,
-  routineRuns,
   users,
 } from "./db/schema";
 import { createDeliveryStore } from "./delivery/store";
@@ -205,7 +203,6 @@ import { createSignInService } from "./passwords/service";
 import { createPasswordStore } from "./passwords/store";
 import { createOnboardingStore } from "./people/onboarding";
 import { createPeopleStore } from "./people/store";
-import { useRoutineTools } from "./plugins/builtin-routines";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
 import { backfillComposioLogos } from "./plugins/logos";
@@ -250,7 +247,7 @@ import { createTriggerIngressRoutes } from "./responsibilities/trigger-routes";
 import { useTriggerTools } from "./responsibilities/trigger-tools";
 import { createTriggerStore } from "./responsibilities/triggers";
 import type { Responsibility } from "./responsibilities/types";
-import { createTurnRunner } from "./routines/run-turn";
+import { createTurnRunner } from "./turns/run-turn";
 import { createWorkflowEngine, type WorkflowEngine } from "./workflows/engine";
 import { createLivePanelService } from "./live-panels/service";
 import { createLivePanelStore } from "./live-panels/store";
@@ -262,9 +259,6 @@ import {
 import { createWorkflowRoutes } from "./workflows/routes";
 import { createWorkflowStore } from "./workflows/store";
 import { workflowChatTools } from "./workflows/tools";
-import { createRoutineRunner } from "./routines/runner";
-import { auditRoutineStore } from "./routines/audit-store";
-import { createRoutineStore } from "./routines/store";
 import { createModelCompleter } from "./routing/model";
 import {
   createModelSettingsService,
@@ -854,18 +848,6 @@ if (composio) {
   });
 }
 
-/**
- * Routines, and the one moment its tools are told what to act on.
- *
- * The builtin transport is reached as a MODULE — `transportFor` maps a kind to one — so there is no
- * constructor to hand a store to and no request-time seam either: the transport registry is built at
- * import time, long before there is a database. So the store is installed here, once, from the place
- * that already owns building stores. Without this call the four tools are advertised and every one of
- * them refuses, which is the honest behaviour for a deployment that never wired it, and would be a
- * silent outage for this one.
- */
-const routineStore = createRoutineStore(database);
-useRoutineTools(routineStore);
 const responsibilityStore = createResponsibilityStore(database, {
   resolveTarget: async (ownerUserId, agentId, channelId) => {
     const actor = await actorFor(ownerUserId);
@@ -2117,12 +2099,6 @@ const isGroupChannelThread = async (threadId: string) =>
     )
   ).length > 0;
 
-const routineRunner = createRoutineRunner({
-  routineStore,
-  channelStore,
-  runTurn: governedTurnRunner,
-});
-
 /*
  * IM 接入（server/src/im，DESIGN.md §49，docs/im.md）：QQ / 微信 / 飞书 / 企业微信 / 钉钉 / Telegram 的消息
  * 交给连接选的机器人回答。回合用自己的运行器：电脑工具只在连接打开「允许使用电脑和设备」时给，单轮最长 10 分钟。
@@ -2463,59 +2439,7 @@ const livePanelService = createLivePanelService({
 onControlReleased((ownerUserId) => void livePanelService.resumeAfterHandback(ownerUserId));
 // CHISABOT_LIVE_PANEL_SWEEP=0：不跑后台刷新循环（只给并排的预览容器用，免得它替正式实例刷新面板）。
 if (process.env.CHISABOT_LIVE_PANEL_SWEEP !== "0") livePanelService.start();
-startInProcessRoutineSweep();
 
-/**
- * 定时任务（routines）在容器里自己转（2026-10-13）。
- *
- * 上游把 fire-routines.ts 交给 Kubernetes CronJob；自建部署没有 CronJob，生产机以前靠宿主机的
- * systemd timer 每分钟 docker exec 一次，别人照 README 部署的就从来不触发。现在服务器每分钟自己跑一次
- * 同一套扫描（offerDueRoutines / dispatchClaimedRoutines，同 fire-routines.ts）。重复跑无害：每次触发按 key 去重（work queue 的
- * finished 行），所以宿主机 timer 还开着也只会触发一次。CHISABOT_ROUTINES_WORKER=0 关掉。
- */
-function startInProcessRoutineSweep() {
-  if (process.env.NODE_ENV === "test" || process.env.CHISABOT_ROUTINES_WORKER === "0") return;
-  const secret = config.workerSharedSecret;
-  const internalUrl = process.env.SERVER_INTERNAL_URL || `http://127.0.0.1:${process.env.PORT || 3001}`;
-  if (!secret) {
-    console.info(JSON.stringify({ type: "routine-worker-off", reason: "WORKER_SHARED_SECRET not set" }));
-    return;
-  }
-  // 同进程跑（不是子进程）：DATABASE_URL 读完就从环境里删了（db/client.ts），子进程拿不到。
-  const queue = createWorkQueue(database);
-  const owner = workOwner("routines-inproc");
-  const dispatch = async (routineRunId: string) => {
-    const response = await fetch(`${internalUrl}/internal/routines/run`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
-      body: JSON.stringify({ routineRunId }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (response.status !== 202) throw new Error(`the server answered ${response.status} rather than 202 when handed a routine run`);
-  };
-  let busy = false;
-  let lastPurge = 0;
-  const tick = async () => {
-    if (busy) return;
-    busy = true;
-    try {
-      const options = { routineStore, queue, dispatch, owner };
-      const { offered } = await offerDueRoutines(options);
-      const report = await dispatchClaimedRoutines(options);
-      if (Date.now() - lastPurge > 60 * 60_000) {
-        lastPurge = Date.now();
-        await queue.purge({ kind: ROUTINE_FIRE_KIND, olderThanMs: 24 * 60 * 60 * 1000 });
-      }
-      if (offered.length || report.fired.length) console.info(JSON.stringify({ type: "routine-sweep", inProcess: true, offered, fired: report.fired, skipped: report.skipped }));
-    } catch (error) {
-      console.error(JSON.stringify({ type: "routine-worker-failed", reason: error instanceof Error ? error.message : String(error) }));
-    } finally {
-      busy = false;
-    }
-  };
-  setTimeout(() => void tick(), 20_000);
-  setInterval(() => void tick(), 60_000);
-}
 void workflowEngineInstance.recover().catch((error) =>
   console.error(
     JSON.stringify({ type: "workflow-recover-failed", reason: String(error) }),
@@ -2955,20 +2879,6 @@ const approvalSweep = repeatAfterEach(async () => {
                 threadId: snapshot.threadId,
               },
               { id: messageId, text: outcome.replyText, kind: "reply" },
-            );
-          await database
-            .update(routineRuns)
-            .set({
-              status: "succeeded",
-              finishedAt: new Date(),
-              error: null,
-              waiting: null,
-            })
-            .where(
-              and(
-                eq(routineRuns.status, "waiting"),
-                sql`${routineRuns.waiting}->>'approvalId' = ${approvalId}`,
-              ),
             );
         },
       };
@@ -3503,8 +3413,6 @@ repeatAfterEach(async () => {
   }
 }, 10_000);
 
-// Every routine change goes on the audit trail, whoever made it (the screen or a Bot's tool).
-auditRoutineStore(routineStore, bootAuditStore);
 // Bot computers refuse egress until a policy arrives; ChisaBot has no network policy screen, so every
 // running computer is kept on "allow all" (the upstream default with no organization row).
 startEgressPolicyPush({
@@ -3559,10 +3467,10 @@ const app = createApp(
   undefined,
   // What a browsing turn's screen looked like when it finished, so the transcript can show it later.
   pageFrameStore,
-  // What a due routine actually does: a turn, run as its owner, into the thread they will open.
-  routineRunner,
-  // A person's own standing instructions: the list, and a switch to stop one.
-  routineStore,
+  // Positional slots of the removed upstream routines runner + store (slimming P4c: merged into
+  // ChisaBot schedules, server/src/schedules).
+  undefined,
+  undefined,
   // Where each person is in first-run onboarding, read by /api/me and written by the wizard.
   createOnboardingStore(database),
   // The same store every run reads through `loadInstructionsForActor`, so the screen a person edits

@@ -21,7 +21,7 @@ ChisaBot 现在实际在跑的结构；上游 OpenBot 的原始架构（Intellig
  ┌──────────── ChisaBot 应用容器（openbot-zh）──────────────────────────────────────────────┐
  │ server（Hono + CopilotKit runtime，内置 agent 循环）  app（React/Vite 构建产物）          │
  │ PostgreSQL（容器内）   agent-computer（Chromium + Xvfb，机器人的云端浏览器 / 工作区）      │
- │ 进程内定时：定时任务 15 s · 面板刷新 · 上游 routines 1 min                                │
+ │ 进程内定时：定时任务 15 s · 面板刷新                                                       │
  └───────────┬─────────────────────────────┬────────────────────────────────────────────────┘
              │ http://magpie:3425/v1       │ 只写 spool 请求文件
              ▼                             ▼
@@ -120,7 +120,6 @@ ChisaBot 自己的表大多在服务启动时 `CREATE TABLE IF NOT EXISTS`（不
 |---|---|
 | `CHISABOT_GATEWAY_SECRET` / `_FILE` | 多账号：与登录服务 `identitySecret` 相同的密钥（≥32 字符），启用网关签名身份（[accounts.md](accounts.md)） |
 | `CHISABOT_SCHEDULES_SWEEP=0` | 关掉定时任务扫描 |
-| `CHISABOT_ROUTINES_WORKER=0` | 关掉进程内上游 routines 扫描 |
 | `CHISABOT_IM=0` | 开机不启动 IM 连接 |
 | `CHISABOT_RELEASE_LOCKS_ON_START=0` | 不在启动时释放孤儿线程锁（多进程共用一个库时） |
 | `CHISABOT_ORPHAN_SWEEP=0` / `CHISABOT_WORKER_ORPHAN_SWEEP=0` / `CHISABOT_PANEL_ORPHAN_SWEEP=0` | 关掉对应的开机孤儿清理 |

@@ -70,7 +70,7 @@ constraints:
 
 ## 运行怎么执行（复用了什么）
 
-不是新的智能体引擎。**每个步骤 = 某个机器人在一个新对话里跑一个无头回合**，用的就是定时任务、长期任务、面板任务在用的 `governedTurnRunner`（`server/src/routines/run-turn.ts`）：同样的机器人解析、模型连接、授权检查、工具、审计、暂停检查。工作流执行器（`server/src/workflows/engine.ts`）只做编排：
+不是新的智能体引擎。**每个步骤 = 某个机器人在一个新对话里跑一个无头回合**，用的就是定时任务、长期任务、面板任务在用的 `governedTurnRunner`（`server/src/turns/run-turn.ts`）：同样的机器人解析、模型连接、授权检查、工具、审计、暂停检查。工作流执行器（`server/src/workflows/engine.ts`）只做编排：
 
 1. 校验参数和每个角色的机器人（必须是你能用的机器人）。
 2. 按阶段推进；并行组里的步骤同时跑（每步自己的对话，所以不会抢同一个线程锁）。

@@ -6,7 +6,7 @@ import type { Database } from "../db/client";
 import { LocalConversationError, type LocalRunControl, type ThreadWorkerRoutes } from "../local-conversations";
 import type { GrantedTool } from "../plugins/tools";
 import { HeadlessToolSuspension, type HeadlessTool } from "../computer/headless-tools";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import { type ThreadInbox, WORKER_RESULT_MARKER } from "../thread-inbox";
 
 /**

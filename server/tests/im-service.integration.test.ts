@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createDatabase } from "../src/db/client";
 import { createImService, imConnectionOf } from "../src/im/service";
 import type { WsLike } from "../src/im/types";
-import type { TurnRunner } from "../src/routines/runner";
+import type { TurnRunner } from "../src/turns/types";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**

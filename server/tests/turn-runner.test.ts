@@ -7,7 +7,7 @@ import {
   drawnComponents,
   frameFiring,
   sanitizeSeededHistory,
-} from "../src/routines/run-turn";
+} from "../src/turns/run-turn";
 
 /**
  * A headless turn, asserted without a gateway, without a database and without a model.

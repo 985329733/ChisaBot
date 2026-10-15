@@ -434,19 +434,6 @@ export const auditEventTypes = [
    */
   "agent.escalated",
   "agent.escalation_failed",
-  /*
-   * A worker's bearer secret did not check out at `/internal/routines/run`, and every routine this
-   * deployment has stopped firing until somebody notices.
-   *
-   * Recorded because that route answers a refusal with the exact same 401 for a missing header, a
-   * wrong secret, and a deployment that never configured one — deliberately, so a caller cannot tell
-   * those apart from the wire. Which means the wire is also the only place this trail could otherwise
-   * be read from, and it was told nothing. `payload.reason` carries the distinction the response
-   * withholds; the offered credential never does.
-   */
-  "routines.dispatch_refused",
-  /** A person pressed Run now on a routine: real work, outside its schedule. */
-  "routines.run_requested",
   /** An authenticated trigger (webhook, provider, email, Slack) queued a responsibility run. */
   "responsibility.triggered",
   /*
@@ -471,11 +458,9 @@ export const auditEventTypes = [
   // old rows stay readable.
   // "session.break_glass" (SSO break-glass) and SCIM "person.provisioned" / "person.deprovisioned" /
   // "person.reprovisioned" are no longer written since slimming P6-2; old rows stay readable.
-  /* Routines, however they were made: by a person on the screen or by a Bot through its tools. */
-  "routine.created",
-  "routine.updated",
-  "routine.deleted",
-  "routine.enabled_changed",
+  // Upstream routines ("routine.created" / "routine.updated" / "routine.deleted" / "routine.enabled_changed",
+  // "routines.dispatch_refused", "routines.run_requested") are no longer written since slimming P4c
+  // (merged into ChisaBot schedules); old rows stay readable.
 ] as const;
 
 export type AuditEventType = (typeof auditEventTypes)[number];
