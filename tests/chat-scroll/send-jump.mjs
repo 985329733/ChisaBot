@@ -1,6 +1,6 @@
 // 发送时聊天跳动的回归测试（DESIGN.md §35.4）。逐帧记录：滚动区在屏幕上的位置（sTop）、scrollTop、发送那一刻视口里
 // 一条消息（anchor）的屏幕位置。发送之后任何相邻两帧：滚动区移动、scrollTop 回退 > 24px、anchor 往下跳 > 24px
-// 或往上跳 > 120px（比贴底弹簧快）都算跳。ASSERT=1 时不过退出码 1。
+// 或往上跳 > 120px/帧（比贴底弹簧、发送时把新消息平滑滚到顶都快；采样隔了几帧按帧数放宽）都算跳。ASSERT=1 时不过退出码 1。
 // 对象是频道聊天（/channel/*；2026-10-15 CB-046 起机器人聊天只剩这一套）。
 // 用法（ChisaBot 镜像里跑 playwright-core，--network host）：
 //   BASE=http://127.0.0.1:3092 BOT=<机器人 id> THREAD=<要打开的会话 id，建议用真实长会话的副本> ASSERT=1 node send-jump.mjs
@@ -185,7 +185,9 @@ for (let i = 1; i < post.length; i++) {
 const scr = [];
 for (let i = 1; i < post.length; i++) {
   const a = post[i - 1], b = post[i];
-  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > 120 || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
+  // 往上 120px 是「每帧（60fps）」的上限：机器慢、两次采样隔了几帧时按隔了几帧放宽（速度不变）。往下、scrollTop 回退照旧按帧严格算。
+  const frames = Math.max(1, (b.t - a.t) / 16.7);
+  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > 120 * frames || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
 }
 log("SCREENJUMPS", JSON.stringify(scr.slice(0, 15)));
 const minTop = Math.min(...post.map((x) => x.top));
