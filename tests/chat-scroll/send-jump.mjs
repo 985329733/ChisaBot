@@ -1,6 +1,6 @@
 // 发送时聊天跳动的回归测试（DESIGN.md §35.4）。逐帧记录：滚动区在屏幕上的位置（sTop）、scrollTop、发送那一刻视口里
 // 一条消息（anchor）的屏幕位置。发送之后任何相邻两帧：滚动区移动、scrollTop 回退 > 24px、anchor 往下跳 > 24px
-// 或往上跳 > 120px/帧（比贴底弹簧、发送时把新消息平滑滚到顶都快；采样隔了几帧按帧数放宽）都算跳。ASSERT=1 时不过退出码 1。
+// 或往上跳 > 120px/帧（比贴底弹簧快；采样隔了几帧按帧数放宽；发送后频道聊天自己开平滑滚动、把新消息滚到顶的那几帧不算）都算跳。ASSERT=1 时不过退出码 1。
 // 对象是频道聊天（/channel/*；2026-10-15 CB-046 起机器人聊天只剩这一套）。
 // 用法（ChisaBot 镜像里跑 playwright-core，--network host）：
 //   BASE=http://127.0.0.1:3092 BOT=<机器人 id> THREAD=<要打开的会话 id，建议用真实长会话的副本> ASSERT=1 node send-jump.mjs
@@ -84,6 +84,8 @@ await ctx.addInitScript(({ bot, thread }) => {
           aTop: ar ? Math.round(ar.top - sr.top) : null, aScr: ar ? Math.round(ar.top) : null, sTop: Math.round(sr.top), aH: ar ? Math.round(ar.height) : null,
           n: all.length, firstVis, firstVisTop,
           running: Boolean(document.querySelector('[data-testid="composer-stop"]')),
+          // 发送后那 700ms 频道聊天自己开着平滑滚动（chat-transcript.tsx useSmoothSendScroll），把刚发的消息滚到顶。
+          smooth: s.style.scrollBehavior === "smooth",
         });
       }
     }
@@ -187,7 +189,9 @@ for (let i = 1; i < post.length; i++) {
   const a = post[i - 1], b = post[i];
   // 往上 120px 是「每帧（60fps）」的上限：机器慢、两次采样隔了几帧时按隔了几帧放宽（速度不变）。往下、scrollTop 回退照旧按帧严格算。
   const frames = Math.max(1, (b.t - a.t) / 16.7);
-  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > 120 * frames || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
+  // 发送时把新消息平滑滚到顶（scroll-behavior: smooth 开着的那几帧）是设计好的动画，不算往上跳；往下跳、回退照旧算。
+  const upLimit = a.smooth || b.smooth ? Infinity : 120 * frames;
+  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > upLimit || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
 }
 log("SCREENJUMPS", JSON.stringify(scr.slice(0, 15)));
 const minTop = Math.min(...post.map((x) => x.top));
