@@ -31,3 +31,34 @@ export function summarizeWork(calls: readonly WorkCall[]): WorkSummary | null {
     current: current || "正在处理",
   };
 }
+
+/** 不算「干活」的工具：画卡片、维护清单、读技能说明（结束后的一行里不数它们）。 */
+const NOT_WORK = new Set(["render_ui", "worker_plan", "skill_load"]);
+
+export type DoneWork = { label: string; steps: string[] };
+
+/**
+ * 一轮结束后收成的一行（DESIGN.md §70.2）：「搜索 2 次 · 看了 3 个网页」/「做了 5 步」，点开是每一步。
+ * 只数真的干活的工具；一步都没有返回 null（不出这一行）。
+ */
+export function summarizeDoneWork(calls: readonly WorkCall[]): DoneWork | null {
+  const work = calls.filter((call) => !NOT_WORK.has(call.name));
+  if (work.length === 0) return null;
+  let searches = 0;
+  let pages = 0;
+  const steps: string[] = [];
+  for (const call of work) {
+    if (call.name === "web_search") searches += 1;
+    else if (call.name === "web_fetch" || call.name === "computer_navigate") pages += 1;
+    const line = describeWorkerStep(call.name, parseArgs(call.arguments));
+    // 没有中文说法的工具（「正在使用 xxx」）不进步骤清单：不把工具名给用户看（§69.3）。
+    if (!line || line.startsWith("正在使用 ")) continue;
+    const past = line.replace(/^正在/, "");
+    if (steps[steps.length - 1] !== past) steps.push(past);
+  }
+  const webOnly = searches + pages === work.length;
+  const label = webOnly
+    ? [searches ? `搜索 ${searches} 次` : "", pages ? `看了 ${pages} 个网页` : ""].filter(Boolean).join(" · ")
+    : `做了 ${work.length} 步`;
+  return { label, steps };
+}
