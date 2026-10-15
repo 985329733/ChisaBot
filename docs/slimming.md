@@ -72,7 +72,15 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 
 **P4b 刻意留下（之后再做）：**
 
-- **企业控制闸门**（`app.use("/api/*", createEnterpriseGate)`、`/api/admin/enterprise`、`admin/controls.ts`）：它同时管电脑动作策略、模型允许名单、离职（offboard）和管理员名单，`enterprise_settings` 里还存着 `model_connection`（默认模型）和 `model_fallbacks`（备用模型，#118）。多用户账号（cb-accounts）落地前去掉闸门等于少一道权限检查，所以先不动；之后把 `model_connection` / `model_fallbacks` 换成独立的 KV 读写，再删闸门和管理路由。
+- ~~**企业控制闸门**~~ → P6-1 已删（见下）。
 - **SSO / SCIM 插件与 `/api/auth/*` 里的身份提供者分支**：在认证代码里，等 cb-accounts 合并后再删。
 - **语音**（`/api/voice`、`voice/`、网页 `voice-call-widget` 与 `lib/voice`）：生产没配置语音（没有任何 VOICE 变量），依赖 `ask_agent`；但前端和 `channel-chat.tsx` / `chat-transcript.tsx` 缠在一起（约 40 处），而这两个文件正被聊天同步（cb-qa）改，等它合并后单独一个 PR 删。
 - **`worker/`**：删它会改依赖指纹、触发一次完整构建，等有别的依赖变动时一起做。
+
+## P6 多用户之后的服务端收尾（2026-10-15）
+
+朋友账号（CB-040，网关签名身份）上线后，上游那套「企业」权限模型不再有用：角色来自网关，权限在每个接口里按本人 / 主人 / 管理员判断。
+
+| PR | 内容 | 保留 |
+|---|---|---|
+| P6-1 | 删 `server/src/admin/`（`gate.ts` 每个 `/api/*` 前的能力开关闸门、`controls.ts`、`capabilities.ts`、`settings-store.ts`、`routes.ts` = `/api/admin/enterprise/*`）：能力开关（生产 0 行，全是默认允许）、模型允许名单与每轮 `model_usage` 记录、电脑动作的企业覆盖层（`setPolicyOverlay`）、MCP 允许名单、网络策略表、动作录制、长期不用的电脑自动停止、离职（offboard）、无头回合的 `headlessTurnRefusal`、审计 OpenTelemetry 导出（`telemetry/`）、`auth/sso-required.ts`；`/api/admin/people`（列表 / 改角色 / 移除 + 离职，前端早已没有入口；朋友账号由网关管理）；`auth/index.ts` 的「强制 SSO」改为恒 false（P6-2 再删整段）。审计类型里这些模块写的类型去掉（旧行照常显示） | `enterprise_settings` 表：现在只是 `model_connection`（默认模型）/ `model_fallbacks`（备用模型）两行的 KV，`model-settings.ts` / `model-fallback-settings.ts` 本来就直接读写，不经过企业控制。电脑网络策略：电脑在收到策略前拒绝一切连接，所以照旧在每次动作前和每 30 秒推一次 `allow_all`（`computer/policy-network.ts` 的 `NO_NETWORK_POLICY` / `startEgressPolicyPush`，和上游「没有组织策略行」时一样）。例行任务审计包装挪到 `routines/audit-store.ts`，`runtimeRun` 挪到 `agents/runtime-path.ts`（行为不变）。表 `capability_settings`、`network_policies`、`action_records`、`model_usage` 留到 P5 |
