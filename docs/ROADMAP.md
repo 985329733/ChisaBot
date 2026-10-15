@@ -62,7 +62,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 2026-10-15 | 朋友账号：邀请链接、网关签名身份、按人隔离（CB-040） | #128 | DESIGN §65、[accounts.md](accounts.md)、ADR-0011 |
 | 2026-10-15 | 频道聊天刷新 / 换设备接着看正在写的回答（CB-041 P0、CB-043） | #124 | DESIGN §64 |
 | 2026-10-15 | 成熟度 2：只填名字建机器人、空聊天「试试这样问」（CB-003） | #122 | DESIGN §63 |
-| 2026-10-15 | 瘦身 P6-1：去掉上游企业控制闸门、`/api/admin/enterprise`、`/api/admin/people`、OTel 导出（约 5k 行） | #PR | [slimming.md](slimming.md) |
+| 2026-10-15 | 瘦身 P6-1：去掉上游企业控制闸门、`/api/admin/enterprise`、`/api/admin/people`、OTel 导出（约 5k 行） | #131 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-3：去掉自动学习、身份提供者管理接口、Docker supervisor 配置（约 3.0k 行） | #123 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-2：去掉推送与可达性、群聊、团队机器人接口，交接默认关（约 4.6k 行） | #121 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-1：服务器不再加载演示录制、上游个人记忆、主动研究、意图路由（约 7.8k 行） | #117 | [slimming.md](slimming.md) |
