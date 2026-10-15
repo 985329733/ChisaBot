@@ -3,12 +3,13 @@ import {
   IconAlertTriangle,
   IconArrowBackUp,
   IconDots,
-  IconExternalLink,
   IconRefresh,
   IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { lastWorkStep, WORK_STEP_EVENT, type WorkStepDetail } from "@/components/chat/work-card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,8 @@ import { parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../../shared/json
 import { pruneEmptySections } from "../../../../shared/json-render/empty-sections";
 import { dropDuplicateTitle } from "../../../../shared/json-render/panel-title";
 import { client } from "@/lib/client";
+import { isChatRunning } from "@/lib/copilot/computer-activity";
+import { buildStepText, groupSources } from "./panel-meta";
 import { jsonRenderRegistry } from "@/lib/copilot/json-render/registry";
 import { copyText, openInNewTab, RichUiProvider, useNow } from "@/lib/copilot/json-render/rich-context";
 
@@ -39,7 +42,7 @@ function askBot(text: string) {
  * 实时面板（server/src/live-panels，2026-10-13）：机器人用一句话的请求做出来、自己按计划刷新的卡片。
  *
  * 卡片只画结果：标题、内容（json-render，与对话里的 render_ui 同一套组件）、数据来源、更新时间。
- * 搭建中是骨架 +「正在搭建…」，刷新中标题旁一个小圈；失败把原因用大白话写在卡片上。
+ * 搭建中是骨架 + 机器人这一刻在做的那一步（§77.1）；刷新中底部「正在刷新…」；失败把原因用大白话写在卡片上。
  * ⋯ 菜单：立即刷新、刷新频率、撤销修改、删除（10 秒内可撤销）。没有 JSON、没有规范。
  */
 export type LivePanel = {
@@ -69,7 +72,8 @@ export const livePanelKeys = { list: (botId: string) => ["live-panels", botId] a
  * 机器人 panel_create 之后卡片要马上出现在右栏，而不是等下一个 30 秒。
  */
 function useChatRunning() {
-  const [running, setRunning] = useState(false);
+  // 卡片可能在这一轮开始之后才挂上（新建的面板）：先读当前状态，不等下一次广播。
+  const [running, setRunning] = useState(() => isChatRunning());
   useEffect(() => {
     const on = (event: Event) => setRunning(Boolean((event as CustomEvent<boolean>).detail));
     window.addEventListener("chisabot-chat-running", on);
@@ -163,6 +167,137 @@ const LiveBody = memo(function LiveBody({ spec: source, title, onRefresh }: { sp
   );
 });
 
+/** 聊天里干活卡正在做的那一步（§77.1）。 */
+function useWorkStep(): WorkStepDetail {
+  const [step, setStep] = useState<WorkStepDetail>(() => lastWorkStep());
+  useEffect(() => {
+    const on = (event: Event) => setStep((event as CustomEvent<WorkStepDetail>).detail ?? null);
+    window.addEventListener(WORK_STEP_EVENT, on);
+    return () => window.removeEventListener(WORK_STEP_EVENT, on);
+  }, []);
+  return step;
+}
+
+/**
+ * 搭建中的卡片（§77.1）：骨架 + 一行「正在搜索「东京天气」」——机器人这一刻在做的事，跟着聊天里的干活卡换，
+ * 180ms 淡入淡出（只有一行字在换，高度不变）。聊天没在跑（刷新页面、别的设备在建）时写「正在搭建…」。
+ */
+function BuildingSkeleton() {
+  const running = useChatRunning();
+  const step = useWorkStep();
+  const reduce = useReducedMotion();
+  // 这一轮刚结束、卡片还没换成内容的那一下：留着最后一步，不闪回「正在搭建…」。
+  const lastText = useRef<string | null>(null);
+  if (running) lastText.current = buildStepText(step);
+  const text = running ? buildStepText(step) : (lastText.current ?? "正在搭建…");
+  return (
+    <div className="live-panel-skeleton" data-testid="live-panel-building">
+      <span className="jr-skel-title" />
+      <span className="jr-skel-line" />
+      <span className="jr-skel-line is-short" />
+      <span className="live-panel-step" role="status">
+        <span aria-hidden="true" className="chat-thinking-dots">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span className="live-panel-step-slot">
+          <AnimatePresence initial={false} mode="popLayout">
+            <motion.span
+              animate={{ opacity: 1 }}
+              className="live-panel-step-text"
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              key={text}
+              transition={{ duration: reduce ? 0 : 0.18 }}
+            >
+              {text}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** 底部一行里的频率去掉「刷新」两个字（「每小时」）；「不自动刷新」照写。 */
+function shortCadence(text: string): string {
+  return text === "不自动刷新" ? text : text.replace(/\s*刷新(?=（|$)/u, "");
+}
+
+function clock(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const sameDay = d.toDateString() === new Date().toDateString();
+  const hm = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
+
+/**
+ * 卡片底部一行（§77.2）：左边来源（按网站合并，写第一个，其余「+N」，点开看全部），右边更新时间 + 频率（「每小时」），
+ * 刷新中换成小圈 +「正在刷新…」。不换行；窄卡里来源先省略。
+ */
+function PanelFoot({ panel, busy }: { panel: LivePanel; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const groups = useMemo(() => groupSources(panel.sources), [panel.sources]);
+  // 窄卡（300px 左右）一行只放得下一个来源名 + 时间：第一个写出来，其余「+N」。
+  const shown = open ? groups : groups.slice(0, 1);
+  const more = groups.length - shown.length;
+  const next = clock(panel.nextRefreshAt);
+  const stampTitle = [
+    panel.refreshedAt ? `更新于 ${new Date(panel.refreshedAt).toLocaleString("zh-CN", { hour12: false })}` : "",
+    next && !busy ? `下次刷新 ${next}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <footer className="live-panel-foot" data-open={open || undefined}>
+      {groups.length ? (
+        <span className="live-panel-sources" data-testid="live-panel-sources">
+          <span className="live-panel-sources-k">{"来源"}</span>
+          {shown.map((g) =>
+            g.url ? (
+              <a className="live-panel-src" href={g.url} key={`${g.label}-${g.url}`} rel="noopener noreferrer" target="_blank" title={g.names.join("\n")}>
+                {g.label}
+              </a>
+            ) : (
+              // 没有网址的来源（本机命令等）：只写名字，不做成点不开的链接。
+              <span className="live-panel-src is-plain" key={g.label} title={g.names.join("\n")}>
+                {g.label}
+              </span>
+            ),
+          )}
+          {more > 0 ? (
+            <button aria-label={`还有 ${more} 个来源`} className="live-panel-src-more" onClick={() => setOpen(true)} type="button">
+              {`+${more}`}
+            </button>
+          ) : open && groups.length > 1 ? (
+            <button className="live-panel-src-more" onClick={() => setOpen(false)} type="button">
+              {"收起"}
+            </button>
+          ) : null}
+        </span>
+      ) : (
+        <span />
+      )}
+      <span className="live-panel-time" data-state={busy ? "refreshing" : undefined} title={stampTitle || undefined}>
+        {busy ? (
+          <>
+            <IconRefresh aria-hidden className="live-panel-spin size-3" />
+            {"正在刷新…"}
+          </>
+        ) : (
+          <>
+            <UpdatedAgo at={panel.refreshedAt} />
+            {`${panel.refreshedAt ? " · " : ""}${shortCadence(cadence(panel.refreshMinutes, panel.refreshAt, panel.refreshTimeZone))}`}
+          </>
+        )}
+      </span>
+    </footer>
+  );
+}
+
 /** 「3 分钟前更新」会自己走（一分钟内每 15 秒，之后每分钟）。 */
 function UpdatedAgo({ at }: { at: string | null }) {
   const now = useNow(at && Date.now() - new Date(at).getTime() < 90_000 ? 15 : 60);
@@ -222,7 +357,6 @@ function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: Li
     >
       <header className="live-panel-head">
         <h3 className="live-panel-title">{panel.title}</h3>
-        {busy && !building ? <IconRefresh aria-label={"正在刷新"} className="live-panel-spin size-3.5" /> : null}
         {stale && !busy ? (
           <span className="live-panel-stale" title={panel.error ?? undefined}>
             <IconAlertTriangle aria-hidden className="size-3" />
@@ -281,12 +415,7 @@ function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: Li
       </header>
 
       {building ? (
-        <div className="live-panel-skeleton" role="status">
-          <span className="jr-skel-title" />
-          <span className="jr-skel-line" />
-          <span className="jr-skel-line is-short" />
-          <span className="live-panel-note">{"正在搭建，机器人在取数据…"}</span>
-        </div>
+        <BuildingSkeleton />
       ) : panel.spec ? (
         <LiveBody onRefresh={() => refresh.mutate()} spec={panel.spec} title={panel.title} />
       ) : null}
@@ -299,40 +428,7 @@ function LivePanelCard({ panel, onRemove }: { panel: LivePanel; onRemove: (p: Li
       ) : null}
       {problem ? <p className="live-panel-error" role="alert">{problem}</p> : null}
 
-      {!building ? (
-        <footer className="live-panel-foot">
-          {panel.sources.length ? (
-            <span className="live-panel-sources">
-              {"来源 "}
-              {panel.sources.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s, i) => (
-                s.url ? (
-                  <a href={s.url} key={`${s.name}-${s.url}`} rel="noopener noreferrer" target="_blank" title={s.url}>
-                    {i > 0 ? "、" : ""}
-                    {s.name}
-                    <IconExternalLink className="ml-0.5 inline size-3 align-[-1px] opacity-60" />
-                  </a>
-                ) : (
-                  // 没有网址的来源（本机命令等）：只写名字，不做成点不开的链接。
-                  <span key={s.name}>
-                    {i > 0 ? "、" : ""}
-                    {s.name}
-                  </span>
-                )
-              ))}
-            </span>
-          ) : null}
-          <span className="live-panel-time" title={panel.refreshedAt ? new Date(panel.refreshedAt).toLocaleString("zh-CN") : undefined}>
-            {busy ? (
-              "正在刷新…"
-            ) : (
-              <>
-                <UpdatedAgo at={panel.refreshedAt} />
-                {`${panel.refreshedAt ? " · " : ""}${cadence(panel.refreshMinutes, panel.refreshAt, panel.refreshTimeZone)}`}
-              </>
-            )}
-          </span>
-        </footer>
-      ) : null}
+      {!building ? <PanelFoot busy={busy} panel={panel} /> : null}
     </article>
   );
 }

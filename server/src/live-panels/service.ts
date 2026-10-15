@@ -335,7 +335,7 @@ export function createLivePanelService(deps: {
         name: "panel_update",
         ref: "live-panels/panel_update",
         description:
-          "把取到的真实数据画进右栏面板（首次填充、刷新、或按用户要求修改）。spec 用 render_ui 同一套组件（含图表 Chart / Sparkline、环 Ring、仪表 Gauge、热力 HeatStrip、封面 Hero、状态 Status、倒计时 Countdown 等），来源 sources 必填。必须遵守系统提示里的【面板设计规范】（一层外壳不用 Card、不重复标题、Metric ≤4、大块 ≤3、≤5 行、短标签、不写段落、有网址就写 href）；不合格会被退回并写明怎么改，照改后重新调用。",
+          "把取到的真实数据画进右栏面板（首次填充、刷新、或按用户要求修改）。spec 用 render_ui 同一套组件（含图表 Chart / Sparkline、环 Ring、仪表 Gauge、热力 HeatStrip、封面 Hero、状态 Status、倒计时 Countdown 等），来源 sources 必填。必须遵守系统提示里的【面板设计规范】（一层外壳不用 Card、不重复标题、磁贴 ≤2、大块 ≤2、≤5 行、短标签、不写段落、有网址就写 href）；不合格会被退回并写明怎么改，照改后重新调用。",
         parameters: updateParameters,
         execute: async (args) => {
           const parsed = updateParameters.safeParse(args);

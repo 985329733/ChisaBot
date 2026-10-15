@@ -14,10 +14,12 @@ import { parseRenderUiSpec, sanitizeRenderUiSpec } from "../../../shared/json-re
 import { sameTitle } from "../../../shared/json-render/panel-title";
 
 export const PANEL_LIMITS = {
-  /** 面板里的大块（表格、列表、图表、封面、时间线、键值、横滑、仪表、日历热力……）最多几块。Tabs 里只算最大的那一页。 */
-  bigParts: 3,
-  /** 数字磁贴最多几个（着色磁贴也算）。 */
-  metrics: 4,
+  /** 面板里的大块（表格、列表、图表、封面、时间线、键值、横滑、仪表、日历热力……）最多几块。Tabs 里只算最大的那一页。Hark：一屏最多两块（DESIGN.md §77.4）。 */
+  bigParts: 2,
+  /** 磁贴最多几个：Metric（着色磁贴也算）+ 单值 Ring。Hark：一屏最多两个磁贴（DESIGN.md §77.4）。 */
+  metrics: 2,
+  /** 并排的格子（Grid 2 列以上）里一段 Text 的宽度上限：再长就在窄格子里折成两三行（DESIGN.md §77.3）。 */
+  cellText: 12,
   /** 列表 / 表格 / 时间线默认最多几行。 */
   rows: 5,
   /** 用户明确要更多行时的硬上限（检查按这个数退回）。 */
@@ -59,16 +61,15 @@ const M = (props: Record<string, unknown>) => ({ type: "Metric", props, children
 const PATTERNS = [
   [
     "A 行情（价格、汇率、指数）",
-    "主数字带涨跌 + 迷你走势（spark）；下面一张面积图（近 7–30 个点）；再 2 个小数字。",
+    "主数字带涨跌 + 迷你走势（spark）和 24h 区间两个磁贴并排；下面一张面积图（近 7–30 个点）。",
     example({
       root: "r",
       elements: {
-        r: { type: "Stack", props: { gap: "md" }, children: ["m", "c", "g"] },
+        r: { type: "Stack", props: { gap: "md" }, children: ["g", "c"] },
+        g: { type: "Grid", props: { columns: 2 }, children: ["m", "a"] },
         m: M({ label: "现价", value: "$81,272", delta: "24h -3.1%", trend: "down", icon: "currency-bitcoin", spark: [83950, 83100, 82400, 82900, 81800, 81272] }),
+        a: M({ label: "24h 区间", value: "80.9k–84k" }),
         c: { type: "Chart", props: { kind: "area", labels: ["10/07", "10/08", "10/09", "10/10", "10/11", "10/12", "10/13"], data: [78210, 79950, 80400, 82100, 83600, 82900, 81272], unit: "$", height: 120 }, children: [] },
-        g: { type: "Grid", props: { columns: 2 }, children: ["a", "b"] },
-        a: M({ label: "24h 最高", value: "$83,950" }),
-        b: M({ label: "24h 最低", value: "$80,880" }),
       },
     }),
   ],
@@ -95,7 +96,7 @@ const PATTERNS = [
   ],
   [
     "C 对比（几个城市 / 币种 / 方案放一起看）",
-    "一张 ≤4 列、≤5 行的 Table，第一列是对象名，其余列是同一单位的数字；需要时上面放 2 个 Metric 给结论。",
+    "一张 ≤4 列、≤5 行的 Table，第一列是对象名，其余列是同一单位的数字；需要时上面放 1–2 个 Metric 给结论。",
     example({
       root: "r",
       elements: {
@@ -219,8 +220,9 @@ export const PANEL_DESIGN_GUIDE = [
   "硬限制：",
   `- 只有一层外壳：卡片本身就是外壳，规范里不用 Card。最外层用 Stack（gap md），小节标题用 Heading level 3（可带 icon）。从根算起最多 ${L.depth} 层，全部元素不超过 ${L.elements} 个。`,
   "- 不重复标题：卡片头已经显示面板标题，规范里不要再写一遍；需要时间 / 地点说明就用一行 Text（tone muted，size sm），例如「10/13 09:00 · 香港」；时间一律写用户当地时间（不知道就用北京时间），不写 UTC。卡片底部会自己显示「x 分钟前更新」，不要自己写更新时间。",
-  `- 大块最多 ${L.bigParts} 个（Table、List、Chart、Hero、Timeline、KeyValue、Carousel、Products、Gauge、Image、日历 HeatStrip、多段 Ring 各算一块；Tabs 只算最大的那一页）。Hero 最多 1 个。`,
-  `- Metric 最多 ${L.metrics} 个（2 个一排放进 Grid columns 2；主数字可以单独放在 Grid 外面）。着色磁贴（variant tinted + icon + tone）适合 2–4 个并排的关键数；平铺 Metric 的 tone 只给涨跌 / 预警，最多 2 个。`,
+  `- 一张面板最多 ${L.metrics} 个磁贴 + ${L.bigParts} 个大块（像 Hark 一样一眼看完）。大块最多 ${L.bigParts} 个（Table、List、Chart、Hero、Timeline、KeyValue、Carousel、Products、Gauge、Image、日历 HeatStrip、多段 Ring 各算一块；Tabs 只算最大的那一页）。Hero 最多 1 个。`,
+  `- 磁贴（Metric 和单值 Ring 合计）最多 ${L.metrics} 个（2 个一排放进 Grid columns 2）。更多的数放进一张 KeyValue 或 Table（算一块大块），不要排成一墙磁贴。着色磁贴（variant tinted + icon + tone）适合 2 个并排的关键数；平铺 Metric 的 tone 只给涨跌 / 预警。`,
+  `- 并排的格子里（Grid 2 列以上）一段 Text 不超过 ${L.cellText} 个汉字宽，一格一件事；「降水 0 mm · 风速 5 km/h」这种多项说明放到 Grid 外面单独一行，或只留一项。`,
   `- 标签要短：Metric 的 label、表头、Badge、Heading、Tabs 的标签不超过 ${L.label} 个汉字（或 ${L.label * 2} 个字母）。`,
   `- 数字带单位：Metric 的 value 写成「数字 + 单位」的短串（26.9℃、73%、2.9 km/h、$81,272、12 天），不超过 ${L.value} 个汉字宽，不要写句子；单位会自动缩小变淡，刷新时数字会从旧值平滑滚到新值。delta + trend 只写「和过去比」的变化（较昨日 +1.2%、24h -3.1%）。`,
   `- 图表：每条线 ≤ ${L.chartPoints} 个点，labels 写短（10/13、09:00），最多 3 条线；height 默认即可（窄卡 100–140）。迷你走势用 Metric 的 spark 或 Sparkline（6–30 个点）。`,
@@ -330,8 +332,32 @@ export function lintPanelSpec(source: string, panelTitle: string): string[] {
   if (heroes.length > 1) issues.push(`Hero 只能有 1 个（现在 ${heroes.length} 个）：留最重要的那个，其余改成 Metric 或删掉。`);
   const metricKeys = visible(spec.root, (el) => el.type === "Metric");
   const metrics = metricKeys.map((k) => [k, elements[k] ?? ({} as El)] as const);
-  if (metrics.length > L.metrics) {
-    issues.push(`Metric 太多（${metrics.length} 个，最多 ${L.metrics} 个）：只留最重要的 ${L.metrics} 个，次要的删掉。`);
+  const singleRings = visible(spec.root, (el) => el.type === "Ring" && !isBig(el)).length;
+  if (metrics.length + singleRings > L.metrics) {
+    issues.push(
+      `${singleRings ? "磁贴" : "Metric"} 太多（${metrics.length + singleRings} 个，最多 ${L.metrics} 个）：只留最重要的 ${L.metrics} 个磁贴，其余的数放进一张 KeyValue（算一块大块）或删掉。`,
+    );
+  }
+  // 并排格子里的长说明（§77.3）：Grid 2 列以上的直接子元素 / 孙元素里的 Text。
+  const cellTexts = new Set<string>();
+  for (const [, el] of reachable) {
+    if (el.type !== "Grid" || !(Number(el.props?.columns ?? 2) >= 2)) continue;
+    const stack = (Array.isArray(el.children) ? el.children : []).filter((c): c is string => typeof c === "string");
+    for (let depth = 0; depth < 2; depth++) {
+      const next: string[] = [];
+      for (const key of stack.splice(0)) {
+        const child = elements[key];
+        if (!child) continue;
+        if (child.type === "Text" && typeof child.props?.text === "string" && textWidth(child.props.text) > L.cellText) cellTexts.add(child.props.text);
+        if (child.type === "Stack") next.push(...(Array.isArray(child.children) ? child.children : []).filter((c): c is string => typeof c === "string"));
+      }
+      stack.push(...next);
+    }
+  }
+  if (cellTexts.size) {
+    issues.push(
+      `并排格子里的说明太长（${[...cellTexts].slice(0, 2).map((t) => `「${t.slice(0, 16)}」`).join("、")}）：窄格子里会折成两三行。每段不超过 ${L.cellText} 个汉字宽、一格一件事；多项说明放到 Grid 外面单独一行，或只留最重要的一项。`,
+    );
   }
   if (reachable.length > L.elements) issues.push(`元素太多（${reachable.length} 个，最多 ${L.elements} 个）：删掉次要内容。`);
 

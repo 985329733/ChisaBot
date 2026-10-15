@@ -24,6 +24,13 @@ function parseArgs(raw: string): Record<string, unknown> {
   }
 }
 
+/** 当前在做的那一步（准备动作不算）：给右栏「正在搭建」的面板看（DESIGN.md §77.1）。 */
+export function currentWorkStep(calls: readonly WorkCall[]): { name: string; label: string } | null {
+  const summary = summarizeWork(calls);
+  const last = [...calls].reverse().find((call) => !PREP.has(call.name));
+  return last && summary ? { name: last.name, label: summary.current } : null;
+}
+
 export function summarizeWork(calls: readonly WorkCall[]): WorkSummary | null {
   if (calls.length === 0) return null;
   let current = "";

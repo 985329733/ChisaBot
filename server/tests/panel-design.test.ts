@@ -56,9 +56,10 @@ describe("panel design guide", () => {
       elements: {
         r: { type: "Stack", props: {}, children: ["tabs", "car"] },
         tabs: { type: "Tabs", props: { tabs: ["今天", "本周"] }, children: ["p1", "p2"] },
-        p1: { type: "Stack", props: {}, children: ["l1", "l2"] },
-        p2: { type: "Stack", props: {}, children: ["l3", "l4"] },
-        l1: list, l2: list, l3: list, l4: list,
+        // 每页一块：两页加起来 2 块 + 横滑 1 块 = 3 块会超，只算最大的一页 = 1 + 1 = 2 块刚好。
+        p1: { type: "Stack", props: {}, children: ["l1"] },
+        p2: { type: "Stack", props: {}, children: ["l3"] },
+        l1: list, l3: list,
         car: { type: "Carousel", props: {}, children: ["m1", "m2", "m3", "m4", "m5"] },
         ...Object.fromEntries([1, 2, 3, 4, 5].map((i) => [`m${i}`, { type: "Metric", props: { label: `m${i}`, value: "1" }, children: [] }])),
       },
@@ -145,6 +146,39 @@ describe("panel design guide", () => {
     const issues = lintPanelSpec(spec, "比特币").join("\n");
     expect(issues).toContain("是一段话");
     expect(issues).toContain("value");
+  });
+
+  test("Hark limits (§77.4): at most 2 tiles (Metric + single-value Ring) and 2 big parts", () => {
+    const m = (label: string) => ({ type: "Metric", props: { label, value: "1" }, children: [] });
+    const three = JSON.stringify({
+      root: "r",
+      elements: { r: { type: "Stack", props: {}, children: ["g", "ring"] }, g: { type: "Grid", props: { columns: 2 }, children: ["a", "b"] }, a: m("一"), b: m("二"), ring: { type: "Ring", props: { value: 40, label: "CPU" }, children: [] } },
+    });
+    expect(lintPanelSpec(three, "测试").join("\n")).toContain("磁贴 太多（3 个，最多 2 个）");
+    const two = JSON.stringify({ root: "r", elements: { r: { type: "Grid", props: { columns: 2 }, children: ["a", "b"] }, a: m("一"), b: m("二") } });
+    expect(lintPanelSpec(two, "测试")).toEqual([]);
+    const list = { type: "List", props: { items: [{ title: "a" }] }, children: [] };
+    const bigs = JSON.stringify({ root: "r", elements: { r: { type: "Stack", props: {}, children: ["l1", "l2", "l3"] }, l1: list, l2: list, l3: list } });
+    expect(lintPanelSpec(bigs, "测试").join("\n")).toContain("大块太多");
+  });
+
+  test("long multi-part text inside a side-by-side Grid is refused (§77.3)", () => {
+    const spec = JSON.stringify({
+      root: "g",
+      elements: {
+        g: { type: "Grid", props: { columns: 2 }, children: ["s1", "s2"] },
+        s1: { type: "Stack", props: {}, children: ["m1", "t1"] },
+        s2: { type: "Stack", props: {}, children: ["m2", "t2"] },
+        m1: { type: "Metric", props: { label: "东京", value: "15.7℃" }, children: [] },
+        m2: { type: "Metric", props: { label: "上海", value: "20.6℃" }, children: [] },
+        t1: { type: "Text", props: { text: "当前降水 0 mm · 风速 5.4 km/h" }, children: [] },
+        t2: { type: "Text", props: { text: "体感 21.2℃" }, children: [] },
+      },
+    });
+    const issues = lintPanelSpec(spec, "天气").join("\n");
+    expect(issues).toContain("并排格子里的说明太长");
+    expect(issues).toContain("当前降水");
+    expect(issues).not.toContain("体感 21.2℃");
   });
 
   test("text width counts CJK as 1 and latin as 0.5", () => {
