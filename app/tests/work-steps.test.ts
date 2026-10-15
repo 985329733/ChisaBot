@@ -22,6 +22,14 @@ describe("summarizeWork（DESIGN.md §70）", () => {
     ]);
     expect(s?.current).toBe("正在搜索「天气」");
   });
+  test("没有中文说法的工具（skill_load）不当当前步骤，不露工具名", () => {
+    expect(summarizeWork([{ name: "skill_load", arguments: "{}", done: false }])?.current).toBe("正在处理");
+    const s = summarizeWork([
+      { name: "web_search", arguments: JSON.stringify({ query: "降噪耳机" }), done: true },
+      { name: "skill_load", arguments: "{}", done: false },
+    ]);
+    expect(s?.current).toBe("正在搜索「降噪耳机」");
+  });
 });
 
 describe("summarizeDoneWork（DESIGN.md §70.2）", () => {
