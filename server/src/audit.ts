@@ -362,14 +362,8 @@ export const auditEventTypes = [
   "session.signed_in",
   "session.refused",
   "person.admin_by_configuration",
-  /*
-   * A company's own identity provider, added or taken away.
-   *
-   * Whoever holds this decides who can sign in at all, so the two ends of its life belong on the
-   * trail next to the roles it hands out.
-   */
-  "identity_provider.registered",
-  "identity_provider.removed",
+  // "identity_provider.registered" / "identity_provider.removed" (SSO identity providers) are no longer
+  // written since slimming P6-2; old rows stay readable.
   /*
    * What a Bot is and what it may reach.
    *
@@ -475,16 +469,8 @@ export const auditEventTypes = [
   // "network_policy.changed" / "network_policy.removed", "computer.terminated" / "computer.terminated_inactive",
   // "delivery.linked" / "delivery.unlinked", "model.refused") are no longer written since slimming P6-1;
   // old rows stay readable.
-  /*
-   * Somebody named in INITIAL_ADMIN_EMAILS signing in with a social provider while SSO is required.
-   * Allowed, so a broken identity provider cannot lock the deployment out, and loud: it is the one
-   * sign-in that bypasses the rule.
-   */
-  "session.break_glass",
-  /* SCIM 2.0: a directory creating, suspending and restoring somebody. */
-  "person.provisioned",
-  "person.deprovisioned",
-  "person.reprovisioned",
+  // "session.break_glass" (SSO break-glass) and SCIM "person.provisioned" / "person.deprovisioned" /
+  // "person.reprovisioned" are no longer written since slimming P6-2; old rows stay readable.
   /* Routines, however they were made: by a person on the screen or by a Bot through its tools. */
   "routine.created",
   "routine.updated",

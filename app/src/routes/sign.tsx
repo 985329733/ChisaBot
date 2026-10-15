@@ -5,13 +5,7 @@ import { useState } from "react";
 import AgentOrb from "@/components/agents/orb/agent-orb";
 import { ProviderLogo } from "@/components/auth/provider-logo";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import {
-  providerName,
-  signInWith,
-  signInWithEmailDomain,
-} from "@/lib/auth/client";
+import { providerName, signInWith } from "@/lib/auth/client";
 import { appConfig } from "@/lib/generated/application-config";
 import {
   type AuthProviderId,
@@ -43,34 +37,10 @@ export const Route = createFileRoute("/sign")({
 function SignScreen() {
   // Which provider is being opened, rather than whether one is: with three buttons, a single
   // boolean would put "Opening…" on all of them.
-  const [opening, setOpening] = useState<AuthProviderId | "sso" | null>(null);
+  const [opening, setOpening] = useState<AuthProviderId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { data: options } = useQuery(authProvidersQueryOptions());
   const providers = options?.providers ?? [];
-  const [email, setEmail] = useState("");
-
-  /**
-   * Sign in through whichever identity provider covers this address.
-   *
-   * No password is asked for and none is checked here: only the part after the @ is used, to decide
-   * which registered provider to hand somebody to.
-   */
-  async function handleDomainSignIn(submission: React.FormEvent) {
-    submission.preventDefault();
-    setError(null);
-    setOpening("sso");
-
-    try {
-      await signInWithEmailDomain(email);
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "该地址未注册身份提供者。",
-      );
-      setOpening(null);
-    }
-  }
 
   async function handleSignIn(provider: AuthProviderId) {
     setError(null);
@@ -163,61 +133,13 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          {options?.ssoRequired ? (
-            <p className="mb-3 text-center text-sm text-muted-foreground">
-              {"您的组织要求单点登录。"}
-            </p>
-          ) : null}
-          {providers.length > 0 && !options?.ssoRequired ? (
+          {providers.length > 0 ? (
             providerButtons
-          ) : options?.sso || options?.ssoRequired ? null : (
+          ) : (
             <p className="text-center text-sm text-muted-foreground">
               {"此部署未配置登录提供者。"}
             </p>
           )}
-          {/*
-           * The way in for a company that runs its own identity provider.
-           *
-           * Below the buttons, because a deployment with both has more people arriving through the
-           * buttons: the registered providers are for the companies whose IdP was added by hand.
-           */}
-          {options?.sso ? (
-            <form className="mt-3" onSubmit={handleDomainSignIn}>
-              {providers.length > 0 ? (
-                <div className="mb-3 flex items-center gap-3">
-                  <Separator className="flex-1" />
-                  <span className="text-muted-foreground text-xs">{"或"}</span>
-                  <Separator className="flex-1" />
-                </div>
-              ) : null}
-              <Input
-                autoComplete="email"
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder={"you@company.com"}
-                required
-                type="email"
-                value={email}
-              />
-              <Button
-                className="mt-2 h-10 w-full tracking-tight"
-                disabled={opening !== null || email.trim().length === 0}
-                size="lg"
-                type="submit"
-                variant="outline"
-              >
-                {opening === "sso" ? "正在打开…" : "使用公司账号继续"}
-              </Button>
-            </form>
-          ) : null}
-          {/* The administrators' audited break-glass while SSO is required; everybody else is refused. */}
-          {options?.ssoRequired && providers.length > 0 ? (
-            <details className="mt-4 text-sm">
-              <summary className="cursor-pointer text-center text-muted-foreground">
-                {"管理员登录"}
-              </summary>
-              <div className="mt-3">{providerButtons}</div>
-            </details>
-          ) : null}
           {error ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
               {error}

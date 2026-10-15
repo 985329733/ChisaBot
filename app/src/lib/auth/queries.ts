@@ -41,15 +41,6 @@ export type AuthProviderId = "google" | "microsoft" | "okta";
 /** What the sign-in screen may offer, answered by the process that knows. */
 export type SignInOptions = {
   providers: AuthProviderId[];
-  /**
-   * Whether any enterprise identity provider is registered.
-   *
-   * A boolean, not a list: naming them would tell anybody who loads the sign-in page which companies
-   * use this deployment, before they have signed in.
-   */
-  sso: boolean;
-  /** An administrator requires SSO; social sign-in stays only as the administrators' break-glass. */
-  ssoRequired: boolean;
 };
 
 async function signInOptions(): Promise<SignInOptions> {
@@ -60,14 +51,10 @@ async function signInOptions(): Promise<SignInOptions> {
     await client("/api/capabilities", { fallback: "无法加载登录" })
   ).json()) as {
     authProviders?: AuthProviderId[];
-    ssoConfigured?: boolean;
-    ssoRequired?: boolean;
   };
 
   return {
     providers: body.authProviders ?? [],
-    sso: body.ssoConfigured === true,
-    ssoRequired: body.ssoRequired === true,
   };
 }
 

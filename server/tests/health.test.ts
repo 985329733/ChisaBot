@@ -51,10 +51,6 @@ describe("runtime capabilities", () => {
       voice: false,
       // Names only. The sign-in screen reads this to know which buttons to draw.
       authProviders: ["google"],
-      // A boolean, not a list: naming the registered providers would tell anybody who loads the
-      // sign-in page which companies use this deployment.
-      ssoConfigured: false,
-      ssoRequired: false,
     });
   });
 
@@ -76,8 +72,6 @@ describe("runtime capabilities", () => {
       "transcription",
       "voice",
       "authProviders",
-      "ssoConfigured",
-      "ssoRequired",
     ]);
     // The provider list is names, never the clients and secrets behind them.
     expect(body).not.toContain("google-client-secret");
@@ -171,14 +165,8 @@ describe("authentication availability", () => {
   });
 });
 
-/**
- * Who may register an identity provider.
- *
- * Better Auth's SSO plugin guards these with a session, which asks only that somebody is signed in.
- * That is the wrong bar: registering an IdP for a domain means anybody it vouches for can sign in,
- * so a plain user reaching it could mint themselves colleagues. These pin the gate in front of it.
- */
-describe("identity provider registration", () => {
+/** /api/auth/* goes straight to Better Auth (the SSO plugin and its admin gate went in slimming P6-2). */
+describe("auth routes", () => {
   function appFor(roles: ("admin" | "user")[], signedIn = true) {
     let reachedHandler = false;
     const app = createApp(
@@ -197,43 +185,6 @@ describe("identity provider registration", () => {
     );
     return { app, reached: () => reachedHandler };
   }
-
-  const routes = [
-    "/api/auth/sso/register",
-    "/api/auth/sso/update-provider",
-    "/api/auth/sso/delete-provider",
-  ];
-
-  test.each(routes)("refuses %s to a plain user", async (route) => {
-    const { app, reached } = appFor(["user"]);
-
-    const response = await app.request(`http://openbot.test${route}`, {
-      method: "POST",
-    });
-
-    expect(response.status).toBe(403);
-    // Refused in front of Better Auth, not by it: the plugin would have allowed this.
-    expect(reached()).toBe(false);
-  });
-
-  test.each(routes)("refuses %s to somebody signed out", async (route) => {
-    const { app, reached } = appFor([], false);
-
-    const response = await app.request(`http://openbot.test${route}`, {
-      method: "POST",
-    });
-
-    expect(response.status).toBe(403);
-    expect(reached()).toBe(false);
-  });
-
-  test.each(routes)("lets an administrator through to %s", async (route) => {
-    const { app, reached } = appFor(["admin"]);
-
-    await app.request(`http://openbot.test${route}`, { method: "POST" });
-
-    expect(reached()).toBe(true);
-  });
 
   // Everything else under /api/auth is Better Auth's own business, including sign-in itself, which
   // by definition happens before anybody has a role.
