@@ -52,7 +52,7 @@ React + TanStack Router + CopilotKit。一个应用覆盖聊天、设置、管�
   Argon2id + 会话 Cookie，30 天记住登录）；应用只绑 loopback，永不直接对外。
 - 例外路由：`/api/devices/agent/`（设备用自己的令牌）、`/api/im/onebot/`（连接自己的 token，允许无 Origin 的 WS 升级）、
   `/p/`（公开页面，GET/HEAD、不转发 Cookie、CSP sandbox，[ADR-0005](adr/0005-pages-sandbox.md)）、带哈希的 `/assets/*` 可缓存。
-- **多账号**（[accounts.md](accounts.md)、[ADR-0011](adr/0011-gateway-accounts.md)）：登录服务里有朋友账号和一次性邀请链接；
+- **签名身份**（[accounts.md](accounts.md)、[ADR-0012](adr/0012-single-user-for-now.md)；朋友账号已去掉，只有管理员）：
   每次 `auth_request` 通过后给出签名身份 `X-ChisaBot-Identity`（HMAC + 时间戳），nginx 转给应用，应用据此认人
   （`server/src/auth/gateway-identity.ts`，`CHISABOT_GATEWAY_SECRET`）。直连本机不带转发头的请求仍是管理员。
 - 网关和登录服务**不随一键更新**，改了要手动部署（[ops/deploy.md](ops/deploy.md)）。
@@ -108,7 +108,7 @@ ChisaBot 自己的表大多在服务启动时 `CREATE TABLE IF NOT EXISTS`（不
 | 工作流 | §26 | [workflows.md](workflows.md) | `server/src/workflows/` | `workflows`、`workflow_runs`、`workflow_run_events`（迁移 0055） |
 | 在线更新 · 自检 | §22 | [online-update.md](online-update.md)、[admin-smoke.md](admin-smoke.md) | `server/src/system-update.ts`、`deploy/updater/` | 宿主机 spool |
 | 手机网页 · PWA | §40 | [pwa.md](pwa.md) | `app/public/sw.js`、`app/src/lib/device.ts` | — |
-| 朋友账号（多账号） | §65 | [accounts.md](accounts.md) | `deploy/public/auth/server.ts`、`server/src/auth/gateway-identity.ts`、`app/src/routes/_authed/admin/accounts.tsx` | 网关 SQLite `accounts`、`invites`、`sessions.user_id`；应用 `users` / `user_roles` 自动建行 |
+| 账号（单用户；朋友账号已撤销） | §65 | [accounts.md](accounts.md) | `deploy/public/auth/server.ts`、`server/src/auth/gateway-identity.ts` | 网关 SQLite `sessions`（`accounts`、`invites` 表留着不用） |
 | 导航 · 瘦身 | §57 | [slimming.md](slimming.md) | `server/src/package-orphans.ts` | 只删孤儿行 |
 
 ## 4. 运行时开关（常用）
@@ -117,7 +117,7 @@ ChisaBot 自己的表大多在服务启动时 `CREATE TABLE IF NOT EXISTS`（不
 
 | 变量 | 作用 |
 |---|---|
-| `CHISABOT_GATEWAY_SECRET` / `_FILE` | 多账号：与登录服务 `identitySecret` 相同的密钥（≥32 字符），启用网关签名身份（[accounts.md](accounts.md)） |
+| `CHISABOT_GATEWAY_SECRET` / `_FILE` | 签名身份：与登录服务 `identitySecret` 相同的密钥（≥32 字符），启用网关签名身份（[accounts.md](accounts.md)） |
 | `CHISABOT_SCHEDULES_SWEEP=0` | 关掉定时任务扫描 |
 | `CHISABOT_ROUTINES_WORKER=0` | 关掉进程内上游 routines 扫描 |
 | `CHISABOT_IM=0` | 开机不启动 IM 连接 |

@@ -92,13 +92,6 @@
     }
   });
 
-  // 邀请 / 重置密码链接（CB-040）：/login?invite=cbi_… —— 朋友自己设账号名和密码。
-  const inviteToken = new URLSearchParams(window.location.search).get("invite");
-  if (inviteToken) {
-    setupInvite(inviteToken);
-    return;
-  }
-
   // A returning session opens its original workspace without asking for credentials again.
   const sessionController = new AbortController();
   const sessionTimeout = window.setTimeout(() => sessionController.abort(), 8000);
@@ -114,88 +107,4 @@
     })
     .catch(() => {})
     .finally(() => window.clearTimeout(sessionTimeout));
-
-  function setupInvite(token) {
-    const heading = document.getElementById("login-heading");
-    const label = document.querySelector(".section-label");
-    const description = document.querySelector(".login-description");
-    const inviteForm = document.getElementById("invite-form");
-    const inviteUser = document.getElementById("invite-username");
-    const inviteName = document.getElementById("invite-name");
-    const invitePassword = document.getElementById("invite-password");
-    const inviteConfirm = document.getElementById("invite-confirm");
-    const inviteError = document.getElementById("invite-error");
-    const inviteSubmit = document.getElementById("invite-submit");
-    const inviteLabel = document.getElementById("invite-label");
-    let kind = "invite";
-    let busy = false;
-    form.hidden = true;
-    label.textContent = "邀请";
-    heading.textContent = "正在打开邀请…";
-    description.textContent = "";
-    const fail = (message) => {
-      heading.textContent = "链接不可用";
-      description.textContent = message;
-      inviteForm.hidden = true;
-    };
-    fetch("/auth/invite?token=" + encodeURIComponent(token), { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } })
-      .then(async (response) => ({ response, data: await response.json().catch(() => null) }))
-      .then(({ response, data }) => {
-        if (!response.ok || data?.ok !== true) return fail(data?.error || "邀请链接无效或已过期，请向管理员要一个新的。");
-        kind = data.kind;
-        inviteForm.hidden = false;
-        if (kind === "reset") {
-          label.textContent = "重置密码";
-          heading.textContent = "设置新密码";
-          description.textContent = "账号：" + (data.username || "") + "。设好后旧密码和已登录的设备都会失效。";
-          document.getElementById("invite-username-field").hidden = true;
-          document.getElementById("invite-name-field").hidden = true;
-          inviteLabel.textContent = "保存并登录";
-          invitePassword.focus();
-        } else {
-          heading.textContent = "加入 ChisaBot";
-          description.textContent = "设一个账号名和密码，以后用它登录网页、PC 和手机客户端。";
-          inviteUser.required = true;
-          inviteUser.focus();
-        }
-      })
-      .catch(() => fail("无法连接，请检查网络后重试。"));
-    for (const input of [inviteUser, inviteName, invitePassword, inviteConfirm]) input.addEventListener("input", () => { inviteError.textContent = ""; });
-    inviteForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (busy || !inviteForm.reportValidity()) return;
-      if (invitePassword.value !== inviteConfirm.value) {
-        inviteError.textContent = "两次输入的密码不一样。";
-        inviteConfirm.focus();
-        return;
-      }
-      busy = true;
-      inviteSubmit.disabled = true;
-      inviteSubmit.setAttribute("aria-busy", "true");
-      const idle = inviteLabel.textContent;
-      inviteLabel.textContent = "正在保存";
-      try {
-        const response = await fetch("/auth/invite", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify({ token, username: kind === "invite" ? inviteUser.value.trim() : undefined, displayName: kind === "invite" ? inviteName.value.trim() : undefined, password: invitePassword.value, remember: true }),
-        });
-        const data = await response.json().catch(() => null);
-        if (response.ok && data?.ok === true) {
-          invitePassword.value = ""; inviteConfirm.value = "";
-          window.location.replace("/");
-          return;
-        }
-        inviteError.textContent = data?.error || (response.status === 429 ? "尝试次数较多，请稍后再试。" : "暂时无法保存，请稍后重试。");
-      } catch {
-        inviteError.textContent = "无法连接，请检查网络后重试。";
-      } finally {
-        busy = false;
-        inviteSubmit.disabled = false;
-        inviteSubmit.setAttribute("aria-busy", "false");
-        inviteLabel.textContent = idle;
-      }
-    });
-  }
 })();

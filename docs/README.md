@@ -29,7 +29,7 @@ ChisaBot 是中文自托管 AI 助手平台，提供网页登录、本地会话�
 | 记忆 | [长期记忆](memory.md) | §50 |
 | 技能 | [技能](skills.md) | §51 |
 | 保险箱 | [密钥保险箱](vault.md) | §52 |
-| 账号 | [朋友账号（多账号）](accounts.md) | §65 |
+| 账号 | [单用户（朋友账号已撤销）](accounts.md) | §65 |
 | GitHub | [GitHub 账号连接](github.md) | §53 |
 | 页面 | [页面（可分享网页）](pages.md) | §54 |
 | 定时任务 | [定时任务与提醒](schedules.md) | §55 |
