@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 切暗色 / 亮色不再卡（CB-024）：天空背景只在「背景随时间变化」开关、拖预览时间时才淡变；切主题和每分钟的天色变化一帧换好。以前天空淡变 1.6 秒，期间所有毛玻璃逐帧重新模糊（切一次约 1.9 秒光栅化），现在约 0.2 秒，0.5 秒内画面停稳。外观不变。只改网页。见 DESIGN.md §7.4。
 - 云端 Claude Code 标签页（CB-062，P2）：管理员的左栏最上面多了「机器人｜Claude Code」切换（记住选择）。Claude Code 那边是工作区 → 会话（先只有内置「草稿」），会话页是和 Claude Code 的对话：流式回答、接着上次（`--resume`）、「新的 Claude 会话」清上下文、停止、回答中再发一条排队、刷新后接着看；`npm test` 这类命令弹审批卡（允许 / 本会话总是允许 / 拒绝，2 分钟没人处理按拒绝），`git push` 一律拒绝；右栏看这一轮的改动 diff 和会话目录的只读文件，手机上是底部抽屉。只在部署了云端工作区节点、登录了 Claude 时可用。`deploy/cloud-node` 多了可选的 `CLOUDNODE_DNS`（主机上只劫持 Claude 域名的 DNS，`firewall.sh` 同时放行）。见 DESIGN.md §73.2–§73.6。
 - 云端工作区 + Claude 登录（CB-061，P1）：新的手工部署容器 `deploy/cloud-node/`（Claude Code CLI + chisabot-node，非 root、根文件系统只读、没有 docker.sock、不发布端口，`firewall.sh` 只放公网），配对后在 设置 → 管理 → **云端工作区** 用自己的 Claude 订阅登录（打开授权页 → 粘授权码），授权码只经过节点上的登录进程，不进数据库和日志；云端工作区不能开完全访问。服务器新增 `/api/cloud-workspace/*`、`/api/claude-code/*` 和表 `chisabot_cloud_workspaces`、`chisabot_cc_*`（开机建表，回滚镜像即可）。没部署节点时什么都不变。见 `docs/cloud-claude-code.md`、ADR-0014、DESIGN.md §73.1。
 - 商品 / 地点推荐用带图的卡片网格（CB-050）：机器人推荐、比较商品（或餐厅、酒店、景点）时先查现价和商品页，再画成一排卡片——图、名字、价格、一句卖点、角标、来源站点，整张点开商品页。图由服务器从商品图地址或商品页的 og:image 转存（和链接卡同一套检查与缓存），浏览器不直连第三方；图位固定，图晚到不改高度，取不到图时是名字首字的色块。面板里也能用（算一个大块，最多 4 个）。很长的对话打开时，历史晚到补在上面时画面保持在底部（CB-047）。干活卡不再显示「正在使用 skill_load」这类工具名。只改网页和提示词。见 DESIGN.md §72。

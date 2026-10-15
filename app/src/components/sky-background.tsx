@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useTheme } from "@/components/theme-provider";
 import {
   readStoredPreference,
@@ -51,12 +51,29 @@ export function useSkyState(): SkyState {
 }
 
 /** Keeps the sky custom properties in step with the clock, the theme and the preference. */
+/**
+ * The sky only fades (1.6s) right after the user changes the sky itself: 「背景随时间变化」 on/off or
+ * the settings slider. A dark/light switch and the minute tick apply in one frame — a fading sky
+ * makes every glass pane re-blur for the whole fade (CB-024, DESIGN.md §7.4).
+ */
+const SKY_EASE_MS = 1700;
+let easeTimer: number | undefined;
+export function easeNextSkyChange(root: HTMLElement = document.documentElement) {
+  root.setAttribute("data-sky-ease", "");
+  window.clearTimeout(easeTimer);
+  easeTimer = window.setTimeout(() => root.removeAttribute("data-sky-ease"), SKY_EASE_MS);
+}
+
 export function SkyBackground() {
   const { dark } = useTheme();
   const { enabled, preview } = useSkyState();
+  const last = useRef<{ enabled: boolean; preview: number | null } | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
+    const prev = last.current;
+    last.current = { enabled, preview };
+    if (prev && (prev.enabled !== enabled || prev.preview !== preview)) easeNextSkyChange(root);
     if (!enabled) {
       applySky(null);
       root.removeAttribute("data-sky");

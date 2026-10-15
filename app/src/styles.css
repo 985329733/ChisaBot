@@ -225,10 +225,10 @@ html {
 
 /*
  * The sky (DESIGN.md §7). `--sky-*` are registered, NON-inherited and set only on <body>, so the
- * per-minute transition repaints the background and nothing else. Defaults are the fixed blue sky
+ * per-minute change repaints the background and nothing else. Defaults are the fixed blue sky
  * (「背景随时间变化」 off); `SkyBackground` / the boot script in index.html write the time-of-day values
  * inline. `--sky-stars`, `--sky-lift` and `--sky-muted` are plain inherited vars that change at most
- * once a minute and never animate themselves.
+ * once a minute and never animate themselves. The fade only runs under `html[data-sky-ease]` (below).
  */
 @property --sky-1 { syntax: "<color>"; inherits: false; initial-value: #6f9bc7; }
 @property --sky-2 { syntax: "<color>"; inherits: false; initial-value: #9dbddc; }
@@ -253,9 +253,6 @@ body {
     linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 38%, var(--sky-3) 68%, var(--sky-4) 100%);
   background-attachment: fixed;
   background-color: var(--sky-2);
-  transition:
-    --sky-1 1.6s ease, --sky-2 1.6s ease, --sky-3 1.6s ease, --sky-4 1.6s ease,
-    --sky-cloud 1.6s ease, --sky-glow 1.6s ease, --sky-glow-x 1.6s ease, --sky-glow-y 1.6s ease;
   color: var(--foreground);
   font-family: var(--font);
   font-size: var(--fs-14);
@@ -280,7 +277,6 @@ body::before {
   z-index: -1;
   pointer-events: none;
   opacity: var(--sky-stars, 0);
-  transition: opacity 1.6s ease;
   background-image:
     radial-gradient(1.4px 1.4px at 37px 53px, #fff 40%, transparent 100%),
     radial-gradient(1px 1px at 151px 97px, #fff 40%, transparent 100%),
@@ -292,9 +288,25 @@ body::before {
   mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 82%);
 }
 
+/*
+ * CB-024 (DESIGN.md §7.4): the sky eases ONLY while <html data-sky-ease> is set — `SkyBackground` sets it
+ * for ~1.7s when 「背景随时间变化」 is switched or the settings slider moves. Switching dark/light and the
+ * once-a-minute tick change the sky in ONE frame: every glass pane re-blurs whatever is behind it, so a
+ * 1.6s sky fade meant ~100 full-screen blur frames (theme toggle ≈ 1.9s of raster). The selector's
+ * subject is `body`, so adding/removing the attribute restyles body only, never the whole page.
+ */
+html[data-sky-ease] body {
+  transition:
+    --sky-1 1.6s ease, --sky-2 1.6s ease, --sky-3 1.6s ease, --sky-4 1.6s ease,
+    --sky-cloud 1.6s ease, --sky-glow 1.6s ease, --sky-glow-x 1.6s ease, --sky-glow-y 1.6s ease;
+}
+html[data-sky-ease] body::before {
+  transition: opacity 1.6s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Colours still ease; the sun/moon glow does not travel. */
-  body {
+  html[data-sky-ease] body {
     transition:
       --sky-1 1.6s ease, --sky-2 1.6s ease, --sky-3 1.6s ease, --sky-4 1.6s ease,
       --sky-cloud 1.6s ease, --sky-glow 1.6s ease;

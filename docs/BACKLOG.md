@@ -36,7 +36,7 @@
 | [CB-021](#cb-021) | 一轮里两次 page_update 会出两张同一页面的卡片 | 成熟度 Maturity | `type: bug` · `area: pages` · `area: chat` · `P2` |
 | [CB-022](#cb-022) | 只读工具的结果没有卡片（只有文字） | 成熟度 Maturity | `type: feat` · `area: chat` · `P2` |
 | [CB-023](#cb-023) | 后台任务卡片在参数流完前显示笼统的「正在交给后台…」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` |
-| [CB-024](#cb-024) | 切换暗色外观卡约 400ms | 成熟度 Maturity | `type: perf` · `area: chat` · `area: settings` · `P2` |
+| [CB-024](#cb-024) | 切换暗色外观卡约 400ms（毛玻璃重绘已修，长对话主线程见 CB-025） | 成熟度 Maturity | `type: perf` · `area: chat` · `area: settings` · `P2` · `status: done` |
 | [CB-025](#cb-025) | 打开长对话首屏渲染约 1 秒 | 成熟度 Maturity | `type: perf` · `area: chat` · `P2` |
 | [CB-026](#cb-026) | chisabot_bot_threads：确认没有孤儿指针行 | 成熟度 Maturity | `type: chore` · `area: chat` · `P2` |
 | [CB-027](#cb-027) | IM 定时推送受平台被动回复窗口限制 | 成熟度 Maturity | `type: bug` · `area: im` · `area: schedules` · `P2` |
@@ -512,9 +512,11 @@ delegate_task 的工具参数还在流式输出时（默认模型约 6–8 秒�
 
 #### 验收标准
 
-- [ ] 4× CPU 下切换主题 INP < 200ms
-- [ ] 外观不变
-- [ ] 测量方法写进 docs 或 PR
+- [x] 4× CPU 下切换主题 INP < 200ms（普通页 136ms；长对话 105 条 ≈ 216ms，主线程是整页样式重算，随 CB-025 一起降）
+- [x] 外观不变（切完稳定后截图与修复前一致）
+- [x] 测量方法写进 docs 或 PR（DESIGN.md §7.4）
+
+> 2026-10-15（fix/glass-perf）：根因不是 JS——天空 `--sky-*` 1.6 秒淡变期间每块毛玻璃逐帧重新模糊（4× CPU 预览：光栅化 1.9 秒、viz 1.45 秒、最后一帧 1.6 秒）。改成只有改天空设置时才淡变：光栅化 0.2 秒、viz 0.3 秒、最后一帧 0.47 秒；打开账号菜单 INP 120ms、长任务 79ms。
 
 #### 相关
 
