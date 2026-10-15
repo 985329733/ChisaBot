@@ -206,11 +206,12 @@ export function createActivityStore(database: Database) {
               status: run.status === "ok" ? "succeeded" : run.status,
               at: iso(run.finished_at ?? run.started_at),
               channelId: channelOf.get(schedule.thread_id) ?? null,
-              needsYou: false,
+              needsYou: run.status === "waiting",
               stoppable: false,
               cancellable: false,
             };
-            if (["running", "queued", "waiting"].includes(run.status))
+            // queued = handed into a turn already running in that conversation (final for the run).
+            if (run.status === "running" || run.status === "waiting")
               activity.inProgress.push(item);
             else activity.completed.push(item);
           }
