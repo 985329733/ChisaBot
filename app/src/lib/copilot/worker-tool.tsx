@@ -1,10 +1,11 @@
 import { useRenderTool } from "@copilotkit/react-core/v2";
 import { z } from "zod";
 import { WorkerCard } from "@/components/chat/worker-card";
+import { pendingWorkerTitle } from "@/lib/chat/worker-title";
 
 /**
  * `delegate_task`（服务器工具，server/src/workers/service.ts）在聊天里画成后台任务卡片（DESIGN.md §38.2）。
- * 参数流式到达时先用标题画一张「正在交给后台…」，工具返回 workerId 后换成活的卡片。
+ * 参数流式到达时先用标题（没有标题时用任务说明的头一句）画一张「正在交给后台…」，工具返回 workerId 后换成活的卡片。
  */
 const parameters = z.object({
   title: z.string().optional(),
@@ -33,9 +34,7 @@ export function WorkerTool() {
   useRenderTool({
     name: "delegate_task",
     parameters,
-    render: ({ parameters: given, result }) => (
-      <WorkerCard pendingTitle={typeof given?.title === "string" ? given.title : undefined} workerId={workerIdOf(result)} />
-    ),
+    render: ({ parameters: given, result }) => <WorkerCard pendingTitle={pendingWorkerTitle(given)} workerId={workerIdOf(result)} />,
   });
   return null;
 }

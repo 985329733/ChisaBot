@@ -58,6 +58,7 @@ import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
 import { WorkCard, workSeconds } from "@/components/chat/work-card";
 import { summarizeDoneWork, type WorkCall } from "@/lib/chat/work-steps";
+import { supersededPageCalls } from "@/lib/chat/page-cards";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
 import { isEditableUserText } from "@/lib/copilot/regenerate";
@@ -2279,6 +2280,11 @@ export function compactTurns(
     }
     const browsers = turn.rest.filter((item) => item.kind === "browser");
     for (const item of browsers.slice(0, -1)) hidden.add(item.id);
+    // CB-021：同一轮里同一个页面只留一张卡（§54「同一轮同一页面一张卡」）。
+    const pageCalls = turn.rest.flatMap((item) =>
+      item.kind === "tool" ? [{ id: item.id, name: item.toolCall.function.name, args: item.toolCall.function.arguments, result: item.result }] : [],
+    );
+    for (const id of supersededPageCalls(pageCalls)) hidden.add(id);
     const visible = [...turn.users, ...turn.rest].filter((item) => !hidden.has(item.id));
     const last = visible[visible.length - 1]?.id;
     if (isStopped && last) stoppedAfter.add(last);

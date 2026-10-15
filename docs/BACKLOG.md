@@ -33,9 +33,9 @@
 | [CB-018](#cb-018) | 用户的电脑需要手动重装 PC 0.1.7（0.2.x 不会自动更新） | 0.2.0 release | `type: chore` · `area: pc` · `P1` · `status: needs-user` |
 | [CB-019](#cb-019) | 发版 0.2.0（PC + Android） | 0.2.0 release | `type: chore` · `area: infra` · `area: pc` · `area: android` · `P1` |
 | [CB-020](#cb-020) | CI「ChisaBot checks」server-typecheck 在 main 上一直失败 | 精简 Slim | `type: bug` · `area: infra` · `P1` · `status: done` |
-| [CB-021](#cb-021) | 一轮里两次 page_update 会出两张同一页面的卡片 | 成熟度 Maturity | `type: bug` · `area: pages` · `area: chat` · `P2` |
+| [CB-021](#cb-021) | 一轮里两次 page_update 会出两张同一页面的卡片 | 成熟度 Maturity | `type: bug` · `area: pages` · `area: chat` · `P2` · `status: done` |
 | [CB-022](#cb-022) | 只读工具的结果没有卡片（只有文字） | 成熟度 Maturity | `type: feat` · `area: chat` · `P2` |
-| [CB-023](#cb-023) | 后台任务卡片在参数流完前显示笼统的「正在交给后台…」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` |
+| [CB-023](#cb-023) | 后台任务卡片在参数流完前显示笼统的「正在交给后台…」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` · `status: done` |
 | [CB-024](#cb-024) | 切换暗色外观卡约 400ms（毛玻璃重绘已修，长对话主线程见 CB-025） | 成熟度 Maturity | `type: perf` · `area: chat` · `area: settings` · `P2` · `status: done` |
 | [CB-025](#cb-025) | 打开长对话首屏渲染约 1 秒 | 成熟度 Maturity | `type: perf` · `area: chat` · `P2` |
 | [CB-026](#cb-026) | chisabot_bot_threads：确认没有孤儿指针行 | 成熟度 Maturity | `type: chore` · `area: chat` · `P2` |
@@ -456,9 +456,11 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 
 #### 验收标准
 
-- [ ] 同一轮、同一页面只显示一张卡（最后一版）
-- [ ] 不同页面仍各一张
-- [ ] 回归测试覆盖
+- [x] 同一轮、同一页面只显示一张卡（最后一版）
+- [x] 不同页面仍各一张
+- [x] 回归测试覆盖（`app/tests/chat-unify.test.ts`「page cards」）
+
+> 2026-10-15（fix/chat-cards）：`supersededPageCalls` 留最后一次有结果的调用；下一次还在流时前一张照常显示，任何时刻只有一张。DESIGN.md §54。
 
 #### 相关
 
@@ -494,9 +496,11 @@ delegate_task 的工具参数还在流式输出时（默认模型约 6–8 秒�
 
 #### 验收标准
 
-- [ ] 参数里的任务名一出现就显示
-- [ ] 或者在拿到名字前不出卡，只出一行进度
-- [ ] §38.3 更新
+- [x] 参数里的任务名一出现就显示（先写 task 的模型用说明头一句）
+- [x] 或者在拿到名字前不出卡，只出一行进度（「正在安排后台任务…」）
+- [x] §38.3 更新
+
+> 2026-10-15（fix/chat-cards）：`pendingWorkerTitle`（`app/src/lib/chat/worker-title.ts`），测试 `app/tests/chat-unify.test.ts`。
 
 #### 相关
 
