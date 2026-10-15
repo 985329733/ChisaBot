@@ -690,8 +690,7 @@ describe("delegation is gated", () => {
       sourceFor: async () => ({ channelId: "channel" }),
       gate: service.gate,
       computerTools: async () => [],
-      hostTools: () => [],
-      callTool: async () => {
+        callTool: async () => {
         throw new Error("a hand-off is not a connector call");
       },
       credentialActorFor: async (actorId) => actorId,

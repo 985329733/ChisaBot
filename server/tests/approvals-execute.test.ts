@@ -37,7 +37,6 @@ function harness(overrides: Partial<ApprovedActionDependencies> = {}) {
     sourceFor: async () => ({ channelId: "channel" }),
     gate: async () => undefined,
     computerTools: async () => [],
-    hostTools: () => [],
     callTool: async (input: unknown) => {
       calls.push(input);
       return { text: "sent", isError: false };

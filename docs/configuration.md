@@ -346,7 +346,6 @@ policies apply. See [OpenAI WebRTC](https://developers.openai.com/api/docs/guide
 | `OPENBOT_PUBLIC_URL`         | Public address of this API. Defaults to `BETTER_AUTH_URL`.                              |
 | `OPENBOT_APP_URL`            | Where the browser app is served. Defaults to the first `TRUSTED_ORIGINS` entry.          |
 | `SIGNIN_ALLOWED_EMAIL_DOMAINS` | Comma-separated email domains admitted at sign-in. Empty means no opinion. Exact, no wildcards. |
-| `OPENBOT_ORGANIZATION_AUTH_URL` | An OpenBot deployment that verifies employee identity and roles. Decides sign-in ahead of `OPENBOT_SINGLE_USER`. |
 
 **Some variables belong to the desktop app, not to you.** A desktop installation writes these into
 its own deployment's `.env` and owns their values: `OPENBOT_MODEL_OAUTH_FILE`, `CHATGPT_AUTH_FILE`,
@@ -383,10 +382,7 @@ or `consumers`), because there the address the list is checked against is one th
 writes for itself. A production deployment that names no domains and leaves the tenant multi-tenant
 is warned rather than refused.
 
-**`OPENBOT_ORGANIZATION_AUTH_URL` names an authority, not a provider.** It must be an HTTPS OpenBot
-origin, or HTTP on loopback, and a bare origin: a username, password, query, fragment or any path
-other than `/` is refused at start-up. Naming one settles sign-in by itself, ahead of
-`OPENBOT_SINGLE_USER`.
+`OPENBOT_ORGANIZATION_AUTH_URL`（上游桌面端的「组织登录」）已在瘦身 P6-4 删除；设置了它服务器会拒绝启动。
 
 **Any one provider turns sign-in on**, and several may be configured at once. Each provider's id and
 secret must be set together, Okta additionally needs its issuer, and any of them requires
@@ -447,58 +443,9 @@ see the Bot can read it.
 With both caps above at zero the screen says the capability is switched off, because a grant made
 then is a row nothing will read.
 
-## Slack and Microsoft Teams (OpenTag pairing)
+## Slack / Teams / 短信 / 推送
 
-OpenBot reaches people in Slack and Teams through [OpenTag](https://github.com/CopilotKit/OpenTag),
-the open-source Channels SDK front. OpenTag calls OpenBot as its AG-UI agent; OpenBot does not hold a
-Slack app of its own.
-
-| Variable                        | Meaning                                                                                                                                                                           |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENTAG_SHARED_SECRET`         | Enables the pairing. At least 32 characters. OpenTag must send `Authorization: Bearer <secret>` (its `AGENT_AUTH_HEADER`), and OpenBot sends the same header on proactive posts. |
-| `OPENTAG_URL`                   | OpenTag's base URL, for messages sent when no Slack turn is open (replies after an approval, responsibility progress, questions). Without it those sends fail visibly in the outbox, and Slack triggers are refused because channel membership cannot be checked. |
-| `OPENTAG_BOT_ICON_URL_TEMPLATE` | Optional `https` PNG URL with `{seed}` (the Bot's avatar seed) or `{agentId}`, used as the Bot's Slack icon on proactive posts.                                                    |
-
-Point OpenTag's `AGENT_URL` at `<public URL>/api/delivery/webhooks/opentag/agent`. A person links
-their Slack or Teams identity from **Reachability**: OpenBot shows a one-time `link <code>` message,
-valid for ten minutes, which they send to the OpenTag app. After that, only that person's messages
-reach their chosen Bot, in their own OpenBot conversation, with learning, governance, approvals and
-audit on every turn. Anyone unlinked is told how to link and nothing runs. Approval requests appear
-as OpenTag approval cards (allow once, always allow, cancel) and are decided through the approvals
-service as the linked owner; a reply to a Bot's question answers that question.
-
-The former direct Slack settings (`SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_BOT_TOKEN`,
-`SLACK_TEAM_ID`, `SLACK_SIGNING_SECRET`) are refused at start-up; unset them.
-
-SMS through Twilio honours Advanced Opt-Out: `STOP` (and Twilio's other opt-out keywords) marks the
-number opted out, later messages show `opted_out` in the delivery history instead of being sent, and
-`START` resumes. Twilio sends the confirmation reply itself, so OpenBot does not.
-
-## Text messages and push notifications
-
-A provider is switched on by setting its variables and is off while none of them are set. Setting
-some of a provider's variables and not all of them stops the server at start-up with
-`Delivery configuration is incomplete:` and the names that are missing.
-
-| Variable                    | Meaning                                                                                                                                                                                                                                            |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DELIVERY_PUBLIC_URL`       | The public origin providers call back on, such as a tunnel or an ingress. Twilio signs each request over the URL it was given, so this has to be the address Twilio was configured with. Unset, OpenBot uses `OPENBOT_PUBLIC_URL`, then `BETTER_AUTH_URL`. It must be an `http(s)` URL or the server does not start. |
-| `TWILIO_ACCOUNT_SID`        | Twilio account SID. One of the four SMS settings, which are set together.                                                                                                                                                                          |
-| `TWILIO_AUTH_TOKEN`         | Twilio auth token. Used to send and to check the signature on every request Twilio makes.                                                                                                                                                         |
-| `TWILIO_VERIFY_SERVICE_SID` | The Twilio Verify service that texts the code a person enters on **Reachability** to confirm their number.                                                                                                                                       |
-| `TWILIO_FROM_NUMBER`        | The Twilio number OpenBot sends from.                                                                                                                                                                                                              |
-| `EXPO_PROJECT_ID`           | The native app's EAS project id, a UUID. Switches on push notifications and sign-in from the native app (without it, the server does not trust the app's `openbotmobile://` sign-in redirect). A device registers only when the app reports this same project id; any other value is refused. A value that is not a UUID stops the server at start-up.                  |
-| `EXPO_ACCESS_TOKEN`         | Optional. Sent as `Authorization: Bearer` on every request to Expo's push service; without it those requests carry no token.                                                                                                                       |
-
-With SMS on, point the Twilio number's incoming-message webhook at
-`<DELIVERY_PUBLIC_URL>/api/delivery/webhooks/sms`. OpenBot passes
-`<DELIVERY_PUBLIC_URL>/api/delivery/webhooks/sms/status` to Twilio as the status callback on each
-message it sends.
-
-The native app in `mobile/` reads two variables of its own when it is built, from `mobile/.env`:
-`EXPO_PUBLIC_SERVER_URL`, the deployment's public URL (required, `https` outside development, no
-credentials or query string), and `EXPO_PUBLIC_EAS_PROJECT_ID`, the same project id as
-`EXPO_PROJECT_ID` above.
+上游的 OpenTag（Slack、Teams）、Twilio 短信和 Expo 推送通道已在瘦身 P4b-2 删除，`OPENTAG_*`、`DELIVERY_PUBLIC_URL`、`TWILIO_*`、`EXPO_*` 不再读取。ChisaBot 的外部消息走 IM 通道（docs/im.md）。
 
 ## Inbound email triggers
 

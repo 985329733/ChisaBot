@@ -26,16 +26,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { useBotNames } from "@/lib/agents/bot-names";
-import { agentListQueryOptions } from "@/lib/agents/queries";
 import { setComputerStateMutationOptions } from "@/lib/computers/mutations";
-import {
-  hostAccessQueryOptions,
-  requestHostFolderGrantMutationOptions,
-  revokeHostFolderGrantMutationOptions,
-  stopHostAccessMutationOptions,
-  type HostFolderGrant,
-  type HostAccessPendingOperation,
-} from "@/lib/computers/host-access";
 import { computerFleetQueryOptions } from "@/lib/computers/queries";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
@@ -53,18 +44,7 @@ function ComputersPage() {
   const nameFor = useBotNames();
 
   const fleet = useQuery(computerFleetQueryOptions());
-  const hostAccess = useQuery(hostAccessQueryOptions());
-  const agents = useQuery(agentListQueryOptions());
   const setState = useMutation(setComputerStateMutationOptions(queryClient));
-  const requestGrant = useMutation(
-    requestHostFolderGrantMutationOptions(queryClient),
-  );
-  const revokeGrant = useMutation(
-    revokeHostFolderGrantMutationOptions(queryClient),
-  );
-  const stopHostAccess = useMutation(
-    stopHostAccessMutationOptions(queryClient),
-  );
 
   const computers = fleet.data?.computers ?? null;
   const isolation = fleet.data?.isolation ?? null;
@@ -73,15 +53,6 @@ function ComputersPage() {
    * instead, because the top of this page is a long scroll away from them.
    */
   const problem = fleet.error ? "无法列出计算机。" : null;
-  const hostProblem = hostAccess.error
-    ? hostAccess.error.message
-    : requestGrant.error
-      ? requestGrant.error.message
-      : revokeGrant.error
-        ? revokeGrant.error.message
-        : stopHostAccess.error
-          ? stopHostAccess.error.message
-          : null;
 
   const run = (botId: string, action: "stop" | "reset" | "update") => {
     setBusy(botId);
@@ -117,30 +88,6 @@ function ComputersPage() {
           }
         </p>
       ) : null}
-
-      <HostFoldersSection
-        connected={hostAccess.data?.connected ?? false}
-        grants={hostAccess.data?.grants ?? []}
-        botIds={(agents.data ?? []).map((agent) => agent.id)}
-        loading={hostAccess.isPending || agents.isPending}
-        nameFor={nameFor}
-        onGrant={(botId) => requestGrant.mutate({ botId })}
-        onRevoke={(grantId) => revokeGrant.mutate({ grantId })}
-        onStop={() => stopHostAccess.mutate()}
-        pending={hostAccess.data?.pending ?? []}
-        problem={hostProblem}
-        requestingBotId={
-          requestGrant.isPending
-            ? (requestGrant.variables?.botId ?? null)
-            : null
-        }
-        revokingGrantId={
-          revokeGrant.isPending
-            ? (revokeGrant.variables?.grantId ?? null)
-            : null
-        }
-        stopping={stopHostAccess.isPending}
-      />
 
       <PageSection title={"此部署中的计算机"}>
         {setState.error ? (
@@ -320,218 +267,4 @@ function ComputersPage() {
       </p>
     </PageShell>
   );
-}
-
-type HostFoldersSectionProps = {
-  botIds: string[];
-  connected: boolean;
-  grants: HostFolderGrant[];
-  loading: boolean;
-  nameFor: (botId: string) => string;
-  onGrant: (botId: string) => void;
-  onRevoke: (grantId: string) => void;
-  onStop: () => void;
-  pending: HostAccessPendingOperation[];
-  problem: string | null;
-  requestingBotId: string | null;
-  revokingGrantId: string | null;
-  stopping: boolean;
-};
-
-function HostFoldersSection({
-  botIds: knownBotIds,
-  connected,
-  grants,
-  loading,
-  nameFor,
-  onGrant,
-  onRevoke,
-  onStop,
-  pending,
-  problem,
-  requestingBotId,
-  revokingGrantId,
-  stopping,
-}: HostFoldersSectionProps) {
-  const botIds = Array.from(
-    new Set([
-      ...knownBotIds,
-      ...grants.map((grant) => grant.botId),
-      ...pending.map((one) => one.botId),
-    ]),
-  ).sort((left, right) => nameFor(left).localeCompare(nameFor(right)));
-
-  return (
-    <PageSection
-      description={
-        "选择机器人可以在此计算机上读取的文件夹。桌面应用在每次编辑或命令前都会询问。访问在你停止 ChisaBot 时结束。"
-      }
-      title={"此计算机上的文件夹"}
-    >
-      {problem ? (
-        <p
-          className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
-          role="alert"
-        >
-          {problem}
-        </p>
-      ) : null}
-
-      {!connected && !loading ? (
-        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          {
-            "桌面应用离线。文件夹只能从桌面应用批准，命令访问在离线时保持不可用。"
-          }
-        </p>
-      ) : null}
-
-      {loading ? null : botIds.length === 0 ? (
-        <PageEmpty>{"尚无机器人。在选择文件夹之前创建机器人。"}</PageEmpty>
-      ) : (
-        <PageRows>
-          {botIds.map((botId, index) => (
-            <StaggerItem index={index} key={botId}>
-              <Item size="sm">
-                <ItemContent>
-                  <ItemTitle title={botId}>{nameFor(botId)}</ItemTitle>
-                  <ItemDescription>
-                    {summaryFor(botId, grants, pending)}
-                  </ItemDescription>
-                  <FolderGrantList
-                    botId={botId}
-                    grants={grants}
-                    onRevoke={onRevoke}
-                    pending={pending}
-                    revokingGrantId={revokingGrantId}
-                  />
-                </ItemContent>
-                <ItemActions>
-                  <Button
-                    disabled={!connected || requestingBotId === botId}
-                    onClick={() => onGrant(botId)}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {requestingBotId === botId ? "等待中…" : "选择文件夹"}
-                  </Button>
-                </ItemActions>
-              </Item>
-              {index !== botIds.length - 1 && <Separator />}
-            </StaggerItem>
-          ))}
-        </PageRows>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-muted-foreground text-sm">
-        <p>{"授权默认只读。当机器人需要时，从原生桌面提示请求写入。"}</p>
-        <div className="flex items-center gap-3">
-          <Button
-            disabled={!connected || stopping}
-            onClick={onStop}
-            size="sm"
-            variant="outline"
-          >
-            {stopping ? "正在停止…" : "停止文件夹访问"}
-          </Button>
-          <Link className="underline" to="/admin/audit">
-            {"查看审计"}
-          </Link>
-        </div>
-      </div>
-    </PageSection>
-  );
-}
-
-function FolderGrantList({
-  botId,
-  grants,
-  onRevoke,
-  pending,
-  revokingGrantId,
-}: {
-  botId: string;
-  grants: HostFolderGrant[];
-  onRevoke: (grantId: string) => void;
-  pending: HostAccessPendingOperation[];
-  revokingGrantId: string | null;
-}) {
-  const botGrants = grants.filter(
-    (grant) => grant.botId === botId && !grant.revoked,
-  );
-  const botPending = pending.filter((request) => request.botId === botId);
-
-  if (botGrants.length === 0 && botPending.length === 0) return null;
-
-  return (
-    <div className="mt-2 flex flex-col gap-2">
-      {botGrants.map((grant) => (
-        <div
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
-          key={grant.id}
-        >
-          <div className="min-w-0">
-            <p className="truncate font-medium text-sm">{grant.displayName}</p>
-            <p className="text-muted-foreground text-xs">
-              {ownerLabel(grant)} {"· 只读"}
-            </p>
-          </div>
-          <Button
-            disabled={revokingGrantId === grant.id}
-            onClick={() => onRevoke(grant.id)}
-            size="sm"
-            variant="ghost"
-          >
-            {revokingGrantId === grant.id ? "撤销中…" : "撤销"}
-          </Button>
-        </div>
-      ))}
-      {botPending.map((request) => (
-        <div
-          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
-          key={request.operationId}
-        >
-          {pendingLabel(request)} {"从"}
-          {ownerLabel(request)}
-          {request.displayName ? `用于 ${request.displayName}` : ""}.
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function summaryFor(
-  botId: string,
-  grants: HostFolderGrant[],
-  pending: HostAccessPendingOperation[],
-) {
-  const active = grants.filter(
-    (grant) => grant.botId === botId && !grant.revoked,
-  ).length;
-  const waiting = pending.filter((request) => request.botId === botId).length;
-  const parts = [];
-  if (active > 0) parts.push(`${active} 个只读文件夹`);
-  if (waiting > 0) parts.push(`${waiting} 项待处理请求`);
-  return parts.length > 0 ? parts.join(" · ") : "尚未批准任何文件夹访问。";
-}
-
-function ownerLabel(grant: { ownerName?: string; ownerEmail?: string }) {
-  return grant.ownerName ?? grant.ownerEmail ?? "桌面所有者";
-}
-
-function pendingLabel(request: HostAccessPendingOperation) {
-  switch (request.kind) {
-    case "write_file":
-      return "文件修改正在等待审批或完成";
-    case "run_command":
-      return "命令正在等待审批或完成";
-    case "list_files":
-      return "正在列出文件";
-    case "read_file":
-      return "正在读取文件";
-    case "cancel":
-    case "stop":
-      return "正在停止文件夹操作";
-    default:
-      return "文件夹访问正在等待审批";
-  }
 }

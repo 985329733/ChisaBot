@@ -45,7 +45,6 @@ import {
   type RoleRepository,
   requireAdmin,
 } from "./auth/guards";
-import { desktopAuthPage } from "./auth/native-browser";
 import {
   createAttachmentRoutes,
   createChannelAttachmentRoutes,
@@ -83,8 +82,6 @@ import { withoutStatement } from "./db/query-failure";
 import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
-import type { HostAccessBroker } from "./host-access/broker";
-import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import type { LocalConversationBackend } from "./local-conversations";
 import { createPasswordRoutes, createSignInRoutes } from "./passwords/routes";
@@ -322,8 +319,8 @@ export function createApp(
    * database has no door for this at all, not a locked one.
    */
   attachmentDatabase?: Database,
-  /** Session-only broker for native owner-approved host folder access. */
-  hostAccessBroker?: HostAccessBroker,
+  /** Removed in slimming P6-4 (native host folder broker of the upstream desktop app); positional slot kept. */
+  _removedHostAccessBroker?: unknown,
   /** Fresh desktop-only bearer token for the native host worker poll/result channel. */
   desktopHostToken?: string,
   /** Server-owned tools that are not MCP but use the same signed agent callback route. */
@@ -452,16 +449,6 @@ export function createApp(
     }),
   );
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
-    if (
-      context.req.method === "GET" &&
-      new URL(context.req.url).pathname === "/api/auth/desktop" &&
-      !config.organizationAuthUrl
-    ) {
-      return desktopAuthPage(
-        context.req.raw,
-        configuredAuthProviders(config.auth),
-      );
-    }
     if (!auth) {
       return context.json(
         { error: "No identity provider is configured." },
@@ -469,7 +456,8 @@ export function createApp(
       );
     }
 
-    // Better Auth's own routes (social sign-in, sessions, desktop handoff). The enterprise SSO and
+    // Better Auth's own routes (social sign-in, sessions). The desktop handoff (electron plugin,
+    // /api/auth/desktop) was removed in slimming P6-4. The enterprise SSO and
     // SCIM plugins and their admin-only / audited branches were removed in slimming P6-2.
     return auth.handler(context.req.raw);
   });
@@ -1247,22 +1235,7 @@ export function createApp(
     );
   }
 
-  if (hostAccessBroker) {
-    app.route(
-      "/api/host-access",
-      createHostAccessRoutes({
-        broker: hostAccessBroker,
-        desktopToken: desktopHostToken,
-        requireUser,
-        canUseBot,
-        auditStore,
-        botName: agentProfileStore
-          ? async (botId, actor) =>
-              (await agentProfileStore.get(actor, botId))?.name ?? null
-          : undefined,
-      }),
-    );
-  }
+
 
   if (agentProfileStore) {
     app.route(

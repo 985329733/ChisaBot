@@ -94,8 +94,6 @@ import { createAuth } from "./auth";
 import { DEV_ACTOR, initializeDevActorUser } from "./auth/dev-actor";
 import type { AuthService } from "./auth/guards";
 import { createRoleRepository } from "./auth/guards";
-import { createOrganizationAuth } from "./auth/organization";
-import { organizationUserStore } from "./auth/organization-store";
 import { type OpenBotRole, setRole } from "./auth/roles";
 import {
   createGatewayRequireUser,
@@ -180,8 +178,6 @@ import {
 } from "./db/schema";
 import { createDeliveryStore } from "./delivery/store";
 import type { DeliveryScope } from "./delivery/types";
-import { createHostAccessBroker } from "./host-access/broker";
-import { HOST_UNAVAILABLE_HINT, hostAccessTools } from "./host-access/tools";
 import { createDeviceHub } from "./devices/hub";
 import { createDeviceRoutes } from "./devices/routes";
 import { createDeviceStore } from "./devices/store";
@@ -482,19 +478,14 @@ const peopleStore = createPeopleStore(
  * store that receives those rows has to exist before anything can sign in.
  */
 const signInAuditStore = createAuditStore(database);
-const auth: AuthService | undefined = config.organizationAuthUrl
-  ? createOrganizationAuth({
-      authorityUrl: config.organizationAuthUrl,
-      materializeUser: organizationUserStore(database),
-    })
-  : config.auth
-    ? createAuth(
-        config,
-        database,
-        (email) => peopleStore.isRevoked(email),
-        signInAuditStore,
-      )
-    : undefined;
+const auth: AuthService | undefined = config.auth
+  ? createAuth(
+      config,
+      database,
+      (email) => peopleStore.isRevoked(email),
+      signInAuditStore,
+    )
+  : undefined;
 // Each computer is pushed its network policy on the way to the action that woke it, because a
 // computer refuses every connection until one arrives (see `withPolicyPushOnWake`).
 const computerProvider = config.computer
@@ -1199,10 +1190,6 @@ const chooseSkills = createModelCompleter({
 
 // Named collaborators are bound once in actorAgentResolver for chat, hops, and headless turns.
 
-const hostAccessBroker = createHostAccessBroker(Date.now, {
-  approvalGate: approvalService.gate,
-  commandPolicy: (actorId) => approvalService.hostCommandPolicy(actorId),
-});
 
 // PC 节点（docs/pc-node.md）：设备登记在数据库，在线连接在内存里的 hub。
 const deviceStore = createDeviceStore(database);
@@ -1407,15 +1394,6 @@ const loadToolsForActor =
       // A Team Bot reaches its owner's accounts, and a teammate's own only with their consent.
       credentialActorFor: teamBots.credentialActorFor(actorId, botId),
     })),
-    ...(imDevices
-      ? hostAccessTools({
-          broker: hostAccessBroker,
-          botId,
-          actorId,
-          auditStore: bootAuditStore,
-          initiator,
-        })
-      : []),
     ...(imDevices ? await deviceToolsFor(actorId, botId, initiator) : []),
     // 生成式界面（json-render，取代 A2UI）：与 /api/capabilities 的 generativeUi 同一个开关。
     ...(config.generativeUi && !imConnection ? renderUiTools() : []),
@@ -2842,14 +2820,6 @@ const executeApprovedAction = createApprovedActionExecutor({
   sourceFor: sourceForCoordinationRun,
   gate: approvalService.gate,
   computerTools: approvalComputerTools,
-  hostTools: ({ actorId, botId, initiator }) =>
-    hostAccessTools({
-      broker: hostAccessBroker,
-      botId,
-      actorId,
-      initiator,
-      auditStore: bootAuditStore,
-    }),
   callTool: (input) => pluginStore.callTool(input),
   credentialActorFor: (actorId, botId, ref) =>
     teamBots.credentialActorFor(actorId, botId)(ref),
@@ -3583,9 +3553,8 @@ const app = createApp(
   // The same database every other store here is built from, so a channel's staged and sent files
   // live behind the same connection as the messages that reference them.
   database,
-  // Native host-folder sessions are session-only: grants disappear with this server process and the
-  // desktop worker must authenticate with a fresh token for this run.
-  hostAccessBroker,
+  // Positional slot of the removed native host-folder broker (slimming P6-4, upstream desktop app).
+  undefined,
   process.env.OPENBOT_DESKTOP_HOST_TOKEN,
   async (input) => {
     const proactiveRefusal = await guardProactiveCallback(
@@ -3640,22 +3609,7 @@ const app = createApp(
       const text = await deviceTool.execute(args);
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
-    if (!name.startsWith("host_")) return null;
-    const tool = hostAccessTools({
-      broker: hostAccessBroker,
-      botId,
-      actorId,
-      auditStore: bootAuditStore,
-      ...(initiator ? { initiator } : {}),
-    }).find((candidate) => candidate.name === name);
-    if (!tool) {
-      return {
-        text: `${REFUSAL_MARKER} ${HOST_UNAVAILABLE_HINT}`,
-        isError: true,
-      };
-    }
-    const text = await tool.execute(args);
-    return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    return null;
   },
   // The app directory, behind the same client the plugin store and the transport already share.
   // Absent without a key, which leaves the routes reporting no broker rather than listing apps

@@ -4,8 +4,6 @@ import { Hono } from "hono";
 import type { AppVariables } from "../src/auth/guards";
 import { createRoutineRoutes } from "../src/routines/routes";
 import type { RoutineStore } from "../src/routines/store";
-import { createHostAccessBroker } from "../src/host-access/broker";
-import { createHostAccessRoutes } from "../src/host-access/routes";
 import { createAgentRoutes } from "../src/agents/routes";
 import { createChannelRoutes } from "../src/channels/routes";
 
@@ -65,41 +63,6 @@ describe("routine ids", () => {
     });
     expect(response.status).toBe(400);
     expect(calls).toEqual([]);
-  });
-});
-
-describe("host-access ids", () => {
-  function app() {
-    const broker = createHostAccessBroker();
-    const app = new Hono<{ Variables: AppVariables }>();
-    app.route(
-      "/",
-      createHostAccessRoutes({
-        broker,
-        desktopToken: "t",
-        requireUser,
-        canUseBot: async () => true,
-        auditStore: undefined,
-      }),
-    );
-    return app;
-  }
-
-  test("refuses a whitespace botId on POST /grants", async () => {
-    const response = await app().request("http://openbot.test/grants", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ botId: "   " }),
-    });
-    expect(response.status).toBe(400);
-  });
-
-  test("refuses a whitespace id on DELETE /grants/:id", async () => {
-    const response = await app().request(
-      "http://openbot.test/grants/%20%20%20",
-      { method: "DELETE" },
-    );
-    expect(response.status).toBe(400);
   });
 });
 
