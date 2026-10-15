@@ -1,10 +1,14 @@
-import { IconChevronRight, IconFolder, IconPlus, IconSettings } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBrandGithub, IconChevronRight, IconDots, IconFolderPlus, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { type CcSessionStatus, type CcWorkspaceView, SYNC_STATE_ZH } from "../../../../shared/cloud-cc";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/toast";
+import { CcNewWorkspaceDialog } from "./cc-github-dialogs";
 import { ccApi, ccKeys, ccWorkspacesQueryOptions, cloudWorkspaceQueryOptions } from "@/lib/cloud-cc";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +33,7 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
   const status = useQuery(cloudWorkspaceQueryOptions());
   const workspaces = useQuery(ccWorkspacesQueryOptions(!!status.data?.node));
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  const [newOpen, setNewOpen] = useState(false);
   const params = useParams({ strict: false }) as { sessionId?: string };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -41,6 +46,25 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
     },
     { errorToast: (e) => `新建会话失败：${e.message}` },
   );
+  const wsAction = async (ws: CcWorkspaceView, action: "retry" | "delete") => {
+    try {
+      if (action === "retry") await ccApi.retryClone(ws.id);
+      else {
+        const ok = await confirmDialog({
+          title: `删除工作区「${ws.name}」？`,
+          description: "云端的工作目录、所有会话的工作树和没推送的 cc/ 分支都会删掉，GitHub 上的仓库不受影响。会话记录归档保留。这一步不能撤销。",
+          confirmLabel: "删除",
+          destructive: true,
+        });
+        if (!ok) return;
+        await ccApi.deleteWorkspace(ws.id);
+        if (ws.sessions.some((s) => s.id === params.sessionId)) void navigate({ to: "/cc" });
+      }
+      await queryClient.invalidateQueries({ queryKey: ccKeys.workspaces });
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
   if (!status.data?.node) return null;
   if (workspaces.isPending) return <div className="cc-tree-skel" aria-busy />;
   if (workspaces.isError) return <div className="cc-tree-err">{workspaces.error.message}</div>;
@@ -57,11 +81,49 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
               type="button"
             >
               <IconChevronRight className="cc-ws-caret size-3.5" />
+              {ws.source === "github" ? <IconBrandGithub aria-hidden className="size-3.5 flex-none opacity-60" /> : null}
               <span className="cc-ws-name">{ws.name}</span>
-              <SyncPill state={ws.syncState} />
+              {ws.cloneState === "cloning" ? (
+                <span className="cc-pill is-info" data-testid="cc-ws-cloning">
+                  <IconLoader2 className="size-3 animate-spin" />
+                  {"克隆中"}
+                </span>
+              ) : ws.cloneState === "error" ? (
+                <span className="cc-pill is-danger">{"克隆失败"}</span>
+              ) : (
+                <SyncPill state={ws.syncState} />
+              )}
             </button>
-            <div className="cc-ws-src">{ws.sourceLabel}</div>
-            <div className="cc-ws-fold" inert={!open}>
+            {ws.source !== "scratch" ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<button aria-label={`工作区「${ws.name}」的更多操作`} className="cc-ws-more" data-testid="cc-ws-menu" type="button" />}>
+                  <IconDots className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {ws.cloneState === "error" ? (
+                    <DropdownMenuItem onClick={() => void wsAction(ws, "retry")}>
+                      <IconRefresh className="size-4" />
+                      {"重试克隆"}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem data-testid="cc-ws-delete" disabled={ws.cloneState === "cloning"} onClick={() => void wsAction(ws, "delete")} variant="destructive">
+                    <IconTrash className="size-4" />
+                    {"删除工作区"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            <div className="cc-ws-src">{ws.sourceLabel}{ws.source === "github" && ws.defaultBranch ? ` · ${ws.defaultBranch}` : ""}</div>
+            {ws.cloneState === "error" && ws.cloneError ? (
+              <div className="cc-ws-err" role="alert">
+                <IconAlertTriangle className="size-3.5 flex-none" />
+                <span>{ws.cloneError}</span>
+                <button className="cc-ws-retry" data-testid="cc-ws-retry" onClick={() => void wsAction(ws, "retry")} type="button">
+                  {"重试"}
+                </button>
+              </div>
+            ) : null}
+            <div className="cc-ws-fold" inert={!open || ws.cloneState !== "ready"}>
               <div className="cc-ws-fold-in">
                 {ws.sessions.map((s) => (
                   <Link
@@ -81,7 +143,7 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
                     {STATUS_ZH[s.status] ? <span className="cc-sess-state">{STATUS_ZH[s.status]}</span> : null}
                   </Link>
                 ))}
-                <Button
+                {ws.cloneState !== "ready" ? null : <Button
                   className="cc-new-sess"
                   data-testid="cc-new-session"
                   feedback={{ pending: "新建中…", success: "已新建", error: "没有建成" }}
@@ -92,16 +154,18 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
                 >
                   <IconPlus className="size-3.5" />
                   {"新会话"}
-                </Button>
+                </Button>}
               </div>
             </div>
           </section>
         );
       })}
-      <p className="cc-tree-hint">
-        <IconFolder className="size-3.5" />
-        {"从 GitHub 新建工作区、电脑文件夹同步在后面几版加上。"}
-      </p>
+      <button className="cc-new-ws" data-testid="cc-new-ws" onClick={() => setNewOpen(true)} type="button">
+        <IconFolderPlus className="size-4" />
+        {"新建工作区"}
+        <span className="cc-new-ws-s">{"从 GitHub"}</span>
+      </button>
+      <CcNewWorkspaceDialog onOpenChange={setNewOpen} open={newOpen} />
     </div>
   );
 }

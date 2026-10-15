@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconCheck, IconChevronDown, IconClockHour4, IconFileDiff, IconLoader2, IconShieldCheck, IconTerminal2, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconChevronDown, IconClockHour4, IconExternalLink, IconFileDiff, IconGitMerge, IconGitPullRequest, IconLoader2, IconShieldCheck, IconTerminal2, IconX } from "@tabler/icons-react";
 import { memo, useState } from "react";
 import { type CcApprovalState, type CcMessage, type CcPart, ccToolLine } from "../../../../shared/cloud-cc";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
@@ -150,7 +150,89 @@ function ChangesCard({ part, onOpen }: { part: Extract<CcPart, { type: "changes"
   );
 }
 
-export const CcMessageView = memo(function CcMessageView({ message, statusText, onOpenDiff }: { message: CcMessage; statusText: string | null; onOpenDiff?: (turnId: string) => void }) {
+/**
+ * 合入 / 推送的结果卡（DESIGN.md §73.7）：已合入（快进 / 合并提交 / 已经是最新）· 有冲突（不动工作目录 +「让 Claude 处理」）·
+ * PR 链接卡（#号 · 分支 → 目标 · 打开）· 推送了但没开成 PR。
+ */
+export function CcGitCard({ part, sessionId }: { part: Extract<CcPart, { type: "git" }>; sessionId?: string }) {
+  const fix = useAsyncAction(
+    async () => {
+      if (!sessionId) return;
+      await ccApi.send(
+        sessionId,
+        `把会话分支 ${part.branch} 合入工作目录（${part.target}）时有冲突${part.files?.length ? `，冲突的文件：${part.files.join("、")}` : ""}。请在这个会话里把分支 rebase 到 ${part.target} 上（git rebase ${part.target}），解决冲突后提交，然后告诉我，我再点「合入工作目录」。`,
+      );
+    },
+    { errorToast: (e) => e.message },
+  );
+  if (part.action === "merge") {
+    const conflict = part.state === "conflict";
+    const title = conflict
+      ? `有冲突，没有合入 ${part.target}`
+      : part.state === "up_to_date"
+        ? `${part.target} 已经包含这个会话的改动`
+        : `已合入工作目录 · ${part.target}`;
+    const sub = conflict
+      ? `工作目录没有动。${part.files?.length ? `冲突：${part.files.slice(0, 4).join("、")}${part.files.length > 4 ? ` 等 ${part.files.length} 个` : ""}。` : ""}让 Claude 先 rebase 再合入。`
+      : part.state === "up_to_date"
+        ? "没有新的提交需要合入。"
+        : `${part.state === "fast_forward" ? "快进" : "合并提交"} · ${part.commits ?? 0} 个提交来自 ${part.branch}`;
+    return (
+      <section className={cn("cc-git", conflict && "is-conflict")} data-state={part.state} data-testid="cc-git-merge">
+        <span aria-hidden className="cc-git-ico">
+          {conflict ? <IconAlertTriangle className="size-4" /> : <IconGitMerge className="size-4" />}
+        </span>
+        <div className="cc-git-main">
+          <div className="cc-git-t">{title}</div>
+          <div className="cc-git-s">{sub}</div>
+          {conflict && sessionId ? (
+            <div className="cc-git-actions">
+              <Button data-testid="cc-git-fix" feedback={{ pending: "发送中…", success: "已交给 Claude", error: "没发出去" }} onClick={() => void fix.run()} size="sm" state={fix.state} variant="outline">
+                {"让 Claude 处理"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+  const failed = part.state === "push_failed";
+  return (
+    <section className={cn("cc-git is-pr", failed && "is-conflict")} data-state={part.state} data-testid="cc-git-pr">
+      <span aria-hidden className="cc-git-ico">
+        {failed ? <IconAlertTriangle className="size-4" /> : <IconGitPullRequest className="size-4" />}
+      </span>
+      <div className="cc-git-main">
+        <div className="cc-git-t">{failed ? "分支已推送，PR 没有开成" : `${part.state === "pr_exists" ? "PR 已经在了" : "已推送并开 PR"}${part.prNumber ? ` · #${part.prNumber}` : ""}`}</div>
+        <div className="cc-git-s">
+          <code>{part.branch}</code>
+          {" → "}
+          <code>{part.target}</code>
+          {part.commits ? ` · ${part.commits} 个提交` : ""}
+        </div>
+        {failed && part.text ? <div className="cc-git-s is-err">{part.text}</div> : null}
+      </div>
+      {part.prUrl ? (
+        <a className="cc-git-open" data-testid="cc-pr-link" href={part.prUrl} rel="noreferrer noopener" target="_blank">
+          {"打开"}
+          <IconExternalLink className="size-3.5" />
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
+export const CcMessageView = memo(function CcMessageView({
+  message,
+  statusText,
+  onOpenDiff,
+  sessionId,
+}: {
+  message: CcMessage;
+  statusText: string | null;
+  onOpenDiff?: (turnId: string) => void;
+  sessionId?: string;
+}) {
   if (message.role === "user") {
     const text = message.parts.find((p) => p.type === "text") as { text: string } | undefined;
     return (
@@ -163,7 +245,17 @@ export const CcMessageView = memo(function CcMessageView({ message, statusText, 
   if (message.role === "system")
     return (
       <div className="cc-msg cc-msg-system">
-        {message.parts.map((p, i) => (p.type === "notice" ? <span className="cc-notice" key={i}>{p.text}</span> : null))}
+        {message.parts.map((p, i) =>
+          p.type === "notice" ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 系统消息的段没有 id
+            <span className="cc-notice" key={i}>
+              {p.text}
+            </span>
+          ) : p.type === "git" ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 同上
+            <CcGitCard key={i} part={p} sessionId={sessionId} />
+          ) : null,
+        )}
       </div>
     );
   const running = message.status === "running";

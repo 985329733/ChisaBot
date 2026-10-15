@@ -8,7 +8,7 @@
  *   claude -p --output-format stream-json ... [--session-id U | --resume U] --settings F   （提示词从标准输入读）
  * -p 时按提示词里的关键词演一轮，并且像真的 Claude 一样调用 --settings 里的 PreToolUse 钩子：
  *   「测试」→ Bash npm test（要审批）；「推送」→ Bash git push（应被拒绝）；「慢」→ 慢慢写 25 秒；
- *   「记得」→ 复述同一个会话之前说过的话；其余 → Write hello.py + Read。
+ *   「记得」→ 复述同一个会话之前说过的话；「改标题「X」」→ Edit README.md 第一行（P3 合入 / 冲突）；其余 → Write hello.py + Read。
  */
 const fs = require("node:fs");
 const os = require("node:os");
@@ -160,6 +160,19 @@ async function main() {
     await say("我试着推送到远端。");
     const r = await tool("Bash", { command: "git push origin HEAD", description: "推送" }, async () => "pushed");
     final = r.denied ? `推送被拒绝了：${r.reason}` : "已推送。";
+    await say(final);
+  } else if (/改标题「([^」]+)」/.test(prompt)) {
+    // P3：改 README.md 第一行（两个会话改成不同的标题，合入第二个时就有冲突）
+    const title = /改标题「([^」]+)」/.exec(prompt)[1];
+    await say(`好的，把 README 的标题改成「${title}」。`);
+    const file = path.join(process.cwd(), "README.md");
+    const old = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "# x\n";
+    const next = old.replace(/^.*(\n|$)/, `# ${title}\n`);
+    await tool("Edit", { file_path: file, old_string: old.split("\n")[0], new_string: `# ${title}` }, async () => {
+      fs.writeFileSync(file, next);
+      return "The file README.md has been updated.";
+    });
+    final = `改好了：README.md 第一行现在是「# ${title}」。`;
     await say(final);
   } else if (/慢/.test(prompt)) {
     const text = "这是一段很慢的回答，用来测试停止和刷新后接着看。".repeat(12);

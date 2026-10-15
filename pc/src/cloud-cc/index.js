@@ -13,6 +13,8 @@
  *   cc_approval_result { approvalId, decision: "approve" | "deny", always }
  *   cc_browser_input { loginId, events }       云端登录浏览器的点击 / 键盘（不记录）
  *   「在云端完成登录」「Claude 上游代理」走 cc_rpc：browser_start / browser_stop / proxy_set / proxy_test / egress
+ *   GitHub 工作区（P3，git.js）走 cc_rpc：ws_clone / ws_merge / ws_push / ws_push_preview / ws_base_diff / ws_delete / ws_drop_tree；
+ *   cc_turn 带 git: { branch } 时，会话目录是工作区 work/ 的一个工作树（分支 cc/…）。
  * 节点 → 服务器
  *   cc_info { version, claudeVersion, root }
  *   cc_event { sessionId, turnId, seq, event }  （event 见 stream.js，另加 status / approval / approval_done）
@@ -32,6 +34,7 @@ const { parseLine, slimInput } = require("./stream");
 const { decide } = require("./policy");
 const { createForwarder, parseProxy, maskProxy, scrubProxy, httpsGet, traceIp, testRoute } = require("./proxy");
 const { createRemoteBrowser, findChromium } = require("./browser");
+const { createGitWorkspaces } = require("./git");
 
 const HANDLED = new Set(["cc_probe", "cc_rpc", "cc_turn", "cc_stop", "cc_approval_result", "cc_browser_input"]);
 const TRACE_URL = process.env.CHISABOT_EGRESS_TRACE_URL || "https://claude.ai/cdn-cgi/trace";
@@ -123,6 +126,7 @@ function createCloudCc(options) {
     const url = `http://127.0.0.1:${forwarder.port}`;
     return { HTTPS_PROXY: url, HTTP_PROXY: url, https_proxy: url, http_proxy: url, NO_PROXY: "localhost,127.0.0.1", no_proxy: "localhost,127.0.0.1" };
   }
+  const gitWs = createGitWorkspaces({ root, log });
 
   function out(message) {
     if (options.send(message)) return;
@@ -185,8 +189,10 @@ function createCloudCc(options) {
     };
     return run("git", ["-c", "core.autocrlf=false", "-c", "core.quotepath=false", ...args], { cwd: treeDir(workspaceId, sessionId), env, ...extra });
   }
-  async function ensureTree(workspaceId, sessionId) {
+  async function ensureTree(workspaceId, sessionId, branch) {
     const tree = treeDir(workspaceId, sessionId);
+    // GitHub 工作区：会话目录是 work/ 的工作树，分支 cc/…（第一次用时从工作目录当前的提交切出来）
+    if (gitWs.isGitWorkspace(workspaceId)) await gitWs.ensureTree(workspaceId, sessionId, branch);
     fs.mkdirSync(tree, { recursive: true });
     const snap = snapDir(workspaceId, sessionId);
     if (!fs.existsSync(path.join(snap, "HEAD"))) {
@@ -303,7 +309,7 @@ function createCloudCc(options) {
     bySession.set(sessionId, turnId);
     let before = null;
     try {
-      ctx.tree = await ensureTree(m.workspaceId, sessionId);
+      ctx.tree = await ensureTree(m.workspaceId, sessionId, m.git && m.git.branch);
       before = await snapshot(m.workspaceId, sessionId, `before ${turnId}`);
       const sock = await ensureHookServer();
       const settingsFile = path.join(os.tmpdir(), `chisabot-cc-settings-${turnId}.json`);
@@ -524,8 +530,16 @@ function createCloudCc(options) {
   }
 
   // ---------- 文件 / diff / 撤销 ----------
+  /** 右栏看哪一份：会话目录（默认）或工作区的工作目录 work/（P3「工作目录」视图）。 */
+  function viewBase(args) {
+    if (args.ref === "work") {
+      if (!ID.test(String(args.workspaceId))) throw new Error("工作区 id 不对");
+      return gitWs.workDir(args.workspaceId);
+    }
+    return treeDir(args.workspaceId, args.sessionId);
+  }
   function listDir(args) {
-    const base = treeDir(args.workspaceId, args.sessionId);
+    const base = viewBase(args);
     if (!fs.existsSync(base)) return { entries: [] };
     const dir = within(base, args.path || "");
     const entries = fs
@@ -543,7 +557,7 @@ function createCloudCc(options) {
     return { path: path.relative(base, dir).split(path.sep).join("/"), entries };
   }
   function readFile(args) {
-    const base = treeDir(args.workspaceId, args.sessionId);
+    const base = viewBase(args);
     const file = within(base, args.path || "");
     const st = fs.statSync(file);
     if (!st.isFile()) throw new Error("不是文件");
@@ -648,7 +662,7 @@ function createCloudCc(options) {
         return await authStatus();
       }
       case "session_init":
-        await ensureTree(args.workspaceId, args.sessionId);
+        await ensureTree(args.workspaceId, args.sessionId, args.branch);
         return { tree: path.relative(root, treeDir(args.workspaceId, args.sessionId)) };
       case "tree":
         return listDir(args);
@@ -682,6 +696,33 @@ function createCloudCc(options) {
         } catch (e) {
           return { ok: false, error: scrubProxy(e.message, p) };
         }
+      }
+      // ---- GitHub 工作区（P3） ----
+      case "ws_clone":
+        wsDir(args.workspaceId);
+        return await gitWs.clone(args);
+      case "ws_merge":
+        treeDir(args.workspaceId, args.sessionId);
+        if (bySession.has(String(args.sessionId))) throw new Error("这一轮还在进行，先停止");
+        return await gitWs.merge(args);
+      case "ws_push_preview":
+        treeDir(args.workspaceId, args.sessionId);
+        return await gitWs.pushPreview(args);
+      case "ws_push":
+        treeDir(args.workspaceId, args.sessionId);
+        if (bySession.has(String(args.sessionId))) throw new Error("这一轮还在进行，先停止");
+        return await gitWs.push(args);
+      case "ws_base_diff":
+        treeDir(args.workspaceId, args.sessionId);
+        return await gitWs.baseDiff(args, PATCH_CAP);
+      case "ws_drop_tree":
+        treeDir(args.workspaceId, args.sessionId);
+        if (bySession.has(String(args.sessionId))) throw new Error("这一轮还在进行，先停止");
+        return await gitWs.dropTree(args.workspaceId, args.sessionId);
+      case "ws_delete": {
+        wsDir(args.workspaceId);
+        for (const ctx of turns.values()) if (ctx.workspaceId === args.workspaceId) throw new Error("这个工作区还有会话在跑，先停止");
+        return await gitWs.remove(args.workspaceId);
       }
       default:
         throw new Error(`不认识的操作 ${op}`);

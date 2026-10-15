@@ -9,8 +9,8 @@
 |---|---|---|
 | P0 | 文档：本文、ADR-0014、BACKLOG CB-061…CB-065 | 已合并 |
 | P1 | 云端节点容器（`deploy/cloud-node/`）+ 设置 → 云端工作区 → Claude 登录 | 已上线（真实登录要用户自己点一次） |
-| P2 | 左栏切换「机器人｜Claude Code」、「草稿」工作区、会话、对话、审批、右栏 / 手机抽屉 | 未开始 |
-| P3 | GitHub 工作区：克隆、每会话 worktree + `cc/…` 分支、合入工作目录、推送并开 PR | 未开始 |
+| P2 | 左栏切换「机器人｜Claude Code」、「草稿」工作区、会话、对话、审批、右栏 / 手机抽屉 | 已上线 |
+| P3 | GitHub 工作区：克隆、每会话 worktree + `cc/…` 分支、合入工作目录、推送并开 PR | 已完成（真实 GitHub 要用户先在 设置 → 账号连接 连 GitHub） |
 | P4 | 电脑文件夹同步（`chisabot-sync` + 自编译 MIT Mutagen，PC 新版） | 未开始 |
 | P5 | ChisaCloudCode 留还是下线（单独决定） | 未开始 |
 
@@ -19,22 +19,32 @@
 | 部分 | 代码 |
 |---|---|
 | 节点容器 | `deploy/cloud-node/`（Dockerfile、compose.yaml、entrypoint.sh、firewall.sh、README.md） |
-| 节点运行时 | `pc/src/cloud-cc/`：`index.js`（登录、每一轮、快照、目录 / 文件 / diff / 撤销）、`policy.js`（PreToolUse 规则）、`stream.js`（stream-json 解析）、`hook.js`（`chisabot-node cc-hook`）；`pc/src/headless.js` 在 `CHISABOT_CLOUD_WORKSPACE=1` 时接上 |
+| 节点运行时 | `pc/src/cloud-cc/`：`index.js`（登录、每一轮、快照、目录 / 文件 / diff / 撤销）、`git.js`（P3：克隆、会话工作树、合入、推送、相对 main）、`policy.js`（PreToolUse 规则）、`stream.js`（stream-json 解析）、`hook.js`（`chisabot-node cc-hook`）；`pc/src/headless.js` 在 `CHISABOT_CLOUD_WORKSPACE=1` 时接上 |
 | 服务器 | `server/src/cloud-cc/service.ts`（设备 hub 扩展排在本地 agent 前面；`/api/cloud-workspace/*`、`/api/claude-code/*`） |
 | 共享类型 | `shared/cloud-cc.ts` |
 | 网页 | 设置 → 云端工作区 `app/src/routes/_authed/settings/cloud-workspace.tsx`；Claude Code 视图 `app/src/routes/_authed/cc/`、`app/src/components/cloud-cc/`；`app/src/lib/cloud-cc.ts` |
-| 测试 | `pc/test/cloud-cc.check.js`（模拟 CLI `tests/cloud-cc/mock-claude.cjs`：登录、两轮接着上次、审批、拒绝推送、停止、撤销） |
+| 测试 | `pc/test/cloud-cc.check.js`（模拟 CLI `tests/cloud-cc/mock-claude.cjs`：登录、两轮接着上次、审批、拒绝推送、停止、撤销）；`pc/test/cloud-cc-git.check.js`（模拟 GitHub `tests/cloud-cc/mock-github.cjs`：git http-backend + Basic 令牌，克隆 / 合入 / 冲突 / 推送 / 令牌不落盘） |
 
 **设备连接上的消息**（同一条 WSS；旧客户端不认识就忽略）
 
-- 服务器 → 节点：`cc_probe`（连上时问一次）、`cc_rpc{id, op, args}`（`status` / `login_start` / `login_code` / `login_cancel` / `logout` / `session_init` / `tree` / `read` / `diff` / `undo` / `running`）、`cc_turn{sessionId, turnId, workspaceId, prompt, claudeSessionId, resume, model, effort, rules}`、`cc_stop{sessionId}`、`cc_approval_result{approvalId, decision, always}`。
+- 服务器 → 节点：`cc_probe`（连上时问一次）、`cc_rpc{id, op, args}`（`status` / `login_start` / `login_code` / `login_cancel` / `logout` / `session_init` / `tree` / `read` / `diff` / `undo` / `running`；P3：`ws_clone` / `ws_merge` / `ws_push_preview` / `ws_push` / `ws_base_diff` / `ws_delete` / `ws_drop_tree`，`tree` / `read` 多了 `ref: "work"`）、`cc_turn{sessionId, turnId, workspaceId, prompt, claudeSessionId, resume, model, effort, rules, git?: {branch}}`、`cc_stop{sessionId}`、`cc_approval_result{approvalId, decision, always}`。
 - 节点 → 服务器：`cc_info{claudeVersion, root, running}`（服务器据此登记云端工作区）、`cc_rpc_result{id, ok, result | error}`、`cc_event{sessionId, turnId, seq, event}`、`cc_approval_request{…, tool, summary, input, rule}`、`cc_done{ok, stopped, error, claudeSessionId, resumable, costUsd, turns, changes}`。
 
 **一轮**：节点在 `projects/<工作区>/trees/<会话>` 里跑 `claude -p --output-format stream-json --verbose --include-partial-messages --permission-mode default --settings <钩子> [--session-id U | --resume U] [--model] [--effort]`，提示词走标准输入；会话 id 由服务器生成（第一轮 `--session-id`，之后 `--resume`，「新的 Claude 会话」换一个）。每一轮前后用独立的 `GIT_DIR`（`.chisabot/snap/<会话>.git`）拍快照，diff 进改动卡和右栏，「撤销最后一轮」恢复到这一轮之前（之后目录又被改过就拒绝）。
 
 **权限**（`policy.js`）：会话目录里的 Read / Grep / Glob / LS 和 Edit / Write 直接放行（目录外：读要审批，写拒绝）；只读命令白名单（`git status/diff/log/show`、`ls`、`cat`、`rg`…，按 `; && || |` 拆开每段都要在白名单里，不能有重定向和命令替换）直接放行；`git push`、改 remote、`gh`、`ssh/scp/rsync`、`sudo`、`curl` 往外发数据、改 `~/.claude` 一律拒绝（提示用「推送并开 PR」）；其他命令、目录外读取、每个域名第一次 WebFetch、MCP、不认识的工具弹审批卡，2 分钟没人处理按拒绝；「本会话总是允许」存进 `chisabot_cc_permission_rules`，下一轮随 `cc_turn` 带给节点。钩子问不到节点（进程不在、超时）一律拒绝。
 
-**表**（开机 `CREATE TABLE IF NOT EXISTS`，回滚安全）：`chisabot_cloud_workspaces`、`chisabot_cc_workspaces`、`chisabot_cc_sessions`、`chisabot_cc_messages`（会话记录，parts 是 JSON：文字 / 工具 / 审批 / 改动 / 出错 / 提示）、`chisabot_cc_permission_rules`、`chisabot_cc_events`（操作记录，不含授权码、令牌、对话内容）。P3 / P4 的表（同步绑定、租约、冲突）到时候再建。
+**表**（开机 `CREATE TABLE IF NOT EXISTS`，回滚安全）：`chisabot_cloud_workspaces`、`chisabot_cc_workspaces`、`chisabot_cc_sessions`、`chisabot_cc_messages`（会话记录，parts 是 JSON：文字 / 工具 / 审批 / 改动 / 出错 / 提示 / 合入·PR）、`chisabot_cc_permission_rules`、`chisabot_cc_events`（操作记录，不含授权码、令牌、对话内容）。P3 只加列（`ADD COLUMN IF NOT EXISTS`）：工作区 `clone_state`、`clone_error`；会话 `pr_url`、`pr_number`、`merged_at`。P4 的表（同步绑定、租约、冲突）到时候再建。
+
+**GitHub 工作区（P3，实现）**
+
+- 接口：`GET /api/claude-code/github`（连没连）、`GET /github/repos`（仓库选择器）、`POST /workspaces {source:"github", repo, branch?, name?}`（立刻返回「克隆中」，后台 `ws_clone`，最长 16 分钟）、`POST /workspaces/:id/retry`、`DELETE /workspaces/:id`（草稿不能删；有会话在跑 / 开着同步不能删；节点上整个 `projects/<工作区>` 删掉，会话归档保留记录）、`POST /sessions/:id/merge`、`GET|POST /sessions/:id/push`（看要推的提交 / 推送并开 PR）、`GET /sessions/:id/diff?mode=base`、`GET /sessions/:id/files|file?ref=work`。
+- 令牌：克隆和推送时服务器从保险箱（保留名 `github`）取出，随那一次 `cc_rpc` 下发；节点写一个**不含令牌**的临时 askpass 脚本（`$TMPDIR/chisabot-git-*/askpass.sh`，700，用完删目录），令牌只在那个 git 子进程的环境变量 `CHISABOT_GIT_TOKEN` 里，并且 `-c credential.helper=` 关掉 helper；远端地址不带令牌；git 的输出里出现令牌一律换成 `••••`。Claude 的进程拿不到令牌，所以它自己 `git fetch/push` 都不会成功（`git push` 本来就被规则拒绝）。
+- 克隆地址 `https://github.com/<owner>/<repo>.git`（`CHISABOT_GITHUB_GIT_BASE` 可以改，测试替身 / GitHub Enterprise）；克隆后 `core.autocrlf input`、`core.filemode false`，提交署名是 GitHub 登录名 + `<登录名>@users.noreply.github.com`。
+- 会话分支 `cc/<标题里的英文数字>-<会话 id 后 6 位>`（中文标题就是 `cc/session-xxxxxx`），建会话时定下来；第一轮时 `git worktree add -b <分支> trees/<会话> HEAD`（从工作目录当前的提交切出来）。快照 / 撤销照旧（独立 `GIT_DIR`，不碰工作树自己的 `.git`）。
+- 合入 / 推送前，会话目录里没提交的改动先自动提交到会话分支（「ChisaBot 会话「标题」的改动」）。合入：工作目录有没提交的改动就拒绝；能快进就快进，不能就 `--no-ff` 合并提交；有冲突 `merge --abort` + `reset --hard` 回到合入前，返回冲突文件。推送：`git push origin cc/x:cc/x`（不强推；远端分支被改过就提示 rebase），然后服务器 `POST /repos/:repo/pulls`（目标 = 新建时选的分支），已经有同一分支的 PR 就返回那一个。
+- 同一个工作区同一时间只做一件写 git 的事（克隆 / 合入 / 推送），那时候也不开新的一轮。租约（§4.3）在 P4 之前永远在云端：只有「仅云端 / 已暂停」能合入。
+- 和设计稿的差别：「推送并开 PR」的审批卡是网页上的确认对话框（分支 → 目标、提交、PR 标题 / 说明 / 草稿 +「允许并推送」/「拒绝」），没有复用机器人 `github_create_pr` 的 `chisabot_github_actions` 表（不是机器人工具调用，是你自己点的按钮），操作记录里有 `pushed_pr`；会话归档后工作树先不自动清理（P3 不做 7 天清理，节点上有 `ws_drop_tree`，以后接上）。
 
 **在云端完成登录 / Claude 上游代理（实现，用户 2026-10-15 20:36 / 20:37 的要求，先于 P3 上线）**
 

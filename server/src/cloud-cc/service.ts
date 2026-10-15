@@ -9,6 +9,9 @@ import {
   maskProxyUrl,
   parseProxyUrl,
   type CcChangedFile,
+  type CcCloneState,
+  type CcGitState,
+  type CcPushPreview,
   type CcMessage,
   type CcPart,
   type CcSessionStatus,
@@ -25,6 +28,7 @@ import type { Database } from "../db/client";
 import type { DeviceHub, DeviceHubExtension } from "../devices/hub";
 import type { DeviceRecord, DeviceStore } from "../devices/store";
 import type { Vault } from "../vault/service";
+import { type Github, GithubError } from "../github/service";
 
 /**
  * 云端 Claude Code（docs/cloud-claude-code.md，ADR-0014，DESIGN.md §73）。
@@ -38,6 +42,9 @@ import type { Vault } from "../vault/service";
  * - 在云端完成登录：节点容器里的无头 Chromium 打开授权页，画面（CDP screencast）经设备 WSS → 这里 → 设置页（SSE）；
  *   点击 / 键盘反过来走。授权页跳到回调地址时节点自己拿到授权码交给 `claude auth login`，授权码不经过这里。
  * - Claude 上游代理：地址存在保险箱保留名 `claude-proxy`（加密），节点连上 / 改设置时下发给节点（只在节点内存里）。
+ * - GitHub 工作区（P3，§3.4）：新建时服务器从保险箱取出 GitHub 令牌，随 ws_clone 发给节点（只在那一次 git 进程里用）；
+ *   每个会话一个工作树 + 分支 cc/…；「合入工作目录」把会话分支合进 work/（冲突时不动）；「推送并开 PR」令牌再下发一次推送，
+ *   PR 由服务器用已有的 GitHub 连接开。
  * - 只有管理员能用（朋友账号看不到）。
  */
 
@@ -71,6 +78,8 @@ type WorkspaceRow = {
   is_git: boolean;
   path: string | null;
   sync_state: string;
+  clone_state: string | null;
+  clone_error: string | null;
   created_at: Date | string;
   last_used_at: Date | string | null;
 };
@@ -90,6 +99,9 @@ type SessionRow = {
   last_turn_at: Date | string | null;
   archived_at: Date | string | null;
   created_at: Date | string;
+  pr_url: string | null;
+  pr_number: number | null;
+  merged_at: Date | string | null;
 };
 type MessageRow = {
   id: string;
@@ -147,10 +159,29 @@ export type CloudCcServiceOptions = {
   next?: DeviceHubExtension | null;
   /** 保险箱：「Claude 上游代理」的地址（保留名 claude-proxy）。 */
   vault?: Pick<Vault, "internal"> | null;
+  /** GitHub 连接（P3：克隆、推送用的令牌，开 PR）。没有就不能建 GitHub 工作区。 */
+  github?: Pick<Github, "status" | "gitCredential" | "repoInfo" | "listRepos" | "openPullRequest"> | null;
+  /** 克隆地址的前缀，默认 https://github.com（CHISABOT_GITHUB_GIT_BASE，测试替身 / GitHub Enterprise）。 */
+  gitBase?: string;
 };
 
 export const PROXY_SECRET = "claude-proxy";
 const PROXY_DOMAINS = ["claude.ai", "anthropic.com", "claude.com"];
+
+const CLONE_MS = 16 * 60_000;
+const MERGE_MS = 120_000;
+const PUSH_MS = 6 * 60_000;
+
+/** 会话分支名：cc/<标题里的英文数字>-<短 id>（中文标题就是 cc/session-<短 id>）。 */
+export function sessionBranch(title: string, sessionId: string) {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32)
+    .replace(/-+$/g, "");
+  return `cc/${slug || "session"}-${sessionId.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`;
+}
 
 export type CloudCcService = ReturnType<typeof createCloudCcService>;
 
@@ -165,6 +196,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   const browserSubs = new Map<string, Set<(op: CcBrowserOp) => void>>(); // loginId -> 设置页
   const lastFrame = new Map<string, CcBrowserOp>(); // 新打开的画面先给最后一帧
   const vault = options.vault ?? null;
+  const busyWorkspaces = new Set<string>(); // 正在克隆 / 合入 / 推送的工作区（同一时间只做一件写 git 的事）
+  const github = options.github ?? null;
+  const gitBase = (options.gitBase || "https://github.com").replace(/\/+$/, "");
 
   async function ensure() {
     await sql.unsafe(`
@@ -237,6 +271,11 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
         value text NOT NULL,
         created_at timestamptz NOT NULL DEFAULT now()
       );
+      ALTER TABLE chisabot_cc_workspaces ADD COLUMN IF NOT EXISTS clone_state text;
+      ALTER TABLE chisabot_cc_workspaces ADD COLUMN IF NOT EXISTS clone_error text;
+      ALTER TABLE chisabot_cc_sessions ADD COLUMN IF NOT EXISTS pr_url text;
+      ALTER TABLE chisabot_cc_sessions ADD COLUMN IF NOT EXISTS pr_number integer;
+      ALTER TABLE chisabot_cc_sessions ADD COLUMN IF NOT EXISTS merged_at timestamptz;
       CREATE TABLE IF NOT EXISTS chisabot_cc_events (
         id bigserial PRIMARY KEY,
         owner_user_id text NOT NULL,
@@ -258,6 +297,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     }
     await sql.unsafe("UPDATE chisabot_cc_messages SET status = 'done' WHERE status = 'queued'");
     await sql.unsafe("UPDATE chisabot_cc_sessions SET status = 'idle', updated_at = now() WHERE status IN ('running','waiting')");
+    await sql.unsafe("UPDATE chisabot_cc_workspaces SET clone_state = 'error', clone_error = '服务器重启，克隆中断了。点「重试」接着克隆。' WHERE clone_state = 'cloning'");
     return rows.length;
   }
 
@@ -606,6 +646,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       lastTurnAt: iso(row.last_turn_at),
       createdAt: iso(row.created_at)!,
       lastError: row.last_error,
+      prUrl: row.pr_url ?? null,
+      prNumber: row.pr_number ?? null,
+      mergedAt: iso(row.merged_at),
     };
   }
 
@@ -635,6 +678,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       repoFullName: w.repo_full_name,
       isGit: w.is_git,
       syncState: w.sync_state as CcSyncState,
+      cloneState: (w.clone_state ?? "ready") as CcCloneState,
+      cloneError: w.clone_error,
+      defaultBranch: w.default_branch,
       sessions: sessions.filter((s) => s.workspace_id === w.id).map(sessionView),
     }));
   }
@@ -657,9 +703,10 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
 
   async function createSession(ownerUserId: string, workspaceId: string, input: { title?: string; model?: string | null; effort?: string | null }) {
     const ws = await workspaceRow(ownerUserId, workspaceId);
+    if (ws.is_git && (ws.clone_state ?? "ready") !== "ready") throw new CcError(ws.clone_state === "cloning" ? "还在克隆，等一下再建会话。" : "这个工作区克隆失败了，先重试。", 409);
     const id = shortId("ccs");
     const title = (input.title ?? "").trim().slice(0, 80) || defaultTitle();
-    await sql.unsafe("INSERT INTO chisabot_cc_sessions (id, owner_user_id, workspace_id, title, model, effort, tree_path) VALUES ($1, $2, $3, $4, $5, $6, $7)", [
+    await sql.unsafe("INSERT INTO chisabot_cc_sessions (id, owner_user_id, workspace_id, title, model, effort, tree_path, branch) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [
       id,
       ownerUserId,
       ws.id,
@@ -667,6 +714,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       input.model || null,
       input.effort || null,
       `projects/${ws.id}/trees/${id}`,
+      ws.is_git ? sessionBranch((input.title ?? "").trim(), id) : null,
     ]);
     await sql.unsafe("UPDATE chisabot_cc_workspaces SET last_used_at = now() WHERE id = $1", [ws.id]);
     await audit(ownerUserId, id, "session_created", { workspaceId: ws.id, title });
@@ -696,6 +744,8 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     const session = await sessionRow(ownerUserId, sessionId);
     const ws = await workspaceRow(ownerUserId, session.workspace_id);
     if (!hub.isOnline(ws.node_device_id)) throw new CcError("云端工作区不在线。", 409);
+    if (ws.is_git && (ws.clone_state ?? "ready") !== "ready") throw new CcError("这个工作区还没有克隆好。", 409);
+    if (busyWorkspaces.has(ws.id)) throw new CcError("正在合入或推送，等它结束再发。", 409);
     const running = [...live.values()].filter((t) => t.ownerUserId === ownerUserId).length;
     if (running >= MAX_CONCURRENT) throw new CcError(`同时最多 ${MAX_CONCURRENT} 个会话在跑，等一个结束再发。`, 409);
     const turnId = shortId("cct");
@@ -737,6 +787,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       model: session.model,
       effort: session.effort,
       rules: await rulesFor(ownerUserId, sessionId, ws.id),
+      git: ws.is_git && session.branch ? { branch: session.branch } : null,
     });
     if (!sent) await finish(turn, { ok: false, error: "云端工作区不在线。" });
     await audit(ownerUserId, sessionId, "turn_started", { turnId, chars: prompt.length });
@@ -923,6 +974,234 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     return { ok: !!r.ok, ip: r.ip ?? null, claudeAi: r.claudeAi ?? null, anthropicApi: r.anthropicApi ?? null, ms: r.ms ?? null, error: r.error ?? null };
   }
 
+  // ── GitHub 工作区（P3，§3.4） ─────────────────────────────────────────
+
+  function needGithub() {
+    if (!github) throw new CcError("GitHub 连接不可用。", 503);
+    return github;
+  }
+  /** 节点回来的错误里万一带了令牌，再抹一遍。 */
+  function scrubToken(text: string, token: string | null) {
+    const t = String(text ?? "");
+    return token && token.length >= 8 ? t.split(token).join("••••") : t;
+  }
+  function cloneUrl(repo: string) {
+    return `${gitBase}/${repo}.git`;
+  }
+
+  async function githubStatus(ownerUserId: string) {
+    const conn = github ? await github.status(ownerUserId).catch(() => null) : null;
+    return { connected: !!conn, login: conn?.login ?? null, invalid: conn?.status === "invalid" };
+  }
+
+  async function runClone(ownerUserId: string, workspaceId: string) {
+    const ws = await workspaceRow(ownerUserId, workspaceId);
+    let token: string | null = null;
+    busyWorkspaces.add(ws.id);
+    try {
+      const cred = await needGithub().gitCredential(ownerUserId);
+      token = cred.token;
+      const result = await rpc<{ branch?: string | null; head?: string | null; sizeBytes?: number | null }>(
+        ws.node_device_id,
+        "ws_clone",
+        {
+          workspaceId: ws.id,
+          url: cloneUrl(ws.repo_full_name ?? ""),
+          branch: ws.default_branch,
+          token,
+          authorName: cred.login,
+          authorEmail: `${cred.login}@users.noreply.github.com`,
+        },
+        CLONE_MS,
+      );
+      await sql.unsafe("UPDATE chisabot_cc_workspaces SET clone_state = 'ready', clone_error = NULL, size_bytes = $2, default_branch = COALESCE($3, default_branch) WHERE id = $1", [
+        ws.id,
+        typeof result.sizeBytes === "number" ? Math.round(result.sizeBytes) : null,
+        typeof result.branch === "string" && result.branch ? result.branch.slice(0, 200) : null,
+      ]);
+      await audit(ownerUserId, null, "workspace_cloned", { workspaceId: ws.id, repo: ws.repo_full_name, sizeBytes: result.sizeBytes ?? null });
+    } catch (error) {
+      const message = scrubToken(error instanceof Error ? error.message : String(error), token).slice(0, 300) || "克隆失败";
+      await sql.unsafe("UPDATE chisabot_cc_workspaces SET clone_state = 'error', clone_error = $2 WHERE id = $1", [ws.id, message]).catch(() => {});
+      await audit(ownerUserId, null, "workspace_clone_failed", { workspaceId: ws.id, repo: ws.repo_full_name, reason: message });
+    } finally {
+      busyWorkspaces.delete(ws.id);
+      token = null;
+    }
+  }
+
+  async function createGithubWorkspace(ownerUserId: string, input: { repo: string; branch?: string | null; name?: string | null }) {
+    const gh = needGithub();
+    const node = await onlineNode(ownerUserId);
+    const repoText = input.repo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, "");
+    if (!/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/.test(repoText)) throw new CcError("仓库写成 owner/name，或者贴 GitHub 地址。");
+    await gh.gitCredential(ownerUserId); // 没连 / 失效：直接告诉你
+    const info = await gh.repoInfo(ownerUserId, repoText);
+    const branch = (input.branch ?? "").trim() || info.defaultBranch;
+    if (!/^[A-Za-z0-9._\/-]{1,200}$/.test(branch)) throw new CcError("分支名不对。");
+    const dup = (
+      await sql.unsafe<{ id: string }[]>("SELECT id FROM chisabot_cc_workspaces WHERE owner_user_id = $1 AND node_device_id = $2 AND source = 'github' AND lower(repo_full_name) = lower($3) AND default_branch = $4", [
+        ownerUserId,
+        node.device_id,
+        info.fullName,
+        branch,
+      ])
+    )[0];
+    if (dup) throw new CcError("已经有这个仓库（这个分支）的工作区了。", 409);
+    const id = shortId("ghw");
+    const name = (input.name ?? "").trim().slice(0, 60) || info.fullName.split("/")[1] || info.fullName;
+    await sql.unsafe(
+      `INSERT INTO chisabot_cc_workspaces (id, owner_user_id, node_device_id, name, source, repo_full_name, default_branch, is_git, path, sync_state, clone_state)
+       VALUES ($1, $2, $3, $4, 'github', $5, $6, true, $7, 'cloud_only', 'cloning')`,
+      [id, ownerUserId, node.device_id, name, info.fullName, branch, `projects/${id}/work`],
+    );
+    await audit(ownerUserId, null, "workspace_created", { workspaceId: id, source: "github", repo: info.fullName, branch });
+    void runClone(ownerUserId, id);
+    return (await workspaces(ownerUserId)).find((w) => w.id === id)!;
+  }
+
+  async function retryClone(ownerUserId: string, workspaceId: string) {
+    const ws = await workspaceRow(ownerUserId, workspaceId);
+    if (ws.source !== "github") throw new CcError("只有 GitHub 工作区需要克隆。");
+    if (busyWorkspaces.has(ws.id) || ws.clone_state === "cloning") throw new CcError("正在克隆。", 409);
+    if (!hub.isOnline(ws.node_device_id)) throw new CcError("云端工作区不在线。", 409);
+    await sql.unsafe("UPDATE chisabot_cc_workspaces SET clone_state = 'cloning', clone_error = NULL WHERE id = $1", [ws.id]);
+    void runClone(ownerUserId, ws.id);
+    return (await workspaces(ownerUserId)).find((w) => w.id === ws.id)!;
+  }
+
+  async function deleteWorkspace(ownerUserId: string, workspaceId: string) {
+    const ws = await workspaceRow(ownerUserId, workspaceId);
+    if (ws.source === "scratch") throw new CcError("内置的「草稿」工作区不能删。");
+    if (!["cloud_only", "paused"].includes(ws.sync_state)) throw new CcError("开着电脑同步的工作区不能删，先关掉同步。", 409);
+    if (busyWorkspaces.has(ws.id)) throw new CcError("正在克隆、合入或推送，等它结束再删。", 409);
+    for (const turn of live.values()) if (turn.workspaceId === ws.id) throw new CcError("这个工作区还有会话在跑，先停止。", 409);
+    if (!hub.isOnline(ws.node_device_id)) throw new CcError("云端工作区不在线，删不了磁盘上的文件。", 409);
+    await rpc(ws.node_device_id, "ws_delete", { workspaceId: ws.id }, 120_000);
+    await sql.unsafe("UPDATE chisabot_cc_sessions SET archived_at = COALESCE(archived_at, now()), updated_at = now() WHERE workspace_id = $1", [ws.id]);
+    await sql.unsafe("DELETE FROM chisabot_cc_workspaces WHERE id = $1", [ws.id]);
+    await audit(ownerUserId, null, "workspace_deleted", { workspaceId: ws.id, repo: ws.repo_full_name });
+    return { deleted: true };
+  }
+
+  async function gitSession(ownerUserId: string, sessionId: string) {
+    const { session, ws } = await sessionNode(ownerUserId, sessionId);
+    if (!ws.is_git || ws.source !== "github" || !session.branch) throw new CcError("只有 GitHub 工作区的会话能合入或推送。");
+    if ((ws.clone_state ?? "ready") !== "ready") throw new CcError("这个工作区还没有克隆好。", 409);
+    if (live.has(sessionId)) throw new CcError("这一轮还在进行，先停止。", 409);
+    if (busyWorkspaces.has(ws.id)) throw new CcError("这个工作区正在克隆、合入或推送，等它结束。", 409);
+    return { session, ws };
+  }
+
+  async function addGitMessage(ownerUserId: string, sessionId: string, part: Extract<CcPart, { type: "git" }>) {
+    const message: CcMessage = { id: shortId("ccm"), turnId: null, role: "system", parts: [part], status: "done", meta: null, createdAt: new Date().toISOString() };
+    await sql.unsafe("INSERT INTO chisabot_cc_messages (id, session_id, owner_user_id, role, parts, status) VALUES ($1, $2, $3, 'system', $4::text::jsonb, 'done')", [message.id, sessionId, ownerUserId, JSON.stringify(message.parts)]);
+    broadcast(sessionId, { op: "message", seq: 0, message });
+    return message;
+  }
+
+  /** 合入工作目录（§3.4 第 3 条）。要写 work/，P4 之前只有「仅云端 / 已暂停」能合（租约永远在云端）。 */
+  async function mergeSession(ownerUserId: string, sessionId: string) {
+    const { session, ws } = await gitSession(ownerUserId, sessionId);
+    if (!["cloud_only", "paused"].includes(ws.sync_state)) throw new CcError("电脑正在使用这个工作区，合入要先交接（电脑同步上线后会自动交接）。", 409);
+    busyWorkspaces.add(ws.id);
+    try {
+      const r = await rpc<{ result: CcGitState; branch: string; target: string; files?: string[]; commits?: unknown[] }>(
+        ws.node_device_id,
+        "ws_merge",
+        { workspaceId: ws.id, sessionId, message: `ChisaBot 会话「${session.title}」的改动` },
+        MERGE_MS,
+      );
+      const state: CcGitState = ["fast_forward", "merged", "up_to_date", "conflict"].includes(r.result) ? r.result : "merged";
+      const message = await addGitMessage(ownerUserId, sessionId, {
+        type: "git",
+        action: "merge",
+        state,
+        branch: String(r.branch ?? session.branch),
+        target: String(r.target ?? ws.default_branch ?? ""),
+        files: Array.isArray(r.files) ? r.files.map(String).slice(0, 100) : [],
+        commits: Array.isArray(r.commits) ? r.commits.length : 0,
+      });
+      if (state === "fast_forward" || state === "merged") await sql.unsafe("UPDATE chisabot_cc_sessions SET merged_at = now(), updated_at = now() WHERE id = $1", [sessionId]);
+      await audit(ownerUserId, sessionId, state === "conflict" ? "merge_conflict" : "merged", { branch: session.branch, target: r.target, files: r.files?.length ?? 0 });
+      return { result: state, message };
+    } finally {
+      busyWorkspaces.delete(ws.id);
+    }
+  }
+
+  async function pushPreview(ownerUserId: string, sessionId: string): Promise<CcPushPreview> {
+    const { session, ws } = await gitSession(ownerUserId, sessionId);
+    const r = await rpc<{ branch: string | null; commits: { sha: string; subject: string }[]; uncommitted: number; started: boolean }>(
+      ws.node_device_id,
+      "ws_push_preview",
+      { workspaceId: ws.id, sessionId, branch: session.branch, base: ws.default_branch },
+      30_000,
+    );
+    return {
+      repo: ws.repo_full_name ?? "",
+      branch: r.branch ?? session.branch,
+      base: ws.default_branch ?? "main",
+      commits: Array.isArray(r.commits) ? r.commits.slice(0, 50) : [],
+      uncommitted: Number(r.uncommitted) || 0,
+      started: !!r.started,
+      title: session.title,
+      prUrl: session.pr_url,
+    };
+  }
+
+  /** 推送并开 PR（§3.4 第 4 条）：你在确认卡上点了「允许」才会走到这里。不碰 work/，不要租约。 */
+  async function pushSession(ownerUserId: string, sessionId: string, input: { title: string; body?: string; draft?: boolean }) {
+    const gh = needGithub();
+    const { session, ws } = await gitSession(ownerUserId, sessionId);
+    const repo = ws.repo_full_name ?? "";
+    const base = ws.default_branch ?? "main";
+    let token: string | null = null;
+    busyWorkspaces.add(ws.id);
+    try {
+      const cred = await gh.gitCredential(ownerUserId);
+      token = cred.token;
+      let pushed: { branch: string; commits: { sha: string; subject: string }[] };
+      try {
+        pushed = await rpc(ws.node_device_id, "ws_push", { workspaceId: ws.id, sessionId, base, token, message: `ChisaBot 会话「${session.title}」的改动` }, PUSH_MS);
+      } catch (error) {
+        const text = scrubToken(error instanceof Error ? error.message : String(error), token).slice(0, 400);
+        await audit(ownerUserId, sessionId, "push_failed", { branch: session.branch, reason: text });
+        throw new CcError(text || "推送失败", 409);
+      }
+      token = null;
+      const commits = Array.isArray(pushed.commits) ? pushed.commits : [];
+      const body =
+        (input.body ?? "").trim() ||
+        [`由 ChisaBot 云端 Claude Code 会话「${session.title}」生成。`, "", ...commits.slice(0, 20).map((c) => `- ${c.subject}`)].join("\n");
+      let pr: { url: string; number: number | null; existed: boolean };
+      try {
+        pr = await gh.openPullRequest(ownerUserId, repo, { title: input.title.trim().slice(0, 200) || session.title, head: pushed.branch, base, body: body.slice(0, 20_000), draft: !!input.draft });
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error);
+        const message = await addGitMessage(ownerUserId, sessionId, { type: "git", action: "push", state: "push_failed", branch: pushed.branch, target: base, commits: commits.length, text: `分支已推送，但开 PR 没有成功：${text}`.slice(0, 500) });
+        await audit(ownerUserId, sessionId, "pr_failed", { branch: pushed.branch, reason: text.slice(0, 200) });
+        return { ok: false, error: text, message };
+      }
+      await sql.unsafe("UPDATE chisabot_cc_sessions SET pr_url = $2, pr_number = $3, updated_at = now() WHERE id = $1", [sessionId, pr.url.slice(0, 500), pr.number]);
+      const message = await addGitMessage(ownerUserId, sessionId, {
+        type: "git",
+        action: "push",
+        state: pr.existed ? "pr_exists" : "pr_opened",
+        branch: pushed.branch,
+        target: base,
+        commits: commits.length,
+        prUrl: pr.url,
+        prNumber: pr.number,
+      });
+      await audit(ownerUserId, sessionId, "pushed_pr", { repo, branch: pushed.branch, base, commits: commits.length, pr: pr.url, existed: pr.existed });
+      return { ok: true, prUrl: pr.url, prNumber: pr.number, message };
+    } finally {
+      token = null;
+      busyWorkspaces.delete(ws.id);
+    }
+  }
+
   // ── 云端工作区 / Claude 登录 ──────────────────────────────────────────
 
   async function status(ownerUserId: string): Promise<CloudWorkspaceView> {
@@ -1014,6 +1293,13 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   const inputBody = z.object({ events: z.array(z.record(z.string(), z.unknown())).max(200) });
   const proxyBody = z.object({ url: z.string().trim().min(1, "填代理地址。").max(500) });
   const proxyTestBody = z.object({ url: z.string().trim().max(500).nullable().optional() });
+  const workspaceBody = z.object({
+    source: z.literal("github"),
+    repo: z.string().trim().min(1, "选一个仓库。").max(300),
+    branch: z.string().trim().max(200).nullable().optional(),
+    name: z.string().trim().max(120).nullable().optional(),
+  });
+  const pushBody = z.object({ title: z.string().trim().min(1, "PR 标题不能是空的。").max(200), body: z.string().max(20_000).optional(), draft: z.boolean().optional() });
 
   function guard(requireUser: MiddlewareHandler<{ Variables: AppVariables }>) {
     const app = new Hono<{ Variables: AppVariables }>();
@@ -1023,6 +1309,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     });
     app.onError((error, c) => {
       if (error instanceof CcError) return c.json({ error: error.message }, error.status);
+      if (error instanceof GithubError) return c.json({ error: error.message }, 400);
       if (error instanceof z.ZodError) return c.json({ error: error.issues[0]?.message ?? "参数不对。" }, 400);
       console.error(JSON.stringify({ type: "cloud-cc-error", error: error.name, message: String(error.message).slice(0, 200), route: c.req.path }));
       return c.json({ error: "云端 Claude Code 暂时不可用，请重试。" }, 503);
@@ -1123,6 +1410,14 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   function codeRoutes(requireUser: MiddlewareHandler<{ Variables: AppVariables }>) {
     const app = guard(requireUser);
     app.get("/workspaces", async (c) => c.json({ workspaces: await workspaces(c.var.actor.id) }));
+    app.post("/workspaces", async (c) => c.json({ workspace: await createGithubWorkspace(c.var.actor.id, workspaceBody.parse(await c.req.json().catch(() => ({})))) }));
+    app.post("/workspaces/:id/retry", async (c) => c.json({ workspace: await retryClone(c.var.actor.id, c.req.param("id")) }));
+    app.delete("/workspaces/:id", async (c) => c.json(await deleteWorkspace(c.var.actor.id, c.req.param("id"))));
+    app.get("/github", async (c) => c.json(await githubStatus(c.var.actor.id)));
+    app.get("/github/repos", async (c) => c.json({ repos: await needGithub().listRepos(c.var.actor.id) }));
+    app.post("/sessions/:id/merge", async (c) => c.json(await mergeSession(c.var.actor.id, c.req.param("id"))));
+    app.get("/sessions/:id/push", async (c) => c.json(await pushPreview(c.var.actor.id, c.req.param("id"))));
+    app.post("/sessions/:id/push", async (c) => c.json(await pushSession(c.var.actor.id, c.req.param("id"), pushBody.parse(await c.req.json().catch(() => ({}))))));
     app.post("/workspaces/:id/sessions", async (c) => c.json({ session: await createSession(c.var.actor.id, c.req.param("id"), sessionBody.parse(await c.req.json().catch(() => ({})))) }));
     app.get("/sessions/:id", async (c) => c.json(await sessionDetail(c.var.actor.id, c.req.param("id"))));
     app.patch("/sessions/:id", async (c) => c.json({ session: await patchSession(c.var.actor.id, c.req.param("id"), patchBody.parse(await c.req.json().catch(() => ({})))) }));
@@ -1139,14 +1434,17 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     });
     app.get("/sessions/:id/files", async (c) => {
       const { session, ws } = await sessionNode(c.var.actor.id, c.req.param("id"));
-      return c.json(await rpc(ws.node_device_id, "tree", { workspaceId: ws.id, sessionId: session.id, path: c.req.query("path") ?? "" }));
+      const ref = c.req.query("ref") === "work" && ws.is_git ? "work" : "session";
+      return c.json(await rpc(ws.node_device_id, "tree", { workspaceId: ws.id, sessionId: session.id, path: c.req.query("path") ?? "", ref }));
     });
     app.get("/sessions/:id/file", async (c) => {
       const { session, ws } = await sessionNode(c.var.actor.id, c.req.param("id"));
-      return c.json(await rpc(ws.node_device_id, "read", { workspaceId: ws.id, sessionId: session.id, path: c.req.query("path") ?? "" }));
+      const ref = c.req.query("ref") === "work" && ws.is_git ? "work" : "session";
+      return c.json(await rpc(ws.node_device_id, "read", { workspaceId: ws.id, sessionId: session.id, path: c.req.query("path") ?? "", ref }));
     });
     app.get("/sessions/:id/diff", async (c) => {
       const { session, ws } = await sessionNode(c.var.actor.id, c.req.param("id"));
+      if (c.req.query("mode") === "base" && ws.is_git) return c.json(await rpc(ws.node_device_id, "ws_base_diff", { workspaceId: ws.id, sessionId: session.id, base: ws.default_branch }));
       return c.json(await rpc(ws.node_device_id, "diff", { workspaceId: ws.id, sessionId: session.id, turnId: c.req.query("turn") || null }));
     });
     app.get("/sessions/:id/stream", async (c) => {
@@ -1222,6 +1520,6 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     emergencyStop,
     isCloudNode: (deviceId: string) => nodes.has(deviceId),
     // 测试用
-    _internal: { live, nodes, startTurn, send, decideApproval, workspaces, createSession, status },
+    _internal: { live, nodes, startTurn, send, decideApproval, workspaces, createSession, status, createGithubWorkspace, mergeSession, pushSession },
   };
 }
