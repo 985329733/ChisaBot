@@ -5,17 +5,19 @@
  * - 按空行分段；代码块（``` 围起来的）永远是一整段，不会从中间切开（流式时没闭合的代码块也算一整段）。
  * - 连续的列表项、表格行、引用行各自算一段；以「：」/「:」结尾的短引导句和紧跟的列表 / 表格合成一段。
  * - 标题行（# …）和它下面那段合成一段。
- * - ```draft 代码块 = 草稿卡（kind "draft"）；第一行「标题：…」是卡片标题。其他代码块 kind "code"。
+ * - ```draft 代码块 = 草稿卡（kind "draft"）；第一行「标题：…」是卡片标题。
+ * - ```doc（或 ```summary）代码块 = 文档卡（kind "doc"，DESIGN.md §76）：长的总结 / 说明 / 清单，正文是 Markdown；同样可写标题行。
+ * - 其他代码块 kind "code"。
  * - 段首的 `> ` 行 = 回复引用（quote），只在它后面还有正文时才算；整段都是引用就当普通段落。
  * - 最多 MAX_BUBBLES 个气泡，多出来的并进最后一个；空段丢掉。
  */
 export type BubbleSegment = {
-  kind: "text" | "draft" | "code";
-  /** 这一段的 Markdown 原文（kind "draft" 时是草稿正文，不含围栏和标题行）。 */
+  kind: "text" | "draft" | "doc" | "code";
+  /** 这一段的 Markdown 原文（kind "draft" / "doc" 时是正文，不含围栏和标题行）。 */
   text: string;
   /** kind "text"：段首引用的原话（去掉 `> `）。 */
   quote?: string;
-  /** kind "draft"：卡片标题。 */
+  /** kind "draft" / "doc"：卡片标题。 */
   title?: string;
   /** 这一段的内容需要整列宽（表格、代码、清单、草稿）；否则气泡贴着文字宽度。 */
   wide: boolean;
@@ -23,13 +25,15 @@ export type BubbleSegment = {
 
 export const MAX_BUBBLES = 6;
 
+const DOC_INFOS = new Set(["doc", "summary"]);
+
 const FENCE = /^\s{0,3}(```+|~~~+)\s*([^\s`]*)?(.*)$/;
 const LIST = /^\s{0,3}([-*+]|\d{1,3}[.)、])\s+/;
 const TABLE = /^\s*\|/;
 const QUOTE = /^\s{0,3}>\s?/;
 const HEADING = /^\s{0,3}#{1,6}\s/;
 
-type Block = { lines: string[]; fence?: string; info?: string; open?: boolean };
+type Block = { lines: string[]; fence?: string; info?: string; open?: boolean; heading?: string };
 
 function toBlocks(text: string): Block[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
@@ -51,7 +55,9 @@ function toBlocks(text: string): Block[] {
       for (i = i + 1; i < lines.length; i++) {
         const l = lines[i] ?? "";
         body.push(l);
-        if (l.trim().startsWith(marker[0]?.repeat(3) ?? "```") && l.trim().replace(/[`~]/g, "") === "") {
+        // 收尾的围栏至少和开头一样长（CommonMark）：````doc 里面可以放 ``` 代码块。
+        const close = l.trim();
+        if (close.length >= marker.length && close.startsWith(marker[0]?.repeat(3) ?? "```") && close.replace(/[`~]/g, "") === "") {
           closed = true;
           break;
         }
@@ -91,6 +97,12 @@ function mergeBlocks(blocks: Block[]): Block[] {
         continue;
       }
     }
+    if (prev && !prev.fence && isHeadingOnly(prev) && b.fence && (b.info === "draft" || DOC_INFOS.has(b.info ?? ""))) {
+      // 标题 + 草稿 / 文档卡：标题当卡片标题（卡片本身有头部），不把标题行塞进围栏里。
+      out.pop();
+      out.push({ ...b, lines: [...b.lines], heading: (prev.lines[0] ?? "").replace(HEADING, "").trim() });
+      continue;
+    }
     if (prev && !prev.fence && isHeadingOnly(prev) && b.fence) {
       // 标题 + 代码块：标题跟着代码块走（各自成段会留下一个只有标题的气泡）。
       out.pop();
@@ -102,7 +114,7 @@ function mergeBlocks(blocks: Block[]): Block[] {
   return out;
 }
 
-function draftOf(b: Block): BubbleSegment {
+function draftOf(b: Block, kind: "draft" | "doc" = "draft"): BubbleSegment {
   const body = b.lines.slice(1, b.open ? undefined : -1);
   while (body.length && !body[0]?.trim()) body.shift();
   let title: string | undefined;
@@ -113,7 +125,8 @@ function draftOf(b: Block): BubbleSegment {
     while (body.length && !body[0]?.trim()) body.shift();
   }
   while (body.length && !body[body.length - 1]?.trim()) body.pop();
-  return { kind: "draft", text: body.join("\n"), ...(title ? { title } : {}), wide: true };
+  title ??= b.heading?.slice(0, 40) || undefined;
+  return { kind, text: body.join("\n"), ...(title ? { title } : {}), wide: true };
 }
 
 function textOf(b: Block): BubbleSegment {
@@ -144,16 +157,18 @@ export function splitBubbles(text: string): BubbleSegment[] {
     }
     joined.push(b);
   }
-  let segs = joined.map((b) => (b.fence && b.info === "draft" ? draftOf(b) : textOf(b)));
-  segs = segs.filter((s) => s.text.trim() || s.kind === "draft");
+  let segs = joined.map((b) =>
+    b.fence && b.info === "draft" ? draftOf(b) : b.fence && DOC_INFOS.has(b.info ?? "") ? draftOf(b, "doc") : textOf(b),
+  );
+  segs = segs.filter((s) => s.text.trim() || s.kind === "draft" || s.kind === "doc");
   if (segs.length > MAX_BUBBLES) {
     const head = segs.slice(0, MAX_BUBBLES - 1);
     const tail = segs.slice(MAX_BUBBLES - 1);
     // 多出来的按原文并成一段（草稿 / 引用照原样写回 Markdown，不丢内容）。
     const md = tail
       .map((s) =>
-        s.kind === "draft"
-          ? ["```draft", ...(s.title ? [`标题：${s.title}`] : []), s.text, "```"].join("\n")
+        s.kind === "draft" || s.kind === "doc"
+          ? [`\`\`\`${s.kind}`, ...(s.title ? [`标题：${s.title}`] : []), s.text, "```"].join("\n")
           : s.quote
             ? `> ${s.quote}\n${s.text}`
             : s.text,
