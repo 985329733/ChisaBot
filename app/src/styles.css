@@ -11,6 +11,9 @@
  * of the spacing that makes it readable. The path is relative to this file.
  */
 @source "../node_modules/streamdown/dist/*.js";
+/* 依赖装在仓库根 node_modules 时（生产构建、CI）上面那行找不到文件，代码块的工具条类名（sticky -mt-10…）就没生成，
+   复制 / 下载按钮单独占一行（DESIGN.md §69.4）。两个位置都扫。 */
+@source "../../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -6624,3 +6627,30 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
   .full-access-actions > * { flex: 1; }
   .device-job { flex-wrap: wrap; }
 }
+
+/* ---------- §69 Hark 式对话：短气泡 · 草稿卡 · 回复引用 · 代码卡 ---------- */
+.chat-bubbles { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: 6px; }
+.chat-bubble-arrive { display: flex; width: 100%; flex-direction: column; align-items: flex-start; }
+.chat-bubbles [data-slot="bubble"].chat-bubble-fit { width: fit-content; max-width: min(85%, 560px); }
+.chat-bubbles [data-slot="bubble-content"] :is(p, ul, ol, table, pre, blockquote, h1, h2, h3, h4, [data-streamdown="code-block"], [data-streamdown="table-wrapper"])
+  + :is(p, ul, ol, table, pre, blockquote, h1, h2, h3, h4, [data-streamdown="code-block"], [data-streamdown="table-wrapper"]) { margin-top: 0.6em; }
+.glass-main [data-slot="message"][data-align="start"] .chat-bubbles [data-slot="bubble"].chat-bubble-bare > [data-slot="bubble-content"] {
+  padding: 0; background: transparent; border: 0; box-shadow: none; backdrop-filter: none;
+}
+.chat-bubble-bare [data-streamdown="code-block"] { margin: 0; background: var(--glass-1); box-shadow: var(--shadow-1); }
+.chat-reply-quote {
+  display: flex; align-items: center; gap: 6px; max-width: 100%; margin: -2px 0 6px; padding: 3px 10px 3px 8px;
+  border-left: 2px solid var(--accent-blue, #3b82f6); border-radius: 6px;
+  background: color-mix(in oklab, var(--ink-1, #16181d) 5%, transparent);
+  color: var(--ink-3); font-size: 12.5px; line-height: 1.4;
+}
+.chat-draft-card {
+  width: 100%; max-width: 560px; border: 1px solid var(--stroke); border-radius: var(--r-bubble);
+  background: var(--glass-1); box-shadow: var(--shadow-1), var(--inset-hl); overflow: hidden;
+}
+.chat-draft-head {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--line, rgba(22, 24, 29, 0.06)); color: var(--ink-3); font-size: 12.5px;
+}
+.chat-draft-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.chat-draft-body { padding: 12px 16px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; color: var(--ink-1); }
