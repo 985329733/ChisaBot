@@ -16,6 +16,7 @@ import {
   contentDispositionFilename,
   createAttachmentRoutes,
   createChannelAttachmentRoutes,
+  setChannelUploadMirror,
   loadAttachmentForTurn,
   markAttachmentsSent,
   MAX_STAGED_ATTACHMENTS_PER_UPLOADER,
@@ -531,6 +532,26 @@ describe("POST /:channelId/attachments", () => {
     expect(body.id.length).toBeGreaterThan(0);
     expect(body.mimeType).toBe("image/png");
     expect(body.name).toBe("photo.png");
+  });
+
+  test("a stored upload is handed to the bot-workspace mirror (CB-046)", async () => {
+    const { app, channelId } = await harness();
+    const seen: { channelId: string; name: string; size: number }[] = [];
+    setChannelUploadMirror(async (input) => void seen.push({ channelId: input.channelId, name: input.name, size: input.bytes.length }));
+    try {
+      const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const response = await upload(app, channelId, new File([bytes], "photo.png", { type: "image/png" }));
+      expect(response.status).toBe(201);
+      expect(seen).toEqual([{ channelId, name: "photo.png", size: 8 }]);
+      // A failing mirror never fails the upload.
+      setChannelUploadMirror(async () => {
+        throw new Error("workspace down");
+      });
+      const again = await upload(app, channelId, new File([bytes], "b.png", { type: "image/png" }));
+      expect(again.status).toBe(201);
+    } finally {
+      setChannelUploadMirror(null);
+    }
   });
 
   test("a non-member uploading to the channel is refused", async () => {

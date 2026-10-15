@@ -104,6 +104,7 @@ import type { AuthenticatedActor } from "./auth/guards";
 import {
   loadAttachmentForTurn,
   markAttachmentsSent,
+  setChannelUploadMirror,
 } from "./channels/attachments";
 import {
   createChannelEventHub,
@@ -196,6 +197,7 @@ import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createGithub } from "./github/service";
 import { createPages } from "./pages/service";
 import { createSchedules } from "./schedules/service";
+import { createChannelUploadMirror } from "./chat-files/channel-mirror";
 import { createChatFiles } from "./chat-files/service";
 import { createConfirmations } from "./confirmations/service";
 import { createSignInNotifier, createSignInResumer } from "./passwords/resume";
@@ -1328,6 +1330,14 @@ const chatFiles = createChatFiles(database, {
 });
 await pages.ensure();
 await chatFiles.ensure();
+/** 频道聊天的上传也存进机器人工作区 uploads/（CB-046，DESIGN.md §68），和旧 /bot 一样。 */
+setChannelUploadMirror(
+  createChannelUploadMirror({
+    botsInChannel: async (channelId) =>
+      (await database.$client.unsafe<{ agent_id: string }[]>("SELECT agent_id FROM channel_agents WHERE channel_id = $1", [channelId])).map((row) => row.agent_id),
+    upload: (owner, agentId, file) => chatFiles.upload(owner, agentId, file),
+  }),
+);
 /** 技能（DESIGN.md §51）：用户自己的 + 部署共享的，所有机器人按需加载，不用逐个授权。 */
 const chisaSkills = createChisaSkills({
   store: pluginStore,
