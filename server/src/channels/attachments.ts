@@ -689,6 +689,27 @@ function describeType(mimeType: string): string {
 }
 
 /**
+ * 频道聊天上传的文件，另外存一份进机器人工作区 uploads/（CB-046，DESIGN.md §68）。
+ *
+ * 旧的 /bot 聊天上传走 /api/chat-files，文件同时进 chisabot_chat_files 和机器人工作区，机器人提示词、
+ * image_edit「最近一张」、chat_files_recent 都靠它。频道聊天成了唯一的聊天入口之后，上传仍然走频道附件
+ * （消息里的引用、成员权限、撤回、清理都不变），存好之后再交给这里登记的镜像（index.ts 接
+ * chat-files 的 upload）。镜像失败只记日志，不影响上传本身。模块级登记而不是 createApp 的位置参数，
+ * 免得给那一长串参数再加一个。
+ */
+export type ChannelUploadMirror = (input: {
+  actorId: string;
+  channelId: string;
+  name: string;
+  mimeType: string;
+  bytes: Buffer;
+}) => Promise<void>;
+let channelUploadMirror: ChannelUploadMirror | null = null;
+export function setChannelUploadMirror(mirror: ChannelUploadMirror | null): void {
+  channelUploadMirror = mirror;
+}
+
+/**
  * A channel's upload door: one file in, one staged row out, or a reason it was refused.
  *
  * THE TRADE-OFF THE GROUPING MAKES, WRITTEN DOWN BECAUSE IT IS A REAL BEHAVIOUR CHANGE. The cap
@@ -1111,6 +1132,18 @@ export function createChannelAttachmentRoutes(
         },
         409,
       );
+    }
+
+    if (channelUploadMirror) {
+      await channelUploadMirror({
+        actorId: actor.id,
+        channelId,
+        name: outcome.inserted.name,
+        mimeType: outcome.inserted.mimeType,
+        bytes: Buffer.from(bytes),
+      }).catch((error: unknown) => {
+        console.error(JSON.stringify({ type: "channel-upload-mirror-failed", channelId, error: error instanceof Error ? error.name : "UnknownError" }));
+      });
     }
 
     return context.json(outcome.inserted, 201);

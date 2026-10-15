@@ -93,6 +93,7 @@ ChisaBot 自己的表大多在服务启动时 `CREATE TABLE IF NOT EXISTS`（不
 | 聊天截图缩略图 | §27 | — | `server/src/chat-shots.ts` | `chisabot_chat_shots` |
 | 回答中发消息 · 后台任务 | §38 | — | `server/src/thread-inbox.ts`、`server/src/workers/` | `chisabot_thread_inbox`、`chisabot_workers` |
 | 全端同步 · 历史对话 | §42 | — | `server/src/bot-threads.ts` | `chisabot_bot_threads` |
+| 只有一套聊天（`/bot` → 频道聊天跳转、open-thread、上传进工作区） | §68 · ADR-0013 | [streaming.md](streaming.md) | `app/src/routes/_authed/_app/bot.tsx`、`app/src/lib/channels/open-thread.ts`、`server/src/channels/routes.ts`（`/api/channels/open-thread`）、`server/src/chat-files/channel-mirror.ts` | `intelligence_channel_mappings`、`channel_agents`、`chisabot_chat_files` |
 | 实时面板 | §29、§43 | — | `server/src/live-panels/` | `live_panels`（迁移 0056/0057） |
 | 链接卡 | §48 | — | `server/src/link-preview/`、`app/src/lib/rich-previews/` | `chisabot_link_previews`、`chisabot_link_preview_assets` |
 | 设备 / PC 节点 · 扫码绑定 | §16、§33、§45 | [pc-node.md](pc-node.md) | `server/src/devices/`、`pc/` | `devices`、`device_audit_events`（迁移 0054；`device_bot_access` 已不用） |

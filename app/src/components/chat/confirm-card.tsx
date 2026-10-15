@@ -218,22 +218,23 @@ function useChatRunning() {
   return running;
 }
 
-type ToolCallLike = { id: string };
-type MessageLike = { id: string; role: string; toolCalls?: ToolCallLike[]; toolCallId?: string };
 
 /**
- * 一条机器人消息里各个工具调用的确认卡片（放在 toolCallsView 里、工具调用下面）。
- * 有工具调用还没结果时轮询（卡片可能马上出现），有卡片在等时轮询，其余不轮询。
+ * 频道聊天（CB-046，DESIGN.md §68）：一个工具调用下面的确认卡片。`answered` = 这个调用已经有结果；
+ * `recent` = 它在对话末尾附近（刷新后卡片可能还在等）。
  */
-export function MessageConfirmCards({ message, messages }: { message: MessageLike; messages?: readonly MessageLike[] }) {
+export function ToolCallConfirmCards({ toolCallId, answered, recent }: { toolCallId: string; answered: boolean; recent: boolean }) {
+  const ids = useMemo(() => [toolCallId], [toolCallId]);
+  const done = useMemo(() => (answered ? new Set([toolCallId]) : new Set<string>()), [answered, toolCallId]);
+  return <ToolConfirmCards answered={done} ids={ids} recent={recent} />;
+}
+
+function ToolConfirmCards({ ids, answered, recent }: { ids: readonly string[]; answered: ReadonlySet<string>; recent: boolean }) {
   const chat = useCopilotChatConfiguration();
   const threadId = chat?.threadId ?? null;
-  const ids = useMemo(() => (message.toolCalls ?? []).map((call) => call.id).filter(Boolean), [message.toolCalls]);
-  const answered = useMemo(() => new Set((messages ?? []).filter((m) => m.role === "tool" && m.toolCallId).map((m) => m.toolCallId as string)), [messages]);
-  // 这条消息里有工具调用还没结果、且（这一轮正在跑，或它在最近几条消息里——刷新后卡片还在等）时才轮询；
+  // 有工具调用还没结果、且（这一轮正在跑，或它在最近几条消息里——刷新后卡片还在等）时才轮询；
   // 历史里被打断、永远没结果的调用不让页面一直轮询。一轮刚跑完再取一次，卡片状态马上对上。
   const running = useChatRunning();
-  const recent = (messages ?? []).slice(-6).some((m) => m.id === message.id);
   const open = (running || recent) && ids.some((id) => !answered.has(id));
   const list = useThreadConfirmations(ids.length ? threadId : null, open);
   const queryClient = useQueryClient();

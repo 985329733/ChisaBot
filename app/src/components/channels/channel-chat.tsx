@@ -51,7 +51,9 @@ import {
 import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
-import { useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
+import { useFallbackTurns, useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
+import { queueMessage } from "@/lib/copilot/thread-inbox";
+import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
 import { reportChatRunning } from "@/lib/copilot/computer-activity";
 import {
   HISTORY_RETRY_DELAYS_MS,
@@ -1052,6 +1054,31 @@ export function ChannelChat({
     await resendRef.current(messageId, "edit", content as Message["content"]);
   }, []);
 
+  // 主模型额度用完、这一轮换了备用模型：那一轮末尾一行淡色小字（DESIGN.md §61）。
+  const fallbackTurns = useFallbackTurns(channel.threadId);
+
+  /*
+   * 回答期间发的消息进服务器收件箱（DESIGN.md §38.1；CB-046 从 `/bot` 搬来）：正在跑的那一轮下一步就读到；
+   * 一轮结束时还没被读到的、刷新前 / 别的设备排的，由 useThreadInbox 接回来、按普通消息补发。
+   * 补发的那一轮也算「在跑」（Stop 能停、输入框显示在回答）。
+   */
+  const queueToServer = useCallback(
+    (text: string) => queueMessage(channel.threadId, text),
+    [channel.threadId],
+  );
+  const runInboxTurn = useCallback(
+    async (options: { agent: typeof agent }) => {
+      setRunsInFlight((count) => count + 1);
+      try {
+        return await copilotkit.runAgent(options);
+      } finally {
+        setRunsInFlight((count) => count - 1);
+      }
+    },
+    [copilotkit],
+  );
+  useThreadInbox(channel.threadId, agent, runInboxTurn as never, { pullServerTurns: false });
+
   /**
    * Component buttons speak as user turns without forcing every transcript card to re-render.
    *
@@ -1063,8 +1090,26 @@ export function ChannelChat({
    * is still holding, and the failed turn is already reported by `runError` under the transcript.
    */
   const askFromComponent = useCallback((text: string) => {
-    void sayRef.current(text).catch(() => undefined);
-  }, []);
+    const said = text.trim();
+    if (!said) return;
+    // 正在回答时：进收件箱，下一步读到（§38.1），不再报「代理仍在处理另一个请求」。
+    if (turnsRef.current > 0 || agentRef.current.isRunning) {
+      void queueMessage(channel.threadId, said).then((outcome) => {
+        if (outcome === "send") void sayRef.current(said).catch(() => undefined);
+      });
+      return;
+    }
+    void sayRef.current(said).catch(() => undefined);
+  }, [channel.threadId]);
+  // 右栏面板（不在这棵组件树里）里的「问一句」发 chisabot-ask 事件（DESIGN.md §29）：发到当前对话。
+  useEffect(() => {
+    const on = (event: Event) => {
+      const text = (event as CustomEvent<unknown>).detail;
+      if (typeof text === "string") askFromComponent(text);
+    };
+    window.addEventListener("chisabot-ask", on);
+    return () => window.removeEventListener("chisabot-ask", on);
+  }, [askFromComponent]);
 
   /**
    * Send the create-channel seed once. No waiting of its own: `say` owns that for every turn, and a
@@ -1263,6 +1308,8 @@ export function ChannelChat({
              */
             stopped={runError ?? undefined}
             stoppedTurns={stoppedTurns}
+            fallbacks={fallbackTurns}
+            queueToServer={queueToServer}
             /*
              * The retry resends the restored draft, which adds the message again. Take the failed
              * turn's copy out first, but only when nothing came back under it: a partial answer is

@@ -41,21 +41,23 @@ const INTRO_TRIES = [
 const AGENT_NOT_FOUND = "Agent not found.";
 
 export const Route = createFileRoute("/_authed/_app/channel/new")({
-  validateSearch: (search: Record<string, unknown>): { agent?: string; topic?: "new" } => ({
+  validateSearch: (search: Record<string, unknown>): { agent?: string; topic?: "new"; watch?: boolean } => ({
     ...(typeof search.agent === "string" ? { agent: search.agent } : {}),
     // 新话题（DESIGN-v3 §5.3）：留在这个机器人的空聊天，不转跳到它已有的对话；第一条消息发出时才建会话。
     ...(search.topic === "new" ? { topic: "new" as const } : {}),
+    // 旧 `/bot?watch=true`（打开机器人的浏览器）跳过来时带着，转到已有对话时一起带过去（CB-046）。
+    ...(search.watch === true ? { watch: true } : {}),
   }),
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { agent, topic } = Route.useSearch();
+  const { agent, topic, watch } = Route.useSearch();
   if (!agent) return <LandingRedirect />;
-  return <BotChat agent={agent} fresh={topic === "new"} key={`${agent}:${topic ?? ""}`} />;
+  return <BotChat agent={agent} fresh={topic === "new"} watch={watch === true} key={`${agent}:${topic ?? ""}`} />;
 }
 
-function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
+function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch: boolean }) {
   const modelQueryClient = useQueryClient();
   const navigate = useNavigate();
   const channels = useInfiniteQuery(channelListQueryOptions());
@@ -72,8 +74,8 @@ function BotChat({ agent, fresh }: { agent: string; fresh: boolean }) {
   const existing = sent || fresh ? undefined : latestChannelFor(agent, channels.data)?.id;
   useEffect(() => {
     if (existing)
-      void navigate({ to: "/channel/$channelId", params: { channelId: existing }, replace: true });
-  }, [existing, navigate]);
+      void navigate({ to: "/channel/$channelId", params: { channelId: existing }, search: watch ? { watch: true } : {}, replace: true });
+  }, [existing, navigate, watch]);
 
   // Stale or private `?agent=` values are ignored because the roster is permission-filtered.
   const listed = profiles?.find((profile) => profile.id === agent);

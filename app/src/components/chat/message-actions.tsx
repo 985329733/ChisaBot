@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMessageActions } from "@/lib/copilot/regenerate";
 
 /**
- * 消息下面的「重新生成」「编辑」和原地编辑框（DESIGN.md §67，CB-042）。频道聊天和 `/bot` 共用。
+ * 消息下面的「重新生成」「编辑」和原地编辑框（DESIGN.md §67，CB-042）。频道聊天用。
  *
  * 样式跟「复制」一样是消息下面的淡色小胶囊（`.chat-msg-action`，悬停 / 聚焦才显，触屏常显），
  * 异步的那个走按钮状态机：重新生成 → 圈「生成中…」→ 成功时这条回答本来就被换掉了；失败 ✕ + toast 原因。
@@ -21,7 +21,10 @@ function PillAction({
   pending,
   run,
   testId,
+  held = false,
 }: {
+  /** 现在不能做（在回答）：按钮留着位置但看不见、点不到——拿掉它，每条消息矮 30px，发送那一刻整页跳（§68.4）。 */
+  held?: boolean;
   icon: ReactNode;
   label: string;
   pending: string;
@@ -35,10 +38,13 @@ function PillAction({
   return (
     <button
       aria-label={state === "pending" ? pending : label}
+      aria-hidden={held || undefined}
       className="chat-msg-action"
       data-btn-state={state}
-      data-testid={testId}
-      disabled={state === "pending"}
+      data-held={held || undefined}
+      data-testid={held ? undefined : testId}
+      disabled={held || state === "pending"}
+      tabIndex={held ? -1 : undefined}
       onClick={() => void action.run()}
       type="button"
     >
@@ -61,12 +67,13 @@ function PillAction({
   );
 }
 
-/** 最后一条回答下面的「重新生成」。没有 context（别的页面）或现在不能做时不画。 */
+/** 最后一条回答下面的「重新生成」。没有 context（别的页面）时不画；现在不能做时占位不显示。 */
 export function RegenerateAction() {
   const actions = useMessageActions();
-  if (!actions?.canAct) return null;
+  if (!actions) return null;
   return (
     <PillAction
+      held={!actions.canAct}
       icon={<IconRefresh className="size-3.5" />}
       label="重新生成"
       pending="生成中…"
@@ -79,9 +86,21 @@ export function RegenerateAction() {
 /** 用户消息下面的「编辑」：只是打开编辑框（同步）。 */
 export function EditAction({ onEdit }: { onEdit: () => void }) {
   const actions = useMessageActions();
-  if (!actions?.canAct) return null;
+  if (!actions) return null;
+  // 在回答时占位不显示（同 PillAction 的 held）：发送那一刻每条用户消息不能矮一截。
+  const held = !actions.canAct;
   return (
-    <button aria-label="编辑这条消息" className="chat-msg-action" data-testid="msg-edit" onClick={onEdit} type="button">
+    <button
+      aria-hidden={held || undefined}
+      aria-label="编辑这条消息"
+      className="chat-msg-action"
+      data-held={held || undefined}
+      data-testid={held ? undefined : "msg-edit"}
+      disabled={held}
+      onClick={onEdit}
+      tabIndex={held ? -1 : undefined}
+      type="button"
+    >
       <IconPencil className="size-3.5" />
       <span>{"编辑"}</span>
     </button>

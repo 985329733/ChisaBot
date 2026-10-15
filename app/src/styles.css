@@ -125,7 +125,6 @@ html {
   --sidebar-ring: rgba(235, 241, 255, 0.26);
 }
 
-
 /* ==========================================================================================
  * Skyglass design tokens (DESIGN.md §10). The older --glass* names below are kept as aliases of
  * these so every existing rule picks up the unified values. Prototype `--accent` is `--accent-blue`
@@ -493,7 +492,6 @@ body::before {
  * top of this file about layers). Everything is scoped to a `glass-*` class or a primitive's
  * `data-slot`, so nothing here changes behaviour.
  * ========================================================================================== */
-
 
 /* Frosted popups: menus, sheets, dialogs, selects, popovers. */
 [data-slot="dropdown-menu-content"],
@@ -1458,7 +1456,6 @@ body::before {
   padding-inline-start: 1.35em;
 }
 
-
 /* ==========================================================================================
  * Composer — one frosted box: editor on top, toolbar (attach · model | voice · send) inside it.
  * ========================================================================================== */
@@ -2150,6 +2147,8 @@ body::before {
   opacity: 0;
   transition: opacity 0.15s ease;
 }
+/* 在回答时：按钮留着位置但看不见（§68.4，不让每条消息在发送那一刻矮一截）。 */
+.chat-msg-action[data-held] { visibility: hidden; }
 [data-slot="message-scroller-item"]:hover .chat-msg-actions,
 .chat-msg-actions:focus-within { opacity: 1; }
 @media (hover: none) { .chat-msg-actions { opacity: 1; } }
@@ -4547,128 +4546,8 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .brand-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .brand-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
-/* ==========================================================================================
- * 机器人聊天（/bot，CopilotChat）：中间列没有底板（DESIGN.md §24）。
- * 整个应用是一块天空：左右两张玻璃卡之间，消息和输入框直接浮在同一片背景上。
- * CopilotChat 自带的 [data-copilotkit]{background:var(--background)} 会铺出一整块白 / 黑板，这里去掉；
- * 带自己 bg-* 类的部件（菜单、弹窗、按钮）不受影响。
- * ========================================================================================== */
-.bot-chat-sky .copilotKitChat,
-.bot-chat-sky .copilotKitChat [data-copilotkit]:not([class*="bg-"]) {
-  background-color: transparent;
-}
-/* 内容列与输入框同宽（与频道聊天一致的 672px），窄窗口下两侧至少留 16px，绝不贴到左右卡片。 */
-.bot-chat-sky .copilotKitChat .cpk\:max-w-3xl {
-  max-width: min(42rem, calc(100% - 32px));
-}
-/* 输入区（输入框 + 模型选择行）底边与左右卡片底边对齐：中间列一直到窗口底边，卡片离底边 16px。 */
-.bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] {
-  padding-bottom: 16px;
-}
-/* 用户消息：墨色气泡；机器人文字：L1 玻璃气泡（与频道聊天一致，任何天色下都看得清）。 */
-.bot-chat-sky .copilotKitUserMessage .cpk\:bg-muted {
-  background: var(--ink-primary);
-  color: var(--on-primary);
-  border-radius: var(--r-bubble);
-  box-shadow: var(--shadow-1);
-  --tw-prose-body: var(--on-primary);
-}
-.bot-chat-sky .copilotKitUserMessage .cpk\:bg-muted :is(p, li, span, a, code) { color: inherit; }
-/* 长网址在气泡里折行，不撑出气泡（§48 实测：用户贴的 GitHub 网址冲出了气泡右边）。 */
-.bot-chat-sky .copilotKitUserMessage .cpk\:bg-muted { overflow-wrap: anywhere; min-width: 0; }
-.bot-chat-sky .copilotKitAssistantMessage > .cpk\:prose:has(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4) {
-  width: fit-content;
-  max-width: 100%;
-  padding: 10px 16px;
-  background: var(--glass-1);
-  border: 1px solid var(--stroke);
-  border-radius: var(--r-bubble);
-  box-shadow: var(--shadow-1), var(--inset-hl);
-  backdrop-filter: var(--glass-blur);
-}
-/* 气泡里第一段 / 最后一段不再带 prose 的上下外边距，气泡上下内边距一致。 */
-.bot-chat-sky .copilotKitAssistantMessage > .cpk\:prose :where(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4):first-child { margin-top: 0; }
-.bot-chat-sky .copilotKitAssistantMessage > .cpk\:prose :where(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4):last-child { margin-bottom: 0; }
-/* 免责声明与回到底部按钮：坐在天空上也看得清。 */
-.bot-chat-sky .copilotKitChat .cpk\:text-muted-foreground.cpk\:text-xs { color: var(--glass-ink-3, inherit); }
-.bot-chat-sky .copilotKitChat button.cpk\:rounded-full.cpk\:w-10 {
-  background: var(--glass-3);
-  border-color: var(--stroke);
-  backdrop-filter: var(--glass-blur);
-}
-
-/* ==========================================================================================
- * 输入框重做 + 上下文读数（DESIGN.md §25，2026-10-12）。
- * 一张玻璃卡：上面输入区（自动长高到 8 行）；下面一行工具栏，左「＋ · 模型」，右「Shift+Enter 提示 · 上下文 · 发送/停止」。
- * 机器人聊天（/bot，CopilotChat 的 children 布局）和频道聊天（composer.tsx compact）用同一套样式。
- * ========================================================================================== */
-.bot-chat-sky .bot-composer-wrap {
-  width: 100%;
-  max-width: min(42rem, calc(100% - 32px));
-  margin-inline: auto;
-  pointer-events: auto;
-}
-.bot-composer {
-  container-type: inline-size;
-  gap: 4px;
-  padding: 12px 10px 8px 14px;
-  cursor: text;
-}
-.bot-composer-field { position: relative; min-width: 0; padding: 2px 4px 2px 2px; }
-.bot-composer-textarea {
-  display: block;
-  width: 100%;
-  min-height: calc(1.6em + 2px);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  outline: none;
-  resize: none;
-  background: transparent;
-  color: var(--ink-1);
-  font: inherit;
-  font-size: 15px;
-  line-height: 1.6;
-  caret-color: var(--composer-accent, var(--accent-blue));
-  transition: height var(--dur-1, 150ms) var(--ease-out, ease);
-  scrollbar-width: thin;
-}
-.bot-composer-textarea::placeholder { color: var(--glass-ink-4); }
-.bot-composer-mirror {
-  position: absolute !important;
-  inset: 0 auto auto 0;
-  height: 0 !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
-  visibility: hidden;
-  pointer-events: none;
-  transition: none;
-}
-.bot-composer-toolbar { gap: 6px; padding-top: 4px; }
-.bot-composer-left { display: flex; min-width: 0; align-items: center; gap: 6px; }
-.bot-composer-right { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
-.bot-composer-add-off {
-  display: inline-grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 999px;
-  color: var(--glass-ink-4);
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-/* SDK 的 ＋ 按钮自带 cpk 外边距：在卡片里与左边对齐。 */
-.bot-composer .bot-composer-add { margin-left: 0 !important; }
-
 /* 发送 ↔ 停止：同一个圆键，图标交叉淡入；停止时是深色键（与频道聊天一致）。 */
-.bot-composer-send { display: inline-grid; place-items: center; flex-shrink: 0; cursor: pointer; }
-.bot-composer-send-icon { display: grid; place-items: center; }
-.bot-composer-send-icon > svg {
-  grid-area: 1 / 1;
-  transition: opacity var(--dur-1, 150ms) ease, transform var(--dur-2, 220ms) var(--ease-out, ease);
-}
-.bot-composer-send-icon[data-shown="send"] .is-stop,
-.bot-composer-send-icon[data-shown="stop"] .is-send { opacity: 0; transform: scale(0.5); }
+
 .glass-composer-send[data-testid="composer-stop"]:hover { transform: translateY(-1px); }
 
 .glass-composer { container-type: inline-size; }
@@ -4796,7 +4675,8 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 }
 .context-popover-action:hover { background: var(--ink-primary-hover); }
 @media (prefers-reduced-motion: reduce) {
-  .bot-composer-textarea, .context-ring-bar, .context-popover-fill, .bot-composer-send-icon > svg { transition: none; }
+  .context-ring-bar,
+.context-popover-fill { transition: none; }
   .context-meter.is-running .context-ring-bar { animation: none; }
 }
 
@@ -5069,29 +4949,16 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .computer-teach > summary:hover { color: var(--ink-1); }
 .computer-teach[open] > summary { margin-bottom: 4px; }
 
-/* ── 一轮收成「一句话 → 结果」（turn-compaction.ts，2026-10-13）──────────────── */
-.bot-chat-sky .copilotKitAssistantMessage[data-cb-turn="step"] > .cpk\:prose:has(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4) {
-  padding: 0 4px; background: none; border: 0; box-shadow: none; backdrop-filter: none; font-size: 13px; --tw-prose-body: var(--ink-3); color: var(--ink-3);
-}
-.bot-chat-sky .copilotKitAssistantMessage[data-cb-turn="step"] > .cpk\:prose :is(p, li) { color: var(--ink-3); }
-.bot-chat-sky .copilotKitAssistantMessage:is([data-cb-turn="step"], [data-cb-turn="lead"]) [data-testid="copilot-assistant-toolbar"] { display: none; }
-.bot-chat-sky [data-cb-hidden] { display: none !important; }
-
 /* ── 第四轮（2026-10-13）：有了结果就收起过程话；用户停掉的那一轮末尾挂「已停止」 ── */
-.bot-chat-sky .copilotKitAssistantMessage[data-cb-folded] > .cpk\:prose { display: none; }
-.bot-chat-sky [data-cb-stopped]::after,
+
 .chat-stopped-mark {
   content: "已停止"; display: flex; align-items: center; gap: 6px; width: fit-content; margin: 6px 0 0 4px; padding: 2px 10px 2px 8px;
   border: 1px solid var(--line); border-radius: 999px; background: var(--glass-1); font-size: 12px; line-height: 20px; color: var(--ink-3);
 }
-.bot-chat-sky [data-cb-stopped]::after { content: "◼ 已停止"; }
-/* §61 主模型额度用完、这一轮改用了备用模型：一行淡色小字，不是提示条，不占对话以外的版面。 */
-.bot-chat-sky [data-cb-fallback]:not([data-cb-stopped])::after {
-  content: attr(data-cb-fallback); display: block; margin: 4px 0 0 4px; font-size: 12px; line-height: 18px; color: var(--ink-3);
-}
-.bot-chat-sky [data-cb-fallback][data-cb-stopped]::after { content: "◼ 已停止 · " attr(data-cb-fallback); }
-.bot-chat-sky .copilotKitUserMessage[data-cb-stopped]::after,
-.bot-chat-sky [data-cb-stopped]:has(> .copilotKitUserMessage)::after { margin-left: auto; margin-right: 4px; }
+
+/* §61 / §68 频道聊天：这一轮改用了备用模型，末尾一行淡色小字。 */
+.chat-fallback-note { margin: 4px 0 0 4px; font-size: 12px; line-height: 18px; color: var(--ink-3); }
+
 /* 频道聊天：过程话一行淡色小字（chat-transcript.tsx TranscriptMessage tone="step"） */
 .chat-step-line { padding: 0 4px; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
 .chat-step-line :is(p, li) { margin: 0; color: var(--ink-3); }
@@ -5103,9 +4970,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 /* ── 聊天富预览（2026-10-13，DESIGN.md §31）：链接卡 · 图片一摞 · 看大图 · 文件卡 ───────────── */
 .rp-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-width: 100%; min-width: 0; container-type: inline-size; }
 .rp-stack[data-align="end"] { align-items: flex-end; margin-left: auto; width: min(100%, 420px); }
-.bot-chat-sky .copilotKitAssistantMessage[data-cb-folded] .rp-stack,
-.bot-chat-sky .copilotKitAssistantMessage[data-cb-turn="step"] .rp-stack { display: none; }
-.bot-chat-sky .copilotKitUserMessage .rp-stack { width: min(80%, 420px); }
 
 /* 链接卡（2026-10-14 改版，DESIGN.md §48）：一行一张的紧凑卡——左边 48px 方块（og 图缩略图，没有就站点图标），
  * 右边标题一行 + 「标签 · 图标 域名」一行；固定 64px 高，骨架同尺寸，出卡不跳版。1–3 张一组，宽栏并排、窄栏竖排。
@@ -5730,55 +5594,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 /* 「有新版本」提示放在顶栏下面，不再盖住主导航。 */
 .update-banner { top: 64px; }
 
-/*
- * §35 机器人聊天消息列表（不虚拟化，lib/copilot/message-list.tsx）。
- * 所有消息都挂载，所以屏幕外的旧消息用 content-visibility 跳过样式 / 布局 / 绘制：流式时每帧只算看得见的。
- * `contain-intrinsic-size: auto …` 记住每条消息上次真实渲染的高度，已经显示过的消息离开视口后高度不变，
- * 贴底时视口上方不会凭空变高（这正是虚拟化估算行高带来的跳动）。最后 6 条始终正常渲染；
- * 高度记录（contain-intrinsic-size: auto）对所有消息都开着，这样一条消息从「最后 6 条」退出去时用的是它的真实高度，不是 240px。
- * 从没显示过的旧消息先占 240px，往上翻到它时才换成真实高度——那时它在视口上边缘之外，浏览器的
- * 滚动锚定把正在看的内容钉住，不会跳。每条消息自成独立格式化上下文（和 flex 子项一样，外边距不穿透）。
- */
-.cb-message-list { display: flex; flex-direction: column; }
-.cb-message-list > * { contain: layout style; contain-intrinsic-size: auto 240px; }
-.cb-message-list > :not(:nth-last-child(-n + 6)) { content-visibility: auto; }
-
-/*
- * §35.4 聊天顶上的提示（较早消息没加载到 / 上一轮没有回答的原因）浮在聊天上面，不占版面：出现、消失都不改变
- * 滚动区的大小和位置，消息不会跟着跳（以前发送时提示消失，整段聊天在一帧里跳 137–217px）。
- * 宽度与消息列一致；太长时自己滚动（最高 min(40vh, 240px)）；可以关掉。
- */
-.bot-chat-notices {
-  position: absolute; z-index: 25; top: 8px; left: 50%; transform: translateX(-50%);
-  width: min(42rem, calc(100% - 32px));
-  display: flex; flex-direction: column; gap: 8px;
-  pointer-events: none;
-}
-.bot-chat-notice {
-  pointer-events: auto;
-  display: flex; align-items: flex-start; gap: 8px;
-  max-height: min(40vh, 240px); overflow: auto; overscroll-behavior: contain;
-  padding: 8px 8px 8px 16px;
-  border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--danger-soft) 55%, rgba(255, 255, 255, 0.92));
-  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
-  box-shadow: var(--shadow-2);
-  backdrop-filter: blur(var(--blur-2, 16px));
-  animation: bot-chat-notice-in var(--dur-2) var(--ease-out) both;
-}
-.dark .bot-chat-notice { background: color-mix(in srgb, var(--danger-soft) 60%, rgba(24, 33, 50, 0.94)); }
-.bot-chat-notice-text { flex: 1; min-width: 0; margin: 4px 0; font-size: 13px; line-height: 20px; color: var(--danger); overflow-wrap: anywhere; }
-.bot-chat-notice-x {
-  flex: none; width: 28px; height: 28px; border-radius: var(--r-xs);
-  display: grid; place-items: center; font-size: 18px; line-height: 1; color: var(--ink-3);
-  background: transparent; border: 0; cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-1) var(--ease-std);
-}
-.bot-chat-notice-x:hover { background: rgba(22, 36, 62, 0.06); color: var(--ink-1); }
-.dark .bot-chat-notice-x:hover { background: rgba(255, 255, 255, 0.08); }
-@keyframes bot-chat-notice-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .bot-chat-notice { animation: none; } }
-
 /* ==========================================================================================
  * §36 小窗模式 + 窄窗口整理 + 面板库收进右栏（2026-10-13，DESIGN.md §36）。
  * ========================================================================================== */
@@ -5834,10 +5649,9 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 /* §36.3 窄窗口（< 768px）里的「面板」入口：机器人聊天放进输入框工具栏（＋ 旁边）；
  * 右边缘的竖把手只留给频道聊天，机器人聊天和没有输入框的页面（长期任务、技能、设置…）不再显示它 —— 不压住消息和卡片。
  * 其它页面要看面板：左栏机器人「⋯ → 自定义面板」。 */
-.bot-composer-panels { display: none; }
+
 @media (max-width: 767px) {
-  .bot-composer-panels { display: inline-grid; place-items: center; }
-  body:has(.bot-composer) .rail-tab.is-narrow,
+  
   body:not(:has(.glass-composer)) .rail-tab.is-narrow { display: none; }
 }
 
@@ -5886,8 +5700,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 @keyframes queued-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes queued-pulse { 50% { opacity: 0.35; } }
 @keyframes queued-read { 0% { opacity: 0; } 6% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
-/* 回答期间输入框里有字：停止键变回发送键（墨色箭头），不打断当前回复。 */
-.bot-composer.is-running .bot-composer-send.is-queue { background: var(--ink-primary); color: var(--on-primary); }
 
 /* 后台任务卡片：紧凑玻璃卡（L1），在委派它的那条回复里。 */
 .worker-card {
@@ -6116,15 +5928,6 @@ html[data-phone] .glass-drawer[data-slot="sheet-content"] {
   }
 }
 
-/* 机器人聊天：内容列两侧 12px；输入框贴底、让开底部横条，键盘弹出时只留 8px。 */
-html[data-phone] .bot-chat-sky .copilotKitChat .cpk\:max-w-3xl,
-html[data-phone] .bot-chat-sky .bot-composer-wrap { max-width: min(42rem, calc(100% - 24px)); }
-html[data-phone] .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] { padding-bottom: max(12px, var(--safe-b)); }
-html[data-phone][data-keyboard] .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] { padding-bottom: 8px; }
-/* 输入框最多长到 6 行（键盘开着 4 行），剩下的在框里滚，不把消息挤没。 */
-html[data-phone] .bot-composer-textarea { max-height: calc(1.6em * 6 + 2px); overflow-y: auto; }
-html[data-phone][data-keyboard] .bot-composer-textarea { max-height: calc(1.6em * 4 + 2px); }
-
 /* iOS 聚焦字号 < 16px 的输入框会把整页放大：手机上输入一律 16px。 */
 html[data-phone] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select, [contenteditable="true"]) {
   font-size: 16px !important;
@@ -6137,11 +5940,11 @@ html[data-phone] [data-slot="select-trigger"] { min-height: 44px; }
 @layer base {
   html[data-phone] :is(.glass-composer-icon, .glass-composer-send, .model-pill, .context-meter, .glass-list-add, .glass-sec-link, .glass-bot-more,
     .rail-head-btn, .rail-head-icon, .model-popover-refresh, .sg-segmented-item, .update-banner-x, .install-hint-x,
-    [data-slot="button"], .copilotKitAssistantMessage button, .copilotKitUserMessage button) { position: relative; }
+    [data-slot="button"]) { position: relative; }
 }
 html[data-phone] :is(.glass-composer-icon, .glass-composer-send, .model-pill, .context-meter, .glass-list-add, .glass-sec-link, .glass-bot-more,
   .rail-head-btn, .rail-head-icon, .model-popover-refresh, .sg-segmented-item, .update-banner-x, .install-hint-x,
-  [data-slot="button"], .copilotKitAssistantMessage button, .copilotKitUserMessage button)::after {
+  [data-slot="button"])::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -6168,15 +5971,13 @@ html[data-phone] [data-slot="dialog-content"] {
 }
 /* 页面不横向滚动：内容区里超宽的东西（表格、代码）自己横向滚。 */
 html[data-phone] .glass-main { overflow-x: hidden; }
-html[data-phone] .bot-chat-sky pre { max-width: 100%; }
 
 /* 横屏手机（高度只有 ~390）：顶栏收矮、输入框最多 3 行；键盘开着时顶栏让位给消息。 */
 @media (orientation: landscape) {
   html[data-phone] .glass-shell { --glass-top: 52px; }
   html[data-phone] .glass-seg-item { min-height: 36px; }
   html[data-phone] .glass-menu-btn { width: 40px; height: 40px; }
-  html[data-phone] .bot-composer-textarea { max-height: calc(1.6em * 3 + 2px); }
-  html[data-phone] .bot-chat-sky .copilotKitChat [data-testid="copilot-input-overlay"] { padding-bottom: max(8px, var(--safe-b)); }
+
   html[data-phone][data-keyboard] .glass-topbar { transform: translateY(-100%); opacity: 0; pointer-events: none; }
   html[data-phone][data-keyboard] .glass-body { padding-top: var(--safe-t); }
 }
@@ -6247,13 +6048,6 @@ body:has(.update-banner) .install-hint { display: none; }
   .install-hint, .install-hint-ios { animation-name: rail-lib-fade; }
   .install-hint[data-state="closed"] { animation-name: rail-lib-fade-out; }
 }
-/* 手机上列表缩进收窄（默认 prose 的 1.6em 缩进 + 气泡内边距在 390px 宽里太浪费）。 */
-html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(ol, ul) { padding-inline-start: 1.25em; }
-html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(ol, ul) :is(ol, ul) { padding-inline-start: 1em; }
-/* 手机上表格不再把短列挤成一字一行：每格至少 4 个字宽（表格单元格不认 min-width，用一条 0 高的伪元素撑），
- * 放不下时由外面的表格容器横向滚动（Streamdown 自带 overflow-x: auto）。 */
-html[data-phone] .bot-chat-sky .copilotKitAssistantMessage :is(th, td)::after { content: ""; display: block; width: 4em; height: 0; }
-html[data-phone] .bot-chat-sky .copilotKitAssistantMessage [data-streamdown="table-wrapper"] > div { overscroll-behavior-x: contain; }
 
 /* 后台任务停掉了（用户自己停的）：中性灰，不是红色的「失败」（2026-10-13）。 */
 .worker-icon.is-stopped { color: var(--ink-2); background: var(--glass-3); }
@@ -6657,8 +6451,7 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .img-probe.is-ok { color: var(--success); background: var(--success-soft); }
 .img-probe.is-bad { color: var(--danger); background: var(--danger-soft); }
 /* 拖文件进机器人聊天：CopilotKit 自带的英文提示换成中文。 */
-.bot-chat-sky .cpk\:border-dashed > div > span { font-size: 0; }
-.bot-chat-sky .cpk\:border-dashed > div > span::after { content: "松手上传（单个 ≤ 20 MB）"; font-size: 14px; }
+
 @media (prefers-reduced-motion: reduce) {
   .cf-image-pending::before { animation: none; }
   .cf-image-pending { animation: rp-fade var(--dur-2) linear both; }

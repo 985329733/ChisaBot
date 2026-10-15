@@ -1391,6 +1391,7 @@ export function Composer({
     <Button
       aria-label={sendLabel}
       className={actionClassName}
+      data-testid="composer-send"
       disabled={!canSend}
       size="icon"
       type="submit"

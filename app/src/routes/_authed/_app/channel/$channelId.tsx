@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { AgentProfile } from "@/components/agents/agent-profile";
 import { hasUnseenActivity } from "@/components/app-sidebar/app-sidebar";
@@ -13,6 +13,8 @@ import { BotPausedBanner } from "@/components/bot-profile/pause-banner";
 import { ChannelChat } from "@/components/channels/channel-chat";
 import { DetailPanel } from "@/components/layout/detail-panel";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
+import { LazyBotThreadHistoryDialog } from "@/components/agents/bot-thread-history-lazy";
+import { useOpenThread } from "@/lib/channels/open-thread";
 import { markChannelReadMutationOptions } from "@/lib/channels/mutations";
 import {
   type AgentChannel,
@@ -81,6 +83,9 @@ function RouteComponent() {
   );
   // 机器人开始用计算机时自动切到「计算机」，停手后自动切回「面板」（用户没动手的话）。
   useComputerAutoWatch(agentId, isWatching, setWatching);
+  // 「历史对话」（DESIGN.md §42.6 / §68）：这个机器人的所有对话（频道的、旧 `/bot` 的），点一条在这里打开。
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const openThread = useOpenThread();
 
   return (
     <DetailPanel
@@ -106,7 +111,17 @@ function RouteComponent() {
           })
         }
         settingsOpen={isSettingsOpen}
+        onHistory={() => setHistoryOpen(true)}
       />
+      {agentId ? (
+        <LazyBotThreadHistoryDialog
+          agentId={agentId}
+          currentThreadId={channel.data?.threadId}
+          onOpenChange={setHistoryOpen}
+          onPick={(threadId) => void openThread(agentId, threadId)}
+          open={historyOpen}
+        />
+      ) : null}
       {agentId && channel.data?.agentIds.length === 1 ? (
         <BotPausedBanner agentId={agentId} />
       ) : null}

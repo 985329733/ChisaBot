@@ -16,7 +16,17 @@ type RunAgent = (options: { agent: AbstractAgent }) => Promise<unknown>;
  * 4. 服务器自己起的一轮（后台任务把结果交回来、浏览器没在跑）：这个页面不在那一轮的流里，
  *    所以它在跑的时候每 1.2 秒把服务器存的对话记录同步过来，结果和总结就会出现，不用刷新。
  */
-export function useThreadInbox(threadId: string | null | undefined, agent: AbstractAgent, runAgent: RunAgent) {
+export function useThreadInbox(
+  threadId: string | null | undefined,
+  agent: AbstractAgent,
+  runAgent: RunAgent,
+  /**
+   * 第 4 点（服务器自己起的一轮时每 1.2 秒拉一次存下的对话）要不要做。频道聊天传 false：它有 §64 的
+   * `useConversationSync({ liveTail })`，服务器在回答时直接接上实时流，再整段拉一次会和流打架。
+   */
+  options: { pullServerTurns?: boolean } = {},
+) {
+  const pullServerTurns = options.pullServerTurns !== false;
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -54,7 +64,7 @@ export function useThreadInbox(threadId: string | null | undefined, agent: Abstr
   }, [threadId, agent, runAgent]);
 
   useEffect(() => {
-    if (!threadId) return;
+    if (!threadId || !pullServerTurns) return;
     let alive = true;
     let serverRunning = false;
     let busy = false;
@@ -109,5 +119,5 @@ export function useThreadInbox(threadId: string | null | undefined, agent: Abstr
       alive = false;
       clearInterval(timer);
     };
-  }, [threadId, agent, queryClient]);
+  }, [threadId, agent, queryClient, pullServerTurns]);
 }

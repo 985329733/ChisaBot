@@ -8,7 +8,8 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useOpenThread } from "@/lib/channels/open-thread";
 import { useState } from "react";
 import { formatWhen, RUN_STATUS_ZH, type ScheduleRunStatus, type ScheduleView } from "../../../../../shared/schedules";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
@@ -87,7 +88,7 @@ function statusTone(status: ScheduleRunStatus | null) {
 
 function ScheduleRow({ schedule: s, botName, onOpen, onHide }: { schedule: ScheduleView; botName: string; onOpen: () => void; onHide: (id: string) => void }) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const openThread = useOpenThread();
   const refresh = () => queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
   const ended = s.status === "done" || s.status === "cancelled";
   const [on, setOn] = useState(s.status === "active");
@@ -206,7 +207,7 @@ function ScheduleRow({ schedule: s, botName, onOpen, onHide }: { schedule: Sched
               </DropdownMenuItem>
             ) : null}
             {s.source === "web" ? (
-              <DropdownMenuItem className="glass-mi" onClick={() => void navigate({ to: "/bot", search: { agent: s.agentId } })}>
+              <DropdownMenuItem className="glass-mi" onClick={() => void openThread(s.agentId, s.threadId)}>
                 <IconExternalLink className="size-[18px] shrink-0 opacity-80" />
                 <span className="min-w-0 flex-1">{"打开对话"}</span>
               </DropdownMenuItem>

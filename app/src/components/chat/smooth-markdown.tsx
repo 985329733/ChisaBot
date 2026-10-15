@@ -17,16 +17,3 @@ export function SmoothStreamdown({ children, ...props }: Omit<ComponentProps<typ
     </Streamdown>
   );
 }
-
-/**
- * 机器人聊天（CopilotChat）的 `assistantMessage.markdownRenderer` 槽位：与 CopilotKit 自带的
- * `CopilotChatAssistantMessage.MarkdownRenderer` 同样的 Streamdown，只多了平滑放字。
- * 复制按钮读的是消息原文（message.content），不受影响。
- */
-export function SmoothMarkdownRenderer({ content, className, ...props }: { content: string; className?: string } & Record<string, unknown>) {
-  return (
-    <SmoothStreamdown className={className} {...(props as object)}>
-      {content ?? ""}
-    </SmoothStreamdown>
-  );
-}

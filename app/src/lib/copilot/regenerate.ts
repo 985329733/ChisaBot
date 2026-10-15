@@ -5,7 +5,7 @@ import { noteOwnRevision } from "./use-conversation-sync";
 import { WORKER_RESULT_MARKER } from "./workers";
 
 /**
- * 重新生成 / 编辑后重发（DESIGN.md §67，CB-042）。频道聊天和 `/bot` 共用这里的几个小函数。
+ * 重新生成 / 编辑后重发（DESIGN.md §67，CB-042）。频道聊天用这里的几个小函数。
  *
  * 流程（两边一样）：先请服务器从那条用户消息起截掉（`POST /api/copilotkit/threads/<id>/truncate`，只认本人的
  * 对话、对话没在回答），成功后本机也截到同一处，再照常发一轮（重新生成 = 原内容换一个新 id；编辑 = 新内容）。
@@ -95,8 +95,6 @@ export async function truncateConversation(threadId: string, fromMessageId: stri
  */
 export type MessageActions = {
   canAct: boolean;
-  /** `/bot`：「重新生成」挂在哪条回答下（聊天组件跟着消息变化算好；频道聊天自己在 transcript 里算，不用）。 */
-  lastAnswerId?: string | null;
   regenerate: () => Promise<void>;
   edit: (messageId: string, text: string) => Promise<void>;
 };

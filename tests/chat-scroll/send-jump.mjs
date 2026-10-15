@@ -1,6 +1,7 @@
 // 发送时聊天跳动的回归测试（DESIGN.md §35.4）。逐帧记录：滚动区在屏幕上的位置（sTop）、scrollTop、发送那一刻视口里
 // 一条消息（anchor）的屏幕位置。发送之后任何相邻两帧：滚动区移动、scrollTop 回退 > 24px、anchor 往下跳 > 24px
-// 或往上跳 > 120px（比贴底弹簧快）都算跳。ASSERT=1 时不过退出码 1。
+// 或往上跳 > 120px/帧（比贴底弹簧快；采样隔了几帧按帧数放宽；发送后频道聊天自己开平滑滚动、把新消息滚到顶的那几帧不算）都算跳。ASSERT=1 时不过退出码 1。
+// 对象是频道聊天（/channel/*；2026-10-15 CB-046 起机器人聊天只剩这一套）。
 // 用法（ChisaBot 镜像里跑 playwright-core，--network host）：
 //   BASE=http://127.0.0.1:3092 BOT=<机器人 id> THREAD=<要打开的会话 id，建议用真实长会话的副本> ASSERT=1 node send-jump.mjs
 //   场景：W/H（默认 1280×800；窄窗 W=420 H=860）、SCROLLUP=700（发送前上滑）、PROMPT=…（长回复 / 多行）、CPU=4、
@@ -24,13 +25,12 @@ const ctx = await browser.newContext({
 await ctx.addInitScript(({ bot, thread }) => {
   try {
     localStorage.setItem("openbot-theme", "light");
-    if (thread) localStorage.setItem(`openbot.bot-thread.${bot}`, thread);
   } catch {}
   const w = window;
   w.__samples = [];
   w.__events = [];
   w.__findScroller = () => {
-    const list = document.querySelector(".bot-chat-sky .copilotKitMessages");
+    const list = document.querySelector("[data-testid=chat-transcript]");
     let el = list?.parentElement;
     while (el && el !== document.body) {
       const oy = getComputedStyle(el).overflowY;
@@ -50,7 +50,7 @@ await ctx.addInitScript(({ bot, thread }) => {
     let best = Infinity;
     for (const e of topLevel(s)) { const r = e.getBoundingClientRect(); if (r.height <= 0) continue; const d = r.top <= mid && r.bottom >= mid ? 0 : Math.min(Math.abs(r.top - mid), Math.abs(r.bottom - mid)); if (d < best) { best = d; anchorId = e.dataset.messageId; anchorRef = e; } }
     w.__anchorId = anchorId;
-    lastList = document.querySelector(".bot-chat-sky .copilotKitMessages"); lastScroller = s;
+    lastList = document.querySelector("[data-testid=chat-transcript]"); lastScroller = s;
     const mo = new MutationObserver((recs) => {
       if (!w.__sampling) return;
       let removedMsgs = 0, addedMsgs = 0;
@@ -60,12 +60,12 @@ await ctx.addInitScript(({ bot, thread }) => {
       }
       if (removedMsgs || addedMsgs) w.__events.push({ t: Math.round(performance.now()), kind: "dom", removedMsgs, addedMsgs });
     });
-    mo.observe(document.querySelector(".bot-chat-sky"), { childList: true, subtree: true });
+    mo.observe(document.querySelector("main") ?? document.body, { childList: true, subtree: true });
   };
   const tick = () => {
     if (w.__sampling) {
       const s = w.__findScroller();
-      const list = document.querySelector(".bot-chat-sky .copilotKitMessages");
+      const list = document.querySelector("[data-testid=chat-transcript]");
       if (s && lastScroller && s !== lastScroller) w.__events.push({ t: Math.round(performance.now()), kind: "scroller-replaced" });
       if (list && lastList && list !== lastList) w.__events.push({ t: Math.round(performance.now()), kind: "list-replaced" });
       lastScroller = s || lastScroller; lastList = list || lastList;
@@ -84,6 +84,8 @@ await ctx.addInitScript(({ bot, thread }) => {
           aTop: ar ? Math.round(ar.top - sr.top) : null, aScr: ar ? Math.round(ar.top) : null, sTop: Math.round(sr.top), aH: ar ? Math.round(ar.height) : null,
           n: all.length, firstVis, firstVisTop,
           running: Boolean(document.querySelector('[data-testid="composer-stop"]')),
+          // 发送后那 700ms 频道聊天自己开着平滑滚动（chat-transcript.tsx useSmoothSendScroll），把刚发的消息滚到顶。
+          smooth: s.style.scrollBehavior === "smooth",
         });
       }
     }
@@ -91,8 +93,7 @@ await ctx.addInitScript(({ bot, thread }) => {
   };
   requestAnimationFrame(tick);
 }, { bot: BOT, thread: THREAD });
-// 全端同步（DESIGN.md §42）以后打开哪条对话由服务器决定，localStorage 只是缓存：把要测的会话设成当前对话。
-if (THREAD) await ctx.request.put(`${BASE}/api/bot-threads/${encodeURIComponent(BOT)}`, { data: { threadId: THREAD } }).catch(() => {});
+// 频道聊天（CB-046，DESIGN.md §68）：`/bot?agent=&thread=` 跳到这条对话的频道（没有频道的旧对话由服务器补一个）。
 const page = await ctx.newPage();
 let failLeft = process.env.FAIL === "1" ? 1 : 0;
 if (failLeft) {
@@ -125,9 +126,10 @@ page.on("pageerror", (e) => log("pageerror", String(e).slice(0, 200)));
 page.on("console", (m) => { if (m.type() === "error") log("console", m.text().slice(0, 200)); });
 if (Number(process.env.CPU || 1) > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU) }); }
 
-await page.goto(`${BASE}/bot?agent=${BOT}`, { waitUntil: "domcontentloaded" });
-await page.waitForSelector('textarea[data-testid="copilot-chat-textarea"]', { timeout: 40000 });
-await page.waitForFunction(() => document.querySelectorAll(".bot-chat-sky [data-message-id]").length > 0, null, { timeout: 40000 }).catch(() => log("no messages rendered"));
+// CHANNEL=<频道 id> 直接打开那个频道（不走 /bot 跳转，用来和没有跳转的旧版本对比）。
+await page.goto(process.env.CHANNEL ? `${BASE}/channel/${process.env.CHANNEL}` : `${BASE}/bot?agent=${BOT}${THREAD ? `&thread=${encodeURIComponent(THREAD)}` : ""}`, { waitUntil: "domcontentloaded" });
+await page.waitForSelector('[aria-label="消息"]', { timeout: 40000 });
+await page.waitForFunction(() => document.querySelectorAll("[data-testid=chat-transcript] [data-message-id]").length > 0, null, { timeout: 40000 }).catch(() => log("no messages rendered"));
 await page.waitForTimeout(Number(process.env.WAIT || 6000));
 const box = await page.evaluate(() => { const r = window.__findScroller().getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
 if (process.env.SCROLLUP) {
@@ -136,14 +138,14 @@ if (process.env.SCROLLUP) {
   for (let i = 0; i < Math.ceil(px / 100); i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(40); }
   await page.waitForTimeout(1500);
 }
-const s0 = await page.evaluate(() => { const s = window.__findScroller(); return { top: s.scrollTop, h: s.scrollHeight, ch: s.clientHeight, n: document.querySelectorAll(".bot-chat-sky [data-message-id]").length }; });
+const s0 = await page.evaluate(() => { const s = window.__findScroller(); return { top: s.scrollTop, h: s.scrollHeight, ch: s.clientHeight, n: document.querySelectorAll("[data-testid=chat-transcript] [data-message-id]").length }; });
 log("BEFORE", JSON.stringify(s0));
 await page.screenshot({ path: "/out/0-before.png" });
 await page.evaluate(() => { window.__arm(); window.__sampling = true; });
 await page.waitForTimeout(300);
 const RUNMS = Number(process.env.RUNMS || 60000);
 async function sendOnce(prompt, tag) {
-  const ta = page.locator('textarea[data-testid="copilot-chat-textarea"]').first();
+  const ta = page.locator('[aria-label="消息"]').first();
   await ta.click();
   await ta.fill(prompt);
   const at = await page.evaluate(() => performance.now());
@@ -164,7 +166,7 @@ const tSend = await sendOnce(PROMPT || "用一句话回答：1+1 等于几？", 
 if (process.env.TWICE === "1") {
   await page.waitForTimeout(2000);
   await page.screenshot({ path: "/out/5-between.png" });
-  log("BETWEEN", JSON.stringify(await page.evaluate(() => ({ notice: Boolean(document.querySelector('[data-testid="bot-chat-stopped"]')) }))));
+  log("BETWEEN", JSON.stringify(await page.evaluate(() => ({ notice: Boolean(document.querySelector('[data-testid="transcript-stopped"]')) }))));
   await sendOnce(process.env.PROMPT2 || "再用一句话回答：2+2 等于几？", "b-");
 }
 await page.waitForTimeout(1500);
@@ -185,7 +187,11 @@ for (let i = 1; i < post.length; i++) {
 const scr = [];
 for (let i = 1; i < post.length; i++) {
   const a = post[i - 1], b = post[i];
-  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > 120 || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
+  // 往上 120px 是「每帧（60fps）」的上限：机器慢、两次采样隔了几帧时按隔了几帧放宽（速度不变）。往下、scrollTop 回退照旧按帧严格算。
+  const frames = Math.max(1, (b.t - a.t) / 16.7);
+  // 发送时把新消息平滑滚到顶（scroll-behavior: smooth 开着的那几帧）是设计好的动画，不算往上跳；往下跳、回退照旧算。
+  const upLimit = a.smooth || b.smooth ? Infinity : 120 * frames;
+  if (a.aScr != null && b.aScr != null && (b.aScr - a.aScr > 24 || a.aScr - b.aScr > upLimit || a.sTop !== b.sTop)) scr.push({ dt: b.t - tSend, from: a.aScr, to: b.aScr, sTop0: a.sTop, sTop1: b.sTop, ch0: a.ch, ch1: b.ch, top0: a.top, top1: b.top });
 }
 log("SCREENJUMPS", JSON.stringify(scr.slice(0, 15)));
 const minTop = Math.min(...post.map((x) => x.top));

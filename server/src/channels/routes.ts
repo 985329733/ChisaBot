@@ -182,6 +182,13 @@ export type ChannelStore = {
    * would look for the answer.
    */
   direct(actor: AgentActor, agentId: string): Promise<AgentChannel>;
+  /**
+   * 一条已有对话的频道（CB-046，DESIGN.md §68）：旧的 `/bot` 对话（`POST /api/threads/mint` 铸的、没有频道）
+   * 和「历史对话」里的任何一条，都在同一套频道聊天里打开。这条对话已经有频道 → 那个频道（删过的恢复）；
+   * 没有 → 给它建一个（同一个 thread id，不复制消息）。只认本人、这个机器人的对话；别人的 / 不存在的 → null。
+   * 可选：测试替身不用实现。
+   */
+  openThread?(actor: AgentActor, agentId: string, threadId: string): Promise<AgentChannel | null>;
   get(actor: AgentActor, channelId: string): Promise<AgentChannel | null>;
   list(actor: AgentActor, query?: ChannelQuery): Promise<ChannelPage>;
   /** Pin or unpin the caller's own membership. Throws ChannelNotFoundError for a non-member. */
@@ -271,6 +278,7 @@ export function createChannelStore(
     transaction: ChannelTransaction,
     actor: AgentActor,
     agentIds: string[],
+    existingThreadId?: string,
   ): Promise<AgentChannel> => {
     // Validated on this transaction, not through `profileStore.get`: the read has to share
     // the connection this transaction already holds, and has to hold the profile so an agent
@@ -288,7 +296,7 @@ export function createChannelStore(
     const id = `channel_${crypto.randomUUID()}`;
     // Minted rather than a bare random id, so the thread says which deployment it belongs to
     // in a project that may hold more than one. See thread-identity.ts.
-    const threadId = threadIdentity.mint();
+    const threadId = existingThreadId ?? threadIdentity.mint();
     // Named from the caller's ordering, which is the order the channel presents its agents in.
     const name = channelName(
       agentIds.map((agentId) => {
@@ -390,6 +398,45 @@ export function createChannelStore(
       // Null only if it was deleted between the two reads, which is a reason to make a new one
       // rather than to fail: the caller asked for a conversation, not for that row.
       return channel ?? store.create(actor, [agentId]);
+    },
+
+    async openThread(actor, agentId, threadId) {
+      if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(threadId) || /^(worker-|im-)/.test(threadId)) return null;
+      const found = await database.transaction(
+        async (transaction) => {
+          await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${`channel:thread:${threadId}`}))`);
+          const [mapped] = await transaction
+            .select({ channelId: intelligenceChannelMappings.channelId, userId: intelligenceChannelMappings.userId })
+            .from(intelligenceChannelMappings)
+            .where(eq(intelligenceChannelMappings.threadId, threadId))
+            .limit(1);
+          if (mapped) {
+            if (mapped.userId !== actor.id) return null;
+            const [agentRow] = await transaction
+              .select({ agentId: channelAgents.agentId })
+              .from(channelAgents)
+              .where(and(eq(channelAgents.channelId, mapped.channelId), eq(channelAgents.agentId, agentId)))
+              .limit(1);
+            if (!agentRow) return null;
+            // 删过的频道（同一条对话）恢复出来，而不是再建一个——thread id 在映射表里唯一。
+            await transaction.update(channels).set({ deletedAt: null }).where(eq(channels.id, mapped.channelId));
+            return mapped.channelId;
+          }
+          // 没有频道的旧 `/bot` 对话：库里必须是本人、这个机器人的（还没有行 = 没有可打开的内容）。
+          const rows = await transaction.execute<{ owner_user_id: string; agent_id: string }>(
+            sql`select owner_user_id, agent_id from openbot_local_threads where id = ${threadId}`,
+          ).catch(() => null);
+          const list = (rows && (Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows)) as
+            | { owner_user_id: string; agent_id: string }[]
+            | undefined;
+          const row = list?.[0];
+          if (!row || row.owner_user_id !== actor.id || row.agent_id !== agentId) return null;
+          const made = await makeChannel(transaction, actor, [agentId], threadId);
+          return made.id;
+        },
+        { isolationLevel: "read committed" },
+      );
+      return found ? store.get(actor, found) : null;
     },
 
     async get(actor, channelId) {
@@ -1217,6 +1264,22 @@ export function createChannelRoutes(
       // A repeat is still 204, but it deleted nothing, and the trail records acts, not attempts.
       if (deleted !== false) await recordDeleted(context, channelId);
       return context.body(null, 204);
+    } catch (error) {
+      return mapStoreError(context, error);
+    }
+  });
+
+  // 「历史对话」/ 旧 `/bot` 链接：在频道聊天里打开一条已有对话（CB-046）。
+  routes.post("/open-thread", requireUser, async (context) => {
+    const body = (await context.req.json().catch(() => null)) as { agentId?: unknown; threadId?: unknown } | null;
+    const agentId = typeof body?.agentId === "string" ? body.agentId : "";
+    const threadId = typeof body?.threadId === "string" ? body.threadId : "";
+    if (!agentId || !threadId) return context.json({ error: "缺少机器人或对话" }, 400);
+    if (!store.openThread) return context.json({ error: "Channel not found." }, 404);
+    try {
+      const channel = await store.openThread(context.var.actor, agentId, threadId);
+      if (!channel) return context.json({ error: "没有这条对话" }, 404);
+      return context.json({ channel: channelDto(channel) });
     } catch (error) {
       return mapStoreError(context, error);
     }
