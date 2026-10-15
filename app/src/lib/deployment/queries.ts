@@ -27,6 +27,8 @@ export type DeploymentCapabilities = {
    * for a deployment on a paid Intelligence plan.
    */
   selfHostBanner: boolean;
+  /** 设置 → 管理 →「账号」入口（朋友账号，CB-040）。默认隐藏：多用户以后再做（2026-10-15）。 */
+  accountsUi?: boolean;
   transcription?: boolean;
   voice?: boolean;
 };
@@ -68,6 +70,7 @@ export function deploymentCapabilitiesQueryOptions() {
         learning?: boolean;
         generativeUi?: boolean;
         selfHostBanner?: boolean;
+        accountsUi?: boolean;
         transcription?: boolean;
         voice?: boolean;
       };
@@ -82,6 +85,7 @@ export function deploymentCapabilitiesQueryOptions() {
           typeof body.learning === "boolean" ? body.learning : undefined,
         generativeUi: body.generativeUi === true,
         selfHostBanner: body.selfHostBanner === true,
+        accountsUi: body.accountsUi === true,
         transcription: body.transcription === true,
         voice: body.voice === true,
       };

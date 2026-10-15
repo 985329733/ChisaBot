@@ -286,6 +286,11 @@ export type DeploymentConfig = {
    */
   selfHostBanner: boolean;
   /**
+   * 设置 → 管理 →「账号」（朋友账号 / 邀请，CB-040）的入口是否显示。默认关：多用户以后再做（2026-10-15）。
+   * CHISABOT_ACCOUNTS_UI=1（或 true）打开。只管界面入口；网关多账号、签名身份、按人隔离都不受影响。
+   */
+  accountsUi?: boolean;
+  /**
    * Where the built app is, when this process serves it.
    *
    * Set in a container image that carries both. Unset in development, where Vite serves the app and
@@ -1259,6 +1264,7 @@ export function loadConfig(
     accessibility: accessibilityEnabled(environment),
     generativeUi: generativeUiEnabled(environment),
     selfHostBanner: selfHostBannerEnabled(environment),
+    accountsUi: ["1", "true"].includes(optional(environment, "CHISABOT_ACCOUNTS_UI") ?? ""),
     ...(optional(environment, "APP_DIST_DIR")
       ? { appDistDir: optional(environment, "APP_DIST_DIR") as string }
       : {}),

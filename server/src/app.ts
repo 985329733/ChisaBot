@@ -429,6 +429,8 @@ export function createApp(
        * both halves, so off means off.
        */
       generativeUi: config.generativeUi,
+      // 设置 → 管理 →「账号」入口（CB-040）；默认隐藏，CHISABOT_ACCOUNTS_UI=1 打开。
+      accountsUi: config.accountsUi === true,
       // Whether to offer help self-hosting OpenBot. A fork running it for its own people turns it off,
       // and a deployment that pays for Intelligence never sees it. See self-host-banner.ts.
       selfHostBanner: selfHostBanner
