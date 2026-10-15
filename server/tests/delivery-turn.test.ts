@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { AbstractAgent, type Message, type RunAgentInput } from "@ag-ui/client";
 import { EMPTY } from "rxjs";
-import { createTurnRunner } from "../src/routines/run-turn";
+import { createTurnRunner } from "../src/turns/run-turn";
 
 class Agent extends AbstractAgent {
   run() {

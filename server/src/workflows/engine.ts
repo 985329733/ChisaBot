@@ -14,7 +14,7 @@
 import type { AuditStore } from "../audit";
 import { recordAuditEvent } from "../audit";
 import { HeadlessToolSuspension } from "../computer/headless-tools";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import {
   ACTIVE_RUN_STATUSES,
   effectiveConstraints,

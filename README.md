@@ -148,7 +148,7 @@ bun install --frozen-lockfile
 ```sh
 cp deploy/.env.example deploy/.env && chmod 600 deploy/.env
 # 只给空字段生成随机值，不打印：
-bun -e 'let t=await Bun.file("deploy/.env").text();for(const n of ["KEY_ENCRYPTION_KEY","WORKER_SHARED_SECRET"]){t=t.replace(new RegExp("^"+n+"=\\s*$","m"),n+"="+require("node:crypto").randomBytes(32).toString("hex"))}await Bun.write("deploy/.env",t)'
+bun -e 'let t=await Bun.file("deploy/.env").text();for(const n of ["KEY_ENCRYPTION_KEY"]){t=t.replace(new RegExp("^"+n+"=\\s*$","m"),n+"="+require("node:crypto").randomBytes(32).toString("hex"))}await Bun.write("deploy/.env",t)'
 ```
 
 `deploy/.env` 里的变量：
@@ -156,7 +156,6 @@ bun -e 'let t=await Bun.file("deploy/.env").text();for(const n of ["KEY_ENCRYPTI
 | 变量 | 必填 | 作用 |
 | --- | --- | --- |
 | `KEY_ENCRYPTION_KEY` | 是 | 加密数据库里的模型密钥；**必须与数据库备份一起保存，已有安装绝不能重置** |
-| `WORKER_SHARED_SECRET` | 是 | 例行任务 worker 与服务器之间的共享密钥 |
 | `OPENBOT_RUNTIME_MODE` | 是（`local`） | 会话存自己的 PostgreSQL，不需要 CopilotKit Intelligence |
 | `BOT_PROVIDER`、`BOT_MODEL`、`OPENAI_API_KEY` / `OPENAI_BASE_URL`、`ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` | 首次启动用 | 首个模型连接；之后在「管理后台 → 模型设置」改并测试 |
 | `CHISABOT_IMAGE` | 否 | 镜像名，默认 `local/chisabot:latest` |
@@ -188,7 +187,7 @@ umask 077; { printf 'MAGPIE_WEB_KEY='; openssl rand -hex 32; } > private/magpie.
 docker compose --env-file .env -p magpie -f magpie.compose.yaml up -d --wait
 ```
 
-可选定时任务（例行任务、附件清理）：`CHISABOT_ENABLE_TIMERS=1 sh deploy/start.sh`（root + systemd）。
+可选宿主机定时器（附件清理；定时任务在服务器进程里自己转，不需要它）：`CHISABOT_ENABLE_TIMERS=1 sh deploy/start.sh`（root + systemd）。
 
 ### 5. HTTPS 网关与首个管理员
 

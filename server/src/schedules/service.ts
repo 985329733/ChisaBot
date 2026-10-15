@@ -47,7 +47,7 @@ const BUSY_RETRIES = 12;
 
 export class ScheduleError extends Error {}
 
-/** 和 routines/runner 的 TurnRunner 同形（只用到这些字段）；不 import，免得上游精简时牵连。 */
+/** 和 turns/types 的 TurnRunner 同形（只用到这些字段）。 */
 export type TurnRunner = (input: {
   ownerUserId: string;
   routineId: string;

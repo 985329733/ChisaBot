@@ -81,6 +81,6 @@ if [ "${CHISABOT_ENABLE_TIMERS:-0}" = 1 ]; then
   fi
   cp openbot-zh-*.service openbot-zh-*.timer /etc/systemd/system/
   systemctl daemon-reload
-  systemctl enable --now openbot-zh-routines.timer openbot-zh-attachments.timer
+  systemctl enable --now openbot-zh-attachments.timer
 fi
 echo 'ChisaBot is bound to 127.0.0.1:3001. Configure the HTTPS gateway before public access.'

@@ -168,15 +168,10 @@ See [coworkers.md](coworkers.md).
 
 ## Routines
 
-A routine is a standing instruction, created by asking a Bot in a channel rather than through a form,
-that fires on a schedule and posts its reply into that channel as the person who created it.
-
-The sweep that notices a routine is due sits beside the computer culler on one shared mechanism: both
-write to `work_items`, one PostgreSQL table claimed with `select ... for update skip locked`, leases
-timed on the database's own clock, and an attempt cap. Neither runs as a timer inside the API, because
-a timer fires in every replica and each would decide independently that the same firing or the same
-suspension is due; the queue is what lets exactly one claim it while every other replica's attempt
-collides harmlessly with the same row. See [routines.md](routines.md).
+Removed in ChisaBot slimming P4c: standing instructions are ChisaBot schedules (定时任务,
+[schedules.md](schedules.md), DESIGN.md §55), swept in-process. The `routines` / `routine_runs` tables
+stay until P5. The audit initiator kind `routine` is still what every headless turn (schedules, IM,
+panel refreshes, follow-ups) records.
 
 ## Components
 
@@ -295,7 +290,7 @@ MCP servers and skills share the plugin grant table, but they have different own
 - MCP tools are admin-governed because they can reach external systems with stored credentials.
 - Skills are reusable instructions. A person can create personal skills and attach them only to Bots they own. Administrators create deployment skills.
 
-The curated MCP catalogue contains Parallel Search (anonymous, or with this deployment's API key; see [parallel-research.md](parallel-research.md)), Google Drive, Notion, and the built-in Routines server. Custom MCP servers must pass URL checks; unknown tools and custom-server tools are treated as writes unless positively classified as reads.
+The curated MCP catalogue contains Parallel Search (anonymous, or with this deployment's API key; see [parallel-research.md](parallel-research.md)), Google Drive, Notion, and the built-in Triggers server (catalogue key `routines`). Custom MCP servers must pass URL checks; unknown tools and custom-server tools are treated as writes unless positively classified as reads.
 
 A catalogue entry says whose credential a Bot reaches it with, which is a different question from whether it is reachable at all. A deployment-wide token answers the same for everybody; Google Drive and Notion are both `user-oauth`, so a Bot reaches them as the person asking and sees only what that person can see. An administrator enabling the connector and a person connecting their own account are two decisions, and neither can be made for the other. See [Google Drive](plugins/google-drive.md) and [Notion](plugins/notion.md).
 

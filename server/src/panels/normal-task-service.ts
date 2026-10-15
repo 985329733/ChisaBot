@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { PanelError } from "../../../shared/panels/types";
 import type { Database } from "../db/client";
 import { panelTaskRequests } from "../db/schema/panels";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import type { FrozenPanelTask } from "./broker";
 export type NormalPanelTaskResult = {
   status: "running" | "waiting" | "unknown" | "succeeded" | "failed";

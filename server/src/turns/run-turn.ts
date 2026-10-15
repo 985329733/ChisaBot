@@ -75,7 +75,7 @@ import {
 } from "../computer/headless-tools";
 import { historyOrEmpty } from "../copilot";
 import { filterHeadlessForWorkflow } from "../workflows/policy";
-import type { DrawnComponent, TurnRunner } from "./runner";
+import type { DrawnComponent, TurnRunner } from "./types";
 
 /**
  * The gap between stopping a turn and giving up on it.

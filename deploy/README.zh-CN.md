@@ -13,7 +13,7 @@ bun install --frozen-lockfile
 cp deploy/.env.example deploy/.env
 chmod 600 deploy/.env
 # 仅为首次安装的空字段生成随机密钥，不打印密钥。
-bun -e 'let text=await Bun.file("deploy/.env").text();for(const name of ["KEY_ENCRYPTION_KEY","WORKER_SHARED_SECRET"]){text=text.replace(new RegExp("^"+name+"=\\s*$","m"),name+"="+require("node:crypto").randomBytes(32).toString("hex"))}await Bun.write("deploy/.env",text)'
+bun -e 'let text=await Bun.file("deploy/.env").text();for(const name of ["KEY_ENCRYPTION_KEY"]){text=text.replace(new RegExp("^"+name+"=\\s*$","m"),name+"="+require("node:crypto").randomBytes(32).toString("hex"))}await Bun.write("deploy/.env",text)'
 TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build
 sh deploy/start.sh
 ```
@@ -63,7 +63,7 @@ Compose 项目仍使用 `openbot-zh`，容器为 `openbot-zh`，数据卷为该�
 
 `KEY_ENCRYPTION_KEY` 加密持久化的模型密钥，必须随数据库备份保存；更新已有安装时不可重置它。`.env`、Magpie 私密配置、网页登录配置、会话数据库、证书与备份不能提交 Git。
 
-例行任务和附件清理使用原兼容的 systemd 服务名。需要时由 root 执行 `CHISABOT_ENABLE_TIMERS=1 sh deploy/start.sh`；容器名称应与模板相同。证书重载定时器在 `public/` 中，安装前按实际部署目录修改其路径。
+附件清理使用原兼容的 systemd 服务名（定时任务在服务器进程里每 15 秒自己扫描，不需要宿主机定时器）。需要时由 root 执行 `CHISABOT_ENABLE_TIMERS=1 sh deploy/start.sh`；容器名称应与模板相同。证书重载定时器在 `public/` 中，安装前按实际部署目录修改其路径。
 
 ## 可选 SSH 维护
 

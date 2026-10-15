@@ -304,29 +304,28 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   },
   {
     key: "routines",
-    title: "Routines",
+    // Key, host and transport kind keep the upstream "routines" names: they are stored identifiers.
+    // The upstream routine tools were merged into ChisaBot schedules (slimming P4c, `schedule_*`
+    // tools, DESIGN.md §55); only the responsibility trigger tools are served here now.
+    title: "Triggers",
     vendor: "OpenBot",
     summary:
-      "Standing instructions a Bot runs on a schedule, as whoever scheduled them.",
+      "Event triggers that wake a Bot for one of its person's responsibilities.",
     /*
      * First-party and in-process: no host to dial, no credential to hold. In the catalogue anyway,
-     * because the catalogue is where a deployment decides WHICH Bots may do WHAT — and scheduling
-     * future work is a capability an administrator should grant as deliberately as a vendor.
+     * because the catalogue is where a deployment decides WHICH Bots may do WHAT.
      */
     host: "builtin://routines",
     path: "/",
     transport: "builtin-routines",
     auth: Object.freeze({ kind: "builtin" }),
     writeTools: Object.freeze([
-      "create_routine",
-      "update_routine",
-      "delete_routine",
       "create_trigger",
       "pause_trigger",
       "resume_trigger",
       "delete_trigger",
     ]),
-    docsUrl: "https://github.com/CopilotKit/OpenBot/blob/main/docs/routines.md",
+    docsUrl: "https://github.com/ChisaAlter/ChisaBot/blob/main/docs/schedules.md",
   },
 ]);
 

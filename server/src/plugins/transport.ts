@@ -1,4 +1,4 @@
-import * as builtinRoutines from "./builtin-routines";
+import * as builtinRoutines from "./builtin-triggers";
 import * as composio from "./composio";
 import * as driveRest from "./google-drive-rest";
 import type { ListedTool, McpCallResult } from "./mcp";

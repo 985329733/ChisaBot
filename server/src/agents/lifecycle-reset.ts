@@ -12,8 +12,10 @@
  *
  * Conversations go the way every other deletion of them does, soft, through the channel store, so
  * every open tab is told and the thread survives on the platform as it would for a manual delete.
- * Routines, responsibilities and memory sources are deleted, and their runs and imported memories
- * with them through the foreign keys that already cascade.
+ * Responsibilities and memory sources are deleted, and their runs and imported memories with them
+ * through the foreign keys that already cascade. The Bot's ChisaBot schedules for this person
+ * (`chisabot_schedules`, DESIGN.md §55) that are still active or paused are cancelled — they replaced
+ * the upstream routines in slimming P4c; the old `routines` table is no longer read or written.
  *
  * "STARTS FRESH" ALSO MEANS what the Bot learned and was allowed on its own: memories it formed for
  * this person, the background research it runs for them (its suggestions go with it, and any run
@@ -33,7 +35,6 @@ import {
   proactiveSettings,
   proactiveSuggestions,
   responsibilities,
-  routines,
   workItems,
 } from "../db/schema";
 /** Work kind the removed upstream proactive engine queued (slimming P4b); reset still clears old rows. */
@@ -41,13 +42,49 @@ const PROACTIVE_RUN_KIND = "proactive.run";
 import type { AgentActor } from "./profile-types";
 import { WAKE_UP_KIND } from "./wake-up";
 
+type SqlRunner = Pick<Database, "execute">;
+
+/**
+ * `chisabot_schedules` is created at boot by the schedules service (not a drizzle migration), so a
+ * database that never booted it — a test database — simply has none: `to_regclass` answers null.
+ */
+async function countSchedules(
+  database: SqlRunner,
+  ownerUserId: string,
+  agentId: string,
+): Promise<number> {
+  const rows = await database.execute<{ n: number | null }>(sql`
+    SELECT CASE WHEN to_regclass('chisabot_schedules') IS NULL THEN 0 ELSE (
+      SELECT count(*)::int FROM chisabot_schedules
+       WHERE owner_user_id = ${ownerUserId} AND agent_id = ${agentId} AND status IN ('active', 'paused')
+    ) END AS n`);
+  return Number((rows as unknown as { n: number | null }[])[0]?.n ?? 0);
+}
+
+async function cancelSchedules(
+  database: SqlRunner,
+  ownerUserId: string,
+  agentId: string,
+): Promise<number> {
+  const exists = await database.execute<{ t: string | null }>(
+    sql`SELECT to_regclass('chisabot_schedules')::text AS t`,
+  );
+  if (!(exists as unknown as { t: string | null }[])[0]?.t) return 0;
+  const rows = await database.execute<{ id: string }>(sql`
+    UPDATE chisabot_schedules SET status = 'cancelled', next_run_at = NULL, updated_at = now()
+     WHERE owner_user_id = ${ownerUserId} AND agent_id = ${agentId} AND status IN ('active', 'paused')
+     RETURNING id`);
+  return (rows as unknown as unknown[]).length;
+}
+
 export type ResetPlan = {
   conversations: number;
   /** Conversations with this Bot that are shared with others, and so are kept. */
   sharedConversationsKept: number;
   memorySources: number;
   memories: number;
-  routines: number;
+  /** Active or paused schedules (§55) this Bot runs for this person; a reset cancels them. */
+  schedules: number;
   responsibilities: number;
   followUps: number;
   /** Memories the Bot formed itself from what it read for this person. */
@@ -175,17 +212,7 @@ export function createBotReset(options: {
                   ),
                 ),
             ),
-      routines: await count(
-        database
-          .select({ total })
-          .from(routines)
-          .where(
-            and(
-              eq(routines.ownerUserId, ownerUserId),
-              eq(routines.agentId, agentId),
-            ),
-          ),
-      ),
+      schedules: await countSchedules(database, ownerUserId, agentId),
       responsibilities: await count(
         database
           .select({ total })
@@ -269,15 +296,11 @@ export function createBotReset(options: {
               eq(memorySources.agentId, agentId),
             ),
           );
-        const deletedRoutines = await transaction
-          .delete(routines)
-          .where(
-            and(
-              eq(routines.ownerUserId, ownerUserId),
-              eq(routines.agentId, agentId),
-            ),
-          )
-          .returning({ id: routines.id });
+        const cancelledSchedules = await cancelSchedules(
+          transaction,
+          ownerUserId,
+          agentId,
+        );
         const deletedGoals = await transaction
           .delete(responsibilities)
           .where(
@@ -343,7 +366,7 @@ export function createBotReset(options: {
           sharedConversationsKept: found.kept,
           memorySources: sources.length,
           memories: memories.length,
-          routines: deletedRoutines.length,
+          schedules: cancelledSchedules,
           responsibilities: deletedGoals.length,
           followUps: followUps.length,
           formedMemories: formed.length,

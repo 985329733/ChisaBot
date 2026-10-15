@@ -1,7 +1,0 @@
-[Unit]
-Description=ChisaBot scheduled routines
-After=docker.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/docker exec --workdir /app/server openbot-zh /command/s6-envdir /run/s6/container_environment /command/s6-setuidgid apiuser bun scripts/fire-routines.ts

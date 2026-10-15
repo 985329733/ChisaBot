@@ -9,7 +9,6 @@ import {
   authoriseAgentCall,
   parseAgentToolCallInput,
   type RunAssertion,
-  sameToken,
 } from "./agents/callback-token";
 import { computerAccessCheck } from "./agents/computer-access";
 import { runtimeRun } from "./agents/runtime-path";
@@ -106,8 +105,6 @@ import { createGithubResponsibilityRoutes } from "./responsibilities/github";
 import { createResponsibilityRoutes } from "./responsibilities/routes";
 import type { TriggerStore } from "./responsibilities/triggers";
 import type { ResponsibilityStore } from "./responsibilities/types";
-import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
-import type { RoutineRunner } from "./routines/runner";
 import type { SelfHostBanner } from "./self-host-banner";
 import type { PackageStatusReader } from "./tenant-package";
 import {
@@ -263,26 +260,11 @@ export function createApp(
    */
   pageFrames?: PageFrameStore,
   /**
-   * Fires one routine run with nobody's browser open, when the worker hands one back.
-   *
-   * Appended last, like `pageFrames`: these are positional, so inserting one anywhere else silently
-   * shifts every existing call site's arguments by one.
-   *
-   * Absent leaves the internal `/internal/routines/run` route unmounted rather than mounted and
-   * refusing every call: a deployment that never built a worker has no door for it, not a locked one.
+   * Positional slots of the removed upstream routines (runner + store), merged into ChisaBot
+   * schedules in slimming P4c. Kept so every later argument stays where call sites put it.
    */
-  routineRunner?: RoutineRunner,
-  /**
-   * A person's own standing instructions: the list, and a switch to stop one.
-   *
-   * Appended last, like `routineRunner` beside it: these are positional, so inserting one anywhere
-   * else silently shifts every existing call site's arguments by one.
-   *
-   * Absent leaves the routes unmounted rather than mounted and refusing every call, the same
-   * degraded shape every other optional store here takes: a deployment that never built the store
-   * has no door for this at all, not a locked one.
-   */
-  routineStore?: RoutineStore,
+  _removedRoutineRunner?: unknown,
+  _removedRoutineStore?: unknown,
   /**
    * Where each person is in first-run onboarding.
    *
@@ -995,84 +977,6 @@ export function createApp(
     }
     return context.json({ package: await packageStatusReader.active() });
   });
-  /*
-   * Where the worker hands a routine run back. Not under /api and not behind requireUser: the
-   * worker is not a person with a session, it is another process on this deployment's own network,
-   * and the shared secret below is its whole credential.
-   *
-   * Mounted only when a runner was built, so a deployment that never stood up a worker has no door
-   * for this at all, rather than one that is mounted and permanently refuses.
-   */
-  if (routineRunner) {
-    app.post("/internal/routines/run", async (context) => {
-      const offered = context.req.header("authorization");
-      const expected = config.workerSharedSecret
-        ? `Bearer ${config.workerSharedSecret}`
-        : null;
-      /*
-       * The no-secret-configured case is refused here, before any comparison, and with the exact
-       * same response as a wrong secret. A deployment with no worker must not answer a guess any
-       * differently than a deployment with a worker and a wrong key would.
-       */
-      if (!expected || !offered || !sameToken(offered, expected)) {
-        /*
-         * Recorded, because this is a boundary being held and every other one here leaves a row. A
-         * worker with a stale or missing secret used to fail here in total silence: every routine
-         * stopped firing and nothing anywhere said why, the same false negative `mcp.callback_refused`
-         * exists to catch on the sibling unauthenticated boundary above.
-         *
-         * The reason is short and lives only in the row, never on the wire: the response below stays
-         * byte-identical across all three causes on purpose (see the comment above), so this is the
-         * one place the distinction is allowed to exist. The offered credential itself is never
-         * recorded, not even a fragment of it.
-         */
-        if (auditStore) {
-          try {
-            await recordAuditEvent(auditStore, {
-              eventType: "routines.dispatch_refused",
-              targetType: "worker",
-              initiator: DEPLOYMENT_INITIATOR,
-              payload: {
-                reason: !expected
-                  ? "unconfigured"
-                  : !offered
-                    ? "missing-header"
-                    : "mismatch",
-                note: "A worker's bearer secret did not check out, so no routine run was dispatched.",
-              },
-            });
-          } catch (error) {
-            // Never fatal: the 401 above is already decided and sent. A trail that is briefly
-            // unavailable is not a reason to turn a refusal into a 500.
-            console.error(
-              JSON.stringify({
-                type: "routine-dispatch-audit-write-failed",
-                error: String(error),
-              }),
-            );
-          }
-        }
-        return context.json({ error: "This endpoint is the worker's." }, 401);
-      }
-      const body = await context.req.json().catch(() => null);
-      const routineRunId = (body as { routineRunId?: unknown } | null)
-        ?.routineRunId;
-      // An empty id is a string and used to answer 202 Accepted while the worker swallows the
-      // failure. Only a non-empty id is accepted for dispatch.
-      if (typeof routineRunId !== "string" || !routineRunId.trim()) {
-        return context.json({ error: "A routineRunId is required." }, 400);
-      }
-      /*
-       * Fire and answer: the consumer needs "accepted", not the outcome. The run row in
-       * `routine_runs` carries the outcome, and the consumer finishes the work item on this 202.
-       * Queue retries exist for DISPATCH failures only — a failed turn is final for this firing, and
-       * the fatigue rule owns it. `run()` never throws by contract; this swallow only guards against
-       * that contract being wrong without turning a bug there into an unhandled rejection here.
-       */
-      void routineRunner.run(routineRunId).catch(() => {});
-      return context.json({ accepted: true }, 202);
-    });
-  }
   // The CopilotKit runtime, behind the same session guard as every other API route. Mounted last so
   // its own routing under /api/copilotkit cannot shadow an OpenBot route declared above.
   if (copilotHandler) {
@@ -1335,16 +1239,6 @@ export function createApp(
     app.route(
       "/api/attachments",
       createAttachmentRoutes(attachmentDatabase, requireUser),
-    );
-  }
-
-  if (routineStore) {
-    app.route(
-      "/api/routines",
-      createRoutineRoutes(routineStore, requireUser, {
-        runner: routineRunner,
-        auditStore,
-      }),
     );
   }
 

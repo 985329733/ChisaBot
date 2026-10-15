@@ -252,7 +252,7 @@ describe("Notion", () => {
   });
 });
 
-describe("Routines", () => {
+describe("Triggers (catalogue key routines)", () => {
   const entry = catalogueEntry("routines");
 
   test("is in the catalogue and resolves to its own builtin address", () => {
@@ -270,9 +270,6 @@ describe("Routines", () => {
 
   test("pins the exact write list, so a dropped or renamed entry fails here", () => {
     expect(entry?.writeTools).toEqual([
-      "create_routine",
-      "update_routine",
-      "delete_routine",
       "create_trigger",
       "pause_trigger",
       "resume_trigger",
@@ -284,13 +281,13 @@ describe("Routines", () => {
     for (const name of entry?.writeTools ?? []) {
       expect(classifyTool(entry, name, true)).toBe("write");
     }
-    expect(classifyTool(entry, "list_routines", true)).toBe("read");
+    expect(classifyTool(entry, "list_triggers", true)).toBe("read");
     // A name nothing here has vouched for is a write, the same as for any other vendor.
     expect(classifyTool(entry, "brand-new-tool", false)).toBe("write");
     // Every tool, advertised or not, is a write when the server never said it was advertised.
     for (const name of [
       ...(entry?.writeTools ?? []),
-      "list_routines",
+      "list_triggers",
       "brand-new-tool",
     ]) {
       expect(classifyTool(entry, name, false)).toBe("write");

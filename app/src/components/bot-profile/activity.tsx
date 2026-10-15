@@ -38,7 +38,7 @@ import { relativeTime } from "@/lib/relative-time";
 import { queryClient } from "@/query-client";
 
 const ICONS: Record<ActivityKind, typeof IconBell> = {
-  routine: IconCalendarRepeat,
+  schedule: IconCalendarRepeat,
   responsibility: IconTargetArrow,
   handoff: IconArrowsExchange,
   approval: IconChecks,
@@ -47,7 +47,7 @@ const ICONS: Record<ActivityKind, typeof IconBell> = {
 };
 
 const KIND_LABEL: Record<ActivityKind, string> = {
-  routine: "例行任务",
+  schedule: "定时任务",
   responsibility: "职责",
   handoff: "委派任务",
   approval: "审批",
@@ -67,8 +67,8 @@ function linkFor(item: ActivityItem) {
       return <Link to="/approvals" />;
     case "responsibility":
       return <Link to="/responsibilities" />;
-    case "routine":
-      return <Link to="/routines" />;
+    case "schedule":
+      return <Link to="/settings/schedules" />;
     default:
       return null;
   }

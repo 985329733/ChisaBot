@@ -9,7 +9,8 @@
 | P3 删不发布的目录 | 上游 Tauri 桌面端、Expo 移动端、外部框架适配器、Helm、SPIRE、supervisor 等 | 不动 |
 | P4a 删前端死页 | 已经重定向 / 隐藏的上游页面和组件 | 不动 |
 | P4b 关服务端模块 | 不再构造无数据的上游模块（表保留） | 不动 |
-| 以后 | 与审批、保险库、账号合并的部分；观察稳定后再一次性 DROP 空表 | — |
+| P4c 合并重复系统 | 上游与 ChisaBot 重复的系统并成一套（P4c-1：routines → 定时任务），见下 | 不动 |
+| 以后 | 其余合并（旧面板、components、responsibilities…）；观察稳定后再一次性 DROP 空表（P5） | — |
 
 ## P2 孤儿数据与示例包
 
@@ -87,3 +88,21 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 | P6-2 | 删 Better Auth SSO / SCIM 插件（`@better-auth/sso`、`@better-auth/scim` 的接入）、`auth/scim.ts`、`auth/identity-provider-store.ts`、`auth/encrypt-sso-config.ts`、`app.ts` 里 `/api/auth/*` 的身份提供者分支、`auth/index.ts` 的强制 SSO / break-glass；前端 `ssoClient` 与 sign 页「公司邮箱」框。审计类型 `identity_provider.*`、`session.break_glass`、`person.*provisioned` 去掉（旧行照常显示） | Better Auth 本身（会话、`users` / `user_roles`）、网关签名身份；`sso_providers` 等表留到 P5。依赖包本身在 P6-3 从 package.json 删 |
 | P6-3 | 删 `worker/`（根 workspaces、Dockerfile、`deploy/Dockerfile.zh` 不再拷它的 package.json）、`scripts/setup-learning*.ts`、`scripts/self-hosted-learning*.ts`、`docs/automatic-learning.md`；依赖 `@better-auth/sso`、`@better-auth/scim`、`@better-auth/expo`（连同 `auth/index.ts` 的 Expo 插件与 `openbotmobile://` 信任来源）、4 个 `@opentelemetry/*`；`bun.lock` 重生成 → 依赖指纹变化，部署是完整构建 | `learning_*` 等表、`shared/learning.ts` |
 | P6-4 | 上游桌面端（`desktop/`，P3 已删）留下的服务端部分：Better Auth `electron` 插件与 `/api/auth/desktop` 交接页（`auth/native-browser.ts`，依赖 `@better-auth/electron`）；组织登录 `auth/organization.ts` / `organization-store.ts`（`OPENBOT_ORGANIZATION_AUTH_URL`，`local` 模式从不使用；现在设了会拒绝启动，而不是悄悄退回单用户）；原生文件夹代理 `server/src/host-access/`（`/api/host-access/*`、`host_*` 工具、审批里的 host 分支，只有上游桌面端轮询 `/desktop/next`）和管理页「云端浏览器」里的文件夹区块（`lib/computers/host-access.ts`）。`.env.example` / `docs/configuration.md` 去掉 OpenTag / Twilio / Expo / setup-learning 说明，`WORKER_SHARED_SECRET` 说明改成容器内定时任务扫描 | 审批的 `hostCommands` 策略列与类型（表结构不动）；`desktop-connection-failure.ts`（模型 / Intelligence 连接失败提示仍挂着）；聊天里的 `HostAccessHint`（在 chat-transcript.tsx，归聊天统一那条线，之后一起删）。**例行任务（routines）与 `chisabot_schedules`（§55）重叠**：两者生产都是 0 行，但 routines 仍被机器人工具 `builtin-routines`、`/routines` 页、IM / 面板 / 本地智能体的 initiator 引用，不算死代码 → 合并放到 P4c |
+
+## P4c 合并重复系统（2026-10-15 起）
+
+### P4c-1 上游 Routines → ChisaBot 定时任务（§55）
+
+两套「到点让机器人做事」：上游 Routines（`routines` / `routine_runs`，按频道发、只有 cron、最少 15 分钟，机器人工具 `create_routine` 等，`/api/routines`、`/internal/routines/run` + `WORKER_SHARED_SECRET` 的进程内每分钟扫描，宿主机 `openbot-zh-routines.timer` + `fire-routines.ts`）和 ChisaBot 定时任务（`chisabot_schedules`，对话里设、一次性 / 周期、回到原对话、IM 推回，`schedule_*` 工具，设置 → 定时任务）。生产两边都是 0 行；只留定时任务。
+
+| 删掉 | 处理 |
+|---|---|
+| `server/src/routines/` 的 store / routes / runner / schedule / sweep / audit-store，`server/scripts/fire-routines.ts`，`deploy/openbot-zh-routines.{service,timer}`，`docs/routines.md`，11 个只测它们的测试 | 删。`/api/routines/*`、`/internal/routines/run` 不再挂载（`createApp` 留两个位置空位）；进程内扫描、`WORKER_SHARED_SECRET` / `CHISABOT_ROUTINES_WORKER` 不再读 |
+| 机器人工具 `create_routine` / `list_routines` / `update_routine` / `delete_routine` | 删；内置传输改名 `plugins/builtin-triggers.ts`，只剩职责的触发器工具。目录键 `routines`、传输类型 `builtin-routines` 是存下来的标识，名字不变（标题改「Triggers」） |
+| 审计类型 `routine.*`、`routines.dispatch_refused`、`routines.run_requested` | 不再写（旧行照常显示） |
+
+**挪走而不是删：** 无头回合的运行器（IM、面板刷新、后台任务、工作流、定时任务、审批续跑都用它）从 `routines/run-turn.ts` 挪到 `server/src/turns/run-turn.ts`，类型 `TurnRunner` / `DrawnComponent` 在 `turns/types.ts`；`shared/routine-firing.ts`（到点消息的外框，聊天里画成一行）不变。审计里无头回合的 initiator 仍是 `routine`（数据格式）。
+
+**改读定时任务：** 机器人资料「动态」的定时项、重置 / 删除机器人提示里的「N 个定时任务」改读 `chisabot_schedules`（重置会取消这个机器人为你设的进行中 / 已暂停任务）；`ResetPlan.routines` 改名 `schedules`。`/routines` 早已重定向到 `/settings/schedules`（P1），保留。
+
+**保留：** `routines` / `routine_runs` / `routine_sweeps` 表和 drizzle 定义、迁移（P5 再决定）；删机器人时这些表的行照旧随外键级联。

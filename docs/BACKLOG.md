@@ -27,7 +27,7 @@
 | [CB-012](#cb-012) | 项目维护与文档系统（labels / milestones / ROADMAP / ADR / 模板） | 成熟度 Maturity | `type: docs` · `area: docs` · `P1` · `status: done（Issues 待仓库所有者打开）` |
 | [CB-013](#cb-013) | Google 账号连接（Hark parity 最后一项） | Hark parity | `type: feat` · `area: settings` · `P2` · `status: deferred` |
 | [CB-014](#cb-014) | 每日简报（Hark parity 第 9 项，可选） | Hark parity | `type: feat` · `area: schedules` · `P2` · `status: deferred` |
-| [CB-015](#cb-015) | 瘦身 P4c：合并重复系统（依赖并行功能） | 精简 Slim | `type: chore` · `area: slim` · `P2` · `status: in-progress` |
+| [CB-015](#cb-015) | 瘦身 P4c：合并重复系统（依赖并行功能） | 精简 Slim | `type: chore` · `area: slim` · `P2` · `status: blocked` |
 | [CB-016](#cb-016) | 瘦身 P5：DROP 上游空表（P4 稳定 ≥ 2 周后） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P2` · `status: blocked` |
 | [CB-017](#cb-017) | 真机验证：Windows PC 客户端与安卓手机 | 0.2.0 release | `type: chore` · `area: pc` · `area: android` · `P1` · `status: needs-user` |
 | [CB-018](#cb-018) | 用户的电脑需要手动重装 PC 0.1.7（0.2.x 不会自动更新） | 0.2.0 release | `type: chore` · `area: pc` · `P1` · `status: needs-user` |
@@ -326,7 +326,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 ## CB-015
 
 **瘦身 P4c：合并重复系统（依赖并行功能）**  
-里程碑：精简 Slim · 标签：`type: chore` `area: slim` `P2` `status: in-progress`
+里程碑：精简 Slim · 标签：`type: chore` `area: slim` `P2` `status: blocked`
 
 #### 背景
 
@@ -337,6 +337,10 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 - [ ] 每一项一个 PR，只增不删数据
 - [ ] 每项合并前确认依赖功能已上线并稳定
 - [ ] docs/slimming.md 逐项记录
+
+#### 进度
+
+- [x] P4c-1（2026-10-15，#143）：上游 Routines（`routines` 工具 / 页面 / 扫描 / 接口）并入 ChisaBot 定时任务 §55，表留到 P5
 
 #### 相关
 

@@ -28,7 +28,7 @@ function deletionLines(plan: ResetPlan): string[] {
     [plan.conversations, "个私人会话"],
     [plan.memorySources, "个记忆来源"],
     [plan.memories + plan.formedMemories, "条记忆"],
-    [plan.routines, "个定时任务"],
+    [plan.schedules, "个定时任务"],
     [plan.responsibilities, "个长期职责"],
     [plan.followUps, "个待办跟进"],
     [plan.backgroundResearch, "项后台研究"],

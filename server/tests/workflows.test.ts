@@ -12,7 +12,7 @@ import { clearStepPolicy, registerStepPolicy, restrictToolsForWorkflow } from ".
 import { loadPresets } from "../src/workflows/presets";
 import type { RunState, StoredRun, WorkflowStore } from "../src/workflows/store";
 import { findWorkflow } from "../src/workflows/tools";
-import type { TurnRunner } from "../src/routines/runner";
+import type { TurnRunner } from "../src/turns/types";
 
 const base = {
   slug: "t",

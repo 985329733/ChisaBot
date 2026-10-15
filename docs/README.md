@@ -89,7 +89,6 @@ ChisaBot 是中文自托管 AI 助手平台，提供网页登录、本地会话�
 - [环境配置](configuration.md)：环境变量和租户包 YAML。
 - [开发参考](development.md)：迁移、分开启动服务与质量检查。
 - [BOT 配置](coworkers.md)：持久配置、可见性、删除及外部 AG-UI 注册。
-- [上游 routines](routines.md)（ChisaBot 的定时任务见 [schedules.md](schedules.md)）：后台工作进程、调度及执行身份。
 - 自动学习：已在瘦身 P4b-3 删除，开通脚本与文档在 P6-3 删除。
 - [联网研究](parallel-research.md)：Parallel Search 连接器。
 - [Composio](plugins/composio.md)、[Google Drive](plugins/google-drive.md)、[Notion](plugins/notion.md)：按需配置的外部连接器。

@@ -29,7 +29,7 @@ import {
   channels,
   users,
 } from "../src/db/schema/core";
-import { agentProfiles, routines } from "../src/db/schema/coworker";
+import { agentProfiles } from "../src/db/schema/coworker";
 import { memorySources, personalMemories } from "../src/db/schema/memory";
 import {
   proactiveSettings,
@@ -37,7 +37,7 @@ import {
 } from "../src/db/schema/proactive";
 import { responsibilities } from "../src/db/schema/responsibilities";
 import { workItems } from "../src/db/schema/work";
-import { createRoutineRunner } from "../src/routines/runner";
+import { createSchedules } from "../src/schedules/service";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**
@@ -59,6 +59,10 @@ const othersDirect = `${prefix}-others-direct`;
 
 beforeAll(async () => {
   configureBotLifecycle({ database });
+  // chisabot_schedules is boot-created by the schedules service, not a migration.
+  await createSchedules(database, {
+    runTurn: async () => ({ replyText: "" }),
+  }).ensure();
   await database.insert(users).values([
     { id: owner, email: `${owner}@example.test` },
     { id: other, email: `${other}@example.test` },
@@ -99,15 +103,11 @@ beforeAll(async () => {
     { channelId: othersDirect, agentId: bot },
   ]);
   for (const person of [owner, other]) {
-    await database.insert(routines).values({
-      id: `${prefix}-routine-${person}`,
-      ownerUserId: person,
-      agentId: bot,
-      channelId: person === owner ? direct : othersDirect,
-      instruction: "Summarise the day",
-      cron: "0 9 * * *",
-      nextRunAt: new Date(Date.now() + 3_600_000),
-    });
+    await database.$client.unsafe(
+      `INSERT INTO chisabot_schedules (id, owner_user_id, agent_id, thread_id, title, instruction, kind, cron, timezone, status, next_run_at)
+       VALUES ($1, $2, $3, $4, 'Daily summary', 'Summarise the day', 'cron', '0 9 * * *', 'Asia/Shanghai', 'active', now() + interval '1 hour')`,
+      [`${prefix}-schedule-${person}`, person, bot, `${prefix}-thread-${person}`],
+    );
     await database.insert(responsibilities).values({
       id: `${prefix}-goal-${person}`,
       ownerUserId: person,
@@ -215,6 +215,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   resetBotLifecycleForTests();
+  await database.$client.unsafe(
+    "DELETE FROM chisabot_schedules WHERE id LIKE $1",
+    [`${prefix}-schedule-%`],
+  );
   await database
     .delete(workItems)
     .where(sql`${workItems.key} like ${`%${prefix}%`}`);
@@ -254,38 +258,6 @@ describe("pause", () => {
     expect(othersSignal.aborted).toBe(false);
     await lifecycle.resume(owner, bot);
   });
-
-  test("a routine firing for a paused Bot is skipped, never run", async () => {
-    await lifecycle.pause(owner, bot);
-    const finished: [string, string, string | undefined][] = [];
-    let ran = false;
-    const runner = createRoutineRunner({
-      routineStore: {
-        runContext: async () => ({
-          routineId: "r",
-          ownerUserId: owner,
-          agentId: bot,
-          channelId: direct,
-          instruction: "x",
-          enabled: true,
-        }),
-        finishRun: async (id: string, status: string, reason?: string) =>
-          void finished.push([id, status, reason]),
-      } as never,
-      channelStore: {
-        get: async () => ({ id: direct, threadId: "t" }),
-        recordActivity: async () => {},
-      } as never,
-      runTurn: async () => {
-        ran = true;
-        return { replyText: "no" };
-      },
-    });
-    await runner.run("run-1");
-    expect(ran).toBe(false);
-    expect(finished[0]?.[1]).toBe("skipped");
-    await lifecycle.resume(owner, bot);
-  });
 });
 
 describe("Activity and attention", () => {
@@ -301,7 +273,8 @@ describe("Activity and attention", () => {
     expect(all.some((item) => item.title === "Not yours")).toBe(false);
     expect(
       result.scheduled.some(
-        (item) => item.kind === "routine" && item.channelId === direct,
+        (item) =>
+          item.kind === "schedule" && item.title === "Daily summary",
       ),
     ).toBe(true);
     expect(
@@ -490,7 +463,7 @@ describe("reset", () => {
       sharedConversationsKept: 1,
       memorySources: 1,
       memories: 1,
-      routines: 1,
+      schedules: 1,
       responsibilities: 1,
     });
     expect(plan.followUps).toBeGreaterThan(0);
@@ -501,7 +474,7 @@ describe("reset", () => {
     expect(await reset.plan(owner, bot)).toMatchObject({
       conversations: 0,
       memories: 0,
-      routines: 0,
+      schedules: 0,
       responsibilities: 0,
       followUps: 0,
     });
@@ -510,7 +483,7 @@ describe("reset", () => {
     expect(await reset.plan(other, bot)).toMatchObject({
       conversations: 1,
       memories: 1,
-      routines: 1,
+      schedules: 1,
       responsibilities: 1,
     });
     const kept = await database

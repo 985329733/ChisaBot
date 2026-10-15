@@ -19,7 +19,7 @@ import type {
   ResponsibilityStore,
 } from "../src/responsibilities/types";
 import { ResponsibilityNotFoundError } from "../src/responsibilities/types";
-import type { TurnRunner } from "../src/routines/runner";
+import type { TurnRunner } from "../src/turns/types";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**

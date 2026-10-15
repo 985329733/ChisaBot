@@ -43,7 +43,7 @@ import { type DeviceRecord, type DeviceStore, fullAccessActive } from "../device
 import { resolveDevice } from "../devices/tools";
 import type { LocalRunControl } from "../local-conversations";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import type { ThreadInbox } from "../thread-inbox";
 
 /**

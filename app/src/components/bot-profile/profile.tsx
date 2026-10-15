@@ -73,7 +73,7 @@ function resetLines(plan: ResetPlan): string[] {
     [plan.conversations, "个对话"],
     [plan.memorySources, "个记忆来源"],
     [plan.memories, "条导入的记忆"],
-    [plan.routines, "个例行任务"],
+    [plan.schedules, "个定时任务"],
     [plan.responsibilities, "项职责"],
     [plan.followUps, "个定时跟进"],
     [plan.formedMemories, "条它自己记下的记忆"],

@@ -3,7 +3,7 @@ import type {
   Responsibility,
   ResponsibilityStore,
 } from "../responsibilities/types";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import {
   type PersonQuestion,
   questionConversationBot,

@@ -6,7 +6,7 @@ import type { AppVariables } from "../auth/guards";
 import { upgradeWebSocket } from "../channels/socket";
 import { decryptSecret, encryptSecret } from "../credentials";
 import type { Database } from "../db/client";
-import type { TurnRunner } from "../routines/runner";
+import type { TurnRunner } from "../turns/types";
 import { OneBotAdapter } from "./adapters/onebot";
 import { WEIXIN_DEFAULT_BASE, weixinFetchQr, weixinQrStatus } from "./adapters/weixin";
 import { createAdapter, testAdapter } from "./registry";
