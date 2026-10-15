@@ -221,8 +221,6 @@ if (import.meta.main) {
       if (url.pathname === "/api/audio/transcriptions") {
         server.timeout(request, DICTATION_HTTP_IDLE_SECONDS);
       }
-      if (url.pathname === "/api/voice/calls") server.timeout(request, 30);
-      if (url.pathname === "/api/voice/sessions") server.timeout(request, 30);
       // 计算机工具（打开网页、执行命令、接管）常常超过 Bun 默认的 10 秒空闲超时，被切断后用户看到
       // “计算机无法访问”而浏览器其实还在工作。由 agent-computer 自己的超时兜底。
       if (url.pathname.startsWith("/api/computers/") && !request.headers.get("upgrade")) server.timeout(request, 0);
@@ -254,8 +252,7 @@ if (import.meta.main) {
           headers: request.headers,
           body: request.body,
           redirect: "manual",
-          ...(url.pathname === "/api/audio/transcriptions" ||
-          url.pathname === "/api/voice/calls"
+          ...(url.pathname === "/api/audio/transcriptions"
             ? { signal: request.signal }
             : {}),
           // @ts-expect-error duplex is required by fetch for a streamed body and is not yet typed.

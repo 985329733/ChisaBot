@@ -336,7 +336,6 @@ async function startProxy(upstreamPort: number) {
 
 test.each([
   ["dictation", "/api/audio/transcriptions", "x-openbot-dictation"],
-  ["voice", "/api/voice/calls", "x-openbot-voice"],
 ])(
   "%s can wait for a provider past Bun's default idle timeout",
   async (_name, path, header) => {

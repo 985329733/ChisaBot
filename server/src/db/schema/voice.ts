@@ -7,11 +7,13 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-import type { VoiceTranscriptEntry } from "../../../../shared/voice-session";
 import { channels, users } from "./core";
 import { jsonb } from "./json";
 
-/** Spoken conversations are durable even when no agent/tool run was needed. */
+/**
+ * 语音通话记录表。语音功能 2026-10-15 删掉（CB-046 第 2 步，DESIGN.md §68.7），表留着不动：不做破坏性迁移，旧数据还在。
+ * 没有代码再读写它。
+ */
 export const voiceSessions = pgTable(
   "voice_sessions",
   {
@@ -27,7 +29,7 @@ export const voiceSessions = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
     durationSeconds: integer("duration_seconds").notNull(),
     transcript: jsonb("transcript")
-      .$type<{ entries: VoiceTranscriptEntry[] }>()
+      .$type<{ entries: unknown[] }>()
       .notNull(),
     summary: text("summary"),
     summaryStatus: text("summary_status")

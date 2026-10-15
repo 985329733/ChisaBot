@@ -43,7 +43,6 @@ export function ConversationView({
   restoring = false,
   onSubmit,
   onStop,
-  voiceCall,
   fallbacks,
   queueToServer,
 }: {
@@ -121,7 +120,6 @@ export function ConversationView({
   onSubmit: (draft: ComposerDraft) => void | Promise<void>;
   /** Stop the Bot mid-answer; forwarded to turn the send button into a stop button. */
   onStop?: () => void;
-  voiceCall?: { active: boolean; supported: boolean; onStart(): void };
 }) {
   /*
    * THE QUEUE LIVES HERE BECAUSE BOTH HALVES OF IT DO.
@@ -494,7 +492,6 @@ export function ConversationView({
           {...(commands ? { commands } : {})}
           className="w-full mt-auto"
           compact
-          voiceCall={voiceCall}
           disabled={disabled}
           droppedAttachments={droppedAttachments}
           onQueue={

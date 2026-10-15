@@ -27,7 +27,6 @@ import {
   useState,
 } from "react";
 import { attachmentModality } from "@/components/channels/chat-messages";
-import { IconWaveform } from "@/components/icons/waveform";
 import {
   attachmentUrl,
   classifyAttachment,
@@ -137,7 +136,6 @@ export type ComposerProps = {
    */
   editorClassName?: string;
   compact?: boolean;
-  voiceCall?: { active: boolean; supported: boolean; onStart(): void };
   /** Agents that `@` can address. Empty means the mention menu reports an empty channel. */
   agents?: readonly AgentOption[];
   commands?: readonly CommandOption[];
@@ -329,7 +327,6 @@ export function Composer({
   onAgentChange,
   editorClassName,
   compact = false,
-  voiceCall,
   agents = [],
   commands = PLACEHOLDER_COMMANDS,
   onSubmit,
@@ -374,7 +371,7 @@ export function Composer({
       sendDictatedDraft.current = intent === "send";
       wantsFocus.current = true;
     },
-    disabled || voiceCall?.active === true,
+    disabled,
   );
   /** `autoFocus` has been honoured once, and is not owed again for the life of this composer. */
   const claimedAutoFocus = useRef(false);
@@ -1355,8 +1352,6 @@ export function Composer({
    * lie told to exactly the people who cannot see the queue it lands in.
    */
   const sendLabel = parking ? "队列消息" : "发送消息";
-  const callAction =
-    draft.isEmpty && draft.attachments.length === 0 ? voiceCall : undefined;
   const actionClassName = "glass-composer-send";
   const primaryAction = canStop ? (
     <Button
@@ -1368,24 +1363,6 @@ export function Composer({
       type="button"
     >
       <IconPlayerStopFilled className="size-3" />
-    </Button>
-  ) : callAction ? (
-    <Button
-      aria-label={callAction.active ? "显示语音通话" : "开始语音通话"}
-      title={
-        callAction.supported
-          ? callAction.active
-            ? "显示语音通话"
-            : "调用此代理"
-          : "语音通话需要 HTTPS 或 localhost 且支持麦克风"
-      }
-      className={actionClassName}
-      disabled={disabled || dictation.busy || !callAction.supported}
-      onClick={callAction.onStart}
-      size="icon"
-      type="button"
-    >
-      <IconWaveform className="size-4" />
     </Button>
   ) : (
     <Button
@@ -1536,7 +1513,7 @@ export function Composer({
               triggers={triggers}
               value={value}
             />
-            {/* One toolbar inside the frame: only attach on the left; model pill, context ring, voice and send on the right (DESIGN.md §25). */}
+            {/* One toolbar inside the frame: only attach on the left; model pill, context ring and send on the right (DESIGN.md §25). */}
             <div className="glass-composer-toolbar">
               <div className="flex min-w-0 items-center gap-1.5">
                 {attachmentsEnabled ? (
@@ -1570,7 +1547,7 @@ export function Composer({
                 {contextControl}
                 <DictationButton
                   dictation={dictation}
-                  disabled={disabled || voiceCall?.active === true}
+                  disabled={disabled}
                 />
                 {primaryAction}
               </div>
@@ -1648,7 +1625,7 @@ export function Composer({
             <div className="flex shrink-0 items-center gap-1.5">
               <DictationButton
                 dictation={dictation}
-                disabled={disabled || voiceCall?.active === true}
+                disabled={disabled}
               />
               {primaryAction}
             </div>

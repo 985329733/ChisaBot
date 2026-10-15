@@ -290,8 +290,6 @@ import {
 import { markUntrusted } from "./untrusted-content";
 import { createUserInstructionsStore } from "./user-instructions";
 import { createUserPreferencesStore } from "./user-preferences";
-import { createVoiceSessionStore } from "./voice/sessions";
-import { createVoiceSummarizer } from "./voice/summary";
 import { repeatAfterEach } from "./work/loop";
 import { createWorkerService, type WorkerService } from "./workers/service";
 import { createLocalAgentService, type LocalAgentService } from "./local-agents/service";
@@ -3639,15 +3637,7 @@ const app = createApp(
     ? createProviderOAuthProxy(process.env.OPENBOT_MODEL_OAUTH_FILE.trim())
     : undefined,
   createUserPreferencesStore(database),
-  {
-    store: createVoiceSessionStore(database, channelStore),
-    summarize: createVoiceSummarizer({
-      model: runtimeModel,
-      resolveApiKey: resolveRuntimeModelApiKey,
-      resolveConnection: resolveRuntimeConnection,
-    }),
-    channels: channelStore,
-  },
+  undefined, // was voice sessions (removed in CB-046 step 2)
   undefined, // was Automatic Learning (removed in slimming P4b-3)
   {
     approvals: approvalService,
@@ -3812,8 +3802,6 @@ serve<SocketData>({
     if (url.pathname === "/api/audio/transcriptions") {
       server.timeout(request, DICTATION_HTTP_IDLE_SECONDS);
     }
-    if (url.pathname === "/api/voice/calls") server.timeout(request, 30);
-    if (url.pathname === "/api/voice/sessions") server.timeout(request, 30);
     // 计算机工具（打开网页、执行命令、接管）常常超过 Bun 默认的 10 秒空闲超时，被切断后用户看到
     // “计算机无法访问”而浏览器其实还在工作。由 agent-computer 自己的超时兜底。
     if (url.pathname.startsWith("/api/computers/") && !request.headers.get("upgrade")) server.timeout(request, 0);

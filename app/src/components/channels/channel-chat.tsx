@@ -14,7 +14,6 @@ import { HandoffResumeNotice } from "@/components/computer/handoff-resume-notice
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
 import { ConversationView } from "@/components/channels/conversation-view";
-import { VoiceCallWidget } from "@/components/channels/voice-call-widget";
 import { ContextMeter } from "@/components/agents/context-meter";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
@@ -64,20 +63,6 @@ import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import { useReportBusy } from "@/lib/activity";
-import {
-  askChannelAgent,
-  messageText,
-  voiceContext,
-  withVoiceContext,
-} from "@/lib/voice/agent-bridge";
-import { useVoiceCall } from "@/lib/voice/use-voice-call";
-import {
-  loadVoiceArchive,
-  cachedVoiceArchive,
-  useVoiceArchive,
-  voiceArchiveContext,
-  withVoiceChats,
-} from "@/lib/voice/archive";
 import { queryClient } from "@/query-client";
 import { newId } from "../../lib/new-id";
 
@@ -159,6 +144,19 @@ export function channelHistoryNotice({
  * following shared anchor, append the missing tail: the store cannot place it among local-only rows.
  * Return the original array when nothing was added so refreshes can wait for the store to catch up.
  */
+/** 一条消息里的文字（多段内容只取文字段）。 */
+function messageText(message: Message): string {
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return "";
+  return message.content
+    .flatMap((part) =>
+      part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part && typeof part.text === "string"
+        ? [part.text]
+        : [],
+    )
+    .join("\n");
+}
+
 function mergeStoredMessages(local: Message[], stored: Message[]): Message[] {
   const localIds = new Set(local.map((message) => message.id));
   const seenStored = new Set<string>();
@@ -344,10 +342,6 @@ export function ChannelChat({
    */
   const agentRef = useRef(agent);
   agentRef.current = agent;
-  const voiceArchive = useVoiceArchive(channel.id);
-  const [voiceContextNotice, setVoiceContextNotice] = useState<string | null>(
-    null,
-  );
 
   /**
    * History has been asked for and has not arrived. True for a channel opened from the roster, where
@@ -766,25 +760,6 @@ export function ChannelChat({
 
     // Every wait is behind us, so this is the agent the screen is actually rendering. Read once and
     // used throughout, so the message, the repair and the run cannot land on two different agents.
-    // Give initial voice history time to restore, while keeping ordinary chat usable on failure.
-    setVoiceContextNotice(null);
-    let voiceHistoryTimer: ReturnType<typeof setTimeout> | undefined;
-    const priorCalls = await Promise.race([
-      loadVoiceArchive(channel.id),
-      new Promise<never>((_resolve, reject) => {
-        voiceHistoryTimer = setTimeout(
-          () => reject(new Error("语音历史记录超时")),
-          2000,
-        );
-      }),
-    ])
-      .catch(() => {
-        setVoiceContextNotice(
-          "Earlier voice context wasn’t available for this message. The agent may need you to repeat details from the call.",
-        );
-        return cachedVoiceArchive(channel.id);
-      })
-      .finally(() => clearTimeout(voiceHistoryTimer));
     // A model write may have started while readiness or history was being awaited.
     assertModelSelectionNotSaving(modelQueryClient, runtimeAgentId);
     const target = agentRef.current;
@@ -821,18 +796,6 @@ export function ChannelChat({
       });
     }
 
-    const voiceHistory = voiceArchiveContext(priorCalls);
-    // Older development calls used a system row, which built-in agents discard.
-    const previousVoiceContextId = `voice-history:${channel.id}`;
-    if (
-      target.messages.some((message) => message.id === previousVoiceContextId)
-    )
-      target.setMessages(
-        target.messages.filter(
-          (message) => message.id !== previousVoiceContextId,
-        ),
-      );
-
     // An open custom-panel authoring session for this Bot rides along, so the server hands the Bot
     // its draft tools for that session (see server/src/index.ts handoffForActor).
     const panelAuthoring = await panelAuthoringForwardedProps(
@@ -855,12 +818,10 @@ export function ChannelChat({
 
     setRunsInFlight((count) => count + 1);
     try {
-      await withVoiceContext(copilotkit, target.agentId, voiceHistory, () =>
-        copilotkit.runAgent({
-          agent: target,
-          ...(panelAuthoring ? { forwardedProps: panelAuthoring } : {}),
-        }),
-      );
+      await copilotkit.runAgent({
+        agent: target,
+        ...(panelAuthoring ? { forwardedProps: panelAuthoring } : {}),
+      });
     } finally {
       setRunsInFlight((count) => count - 1);
     }
@@ -918,10 +879,10 @@ export function ChannelChat({
     // enabled and inert.
     if (!trimmed && attachments.length === 0 && contentOverride === undefined) return "";
 
-    // Seeds, component actions and voice calls share the same gate as the composer.
+    // Seeds and component actions share the same gate as the composer.
     assertModelSelectionNotSaving(modelQueryClient, runtimeAgentId);
 
-    // Voice and typed requests share this turn boundary, including gaps between frontend tools.
+    // Every request shares this turn boundary, including gaps between frontend tools.
     if (turnsRef.current > 0 || agentRef.current.isRunning) {
       throw new Error("代理仍在处理另一个请求。请等待或先停止该任务。");
     }
@@ -980,30 +941,7 @@ export function ChannelChat({
   /** Stable reference for effects and component callbacks. */
   const sayRef = useRef(say);
   sayRef.current = say;
-  const stopEpoch = useRef(0);
 
-  const call = useVoiceCall({
-    channelId: channel.id,
-    disabled: !channel.active,
-    context: async () =>
-      [
-        voiceArchiveContext(await loadVoiceArchive(channel.id)).slice(-6000),
-        voiceContext(agentRef.current.messages).slice(-6000),
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-    anchorMessageId: () => agentRef.current.messages.at(-1)?.id ?? null,
-    askAgent: async (request, signal) => {
-      const started = stopEpoch.current;
-      const answer = await askChannelAgent(request, signal, {
-        busy: () => turnsRef.current > 0 || agentRef.current.isRunning,
-        send: (text) => sayRef.current(text),
-      });
-      if (started !== stopEpoch.current)
-        throw new Error("用户在任务完成前停止了此任务。");
-      return answer;
-    },
-  });
   // 「已停止」（2026-10-13 第四轮）：本机刚按停止的那一轮 + 服务器记下的（刷新、换设备也在）。
   const [localStops, setLocalStops] = useState<ReadonlySet<string>>(() => new Set());
   const serverStops = useStoppedTurnIds(channel.threadId);
@@ -1012,7 +950,6 @@ export function ChannelChat({
     const lastUser = [...agent.messages].reverse().find((message) => message.role === "user");
     if (lastUser) setLocalStops((previous) => new Set([...previous, lastUser.id]));
     awaitingReply.current = false;
-    stopEpoch.current++;
     copilotkit.stopAgent({ agent });
   };
 
@@ -1154,31 +1091,10 @@ export function ChannelChat({
       <ConversationProvider ask={askFromComponent}>
         <MessageActionsContext.Provider value={messageActions}>
         <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
-          <VoiceCallWidget
-            call={call}
-            name={
-              agentProfiles?.find((profile) => profile.id === runtimeAgentId)
-                ?.name ?? channel.name
-            }
-            avatarSeed={
-              agentProfiles?.find((profile) => profile.id === runtimeAgentId)
-                ?.avatarSeed ?? runtimeAgentId
-            }
-            taskRunning={agent.isRunning || runsInFlight > 0}
-          />
           <ConversationView
             modelControl={<BotModelSelector agentId={runtimeAgentId} compact disabled={!channel.active} />}
             contextControl={<ContextMeter agentId={runtimeAgentId} running={agent.isRunning || turnsInFlight > 0} threadId={channel.threadId} />}
             sendBlocked={modelSaving}
-            voiceCall={
-              call.available
-                ? {
-                    active: call.active,
-                    supported: call.supported,
-                    onStart: call.open,
-                  }
-                : undefined
-            }
             agents={toAgentOptions(agentProfiles, channel.agentIds)}
             channelId={channel.id}
             /*
@@ -1191,10 +1107,7 @@ export function ChannelChat({
             commands={skillCommands}
             // Readiness is handled by `say`; deletion is the only disabled-chat state.
             disabled={!channel.active}
-            messages={withVoiceChats(
-              transcriptMessages(agent.messages, seed),
-              voiceArchive.entries,
-            )}
+            messages={transcriptMessages(agent.messages, seed)}
             transcriptNotice={
               historyNotice ? (
                 <HistoryNotice
@@ -1226,19 +1139,6 @@ export function ChannelChat({
                     }
                   }}
                 />
-                {voiceArchive.error && (
-                  <p className="pb-2 text-sm text-destructive" role="alert">
-                    {"语音聊天加载失败。请刷新重试。"}
-                  </p>
-                )}
-                {voiceContextNotice && (
-                  <p
-                    className="pb-2 text-sm text-muted-foreground"
-                    role="status"
-                  >
-                    {voiceContextNotice}
-                  </p>
-                )}
                 {channel.active ? null : (
                   <p
                     className="pb-2 text-sm text-muted-foreground"
