@@ -7108,3 +7108,52 @@ a.cc-pill { text-decoration: none; }
 @keyframes cc-pulse { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .cc-msg { animation: none; } .cc-drawer, .cc-right, .cc-ws-fold { transition-duration: 0ms; } .cc-tool-ic.is-spin, .cc-sess-dot { animation: none; } }
 .cc-rb-foot .cc-pill { max-width: 100%; height: auto; min-height: 24px; padding-block: 3px; white-space: normal; line-height: 1.4; }
+
+/* 电脑文件夹同步（P4b，DESIGN.md §73.9）：可以点的同步药丸、同步面板、冲突对话框、新建里的「电脑上的文件夹」。 */
+.cc-pill.is-danger { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 30%, transparent); background: color-mix(in srgb, var(--destructive) 9%, transparent); }
+.cc-sync-pill.is-btn { cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease; }
+.cc-sync-pill.is-btn:hover { background: var(--glass-3); }
+.cc-sync-pill.is-btn:active { transform: scale(.97); }
+.cc-sync-pill.is-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent-blue) 55%, transparent); outline-offset: 2px; }
+.cc-sync-pill[data-state="syncing"] .cc-dot { animation: cc-pulse 1.2s ease-in-out infinite; }
+.cc-sync-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass-2); }
+.cc-sync-ico { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--glass-3); color: var(--ink-2); }
+.cc-sync-ico.is-ok { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+.cc-sync-ico.is-info { color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 11%, transparent); }
+.cc-sync-ico.is-warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.cc-sync-ico.is-danger { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 11%, transparent); }
+.cc-sync-t { font-size: 14px; font-weight: 600; color: var(--ink-1); line-height: 1.45; }
+.cc-sync-s { margin-top: 2px; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); overflow-wrap: anywhere; }
+.cc-sync-path { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-code); font-size: 12.5px; color: var(--ink-1); }
+.cc-sync-conf { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; color: var(--destructive); border: 1px solid color-mix(in srgb, var(--destructive) 28%, transparent); background: color-mix(in srgb, var(--destructive) 7%, transparent); }
+.cc-sync-conf .cc-sync-t { color: var(--destructive); font-size: 13px; }
+.cc-sync-local { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.cc-sync-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cc-sync-row.is-sub { justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--ink-3); padding-left: 24px; }
+.cc-sync-link { flex: none; font-size: 12.5px; font-weight: 500; color: var(--accent-blue); padding: 2px 6px; border-radius: 6px; transition: background-color 150ms ease; }
+.cc-sync-link:hover { background: color-mix(in srgb, var(--accent-blue) 10%, transparent); }
+.cc-sync-busy { padding-left: 24px; font-size: 12.5px; color: var(--accent-blue); }
+.cc-sync-note { margin-top: 10px; font-size: 12.5px; line-height: 1.6; color: var(--ink-3); }
+.cc-sync-warn { margin-top: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12.5px; line-height: 1.55; color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.cc-sync-ok { padding: 10px 12px; border-radius: 12px; font-size: 13px; color: var(--success); background: color-mix(in srgb, var(--success) 9%, transparent); }
+.cc-sync-rules { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.cc-sync-rules-h { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); padding: 4px 2px; }
+.cc-sync-rules-h svg { transition: transform 200ms ease; transform: rotate(-90deg); }
+.cc-sync-rules[data-open] .cc-sync-rules-h svg { transform: rotate(0deg); }
+.cc-sync-rules-n { font-weight: 400; color: var(--ink-4); }
+.cc-sync-rules-b { margin-top: 6px; font-size: 12.5px; line-height: 1.6; color: var(--ink-3); animation: cc-fade-in 180ms ease; }
+.cc-sync-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cc-sync-chip { padding: 2px 8px; border-radius: 6px; font-family: var(--font-code); font-size: 12px; color: var(--ink-2); background: var(--glass-3); border: 1px solid var(--line); }
+.cc-sync-chip.is-keep { color: var(--success); }
+@keyframes cc-fade-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+.cc-conf-row { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.cc-conf-row:last-of-type { border-bottom: 0; }
+.cc-conf-p { font-family: var(--font-code); font-size: 13px; color: var(--ink-1); overflow-wrap: anywhere; }
+.cc-conf-s { font-size: 12.5px; color: var(--ink-3); }
+.cc-conf-a { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.cc-src-note { margin: -6px 0 10px; font-size: 12px; color: var(--ink-4); text-align: right; }
+.cc-local { display: flex; flex-direction: column; }
+.cc-local-check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.cc-local-foot { display: flex; justify-content: flex-end; margin-top: 14px; }
+@media (max-width: 640px) { .cc-conf-a > * { flex: 1 1 auto; min-height: 44px; } .cc-sync-row.is-sub { flex-direction: column; align-items: flex-start; gap: 2px; } }
+@media (prefers-reduced-motion: reduce) { .cc-sync-pill[data-state="syncing"] .cc-dot, .cc-sync-rules-b { animation: none; } .cc-sync-rules-h svg { transition: none; } }

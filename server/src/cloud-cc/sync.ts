@@ -77,6 +77,8 @@ const BACKLOG_CAP = 4 * 1024 * 1024;
 const KEY_RE = /^ssh-ed25519 [A-Za-z0-9+/=]{60,120}$/;
 const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const MOBILE = /^(android|ios)$/i;
+const HANDOFF_READY_MS = 30_000;
+const HANDOFF_RELEASE_MS = 120_000;
 
 function unref(timer: ReturnType<typeof setTimeout>) {
   if (typeof timer === "object" && timer && "unref" in timer) (timer as { unref: () => void }).unref();
@@ -264,11 +266,11 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     if (!hub.isOnline(node.device_id)) throw new SyncError("云端工作区不在线。", 409);
     const id = `ws_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
     // 先在节点上建好 work/，成功了再记数据库（节点出错时不留半个工作区）
-    await nodeRpc(node.device_id, "ws_init_local", { workspaceId: id });
+    const init = await nodeRpc<{ git?: boolean }>(node.device_id, "ws_init_local", { workspaceId: id });
     await nodeRpc(node.device_id, "sync_lease", { workspaceId: id, holder: "cloud", epoch: 0 });
     await sql.unsafe(
-      "INSERT INTO chisabot_cc_workspaces (id, owner_user_id, node_device_id, name, source, is_git, path, sync_state) VALUES ($1, $2, $3, $4, 'local', false, $5, 'paused')",
-      [id, device.ownerUserId, node.device_id, input.name, input.label ?? null],
+      "INSERT INTO chisabot_cc_workspaces (id, owner_user_id, node_device_id, name, source, is_git, path, sync_state) VALUES ($1, $2, $3, $4, 'local', $6, $5, 'paused')",
+      [id, device.ownerUserId, node.device_id, input.name, input.label ?? null, !!init?.git],
     );
     await event(device.ownerUserId, id, "created", null, { device: device.id, source: "local" });
     return { id, name: input.name, source: "local", syncState: "paused" as SyncState };
@@ -325,19 +327,168 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     return { ws, b };
   }
 
-  /** 电脑报告同步状态（Mutagen 的状态映射成五种状态之一）。 */
-  async function report(device: DeviceRecord, input: { workspaceId: string; state: "syncing" | "pc_active" | "conflict"; detail?: string | null }) {
+  /** 电脑报告同步状态（Mutagen 的状态映射成五种状态之一）。冲突时带上冲突的文件（网页上显示「去电脑上处理」）。 */
+  async function report(device: DeviceRecord, input: { workspaceId: string; state: "syncing" | "pc_active" | "conflict"; detail?: string | null; conflicts?: { path: string; kind?: string | null }[] | null }) {
     const { ws, b } = await needBinding(device, input.workspaceId);
-    const detail = input.detail ? input.detail.slice(0, 300) : null;
-    if (input.state === "pc_active") await setState(ws, "pc_active", "pc", device.id, b.binding_epoch);
-    else if (input.state === "conflict") await setState(ws, "conflict", "conflict", device.id, b.binding_epoch);
+    let detail = input.detail ? input.detail.slice(0, 300) : null;
+    let state = input.state;
+    const l = await lease(ws.id);
+    // 交接还没收尾（租约在云端:交接号）时，电脑不能直接说「我在用」——先走 /handoff recover 对一遍交接号（§4.3）
+    if (state !== "conflict" && l.holder === "handoff") {
+      if (handoffs.has(ws.id)) return { state: ws.sync_state as SyncState, handoff: handoffs.get(ws.id)!.id };
+      state = "conflict";
+      detail = "交接未确认：先在电脑上重新打开同步，按交接记录恢复";
+    }
+    if (state === "pc_active") await setState(ws, "pc_active", "pc", device.id, b.binding_epoch);
+    else if (state === "conflict") await setState(ws, "conflict", "conflict", device.id, b.binding_epoch);
     else await setState(ws, "syncing", "syncing", device.id, b.binding_epoch);
     await sql.unsafe(
       "UPDATE chisabot_cc_sync_bindings SET last_state = $2, last_detail = $3, last_synced_at = CASE WHEN $2 = 'pc_active' THEN now() ELSE last_synced_at END, updated_at = now() WHERE id = $1",
-      [b.id, input.state, detail],
+      [b.id, state, detail],
     );
-    if (ws.sync_state !== input.state) await event(device.ownerUserId, ws.id, input.state, null, { device: device.id, detail });
-    return { state: input.state };
+    if (state === "conflict" && Array.isArray(input.conflicts)) {
+      await sql.unsafe("DELETE FROM chisabot_cc_sync_conflicts WHERE binding_id = $1 AND resolved_at IS NULL", [b.id]);
+      for (const c of input.conflicts.slice(0, 200)) {
+        await sql.unsafe("INSERT INTO chisabot_cc_sync_conflicts (id, binding_id, workspace_id, path, pc_meta) VALUES ($1, $2, $3, $4, $5::text::jsonb)", [
+          `scf_${randomUUID().replace(/-/g, "").slice(0, 20)}`,
+          b.id,
+          ws.id,
+          String(c.path).slice(0, 1000),
+          JSON.stringify({ kind: c.kind ?? "file" }),
+        ]);
+      }
+    } else if (state === "pc_active") {
+      await sql.unsafe("UPDATE chisabot_cc_sync_conflicts SET resolved_at = now(), resolution = COALESCE(resolution, 'cleared') WHERE binding_id = $1 AND resolved_at IS NULL", [b.id]);
+    }
+    if (ws.sync_state !== state) await event(device.ownerUserId, ws.id, state, null, { device: device.id, detail });
+    return { state };
+  }
+
+  /**
+   * 冲突处理（§4.4，图 4 右）：每个文件「用云端 / 用电脑 / 两份都留」。用云端 / 两份都留在电脑上做（电脑那份挪走或另存为
+   * 「文件名.电脑副本.扩展名」），这里只记下来；用电脑 = 节点把云端那份挪进备份（不删），Mutagen 再把电脑那份带上去。
+   */
+  async function resolve(device: DeviceRecord, input: { workspaceId: string; path: string; choice: "cloud" | "pc" | "both" | "git_cloud" | "git_retry" }) {
+    const { ws, b } = await needBinding(device, input.workspaceId);
+    if (ws.sync_state !== "conflict") throw new SyncError("这个工作区现在没有冲突。", 409);
+    let result: Json = { ok: true };
+    if (input.choice === "pc") result = await nodeRpc(ws.node_device_id, "ws_sync_drop", { workspaceId: ws.id, path: input.path });
+    await sql.unsafe("UPDATE chisabot_cc_sync_conflicts SET resolved_at = now(), resolution = $3 WHERE binding_id = $1 AND path = $2 AND resolved_at IS NULL", [b.id, input.path, input.choice]);
+    await event(device.ownerUserId, ws.id, "resolved", null, { device: device.id, choice: input.choice, path: input.path.slice(0, 200) });
+    return result;
+  }
+
+  /** 电脑同步的 Git（§4.5）：看云端 work/ 的分支和 HEAD；把电脑推上来的提交接上（快进；分叉不自动合并）。 */
+  async function git(device: DeviceRecord, input: { workspaceId: string; op: "info" | "adopt"; branch?: string | null; sha?: string | null }) {
+    const { ws } = await needBinding(device, input.workspaceId);
+    if (input.op === "info") return await nodeRpc(ws.node_device_id, "ws_git_info", { workspaceId: ws.id });
+    const r = await nodeRpc<{ result: string; branch?: string | null }>(ws.node_device_id, "ws_git_adopt", { workspaceId: ws.id, branch: input.branch, sha: input.sha });
+    if (ws.source === "local" && r.branch) await sql.unsafe("UPDATE chisabot_cc_workspaces SET default_branch = $2, is_git = true WHERE id = $1 AND (default_branch IS NULL OR default_branch <> $2)", [ws.id, r.branch]);
+    if (r.result === "diverged") await event(device.ownerUserId, ws.id, "git_diverged", null, { device: device.id });
+    return r;
+  }
+
+  // ── 交接（§4.3 ①–⑤） ───────────────────────────────────────────────
+
+  type Handoff = { id: string; workspaceId: string; deviceId: string; ready: () => void; fail: (e: Error) => void; released: () => void; changed: boolean | null };
+  const handoffs = new Map<string, Handoff>(); // workspaceId → 正在进行的交接
+
+  /**
+   * PC 正在使用时云端要写 work/：① 发 sync_begin 给电脑 → ② 电脑先把改动推上去（Mutagen flush + Git），暂停 Mutagen，
+   * 记下交接记录，回 ready → ③ 租约 = 云端:交接号（节点只认带这个号的写入），write(handoffId) → ④ sync_end{changed}：
+   * 电脑恢复同步、拉回结果 → ⑤ 电脑回 released，租约回电脑。电脑 30 秒没回 ready：这次不写，租约不动，报错（可以等它上线或强制收回）。
+   * 写完后电脑没回 released（断线、被关掉）：租约留在「交接」，等电脑上线拿交接记录来对（recover），对不上就是冲突。
+   */
+  async function withHandoff<T>(ownerUserId: string, workspaceId: string, write: (handoffId: string) => Promise<T>, changed: (result: T) => boolean): Promise<T> {
+    const ws = await workspaceFor(ownerUserId, workspaceId);
+    const b = await activeBinding(ws.id);
+    if (!b) return await write("");
+    if (handoffs.has(ws.id)) throw new SyncError("这个工作区正在和电脑交接，等一下再试。", 409);
+    if (!hub.isOnline(b.pc_device_id)) throw new SyncError("电脑离线，没法交接。等电脑上线，或者在工作区的同步面板里「强制收回到云端」。", 409);
+    const id = `ho_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+    let onReady: () => void = () => {};
+    let onFail: (e: Error) => void = () => {};
+    let onReleased: () => void = () => {};
+    const ready = new Promise<void>((res, rej) => {
+      onReady = res;
+      onFail = rej;
+    });
+    const released = new Promise<void>((res) => {
+      onReleased = res;
+    });
+    const h: Handoff = { id, workspaceId: ws.id, deviceId: b.pc_device_id, ready: () => onReady(), fail: (e) => onFail(e), released: () => onReleased(), changed: null };
+    handoffs.set(ws.id, h);
+    await event(ownerUserId, ws.id, "handoff_begin", id, { device: b.pc_device_id });
+    let wrote = false;
+    try {
+      // ①
+      if (!hub.sendRaw(b.pc_device_id, { type: "sync_begin", workspaceId: ws.id, handoffId: id })) throw new SyncError("电脑离线，没法交接。", 409);
+      const t = setTimeout(() => h.fail(new SyncError("电脑 30 秒没有响应交接，这次没有写工作目录。等电脑上线再试，或者在同步面板里「强制收回到云端」。", 409)), HANDOFF_READY_MS);
+      unref(t);
+      try {
+        await ready; // ②
+      } finally {
+        clearTimeout(t);
+      }
+      // ③
+      await setState(ws, "syncing", "handoff", b.pc_device_id, b.binding_epoch, id);
+      if (!hub.isOnline(ws.node_device_id)) throw new SyncError("云端工作区不在线。", 409);
+      // 节点那边的租约必须已经是这个交接号（setState 在节点离线时只记服务器这边）
+      await nodeRpc(ws.node_device_id, "sync_lease", { workspaceId: ws.id, holder: "handoff", handoffId: id, epoch: b.binding_epoch });
+      const result = await write(id);
+      wrote = true;
+      h.changed = changed(result);
+      // ④
+      await event(ownerUserId, ws.id, "handoff_written", id, { changed: h.changed });
+      if (hub.sendRaw(b.pc_device_id, { type: "sync_end", workspaceId: ws.id, handoffId: id, changed: h.changed })) {
+        const t2 = setTimeout(() => h.released(), HANDOFF_RELEASE_MS);
+        unref(t2);
+        await released;
+        clearTimeout(t2);
+      }
+      return result;
+    } catch (error) {
+      if (!wrote) {
+        // 没写：租约回电脑（它可能已经暂停了，sync_cancel 让它恢复）
+        hub.sendRaw(b.pc_device_id, { type: "sync_cancel", workspaceId: ws.id, handoffId: id });
+        await setState(ws, "pc_active", "pc", b.pc_device_id, b.binding_epoch).catch(() => {});
+        await event(ownerUserId, ws.id, "handoff_cancelled", id, { why: String((error as Error).message).slice(0, 200) });
+      }
+      throw error;
+    } finally {
+      handoffs.delete(ws.id);
+    }
+  }
+
+  /** 电脑回交接的进度：ready（②做完）/ released（⑤）/ failed（②做不了）/ recover（重启后拿交接记录来对）。 */
+  async function handoffStep(device: DeviceRecord, input: { workspaceId: string; handoffId: string; step: "ready" | "released" | "failed" | "recover"; detail?: string | null }) {
+    const { ws, b } = await needBinding(device, input.workspaceId);
+    const h = handoffs.get(ws.id);
+    if (input.step === "recover") {
+      const l = await lease(ws.id);
+      if (h && h.id === input.handoffId) return { action: "wait" as const };
+      if (l.holder === "handoff" && l.handoff_id === input.handoffId) {
+        // 云端那次写入已经结束（这个进程里没有进行中的交接）：交还给电脑，电脑恢复后把结果拉回去
+        await setState(ws, "pc_active", "pc", device.id, b.binding_epoch);
+        await event(device.ownerUserId, ws.id, "handoff_recovered", input.handoffId, { device: device.id });
+        return { action: "resume" as const, changed: true };
+      }
+      if (l.holder === "pc") return { action: "resume" as const, changed: true };
+      // 交接号对不上 / 读不懂：不算放行（§4.3），冲突 · 交接未确认
+      await setState(ws, "conflict", "conflict", device.id, b.binding_epoch);
+      await sql.unsafe("UPDATE chisabot_cc_sync_bindings SET last_state = 'conflict', last_detail = $2, updated_at = now() WHERE id = $1", [b.id, "交接未确认"]);
+      await event(device.ownerUserId, ws.id, "handoff_unconfirmed", input.handoffId ?? null, { device: device.id, holder: l.holder });
+      return { action: "conflict" as const, detail: "交接未确认" };
+    }
+    if (!h || h.id !== input.handoffId || h.deviceId !== device.id) throw new SyncError("没有这个交接（可能已经超时）。", 409);
+    if (input.step === "ready") h.ready();
+    else if (input.step === "failed") h.fail(new SyncError(`电脑没法交接：${String(input.detail ?? "").slice(0, 200) || "没有说明"}`, 409));
+    else {
+      await setState(ws, "pc_active", "pc", device.id, b.binding_epoch);
+      await event(device.ownerUserId, ws.id, "handoff_released", h.id, { device: device.id });
+      h.released();
+    }
+    return { ok: true };
   }
 
   /** 交还云端（关闭同步）：租约 = 云端，「已暂停」，公钥从边车删掉，这台电脑的隧道断开。两份都保留。 */
@@ -486,6 +637,12 @@ export function createCloudSyncService(options: CloudSyncOptions) {
         : null,
       lease: { holder: l.holder, since: new Date(l.since).toISOString() },
       tunnels: [...tunnels.values()].filter((t) => t.workspaceId === ws.id).length,
+      conflicts: b
+        ? (
+            await sql.unsafe<{ path: string }[]>("SELECT path FROM chisabot_cc_sync_conflicts WHERE binding_id = $1 AND resolved_at IS NULL ORDER BY created_at LIMIT 50", [b.id])
+          ).map((r) => r.path)
+        : [],
+      handoff: handoffs.get(ws.id)?.id ?? (l.holder === "handoff" ? l.handoff_id : null),
       // 电脑离线时才能强制收回（§4.4）
       canForceReclaim: !!b && b.enabled && !online,
     };
@@ -537,7 +694,15 @@ export function createCloudSyncService(options: CloudSyncOptions) {
 
   const createBody = z.object({ name: z.string().trim().min(1, "起个名字。").max(80), label: z.string().max(300).nullable().optional() });
   const bindBody = z.object({ workspaceId: z.string().max(80), pubKey: z.string().max(400), label: z.string().max(300).nullable().optional() });
-  const stateBody = z.object({ workspaceId: z.string().max(80), state: z.enum(["syncing", "pc_active", "conflict"]), detail: z.string().max(1000).nullable().optional() });
+  const stateBody = z.object({
+    workspaceId: z.string().max(80),
+    state: z.enum(["syncing", "pc_active", "conflict"]),
+    detail: z.string().max(1000).nullable().optional(),
+    conflicts: z.array(z.object({ path: z.string().max(1000), kind: z.string().max(40).nullable().optional() })).max(500).nullable().optional(),
+  });
+  const resolveBody = z.object({ workspaceId: z.string().max(80), path: z.string().max(1000), choice: z.enum(["cloud", "pc", "both", "git_cloud", "git_retry"]) });
+  const gitBody = z.object({ workspaceId: z.string().max(80), op: z.enum(["info", "adopt"]), branch: z.string().max(200).nullable().optional(), sha: z.string().max(64).nullable().optional() });
+  const handoffBody = z.object({ workspaceId: z.string().max(80), handoffId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), step: z.enum(["ready", "released", "failed", "recover"]), detail: z.string().max(500).nullable().optional() });
   const wsBody = z.object({ workspaceId: z.string().max(80) });
 
   function onError(error: Error, c: { json: (b: unknown, s: number) => Response }) {
@@ -559,6 +724,9 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     sub.post("/state", async (c) => c.json(await report(c.get("device"), stateBody.parse(await c.req.json().catch(() => ({}))))));
     sub.post("/release", async (c) => c.json(await release(c.get("device"), wsBody.parse(await c.req.json().catch(() => ({}))))));
     sub.post("/ticket", async (c) => c.json(await ticket(c.get("device"), wsBody.parse(await c.req.json().catch(() => ({}))).workspaceId)));
+    sub.post("/resolve", async (c) => c.json(await resolve(c.get("device"), resolveBody.parse(await c.req.json().catch(() => ({}))))));
+    sub.post("/git", async (c) => c.json(await git(c.get("device"), gitBody.parse(await c.req.json().catch(() => ({}))))));
+    sub.post("/handoff", async (c) => c.json(await handoffStep(c.get("device"), handoffBody.parse(await c.req.json().catch(() => ({}))))));
     sub.get("/:workspaceId", async (c) => c.json(await view(c.get("device").ownerUserId, c.req.param("workspaceId"))));
     routes.route("/agent/sync", sub as never);
   }
@@ -588,7 +756,8 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     onDeviceRevoked,
     closeDeviceTunnels,
     emergencyStop,
+    withHandoff,
     // 测试用
-    _internal: { tickets, tunnels, bind, report, release, ticket, view, forceReclaim, createLocalWorkspace, lease },
+    _internal: { tickets, tunnels, bind, report, release, ticket, view, forceReclaim, createLocalWorkspace, lease, resolve, git, handoffStep, handoffs },
   };
 }

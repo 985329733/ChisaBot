@@ -1046,7 +1046,8 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 #### 验收标准
 - [x] 自编译 MIT 版 Mutagen 0.18.1（不加 `mutagensspl`）：边车里的 agent 由 `deploy/cloud-node/sync/Dockerfile` 源码编译；电脑端改用 PC 客户端里的 JS（`pc/src/sync/`）驱动 `mutagen.exe`，不移入 CCC 的 Go 助手（P4a，见 docs/cloud-claude-code.md）
 - [x] 同步边车 sshd 只听 127.0.0.1:2222，主机没有新端口；隧道走网关 + 一次性票；撤销设备 / 强制收回 / 交还即断开、删公钥（P4a，Linux 替身 e2e）
-- [ ] PC 客户端（P4b）：「电脑上的文件夹」新建、同步面板、冲突对话框三选项、交接 ①–⑤、Git 走隧道；网页 / 手机状态药丸 + 强制收回；先只做 Windows；发 PC 新版
+- [x] PC 客户端（P4b）：「电脑上的文件夹」新建、同步面板、冲突对话框三选项、交接 ①–⑤、Git 走隧道；网页 / 手机状态药丸 + 强制收回；先只做 Windows；发 PC 新版（0.1.11）
+- [ ] 在真实 Windows 上走一遍（电脑替身 e2e 用的是 Linux 上同一份同步管理代码 + 同一次编译的 Mutagen；Windows 专有的 ssh 包装器 / OpenSSH ProxyCommand 只有单元测试，归 CB-017）
 
 ## CB-066
 

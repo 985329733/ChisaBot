@@ -9,6 +9,11 @@
  * 服务器再让云端节点开一条回来的 WSS，连到节点旁边同步边车的 127.0.0.1:2222。主机上没有任何新端口。
  *
  * 令牌只从文件或环境变量 CHISABOT_DEVICE_TOKEN 读，不出现在命令行里。
+ *
+ * PC 客户端（P4b）用「本机中转」模式，令牌根本不离开主进程：
+ *   ProxyCommand "<ChisaBotPC.exe（ELECTRON_RUN_AS_NODE=1）>" "<本文件>" --broker 127.0.0.1:<端口> --workspace <工作区>
+ * 连主进程开的本机中转（broker.js，只听 127.0.0.1），第一行发「<一次性口令> <工作区>」（口令在环境变量
+ * CHISABOT_SYNC_SECRET，由主进程启动 Mutagen 时给），之后就是原样的字节。换票、开 WSS 都在主进程里做。
  */
 const fs = require("node:fs");
 
@@ -88,8 +93,42 @@ async function pipeTunnel({ server, token, workspaceId, input, output, WebSocket
   });
 }
 
+/** 本机中转模式：stdin/stdout ⇄ 127.0.0.1:<端口>。 */
+function pipeBroker({ broker, workspaceId, secret, input, output, net = require("node:net") }) {
+  const m = /^127\.0\.0\.1:(\d{1,5})$/.exec(String(broker || ""));
+  if (!m) return Promise.reject(new Error("中转地址只能是 127.0.0.1:端口"));
+  return new Promise((resolve) => {
+    const sock = net.connect({ host: "127.0.0.1", port: Number(m[1]) });
+    let done = false;
+    const finish = (code) => {
+      if (done) return;
+      done = true;
+      try {
+        sock.destroy();
+      } catch {}
+      resolve(code);
+    };
+    sock.on("connect", () => {
+      sock.write(`${secret} ${workspaceId}\n`);
+      input.pipe(sock);
+      sock.pipe(output);
+    });
+    input.on("end", () => sock.end());
+    sock.on("close", () => finish(0));
+    sock.on("error", () => finish(1));
+  });
+}
+
 async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
+  if (args.broker) {
+    const secret = process.env.CHISABOT_SYNC_SECRET || "";
+    if (!secret || !args.workspace) {
+      process.stderr.write("用法：tunnel.js --broker 127.0.0.1:端口 --workspace ID（口令在 CHISABOT_SYNC_SECRET）\n");
+      return 2;
+    }
+    return await pipeBroker({ broker: args.broker, workspaceId: args.workspace, secret, input: process.stdin, output: process.stdout });
+  }
   const server = args.server || process.env.CHISABOT_SERVER;
   const workspaceId = args.workspace;
   let token = process.env.CHISABOT_DEVICE_TOKEN || "";
@@ -112,4 +151,4 @@ if (require.main === module) {
   );
 }
 
-module.exports = { requestTicket, tunnelUrl, pipeTunnel, parseArgs, main };
+module.exports = { requestTicket, tunnelUrl, pipeTunnel, pipeBroker, parseArgs, main };

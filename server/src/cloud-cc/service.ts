@@ -196,6 +196,10 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   const browserSubs = new Map<string, Set<(op: CcBrowserOp) => void>>(); // loginId -> 设置页
   const lastFrame = new Map<string, CcBrowserOp>(); // 新打开的画面先给最后一帧
   const vault = options.vault ?? null;
+  /** 电脑同步（sync.ts）挂进来的交接：PC 正在使用时写 work/ 要先交接。 */
+  const syncHooks: {
+    withHandoff: null | (<T>(ownerUserId: string, workspaceId: string, write: (handoffId: string) => Promise<T>, changed: (result: T) => boolean) => Promise<T>);
+  } = { withHandoff: null };
   const busyWorkspaces = new Set<string>(); // 正在克隆 / 合入 / 推送的工作区（同一时间只做一件写 git 的事）
   const github = options.github ?? null;
   const gitBase = (options.gitBase || "https://github.com").replace(/\/+$/, "");
@@ -1084,9 +1088,10 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     return { deleted: true };
   }
 
-  async function gitSession(ownerUserId: string, sessionId: string) {
+  async function gitSession(ownerUserId: string, sessionId: string, push = false) {
     const { session, ws } = await sessionNode(ownerUserId, sessionId);
-    if (!ws.is_git || ws.source !== "github" || !session.branch) throw new CcError("只有 GitHub 工作区的会话能合入或推送。");
+    if (push && ws.source !== "github") throw new CcError("电脑文件夹工作区不能从云端推送：改动合入工作目录后会同步回电脑，在电脑上提交和推送。");
+    if (!ws.is_git || !["github", "local"].includes(ws.source) || !session.branch) throw new CcError("只有 GitHub 和电脑文件夹工作区的会话能合入。");
     if ((ws.clone_state ?? "ready") !== "ready") throw new CcError("这个工作区还没有克隆好。", 409);
     if (live.has(sessionId)) throw new CcError("这一轮还在进行，先停止。", 409);
     if (busyWorkspaces.has(ws.id)) throw new CcError("这个工作区正在克隆、合入或推送，等它结束。", 409);
@@ -1100,19 +1105,27 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     return message;
   }
 
-  /** 合入工作目录（§3.4 第 3 条）。要写 work/，P4 之前只有「仅云端 / 已暂停」能合（租约永远在云端）。 */
+  /**
+   * 合入工作目录（§3.4 第 3 条）。要写 work/：「仅云端 / 已暂停」直接合；「PC 正在使用」先和电脑交接（§4.3 ①–⑤，
+   * sync.ts withHandoff：电脑先推上去再暂停 → 租约 = 云端:交接号 → 这里写 → 电脑恢复并拉回 → 租约回电脑）。
+   * 电脑文件夹工作区、或者 work/ 里有电脑同步来的没提交改动时，节点用「放进工作目录」（不提交，电脑上自己提交）。
+   */
   async function mergeSession(ownerUserId: string, sessionId: string) {
     const { session, ws } = await gitSession(ownerUserId, sessionId);
-    if (!["cloud_only", "paused"].includes(ws.sync_state)) throw new CcError("电脑正在使用这个工作区，合入要先交接（电脑同步上线后会自动交接）。", 409);
+    const handoff = ["cloud_only", "paused"].includes(ws.sync_state) ? null : syncHooks.withHandoff;
+    if (!["cloud_only", "paused"].includes(ws.sync_state) && (!handoff || ws.sync_state !== "pc_active"))
+      throw new CcError(ws.sync_state === "conflict" ? "这个工作区有没处理完的同步冲突，先在电脑上处理。" : "电脑正在同步这个工作区，等同步完成再合入。", 409);
     busyWorkspaces.add(ws.id);
     try {
-      const r = await rpc<{ result: CcGitState; branch: string; target: string; files?: string[]; commits?: unknown[] }>(
-        ws.node_device_id,
-        "ws_merge",
-        { workspaceId: ws.id, sessionId, message: `ChisaBot 会话「${session.title}」的改动` },
-        MERGE_MS,
-      );
-      const state: CcGitState = ["fast_forward", "merged", "up_to_date", "conflict"].includes(r.result) ? r.result : "merged";
+      const doMerge = (handoffId: string | null) =>
+        rpc<{ result: CcGitState; branch: string; target: string; files?: string[]; commits?: unknown[] }>(
+          ws.node_device_id,
+          "ws_merge",
+          { workspaceId: ws.id, sessionId, message: `ChisaBot 会话「${session.title}」的改动`, handoffId, mode: ws.source === "local" ? "apply" : undefined },
+          MERGE_MS,
+        );
+      const r = handoff ? await handoff(ownerUserId, ws.id, (id) => doMerge(id), (x) => x.result === "applied" || x.result === "merged" || x.result === "fast_forward") : await doMerge(null);
+      const state: CcGitState = ["fast_forward", "merged", "up_to_date", "conflict", "applied"].includes(r.result) ? r.result : "merged";
       const message = await addGitMessage(ownerUserId, sessionId, {
         type: "git",
         action: "merge",
@@ -1122,7 +1135,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
         files: Array.isArray(r.files) ? r.files.map(String).slice(0, 100) : [],
         commits: Array.isArray(r.commits) ? r.commits.length : 0,
       });
-      if (state === "fast_forward" || state === "merged") await sql.unsafe("UPDATE chisabot_cc_sessions SET merged_at = now(), updated_at = now() WHERE id = $1", [sessionId]);
+      if (state === "fast_forward" || state === "merged" || state === "applied") await sql.unsafe("UPDATE chisabot_cc_sessions SET merged_at = now(), updated_at = now() WHERE id = $1", [sessionId]);
       await audit(ownerUserId, sessionId, state === "conflict" ? "merge_conflict" : "merged", { branch: session.branch, target: r.target, files: r.files?.length ?? 0 });
       return { result: state, message };
     } finally {
@@ -1131,7 +1144,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   }
 
   async function pushPreview(ownerUserId: string, sessionId: string): Promise<CcPushPreview> {
-    const { session, ws } = await gitSession(ownerUserId, sessionId);
+    const { session, ws } = await gitSession(ownerUserId, sessionId, true);
     const r = await rpc<{ branch: string | null; commits: { sha: string; subject: string }[]; uncommitted: number; started: boolean }>(
       ws.node_device_id,
       "ws_push_preview",
@@ -1153,7 +1166,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   /** 推送并开 PR（§3.4 第 4 条）：你在确认卡上点了「允许」才会走到这里。不碰 work/，不要租约。 */
   async function pushSession(ownerUserId: string, sessionId: string, input: { title: string; body?: string; draft?: boolean }) {
     const gh = needGithub();
-    const { session, ws } = await gitSession(ownerUserId, sessionId);
+    const { session, ws } = await gitSession(ownerUserId, sessionId, true);
     const repo = ws.repo_full_name ?? "";
     const base = ws.default_branch ?? "main";
     let token: string | null = null;
@@ -1522,6 +1535,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     /** 电脑文件夹同步（sync.ts）用：节点上的 cc_rpc，和这个人的节点。 */
     nodeRpc: rpc,
     nodeFor,
+    setSyncHooks: (hooks: { withHandoff: (typeof syncHooks)["withHandoff"] }) => {
+      syncHooks.withHandoff = hooks.withHandoff;
+    },
     // 测试用
     _internal: { live, nodes, startTurn, send, decideApproval, workspaces, createSession, status, createGithubWorkspace, mergeSession, pushSession },
   };

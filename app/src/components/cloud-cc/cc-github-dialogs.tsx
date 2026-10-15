@@ -1,4 +1,4 @@
-import { IconBrandGithub, IconGitBranch, IconGitCommit, IconLock, IconSearch } from "@tabler/icons-react";
+import { IconBrandGithub, IconFolder, IconGitBranch, IconGitCommit, IconLock, IconSearch } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ccApi, ccGithubQueryOptions, ccKeys, ccPushPreviewQueryOptions, ccReposQueryOptions } from "@/lib/cloud-cc";
 import { client } from "@/lib/client";
+import { pcSyncBridge } from "@/lib/pc-bridge";
+import { CcLocalFolderPane } from "./cc-sync";
 import { cn } from "@/lib/utils";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -28,6 +30,10 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
   const [branch, setBranch] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // 「电脑上的文件夹」只在 PC 客户端（0.1.11 起）里能选（§2.3）
+  const canLocal = !!pcSyncBridge();
+  const [src, setSrc] = useState<"github" | "local">("github");
+  const [localBusy, setLocalBusy] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const typed = query.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, "");
@@ -77,26 +83,45 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
     },
     { errorToast: false },
   );
-  const busy = create.state === "pending";
+  const busy = create.state === "pending" || localBusy;
 
   return (
     <Dialog onOpenChange={(o) => (!busy || !o ? onOpenChange(o) : undefined)} open={open}>
       <DialogContent className="cc-dlg sm:max-w-[520px]" data-testid="cc-new-ws-dialog">
         <DialogHeader>
           <DialogTitle>{"新建工作区"}</DialogTitle>
-          <DialogDescription>{"从 GitHub 克隆到云端。会话各自在 cc/… 分支上改，合入或推送都由你点。电脑上的文件夹要在 ChisaBot PC 客户端里建。"}</DialogDescription>
+          <DialogDescription>
+            {src === "local"
+              ? "把这台电脑上的一个文件夹传到云端（云端是主副本），之后可以一直同步。会话在自己的分支上改，「合入工作目录」后同步回电脑。"
+              : canLocal
+                ? "从 GitHub 克隆到云端，或者上传这台电脑上的文件夹。会话各自在 cc/… 分支上改，合入或推送都由你点。"
+                : "从 GitHub 克隆到云端。会话各自在 cc/… 分支上改，合入或推送都由你点。电脑上的文件夹要在 ChisaBot PC 客户端里建。"}
+          </DialogDescription>
         </DialogHeader>
         <DialogBody className="mt-4 overflow-y-auto">
           <div aria-label="来源" className="sg-segmented cc-src-seg" role="radiogroup">
-            <button aria-checked className="sg-segmented-item" role="radio" type="button">
+            <button aria-checked={src === "github"} className="sg-segmented-item" data-testid="cc-src-github" disabled={busy} onClick={() => setSrc("github")} role="radio" type="button">
               <IconBrandGithub className="size-4" />
               {"GitHub"}
             </button>
-            <button aria-checked={false} className="sg-segmented-item" disabled role="radio" title="只有 ChisaBot PC 客户端能选电脑上的文件夹" type="button">
+            <button
+              aria-checked={src === "local"}
+              className="sg-segmented-item"
+              data-testid="cc-src-local"
+              disabled={!canLocal || busy}
+              onClick={() => setSrc("local")}
+              role="radio"
+              title={canLocal ? undefined : "只有 ChisaBot PC 客户端能选电脑上的文件夹"}
+              type="button"
+            >
+              <IconFolder className="size-4" />
               {"电脑上的文件夹"}
             </button>
           </div>
-          {github.isPending ? (
+          {!canLocal ? <p className="cc-src-note">{"「电脑上的文件夹」只能在 ChisaBot 电脑客户端里选"}</p> : null}
+          {src === "local" ? (
+            <CcLocalFolderPane onBusy={setLocalBusy} onDone={() => onOpenChange(false)} />
+          ) : github.isPending ? (
             <div aria-busy className="cc-repo-skel" />
           ) : !connected ? (
             <div className="cc-gh-empty" data-testid="cc-gh-connect">
@@ -178,7 +203,7 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
           <Button disabled={busy} onClick={() => onOpenChange(false)} variant="outline">
             {"取消"}
           </Button>
-          <Button
+          {src === "github" ? <Button
             data-testid="cc-create-ws"
             disabled={!connected || !chosen}
             feedback={{ pending: "克隆中…", success: "已创建", error: "没有建成" }}
@@ -186,7 +211,7 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
             state={create.state}
           >
             {"创建并克隆"}
-          </Button>
+          </Button> : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
