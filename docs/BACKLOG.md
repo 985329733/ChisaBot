@@ -13,8 +13,8 @@
 
 | ID | 标题 | 里程碑 | 标签 |
 |---|---|---|---|
-| [CB-001](#cb-001) | 审批卡片与审批偏好（Hark parity 第 5 项） | Hark parity | `type: feat` · `area: approvals` · `area: chat` · `P1` · `status: in-progress` |
-| [CB-002](#cb-002) | 生图 / 识图模型设置：管理员默认 + 每人可覆盖 | Hark parity | `type: feat` · `area: images` · `area: settings` · `P1` · `status: in-progress` |
+| [CB-001](#cb-001) | 审批卡片与审批偏好（Hark parity 第 5 项） | Hark parity | `type: feat` · `area: approvals` · `area: chat` · `P1` · `status: done` |
+| [CB-002](#cb-002) | 生图 / 识图模型设置：管理员默认 + 每人可覆盖 | Hark parity | `type: feat` · `area: images` · `area: settings` · `P1` · `status: done` |
 | [CB-003](#cb-003) | 成熟度扫查：设备流程优先的全量体验检查 | 成熟度 Maturity | `type: chore` · `area: devices` · `area: chat` · `P1` · `status: in-progress` |
 | [CB-004](#cb-004) | 设备上的编码工具：云端机器人读 / 改 / 写本地代码 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: pc` · `P0` · `status: done` |
 | [CB-005](#cb-005) | 无界面设备节点：Linux / macOS 服务器也能当设备 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: infra` · `P1` · `status: done` |
@@ -23,11 +23,11 @@
 | [CB-008](#cb-008) | 本地 agent 的沙箱 / 权限配置档 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: approvals` · `P1` · `status: done` |
 | [CB-009](#cb-009) | 瘦身 P3：删不发布的目录 + 修 server-typecheck CI | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: done` |
 | [CB-010](#cb-010) | 瘦身 P4a：删前端死页 | 精简 Slim | `type: chore` · `area: slim` · `area: settings` · `P1` · `status: done` |
-| [CB-011](#cb-011) | 瘦身 P4b：不再构造上游服务端模块（表保留） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: in-progress` |
-| [CB-012](#cb-012) | 项目维护与文档系统（labels / milestones / ROADMAP / ADR / 模板） | 成熟度 Maturity | `type: docs` · `area: docs` · `P1` · `status: in-progress` |
+| [CB-011](#cb-011) | 瘦身 P4b：不再构造上游服务端模块（表保留） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P1` · `status: done` |
+| [CB-012](#cb-012) | 项目维护与文档系统（labels / milestones / ROADMAP / ADR / 模板） | 成熟度 Maturity | `type: docs` · `area: docs` · `P1` · `status: done（Issues 待仓库所有者打开）` |
 | [CB-013](#cb-013) | Google 账号连接（Hark parity 最后一项） | Hark parity | `type: feat` · `area: settings` · `P2` · `status: deferred` |
 | [CB-014](#cb-014) | 每日简报（Hark parity 第 9 项，可选） | Hark parity | `type: feat` · `area: schedules` · `P2` · `status: deferred` |
-| [CB-015](#cb-015) | 瘦身 P4c：合并重复系统（依赖并行功能） | 精简 Slim | `type: chore` · `area: slim` · `P2` · `status: blocked` |
+| [CB-015](#cb-015) | 瘦身 P4c：合并重复系统（依赖并行功能） | 精简 Slim | `type: chore` · `area: slim` · `P2` · `status: in-progress` |
 | [CB-016](#cb-016) | 瘦身 P5：DROP 上游空表（P4 稳定 ≥ 2 周后） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P2` · `status: blocked` |
 | [CB-017](#cb-017) | 真机验证：Windows PC 客户端与安卓手机 | 0.2.0 release | `type: chore` · `area: pc` · `area: android` · `P1` · `status: needs-user` |
 | [CB-018](#cb-018) | 用户的电脑需要手动重装 PC 0.1.7（0.2.x 不会自动更新） | 0.2.0 release | `type: chore` · `area: pc` · `P1` · `status: needs-user` |
@@ -47,14 +47,14 @@
 | [CB-032](#cb-032) | 安卓签名改为 CI 内签名（需要仓库 Actions secrets） | 0.2.0 release | `type: chore` · `area: android` · `area: infra` · `P2` · `status: needs-user` |
 | [CB-033](#cb-033) | 生产跨部署 stale-chunk 测试待跑 | 成熟度 Maturity | `type: chore` · `area: infra` · `P2` |
 | [CB-034](#cb-034) | 用真实账号验证 GitHub 连接与 IM 接入 | 成熟度 Maturity | `type: chore` · `area: github` · `area: im` · `P2` · `status: needs-user` |
-| [CB-035](#cb-035) | 备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退 | 成熟度 Maturity | `type: bug` · `area: models` · `area: chat` · `P0` |
+| [CB-035](#cb-035) | 备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退 | 成熟度 Maturity | `type: bug` · `area: models` · `area: chat` · `P0` · `status: done` |
 | [CB-040](#cb-040) | 多用户：管理员给朋友开账号（每人独立的机器人 / 记忆 / 密钥 / 设备） | 成熟度 Maturity | `type: feat` · `area: infra` · `area: settings` · `P0` · `status: done（入口默认隐藏）` |
-| [CB-041](#cb-041) | 真实聊天路径（频道聊天）刷新 / 断网后正在写的回答丢失 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` |
-| [CB-042](#cb-042) | 重新生成 / 编辑后重发 | 成熟度 Maturity | `type: feat` · `area: chat` · `P1` |
-| [CB-043](#cb-043) | 频道聊天的跨设备实时同步（手机发的桌面看不到） | 成熟度 Maturity | `type: bug` · `area: chat` · `area: pwa` · `P1` |
-| [CB-044](#cb-044) | 登录页预填管理员账号「Ayase」 | 成熟度 Maturity | `type: bug` · `area: infra` · `P1` |
+| [CB-041](#cb-041) | 真实聊天路径（频道聊天）刷新 / 断网后正在写的回答丢失 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
+| [CB-042](#cb-042) | 重新生成 / 编辑后重发 | 成熟度 Maturity | `type: feat` · `area: chat` · `P1` · `status: done` |
+| [CB-043](#cb-043) | 频道聊天的跨设备实时同步（手机发的桌面看不到） | 成熟度 Maturity | `type: bug` · `area: chat` · `area: pwa` · `P1` · `status: done` |
+| [CB-044](#cb-044) | 登录页预填管理员账号「Ayase」 | 成熟度 Maturity | `type: bug` · `area: infra` · `P1` · `status: done` |
 | [CB-045](#cb-045) | 每人模型额度 / 用量上限 | 成熟度 Maturity | `type: feat` · `area: models` · `P2` |
-| [CB-046](#cb-046) | 两套聊天实现（/bot 与 /channel）收成一套 | 成熟度 Maturity | `type: chore` · `area: chat` · `P1` |
+| [CB-046](#cb-046) | 两套聊天实现（/bot 与 /channel）收成一套 | 成熟度 Maturity | `type: chore` · `area: chat` · `P1` · `status: done` |
 | [CB-047](#cb-047) | 很长的对话打开时历史晚到，画面停在上面 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` |
 | [CB-048](#cb-048) | 对话像发短信：先答、短气泡、不讲方法、草稿卡 / 代码卡 / 回复引用 | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-049](#cb-049) | 主对话干活卡：当前步骤 + 用时，结束收成一行 | Hark parity | `type: feature` · `area: chat` · `P1` |
@@ -63,7 +63,7 @@
 ## CB-001
 
 **审批卡片与审批偏好（Hark parity 第 5 项）**  
-里程碑：Hark parity · 标签：`type: feat` `area: approvals` `area: chat` `P1` `status: in-progress`
+里程碑：Hark parity · 标签：`type: feat` `area: approvals` `area: chat` `P1` `status: done`
 
 #### 背景
 
@@ -82,12 +82,12 @@
 - 上游：server/src/approvals/、app/src/routes/_authed/_app/approvals.tsx
 - 瘦身 P4c ⑤：合并后删团队审批规则、权限规则并入
 
-> 进行中：worker cb-feat-approvals-2，分支 feat/approvals。完成时在 PR 里 `Backlog: CB-001`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：#112（合并 a679db3，2026-10-15），DESIGN.md §58。确认卡片在频道聊天里沿用（#136，§68）。
 
 ## CB-002
 
 **生图 / 识图模型设置：管理员默认 + 每人可覆盖**  
-里程碑：Hark parity · 标签：`type: feat` `area: images` `area: settings` `P1` `status: in-progress`
+里程碑：Hark parity · 标签：`type: feat` `area: images` `area: settings` `P1` `status: done`
 
 #### 背景
 
@@ -104,7 +104,7 @@
 
 - DESIGN.md §56、docs/chat-files.md
 
-> 进行中：worker cb-feat-media，分支 feat/model-media。完成时在 PR 里 `Backlog: CB-002`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：#114（合并 5a7bdca，2026-10-15），DESIGN.md §59、docs/chat-files.md。
 
 ## CB-003
 
@@ -123,7 +123,7 @@
 - [ ] 宽 1280 / 窄 420 / 暗色三种截图证据
 - [ ] 扫查结果汇总进 ROADMAP「现在」
 
-> 进行中：worker cb-qa，分支 fix/maturity-1。完成时在 PR 里 `Backlog: CB-003`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 第 1 轮 #115（§60）、第 2 轮 #122 / #124 / #125（§63 / §64）已上线。**第 3 轮在做**（2026-10-15 14:00 起，worker cb-mat3，分支 fix/maturity-5…）：非聊天页面（设置各栏、机器人资料、设备、页面、技能、记忆、密钥、GitHub、IM、面板、审批、模型、404 / 空 / 错误状态），1280 亮 / 390 暗，新朋友视角；缺陷记为 CB-051 起。完成时在 PR 里 `Backlog: CB-003`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
 
 ## CB-004
 
@@ -261,7 +261,7 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 ## CB-011
 
 **瘦身 P4b：不再构造上游服务端模块（表保留）**  
-里程碑：精简 Slim · 标签：`type: chore` `area: slim` `area: infra` `P1` `status: in-progress`
+里程碑：精简 Slim · 标签：`type: chore` `area: slim` `area: infra` `P1` `status: done`
 
 #### 背景
 
@@ -273,12 +273,12 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 - [ ] server 测试、tsc、预览 e2e、生产自检通过
 - [ ] docs/slimming.md 记录每个模块的处理与依赖
 
-> 进行中：P4b-1（演示录制、上游个人记忆、主动研究、意图路由）#117 已上线；P4b-2（推送与可达性、群聊、团队机器人、交接默认关）#121 已上线；P4b-3（自动学习、身份提供者管理接口、Docker supervisor 配置）#123。P6-1（企业控制闸门、`/api/admin/enterprise`、`/api/admin/people`、OTel 导出；`enterprise_settings` 只当模型设置 KV 保留）。**还剩**（docs/slimming.md「P4b 刻意留下」）：SSO/SCIM 插件（认证代码，等 cb-accounts）、语音（等聊天同步 cb-qa 合并后删前端）、`worker/`（会触发完整构建，和下一次依赖变动一起做）。完成时在 PR 里 `Backlog: CB-011`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：P4b-1 #117、P4b-2 #121、P4b-3 #123、P6-1 #131（企业闸门）、P6-2 #132（SSO / SCIM）、P6-3 #134（worker/ 与依赖）、P6-4 #135（上游桌面端残留）、删语音 #137（2026-10-15）。表与数据未动。还剩的重复系统合并（定时任务 ↔ routines 等）归 CB-015（P4c），删空表归 CB-016（P5）。
 
 ## CB-012
 
 **项目维护与文档系统（labels / milestones / ROADMAP / ADR / 模板）**  
-里程碑：成熟度 Maturity · 标签：`type: docs` `area: docs` `P1` `status: in-progress`
+里程碑：成熟度 Maturity · 标签：`type: docs` `area: docs` `P1` `status: done（Issues 待仓库所有者打开）`
 
 #### 背景
 
@@ -291,7 +291,7 @@ P1 已把这些页面隐藏 / 重定向：/agents、/team-bots、/group/*、/rea
 - [ ] CONTRIBUTING.md、PR 模板、issue 模板（bug / feature）
 - [ ] DESIGN.md 顶部章节索引；CHANGELOG Unreleased 补齐 §49–§57
 
-> 进行中：分支 chore/pm-system。完成时在 PR 里 `Backlog: CB-012`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 完成：#111（合并 4fc6f10，2026-10-15）：docs/README.md 索引、ROADMAP、architecture、ops/deploy、adr/、dev/parallel-work、CONTRIBUTING、PR / issue 模板、DESIGN 章节索引。**未勾的一项**：GitHub Issues 在仓库上是关闭的，自动化令牌打不开；仓库所有者打开后按 ID 原样建 issue。
 
 ## CB-013
 
@@ -326,7 +326,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 ## CB-015
 
 **瘦身 P4c：合并重复系统（依赖并行功能）**  
-里程碑：精简 Slim · 标签：`type: chore` `area: slim` `P2` `status: blocked`
+里程碑：精简 Slim · 标签：`type: chore` `area: slim` `P2` `status: in-progress`
 
 #### 背景
 
@@ -340,7 +340,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 
 #### 相关
 
-- 卡在：审批（feat/approvals）、设备（cb-devices）合并
+- 审批（#112）、设备（#119）已合并，不再卡住。2026-10-15 起在做（分支 chore/slim-p4c），第一项：例行任务（routines）并入定时任务（§55）。
 
 ## CB-016
 
@@ -682,7 +682,7 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 ## CB-035
 
 **备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退**  
-里程碑：成熟度 Maturity · 标签：`type: bug` `area: models` `area: chat` `P0`
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: models` `area: chat` `P0` `status: done`（#118）
 
 #### 背景
 

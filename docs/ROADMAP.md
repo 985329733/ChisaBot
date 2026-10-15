@@ -6,34 +6,31 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 - **谁维护**：每个 PR 改自己那一行（开始做 → 「现在」，合并 → 「最近完成」）；主维护者每天过一遍，调整顺序、清理已完成。
 - **方向**（2026-10-15）：尽快做成「相对成熟、可以分享给朋友用」的私人助手。核心是**在任何地方管理所有设备（包括本地电脑）**，
   云端机器人能读、改、写本地文件和代码；同时继续把上游 OpenBot 的企业功能瘦身掉；Hark 的能力逐项补齐。
-- 上次整理：2026-10-15。
+- 上次整理：2026-10-15 14:10（对照 origin/main 23c58bf 逐行核对）。
 
 ## 里程碑
 
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
-| [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图已上线；审批、生图/识图设置在做；简报、Google 账号最后 | 7 / 10 已上线 |
-| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1、P2、P3、P4a、P4b-1、P4b-2 已上线；P4b-3 在做，剩企业闸门 / SSO / 语音 |
+| [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图、审批、生图/识图设置已上线；对话体验第五轮（短气泡、干活卡）已上线；简报、Google 账号最后 | 9 / 11 已上线（剩简报、Google 账号） |
+| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1–P4b、P6-1…P6-4（企业闸门、SSO/SCIM、worker/、桌面端残留）、删语音已上线；P4c 合并重复系统在做（先定时任务 ↔ routines）；P5 删空表等 ≥ 2 周 |
 | [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问 / 本地 agent 已上线；待真机验证 |
-| [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 扫查在做 |
+| [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 第 1、2 轮已上线（#115、#122、#124、#125）；第 3 轮（非聊天页面）在做 |
 | [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
 
 ## 现在（进行中）
 
 | 条目 | 内容 | 里程碑 | 分支 |
 |---|---|---|---|
-| [CB-001](BACKLOG.md#cb-001) | 审批卡片与审批偏好 | Hark parity | `feat/approvals` |
-| [CB-002](BACKLOG.md#cb-002) | 生图 / 识图模型设置，每人可覆盖 | Hark parity | `feat/model-media` |
-| [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先 → 新朋友视角） | 成熟度 | `fix/maturity-*`（批 2 #122 已合并） |
-| [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块（分 P4b-1…） | 精简 | `chore/slim-p4b-*` |
-| [CB-012](BACKLOG.md#cb-012) | 项目维护与文档系统（本页） | 成熟度 | `chore/pm-system` |
-| [CB-046](BACKLOG.md#cb-046) | 两套聊天收成一套（`/bot` → 频道聊天）；第 2 步删语音 | 成熟度 | `chore/chat-unify-1`、`chore/chat-unify-2` |
+| [CB-003](BACKLOG.md#cb-003) | 成熟度扫查第 3 轮：设置、机器人资料、设备、页面、技能、记忆、密钥、GitHub、IM、面板、审批、模型、404 / 空 / 错误状态（缺陷记为 CB-051 起） | 成熟度 | `docs/board-cleanup-3`、`fix/maturity-5…` |
+| [CB-015](BACKLOG.md#cb-015) | 瘦身 P4c：合并重复系统（第一项：定时任务 ↔ routines） | 精简 | `chore/slim-p4c` |
+| [CB-047](BACKLOG.md#cb-047) / [CB-050](BACKLOG.md#cb-050) | 长对话打开时历史晚到；商品推荐带图网格（向 Hark 看齐 第五轮） | 成熟度 / Hark parity | `feat/harkchat-*` |
 
 ## 接下来
 
 | 条目 | 内容 | 为什么排在这 |
 |---|---|---|
-| [CB-018](BACKLOG.md#cb-018) | 用户电脑手动重装 PC 0.1.7 | 需要用户；设备核心验收依赖它 |
+| [CB-018](BACKLOG.md#cb-018) | 用户电脑手动重装 PC 0.1.x（现在 0.1.9） | 需要用户；设备核心验收依赖它 |
 | [CB-017](BACKLOG.md#cb-017) | 真机验证 Windows / 安卓 | 需要用户；0.2.0 发版前 |
 | [CB-019](BACKLOG.md#cb-019) | 发版 0.2.0 | 设备核心 + 审批合并之后 |
 | [CB-021](BACKLOG.md#cb-021) | 一轮两张同一页面卡片 | 小缺陷 |
@@ -45,7 +42,6 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 条目 | 内容 | 条件 |
 |---|---|---|
-| [CB-015](BACKLOG.md#cb-015) | 瘦身 P4c 合并重复系统 | 审批、设备核心合并之后 |
 | [CB-016](BACKLOG.md#cb-016) | 瘦身 P5 DROP 空表 | P4b 上线 ≥ 2 周 |
 | [CB-013](BACKLOG.md#cb-013) | Google 账号连接 | 用户说不急，Hark parity 最后一项 |
 | [CB-014](BACKLOG.md#cb-014) | 每日简报（可选） | 定时任务稳定后 |
@@ -58,8 +54,14 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
+| 2026-10-15 | 干活卡：「思考中」换成当前步骤 · 第几步 · 用时（CB-049） | #139 | DESIGN §70 |
+| 2026-10-15 | 对话像发短信：短气泡、草稿卡、回复引用、代码卡、提示词第二版（CB-048） | #138 | DESIGN §69 |
+| 2026-10-15 | 只有一套聊天：`/bot` 并入频道聊天、删语音（CB-046） | #136、#137 | DESIGN §68、ADR-0013 |
 | 2026-10-15 | 重新生成 / 编辑后重发，所有设备一致（CB-042） | #129 | DESIGN §67 |
 | 2026-10-15 | 朋友账号：邀请链接、网关签名身份、按人隔离（CB-040） | #128 | DESIGN §65、[accounts.md](accounts.md)、ADR-0011 |
+| 2026-10-15 | 发版说明 v0.1.9（PC + Android，versionCode 215） | #127 | [releasing.md](releasing.md) |
+| 2026-10-15 | 本地 agent（Claude Code / Codex / OpenCode）与权限档位 只读 / 工作区 / 完全访问（CB-007、CB-008） | #126 | DESIGN §66 · [local-agents.md](local-agents.md) · ADR-0010 |
+| 2026-10-15 | 成熟度 4：窄屏页面卡片只留外链图标、登录页不预填（CB-044） | #125 | DESIGN §54 |
 | 2026-10-15 | 频道聊天刷新 / 换设备接着看正在写的回答（CB-041 P0、CB-043） | #124 | DESIGN §64 |
 | 2026-10-15 | 成熟度 2：只填名字建机器人、空聊天「试试这样问」（CB-003） | #122 | DESIGN §63 |
 | 2026-10-15 | 瘦身 P6-4：删上游桌面端残留（electron 插件、组织登录、host-access），清理 .env.example（约 3.5k 行，完整构建） | #135 | [slimming.md](slimming.md) |
@@ -71,9 +73,14 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 2026-10-15 | 瘦身 P4b-2：去掉推送与可达性、群聊、团队机器人接口，交接默认关（约 4.6k 行） | #121 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4b-1：服务器不再加载演示录制、上游个人记忆、主动研究、意图路由（约 7.8k 行） | #117 | [slimming.md](slimming.md) |
 | 2026-10-15 | 设备核心：编码工具、完全访问、服务器节点 chisabot-node（0.1.8；CB-004/005/006） | #119 | DESIGN §62 · [pc-node.md](pc-node.md) §12–§14 · ADR-0009 |
+| 2026-10-15 | 备用模型：管理员排好的回退顺序、对话里说明换了模型、自检走回退（CB-035） | #118 | DESIGN §61 · [models.md](models.md) |
 | 2026-10-15 | 瘦身 P3：删不发布的上游目录（约 10 万行）+ CI「ChisaBot checks」修绿 | #113 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P4a：删前端死页（约 1.2 万行） | #116 | [slimming.md](slimming.md) · DESIGN §57 |
 | 2026-10-15 | 瘦身 P2：示例部署包精简、开机清孤儿授权 / 包技能 / 包频道 | #110 | [slimming.md](slimming.md) |
+| 2026-10-15 | 成熟度 1：额度用完自动换模型、报错说人话、工具栏中文、部署等待页（CB-003） | #115 | DESIGN §60 |
+| 2026-10-15 | 生图 / 识图模型在模型设置里配，每个人可覆盖（CB-002） | #114 | DESIGN §59 · [chat-files.md](chat-files.md) |
+| 2026-10-15 | 确认卡片 + 设置 → 审批偏好（CB-001） | #112 | DESIGN §58 |
+| 2026-10-15 | 项目维护与文档系统：ROADMAP / BACKLOG / ADR / 贡献指南 / 模板（CB-012） | #111 | [README](README.md) · [CONTRIBUTING](../CONTRIBUTING.md) |
 | 2026-10-15 | 瘦身 P1：导航收敛 | #109 | DESIGN §57 |
 | 2026-10-14 | 聊天文件与图片生成 | #108 | DESIGN §56 · [chat-files.md](chat-files.md) |
 | 2026-10-14 | 定时任务与提醒 | #107 | DESIGN §55 · [schedules.md](schedules.md) |
