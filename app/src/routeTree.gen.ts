@@ -13,6 +13,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as SignRouteImport } from './routes/sign'
 import { Route as AuthedAppRouteImport } from './routes/_authed/_app'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
+import { Route as AuthedCcRouteRouteImport } from './routes/_authed/cc/route'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedSettingsRouteRouteImport } from './routes/_authed/settings/route'
 import { Route as AuthedAppIndexRouteImport } from './routes/_authed/_app/index'
@@ -40,6 +41,8 @@ import { Route as AuthedAdminPeopleRouteImport } from './routes/_authed/admin/pe
 import { Route as AuthedAdminPlaygroundRouteImport } from './routes/_authed/admin/playground'
 import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/skills'
 import { Route as AuthedAdminSystemUpdateRouteImport } from './routes/_authed/admin/system-update'
+import { Route as AuthedCcIndexRouteImport } from './routes/_authed/cc/index'
+import { Route as AuthedCcSessionIdRouteImport } from './routes/_authed/cc/$sessionId'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSettingsApprovalsRouteImport } from './routes/_authed/settings/approvals'
 import { Route as AuthedSettingsCloudWorkspaceRouteImport } from './routes/_authed/settings/cloud-workspace'
@@ -93,6 +96,11 @@ const AuthedAppRoute = AuthedAppRouteImport.update({
 const AuthedAdminRouteRoute = AuthedAdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedCcRouteRoute = AuthedCcRouteRouteImport.update({
+  id: '/cc',
+  path: '/cc',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
@@ -231,6 +239,16 @@ const AuthedAdminSystemUpdateRoute = AuthedAdminSystemUpdateRouteImport.update({
   id: '/system-update',
   path: '/system-update',
   getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
+const AuthedCcIndexRoute = AuthedCcIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedCcRouteRoute,
+} as any)
+const AuthedCcSessionIdRoute = AuthedCcSessionIdRouteImport.update({
+  id: '/$sessionId',
+  path: '/$sessionId',
+  getParentRoute: () => AuthedCcRouteRoute,
 } as any)
 const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
   id: '/',
@@ -432,6 +450,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedAppIndexRoute
   '/sign': typeof SignRoute
   '/admin': typeof AuthedAdminRouteRouteWithChildren
+  '/cc': typeof AuthedCcRouteRouteWithChildren
   '/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/onboarding': typeof AuthedOnboardingRoute
   '/approvals': typeof AuthedAppApprovalsRoute
@@ -457,6 +476,7 @@ export interface FileRoutesByFullPath {
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/admin/system-update': typeof AuthedAdminSystemUpdateRoute
+  '/cc/$sessionId': typeof AuthedCcSessionIdRoute
   '/settings/approvals': typeof AuthedSettingsApprovalsRoute
   '/settings/cloud-workspace': typeof AuthedSettingsCloudWorkspaceRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
@@ -470,6 +490,7 @@ export interface FileRoutesByFullPath {
   '/settings/vault': typeof AuthedSettingsVaultRoute
   '/sign-in/$requestId': typeof AuthedSignInRequestIdRoute
   '/admin/': typeof AuthedAdminIndexRoute
+  '/cc/': typeof AuthedCcIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/bots/$agentId': typeof AuthedAppBotsAgentIdRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -522,6 +543,7 @@ export interface FileRoutesByTo {
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/admin/system-update': typeof AuthedAdminSystemUpdateRoute
+  '/cc/$sessionId': typeof AuthedCcSessionIdRoute
   '/settings/approvals': typeof AuthedSettingsApprovalsRoute
   '/settings/cloud-workspace': typeof AuthedSettingsCloudWorkspaceRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
@@ -535,6 +557,7 @@ export interface FileRoutesByTo {
   '/settings/vault': typeof AuthedSettingsVaultRoute
   '/sign-in/$requestId': typeof AuthedSignInRequestIdRoute
   '/admin': typeof AuthedAdminIndexRoute
+  '/cc': typeof AuthedCcIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/bots/$agentId': typeof AuthedAppBotsAgentIdRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -565,6 +588,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/sign': typeof SignRoute
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
+  '/_authed/cc': typeof AuthedCcRouteRouteWithChildren
   '/_authed/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/_authed/_app': typeof AuthedAppRouteWithChildren
   '/_authed/onboarding': typeof AuthedOnboardingRoute
@@ -591,6 +615,7 @@ export interface FileRoutesById {
   '/_authed/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
   '/_authed/admin/system-update': typeof AuthedAdminSystemUpdateRoute
+  '/_authed/cc/$sessionId': typeof AuthedCcSessionIdRoute
   '/_authed/settings/approvals': typeof AuthedSettingsApprovalsRoute
   '/_authed/settings/cloud-workspace': typeof AuthedSettingsCloudWorkspaceRoute
   '/_authed/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
@@ -605,6 +630,7 @@ export interface FileRoutesById {
   '/_authed/sign-in/$requestId': typeof AuthedSignInRequestIdRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
+  '/_authed/cc/': typeof AuthedCcIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/_app/bots/$agentId': typeof AuthedAppBotsAgentIdRoute
   '/_authed/_app/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -636,6 +662,7 @@ export interface FileRouteTypes {
     | '/'
     | '/sign'
     | '/admin'
+    | '/cc'
     | '/settings'
     | '/onboarding'
     | '/approvals'
@@ -661,6 +688,7 @@ export interface FileRouteTypes {
     | '/admin/playground'
     | '/admin/skills'
     | '/admin/system-update'
+    | '/cc/$sessionId'
     | '/settings/approvals'
     | '/settings/cloud-workspace'
     | '/settings/components-gallery'
@@ -674,6 +702,7 @@ export interface FileRouteTypes {
     | '/settings/vault'
     | '/sign-in/$requestId'
     | '/admin/'
+    | '/cc/'
     | '/settings/'
     | '/bots/$agentId'
     | '/channel/$channelId'
@@ -726,6 +755,7 @@ export interface FileRouteTypes {
     | '/admin/playground'
     | '/admin/skills'
     | '/admin/system-update'
+    | '/cc/$sessionId'
     | '/settings/approvals'
     | '/settings/cloud-workspace'
     | '/settings/components-gallery'
@@ -739,6 +769,7 @@ export interface FileRouteTypes {
     | '/settings/vault'
     | '/sign-in/$requestId'
     | '/admin'
+    | '/cc'
     | '/settings'
     | '/bots/$agentId'
     | '/channel/$channelId'
@@ -768,6 +799,7 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/sign'
     | '/_authed/admin'
+    | '/_authed/cc'
     | '/_authed/settings'
     | '/_authed/_app'
     | '/_authed/onboarding'
@@ -794,6 +826,7 @@ export interface FileRouteTypes {
     | '/_authed/admin/playground'
     | '/_authed/admin/skills'
     | '/_authed/admin/system-update'
+    | '/_authed/cc/$sessionId'
     | '/_authed/settings/approvals'
     | '/_authed/settings/cloud-workspace'
     | '/_authed/settings/components-gallery'
@@ -808,6 +841,7 @@ export interface FileRouteTypes {
     | '/_authed/sign-in/$requestId'
     | '/_authed/_app/'
     | '/_authed/admin/'
+    | '/_authed/cc/'
     | '/_authed/settings/'
     | '/_authed/_app/bots/$agentId'
     | '/_authed/_app/channel/$channelId'
@@ -867,6 +901,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AuthedAdminRouteRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/cc': {
+      id: '/_authed/cc'
+      path: '/cc'
+      fullPath: '/cc'
+      preLoaderRoute: typeof AuthedCcRouteRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/onboarding': {
@@ -1057,6 +1098,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/system-update'
       preLoaderRoute: typeof AuthedAdminSystemUpdateRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/cc/': {
+      id: '/_authed/cc/'
+      path: '/'
+      fullPath: '/cc/'
+      preLoaderRoute: typeof AuthedCcIndexRouteImport
+      parentRoute: typeof AuthedCcRouteRoute
+    }
+    '/_authed/cc/$sessionId': {
+      id: '/_authed/cc/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/cc/$sessionId'
+      preLoaderRoute: typeof AuthedCcSessionIdRouteImport
+      parentRoute: typeof AuthedCcRouteRoute
     }
     '/_authed/settings/': {
       id: '/_authed/settings/'
@@ -1372,6 +1427,20 @@ const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
 const AuthedAdminRouteRouteWithChildren =
   AuthedAdminRouteRoute._addFileChildren(AuthedAdminRouteRouteChildren)
 
+interface AuthedCcRouteRouteChildren {
+  AuthedCcSessionIdRoute: typeof AuthedCcSessionIdRoute
+  AuthedCcIndexRoute: typeof AuthedCcIndexRoute
+}
+
+const AuthedCcRouteRouteChildren: AuthedCcRouteRouteChildren = {
+  AuthedCcSessionIdRoute: AuthedCcSessionIdRoute,
+  AuthedCcIndexRoute: AuthedCcIndexRoute,
+}
+
+const AuthedCcRouteRouteWithChildren = AuthedCcRouteRoute._addFileChildren(
+  AuthedCcRouteRouteChildren,
+)
+
 interface AuthedSettingsRouteRouteChildren {
   AuthedSettingsApprovalsRoute: typeof AuthedSettingsApprovalsRoute
   AuthedSettingsCloudWorkspaceRoute: typeof AuthedSettingsCloudWorkspaceRoute
@@ -1465,6 +1534,7 @@ const AuthedAppRouteWithChildren = AuthedAppRoute._addFileChildren(
 
 interface AuthedRouteChildren {
   AuthedAdminRouteRoute: typeof AuthedAdminRouteRouteWithChildren
+  AuthedCcRouteRoute: typeof AuthedCcRouteRouteWithChildren
   AuthedSettingsRouteRoute: typeof AuthedSettingsRouteRouteWithChildren
   AuthedAppRoute: typeof AuthedAppRouteWithChildren
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute
@@ -1473,6 +1543,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRouteRoute: AuthedAdminRouteRouteWithChildren,
+  AuthedCcRouteRoute: AuthedCcRouteRouteWithChildren,
   AuthedSettingsRouteRoute: AuthedSettingsRouteRouteWithChildren,
   AuthedAppRoute: AuthedAppRouteWithChildren,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
@@ -1489,3 +1560,5 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+

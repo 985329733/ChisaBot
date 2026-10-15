@@ -26,7 +26,8 @@ services:
       - home:/home/agent
       - workspace:/workspace
     networks: [cloudnode]
-    dns: [1.1.1.1]
+    # 默认公共 DNS；主机有只劫持 Claude 域名的 TUN DNS 时设 CLOUDNODE_DNS（firewall.sh 用同一个变量放行）
+    dns: ["${CLOUDNODE_DNS:-1.1.1.1}"]
 networks:
   cloudnode:
     external: true
