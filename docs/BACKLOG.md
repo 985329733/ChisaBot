@@ -326,7 +326,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 ## CB-015
 
 **瘦身 P4c：合并重复系统（依赖并行功能）**  
-里程碑：精简 Slim · 标签：`type: chore` `area: slim` `P2` `status: in-progress`
+里程碑：精简 Slim · 标签：`type: chore` `area: slim` `P2` `status: blocked`
 
 #### 背景
 
@@ -340,7 +340,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 
 #### 进度
 
-- [x] P4c-1（2026-10-15，#PRNUM）：上游 Routines（`routines` 工具 / 页面 / 扫描 / 接口）并入 ChisaBot 定时任务 §55，表留到 P5
+- [x] P4c-1（2026-10-15，#143）：上游 Routines（`routines` 工具 / 页面 / 扫描 / 接口）并入 ChisaBot 定时任务 §55，表留到 P5
 
 #### 相关
 
