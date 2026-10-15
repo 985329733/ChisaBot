@@ -1,7 +1,7 @@
 import { IconArrowRight, IconChevronRight, IconExternalLink } from "@tabler/icons-react";
 import { Link, type LinkOptions, useRouterState } from "@tanstack/react-router";
 import type * as React from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
 import { Sidebar, SidebarContent, SidebarRail, useOptionalSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,8 +30,24 @@ export type RailGroup = {
    * 默认折叠的分组（设置 → 高级，DESIGN.md §57）：标题是一个开关，展开状态记在 localStorage；
    * 当前页在组里时总是展开。收起成图标栏时照常列出。
    */
-  collapsible?: { storageKey: string };
+  collapsible?: {
+    storageKey: string;
+    /**
+     * 没记过开关时怎么摆（CB-058，DESIGN.md §71.7）：默认只展开当前页所在的组；当前页不在任何组里时，
+     * `defaultOpen` 的组展开。记过就按记的来。
+     */
+    defaultOpen?: boolean;
+    /** 只在桌面左栏折叠；手机抽屉里照常全部列出（抽屉本来就整屏滚动）。 */
+    desktopOnly?: boolean;
+  };
 };
+
+function inGroup(group: RailGroup, pathname: string) {
+  return group.items.some((item) => {
+    const to = item.linkOptions?.to;
+    return typeof to === "string" && (pathname === to || pathname.startsWith(`${to}/`));
+  });
+}
 
 export function SectionRail({
   ariaLabel,
@@ -49,6 +65,14 @@ export function SectionRail({
 } & React.ComponentProps<typeof Sidebar>) {
   const sidebar = useOptionalSidebar();
   const collapsed = Boolean(sidebar && !sidebar.isMobile && sidebar.state === "collapsed");
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const anyHere = groups.some((group) => inGroup(group, pathname));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // 当前页那一行在可视区外（矮屏、组都展开着）时，打开设置先把它滚进来。
+  useEffect(() => {
+    const row = scrollRef.current?.querySelector<HTMLElement>(".nav-row.is-on");
+    row?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
 
   if (collapsed) {
     return (
@@ -105,10 +129,10 @@ export function SectionRail({
         <nav aria-label={ariaLabel} className="glass-card glass-side-card min-h-0 flex-1">
           {/* DESIGN-v3 §6.1：没有「返回应用」胶囊（顶栏主导航就是回去的路），卡片顶部是区域名。 */}
           <div className="rail-title">{title}</div>
-          <div className="glass-side-scroll rail-scroll scroll-fade-b">
+          <div className="glass-side-scroll rail-scroll scroll-fade-b" ref={scrollRef}>
             {groups.map((group, gi) =>
-              group.collapsible ? (
-                <CollapsibleGroup group={group} key={group.label ?? gi} />
+              group.collapsible && !(group.collapsible.desktopOnly && sidebar?.isMobile) ? (
+                <CollapsibleGroup anyHere={anyHere} first={gi === 0} group={group} key={group.label ?? gi} />
               ) : (
                 <div className={cn("rail-group", gi > 0 && "mt-2")} key={group.label ?? gi}>
                   {group.label ? (
@@ -135,23 +159,22 @@ export function SectionRail({
   );
 }
 
-function readOpen(key: string) {
+/** 记过的开关：true / false；没记过：null。 */
+function readOpen(key: string): boolean | null {
   try {
-    return window.localStorage.getItem(key) === "1";
+    const v = window.localStorage.getItem(key);
+    return v === "1" ? true : v === "0" ? false : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-function CollapsibleGroup({ group }: { group: RailGroup }) {
+function CollapsibleGroup({ group, anyHere, first }: { group: RailGroup; anyHere: boolean; first: boolean }) {
   const key = group.collapsible?.storageKey ?? "";
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [stored, setStored] = useState(() => readOpen(key));
-  const here = group.items.some((item) => {
-    const to = item.linkOptions?.to;
-    return typeof to === "string" && (pathname === to || pathname.startsWith(`${to}/`));
-  });
-  const open = stored || here;
+  const here = inGroup(group, pathname);
+  const open = here || (stored ?? (!anyHere && Boolean(group.collapsible?.defaultOpen)));
   const toggle = () => {
     const next = !open;
     setStored(next);
@@ -162,7 +185,7 @@ function CollapsibleGroup({ group }: { group: RailGroup }) {
     }
   };
   return (
-    <div className="rail-group mt-2">
+    <div className={cn("rail-group", !first && "mt-2")}>
       <button
         aria-expanded={open}
         className="glass-sec rail-sec-toggle"

@@ -33,6 +33,7 @@ import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
  * - 个人：通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 生图与识图 · 密钥 · 审批偏好 · 设备 · IM 接入（后续功能页也放这里）；
  * - 管理（仅管理员）：账号（CB-040 朋友账号；默认隐藏，/api/capabilities 的 accountsUi 打开才显示）· 模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
  * - 高级（默认折叠）：工作流 · 插件与 MCP。
+ * 管理员三组都能折叠（CB-058，DESIGN.md §71.7）：没记过开关时只展开当前页所在的组，1280×800 也不用滚；手机抽屉照常全列。
  * 技能管理并入 设置 → 技能（管理员在页内进入），UI 组件不再出现在导航里。路由都还在，旧地址会重定向。
  * 左栏底部「返回聊天」是从设置回到对话的路（顶栏不再有分段导航）。
  */
@@ -115,6 +116,7 @@ const PERSONAL: RailGroup[] = [
 const ADMIN: RailGroup[] = [
   {
     label: "管理",
+    collapsible: { storageKey: "chisabot-settings-admin", desktopOnly: true },
     items: [
       { title: "账号", sub: "邀请朋友、停用、重置密码", icon: IconUsers, linkOptions: { to: "/admin/accounts" } },
       { title: "模型", sub: "接口、默认模型、模型密钥", icon: IconBrain, linkOptions: { to: "/admin/models" } },
@@ -134,6 +136,12 @@ const ADMIN: RailGroup[] = [
   },
 ];
 
+/** 管理员看到三组时，个人 / 管理也能折叠（只在桌面左栏）。普通账号只有「个人」一组，不折叠。 */
+const PERSONAL_FOLDABLE: RailGroup[] = PERSONAL.map((group) => ({
+  ...group,
+  collapsible: { storageKey: "chisabot-settings-personal", defaultOpen: true, desktopOnly: true },
+}));
+
 export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { data: user } = useQuery(currentUserQueryOptions());
   const { data: capabilities } = useQuery(deploymentCapabilitiesQueryOptions());
@@ -146,7 +154,7 @@ export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
       ariaLabel={"设置分区"}
       title={"设置"}
       footerLink={{ label: "返回聊天", to: "/", icon: IconMessageCircle }}
-      groups={user?.role === "admin" ? [...PERSONAL, ...admin] : PERSONAL}
+      groups={user?.role === "admin" ? [...PERSONAL_FOLDABLE, ...admin] : PERSONAL}
       {...props}
     />
   );
