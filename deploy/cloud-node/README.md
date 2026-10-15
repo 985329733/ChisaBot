@@ -56,6 +56,21 @@ ChisaBot 网页：设置 → 云端工作区 →「**在云端完成登录**」�
 - 改了以后正在跑的那一轮不打断：它新建的连接马上按新设置走，下一轮整轮都用新设置。
 - 服务器自己不直接连 Anthropic（模型走 Magpie，不受这个设置影响）。
 
+## 电脑文件夹同步的边车（cloudnode-sync）
+
+```sh
+docker build -t chisabot-cloudnode-sync:0.18.1 deploy/cloud-node/sync   # 源码编译 Mutagen v0.18.1 agent（不带 SSPL 代码）
+docker compose -f deploy/cloud-node/compose.yaml up -d                   # 节点 + 边车一起
+```
+
+- 边车和节点共用网络命名空间（`network_mode: service:cloudnode`），sshd 只听 127.0.0.1:2222，**不发布端口**；电脑只能经
+  ChisaBot 网关的 `/api/devices/agent/sync-tunnel`（一次性隧道票）进来，节点再连本机 2222。
+- uid 1000、根文件系统只读、`cap_drop: ALL`、256 MB；只挂工作区卷的 `projects/`（不挂 home）。每把电脑公钥都是
+  `restrict,command="chisabot-sync-gate <工作区> <绑定>"`，只能启动 Mutagen 同步 agent 和这个工作区的 git upload/receive-pack。
+- compose 的 `volume.subpath` 要求 `projects/` 已经存在：节点入口每次启动都会建它；第一次部署时先起节点再起边车（或者 `up -d` 两次）。
+- 检查：`docker port chisabot-cloudnode-sync` 为空；`docker logs chisabot-cloudnode-sync` 有 `Server listening on 127.0.0.1 port 2222`；
+  主机 `ss -ltn` 没有 2222。
+
 ## 验收（部署后）
 
 ```sh

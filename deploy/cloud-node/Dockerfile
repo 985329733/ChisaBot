@@ -13,7 +13,7 @@ RUN apt-get update \
  # node 镜像自带的 uid 1000 用户改名为 agent，home = /home/agent（挂 home 卷）
  && usermod -l agent -d /home/agent -m node \
  && groupmod -n agent node \
- && mkdir -p /workspace && chown agent:agent /workspace
+ && mkdir -p /workspace /sync-keys /sync-pub && chown agent:agent /workspace /sync-keys /sync-pub
 COPY entrypoint.sh /usr/local/bin/cloudnode-entrypoint
 RUN chmod 755 /usr/local/bin/cloudnode-entrypoint
 ENV HOME=/home/agent \

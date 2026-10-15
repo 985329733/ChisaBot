@@ -1519,6 +1519,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     refuseFullAccess,
     emergencyStop,
     isCloudNode: (deviceId: string) => nodes.has(deviceId),
+    /** 电脑文件夹同步（sync.ts）用：节点上的 cc_rpc，和这个人的节点。 */
+    nodeRpc: rpc,
+    nodeFor,
     // 测试用
     _internal: { live, nodes, startTurn, send, decideApproval, workspaces, createSession, status, createGithubWorkspace, mergeSession, pushSession },
   };

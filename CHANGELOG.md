@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 电脑文件夹同步·服务器端（CB-064 P4a）：云端工作区可以和一台电脑的文件夹双向同步的底座——新边车容器 `cloudnode-sync`（`deploy/cloud-node/sync`：uid 1000 的 sshd 只听节点网络命名空间里的 127.0.0.1:2222、不发布端口，源码编译的 MIT 版 Mutagen 0.18.1 agent，gate 只放行同步 agent 和本工作区的 git）、电脑用设备令牌换一次性隧道票经网关 `/api/devices/agent/sync-tunnel` 进来、绑定 / 租约（谁能写工作目录）/ 交还 / 强制收回 / 撤销设备即收回、审计。新表 `chisabot_cc_sync_bindings`、`chisabot_cc_leases`、`chisabot_cc_sync_events`、`chisabot_cc_sync_conflicts`（开机建表，回滚镜像即可）。电脑端界面随下一个 PC 版本（P4b）；没有部署边车时什么都不变。部署者要重建 `chisabot-cloudnode` 并构建 `chisabot-cloudnode-sync`（见 `deploy/cloud-node/README.md`）。见 `docs/cloud-claude-code.md`「电脑文件夹同步（P4a）」。
 - 「在云端完成登录」过得了 Cloudflare 人机验证（CB-066）：云端登录浏览器以前用无头 Chromium 默认的 UA（带 HeadlessChrome），claude.ai 一直停在「Verify you are human」，点了也过不去；现在用同版本普通 Chrome 的 UA、关掉 AutomationControlled，直接到 Claude 登录页。只改节点程序：节点重启（重新下载 chisabot-node.cjs）后生效，不用重建镜像。
 - 云端 Claude Code GitHub 工作区（CB-063，P3）：Claude Code 左栏多了「新建工作区 · 从 GitHub」——选一个仓库（用 设置 → 账号连接 里已连的 GitHub 令牌），云端节点克隆它；每个会话在自己的工作树和 `cc/…` 分支上改，会话页多了「合入工作目录」（冲突时工作目录不动，可以「让 Claude 处理」）和「推送并开 PR」（确认卡：分支、提交、标题 → 推送 → PR 链接卡）；右栏多了「相对 main」「工作目录」两个视图；工作区可以删除。令牌只在克隆 / 推送那一次交给节点（临时 askpass，不落盘、不进日志）。新增 `CHISABOT_GITHUB_GIT_BASE`（可选，默认 https://github.com）。表只加列（回滚镜像即可）。见 DESIGN.md §73.7。
 - 设备「打开」只做安全的打开（CB-030）：只能打开 http/https 网址，或允许的文件夹里已经存在的文件 / 文件夹；不再能启动程序、带参数、打开 .exe / .bat / .ps1 / .lnk 这类可执行文件和脚本、别的协议（`ms-settings:` 等）或网络路径——要运行程序走命令行能力和它的审批。服务器在发给电脑之前先检查，已装的旧版 PC 客户端也一样受保护；PC 客户端里同一套检查随下一个 PC 版本发布。能力名改成「打开网址 / 文件」。见 docs/pc-node.md §5。

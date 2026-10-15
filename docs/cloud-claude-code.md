@@ -11,7 +11,8 @@
 | P1 | 云端节点容器（`deploy/cloud-node/`）+ 设置 → 云端工作区 → Claude 登录 | 已上线（真实登录要用户自己点一次） |
 | P2 | 左栏切换「机器人｜Claude Code」、「草稿」工作区、会话、对话、审批、右栏 / 手机抽屉 | 已上线 |
 | P3 | GitHub 工作区：克隆、每会话 worktree + `cc/…` 分支、合入工作目录、推送并开 PR | 已完成（真实 GitHub 要用户先在 设置 → 账号连接 连 GitHub） |
-| P4 | 电脑文件夹同步（`chisabot-sync` + 自编译 MIT Mutagen，PC 新版） | 未开始 |
+| P4a | 电脑文件夹同步·服务器 / 节点 / 同步边车 / 隧道（绑定、租约、一次性隧道票、`cloudnode-sync`、自编译 MIT 版 `mutagen-agent`） | 已完成（Linux 替身 e2e 走通；电脑端随 P4b） |
+| P4b | 电脑文件夹同步·PC 客户端（同步管理、「电脑上的文件夹」新建、同步面板、冲突对话框、交接 ①–⑤）+ PC 新版 | 未开始 |
 | P5 | ChisaCloudCode 留还是下线（单独决定） | 未开始 |
 
 ## 实现（以代码为准）
@@ -34,7 +35,7 @@
 
 **权限**（`policy.js`）：会话目录里的 Read / Grep / Glob / LS 和 Edit / Write 直接放行（目录外：读要审批，写拒绝）；只读命令白名单（`git status/diff/log/show`、`ls`、`cat`、`rg`…，按 `; && || |` 拆开每段都要在白名单里，不能有重定向和命令替换）直接放行；`git push`、改 remote、`gh`、`ssh/scp/rsync`、`sudo`、`curl` 往外发数据、改 `~/.claude` 一律拒绝（提示用「推送并开 PR」）；其他命令、目录外读取、每个域名第一次 WebFetch、MCP、不认识的工具弹审批卡，2 分钟没人处理按拒绝；「本会话总是允许」存进 `chisabot_cc_permission_rules`，下一轮随 `cc_turn` 带给节点。钩子问不到节点（进程不在、超时）一律拒绝。
 
-**表**（开机 `CREATE TABLE IF NOT EXISTS`，回滚安全）：`chisabot_cloud_workspaces`、`chisabot_cc_workspaces`、`chisabot_cc_sessions`、`chisabot_cc_messages`（会话记录，parts 是 JSON：文字 / 工具 / 审批 / 改动 / 出错 / 提示 / 合入·PR）、`chisabot_cc_permission_rules`、`chisabot_cc_events`（操作记录，不含授权码、令牌、对话内容）。P3 只加列（`ADD COLUMN IF NOT EXISTS`）：工作区 `clone_state`、`clone_error`；会话 `pr_url`、`pr_number`、`merged_at`。P4 的表（同步绑定、租约、冲突）到时候再建。
+**表**（开机 `CREATE TABLE IF NOT EXISTS`，回滚安全）：`chisabot_cloud_workspaces`、`chisabot_cc_workspaces`、`chisabot_cc_sessions`、`chisabot_cc_messages`（会话记录，parts 是 JSON：文字 / 工具 / 审批 / 改动 / 出错 / 提示 / 合入·PR）、`chisabot_cc_permission_rules`、`chisabot_cc_events`（操作记录，不含授权码、令牌、对话内容）。P3 只加列（`ADD COLUMN IF NOT EXISTS`）：工作区 `clone_state`、`clone_error`；会话 `pr_url`、`pr_number`、`merged_at`。P4a 新表：`chisabot_cc_sync_bindings`、`chisabot_cc_leases`、`chisabot_cc_sync_events`、`chisabot_cc_sync_conflicts`（见下面「电脑文件夹同步（P4a）」）。
 
 **GitHub 工作区（P3，实现）**
 
@@ -52,6 +53,18 @@
 - 出口：浏览器开一个临时标签页读 `https://claude.ai/cdn-cgi/trace`，节点进程用同样的路由（有上游就经上游）也读一次，两边的 `ip=` 放进 `cc_browser_state.egress` 和操作记录。
 - 接口：`POST /api/cloud-workspace/claude/login/browser {width,height,mobile}`（先 `login_start` 再 `browser_start`）、`GET …/browser/:id/stream`、`POST …/browser/:id/input`、取消仍是 `DELETE /claude/login/:id`（同时 `browser_stop`）。`GET /api/cloud-workspace` 多了 `browserLogin`（节点 `cc_info.browser`）和 `proxy {configured, masked}`。
 - 上游代理：`pc/src/cloud-cc/proxy.js`。服务器 `GET|PUT|DELETE /api/cloud-workspace/claude/proxy`、`POST …/proxy/test {url?}`；地址存保险箱保留名 `claude-proxy`（加密，保险箱页面只读，指回这里），节点连上时和每次修改时 `proxy_set` 下发。节点里一个只听 127.0.0.1 的转发器按主机分流：`anthropic.com` / `claude.ai` / `claude.com`（及子域）走上游（http / https CONNECT + Basic，socks5 + 用户名密码、远端解析），其他直连。Claude Code 的每一轮、`claude auth login/status/logout` 设 `HTTPS_PROXY=http://127.0.0.1:<端口>`（环境变量里没有密码），登录浏览器 `--proxy-server` 指向同一个转发器。改设置不杀正在跑的一轮。服务器自己没有直连 Anthropic 的调用。测试：`pc/test/cloud-cc-proxy.check.js`（http 带认证 / socks5 带认证 / 分流 / 打码 / 回调识别）；预览 e2e 用 `tests/cloud-cc/mock-claude-auth.cjs`（模拟授权页 + 测试上游代理，记录经过它的主机）。
+
+**电脑文件夹同步（P4a，实现：服务器 + 节点 + 同步边车 + 隧道）**
+
+- 代码：服务器 `server/src/cloud-cc/sync.ts`（`devices/routes.ts` 挂接口和隧道，撤销 / 删除 / 紧急停止时收回）；节点 `pc/src/cloud-cc/sync.js`；隧道 ProxyCommand `pc/src/sync/tunnel.js`（PC 客户端和测试共用）；边车 `deploy/cloud-node/sync/`（Dockerfile、sshd_config、gate.sh、entrypoint.sh）；compose 多了服务 `cloudnode-sync` 和卷 `sync-keys`、`sync-pub`、`sync-host`、`sync-state`。测试 `pc/test/cloud-cc-sync.check.js`。
+- **和设计稿的差别**：电脑端不用 Go 的 `chisabot-sync` 助手，改成 PC 客户端里的 JS（`pc/src/sync/`）驱动自编译的 `mutagen.exe`，CI 不需要 Go 之外再加一套三平台编译；CCC 的 Go 代码只作参考。电脑和服务器之间用设备令牌的 HTTP 接口（不是设备 WSS 上的一问一答），服务器推给电脑的交接消息（`sync_begin` / `sync_end`）随 P4b 走设备 WSS。
+- **边车 `cloudnode-sync`**：`debian:bookworm-slim` + `openssh-server` + Mutagen v0.18.1 源码编译的 `mutagen-agent`（`-tags mutagenagent`，**不加** `mutagensspl`，许可证在 `/opt/mutagen/LICENSE`）。uid 1000 运行 sshd（`/etc/chisabot-sync/sshd_config`：只听 127.0.0.1:2222、只认公钥、`DisableForwarding yes`、没有 sftp），`network_mode: service:cloudnode`（和节点共用网络命名空间，主机上没有端口，防火墙规则照旧生效），根文件系统只读、`cap_drop: ALL`、256 MB、`pids_limit 128`。只挂工作区卷的 `projects/` 子目录（compose `volume.subpath`）——不挂 home，碰不到 Claude 凭据。主机密钥在边车自己的卷，公钥写到 `sync-pub` 卷给节点读（电脑端 `StrictHostKeyChecking yes` 固定它）。
+- **gate**（`chisabot-sync-gate <工作区> <绑定>`，authorized_keys 里每行 `restrict,command=…`）：只放行 `.mutagen/agents/0.18.1/mutagen-agent synchronizer --log-level=<级别>`（预装的 agent，在 `work/` 里启动）和这个工作区 `work/` 的 `git-upload-pack` / `git-receive-pack`；`forwarder`（端口转发）、`uname` 探测 / 安装 agent、任意命令一律退出 126。已知限制：Mutagen agent 的同步路径由电脑端在协议里给出，gate 管不到；边车只挂 `projects/`，所以最坏情况是同一个人的另一个工作区（整台节点只属于一个管理员）。
+- **节点**：`sync_tunnel_open{tunnelId}` → 自己开出站 WSS `/api/devices/agent/sync-tunnel?tunnel=…`（设备令牌）→ 连 127.0.0.1:2222，二进制帧直接对接（WSS 发不出去时停读 sshd）；`cc_rpc sync_keys_set`（整份重写 `/sync-keys/authorized_keys`）/ `sync_host_key` / `sync_lease` / `sync_lease_get` / `ws_init_local` / `ws_manifest`（暂停时清单：路径、大小、sha256，默认不同步的规则 §4.6）。`ws_merge` 先过节点上的租约（`projects/<工作区>/.chisabot/lease.json`；电脑在用 → 拒绝；交接中要对得上交接号；文件读不懂不算放行）。
+- **电脑接口（设备令牌，`/api/devices/agent/sync/*`）**：`POST /workspaces {name, label}`（「电脑上的文件夹」：节点先建空的 `work/`，成功了再记库，来源 `local`）、`POST /bind {workspaceId, pubKey(ssh-ed25519), label}`（一个工作区同一时间一台电脑；返回 `bindingId`、`epoch`、边车主机公钥、`workPath`、`sshUser`；状态 → 同步中，租约 `syncing`）、`POST /state {workspaceId, state: syncing|pc_active|conflict, detail}`（`pc_active` → 租约 `pc`）、`POST /release`（交还云端：租约 = 云端、已暂停、公钥删掉、这台电脑的隧道断开，两份都留）、`POST /ticket`（一次性隧道票：60 秒、用一次、绑定设备 + 工作区 + 绑定）、`GET /:workspaceId`。隧道 `GET /api/devices/agent/sync-tunnel?ticket=…`（电脑）/ `?tunnel=…`（节点），两边都要设备令牌；票不对、过期、用过、别的设备 → 关闭码 4403。紧急停止的设备拿不到票。
+- **网页（管理员）**：`GET /api/claude-code/workspaces/:id/sync`（状态、绑定的电脑和在线情况、租约、隧道数、`canForceReclaim`）、`POST /api/claude-code/workspaces/:id/sync/force-reclaim`（只在电脑离线时：租约 = 云端、已暂停、公钥删掉、隧道断开）。撤销 / 删除电脑设备时它的绑定全部关掉、公钥删掉、隧道断开、工作区回「已暂停」。
+- **审计**：`chisabot_cc_sync_events`（created / bind / pc_active / syncing / conflict / released / forced / revoked / recover / tunnel_open / tunnel_close{up, down, ms, why}），不记文件内容、公钥以外的密钥和隧道票。
+- **e2e（Linux 替身）**：节点（桥接网，不是 host 网）+ 边车（`--network container:`）+ 电脑替身（`mutagen-linux-amd64` + 系统 OpenSSH + `tunnel.js`，ssh 包装器 `-F` 自己的配置、`HostKeyAlias` + `StrictHostKeyChecking yes`）：第一次同步 22 MB / 315 个文件，电脑改 → 云端几秒内可见，云端改 → 电脑可见，`.env` / `node_modules` 不上云，两边都改同一个文件 → Mutagen 冲突、两份都不被覆盖，交还后拿不到票、再开启恢复同一个 Mutagen 会话，撤销设备 → 公钥删掉 + 状态已暂停，电脑离线时强制收回，主机没有新监听端口，`docker port` 为空，数据库 / 日志里没有隧道票。
 
 **和设计稿的差别**：会话记录存在 `chisabot_cc_messages`，不是机器人聊天线程（ADR-0014 第 4 条）；「草稿」工作区每个会话一个自己的目录（`trees/<会话>`），不共用工作目录；审批卡只在会话里（以及操作记录），P2 还没有手机推送。
 
