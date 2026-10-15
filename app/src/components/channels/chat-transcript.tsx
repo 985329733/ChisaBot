@@ -276,6 +276,30 @@ function Thinking() {
 }
 
 /**
+ * 开场一句写完、第一个工具还没出来的那一两秒（DESIGN.md §78.2）：以前屏幕上什么都没有，像是停了。
+ * 机器人的最后一段字停住 0.9 秒还没有下文时，在它下面淡入三个跳动的小点（不写字、不占一行药丸）；
+ * 有新字或工具一来就收起。回答写完到这一轮真正结束通常不到 0.9 秒，所以不会在答案后面闪一下。
+ */
+function PauseDots({ watch }: { watch: string }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    setShown(false);
+    const timer = window.setTimeout(() => setShown(true), 900);
+    return () => window.clearTimeout(timer);
+  }, [watch]);
+  if (!shown) return null;
+  return (
+    <div aria-hidden="true" className="chat-pause-dots" data-testid="transcript-pause-dots">
+      <span className="chat-thinking-dots">
+        <i />
+        <i />
+        <i />
+      </span>
+    </div>
+  );
+}
+
+/**
  * The turn ended and no answer came.
  *
  * In the same slot as `Thinking`, and for the same reason it is there: the person is looking at the
@@ -1881,6 +1905,9 @@ export function ChatTranscript({
 
   // 这一轮已经有干活卡（在第一个干活的工具那一行里，DESIGN.md §75.1）：末尾不再画「思考中」。
   const liveWorking = busy && !showToolActivity && [...compact.work.values()].some((work) => work.live);
+  // 机器人说了一句、还在想下一步（还没有干活卡）：§78.2 的小点。
+  const pausedAfterText =
+    busy && !liveWorking && lastItem?.kind === "text" && lastItem.role === "assistant" ? lastItem.text : null;
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const newestUserMessageId =
@@ -1993,6 +2020,8 @@ export function ChatTranscript({
                 // 这一轮已经在调工具：换成干活卡（当前步骤 · 第几步 · 用时，DESIGN.md §70），同一位置、同样一行高。
                 // 这一轮已经在干活：干活卡在第一个干活的工具那一行里（DESIGN.md §75.1），这里不再画「思考中」。
                 liveWorking ? null : <Thinking />
+              ) : pausedAfterText !== null ? (
+                <PauseDots watch={pausedAfterText} />
               ) : null}
               {queued.map((message) => (
                 <Queued
@@ -2036,7 +2065,7 @@ export function ChatTranscript({
         </MessageScrollerViewport>
         <MessageScrollerButton className="chat-bottom-pill">
           <IconChevronDown className="size-4" />
-          {"回到底部"}
+          <span className="chat-bottom-pill-t">{"回到底部"}</span>
         </MessageScrollerButton>
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
       </MessageScroller>

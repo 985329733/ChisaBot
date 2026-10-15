@@ -2059,6 +2059,10 @@ html[data-sky-ease] body::before {
 }
 .chat-thinking-dots i:nth-child(2) { animation-delay: 0.15s; }
 .chat-thinking-dots i:nth-child(3) { animation-delay: 0.3s; }
+/* §78.2 一句话之后、下一步之前的小点：不带药丸、不写字，淡入。 */
+.chat-pause-dots { display: flex; align-items: center; height: 22px; padding-left: 14px; animation: chat-pause-in 200ms ease-out both; }
+@keyframes chat-pause-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .chat-pause-dots { animation: none; } }
 .dark .chat-thinking-dots i { background: #93b4d8; }
 @keyframes p3-dot {
   0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
@@ -2201,6 +2205,11 @@ button.chat-bottom-pill {
 }
 button.chat-bottom-pill:hover {
   background: rgba(255, 255, 255, 0.95);
+}
+/* §78.4 手机上只留一个圆形的 ↓（36px），不再是一条压在最后一个气泡上的长药丸；读屏仍念「回到底部」。 */
+@media (max-width: 520px) {
+  button.chat-bottom-pill { width: 36px; height: 36px; padding: 0; gap: 0; justify-content: center; }
+  .chat-bottom-pill-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 .dark button.chat-bottom-pill:hover {
   background: rgba(40, 54, 76, 0.95);
@@ -4602,17 +4611,17 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .context-meter.is-full { color: var(--danger); }
 
 .context-ring { flex-shrink: 0; }
-.context-ring-track { stroke: rgba(22, 36, 62, 0.13); }
-.dark .context-ring-track { stroke: rgba(255, 255, 255, 0.15); }
-.context-ring-bar { stroke: var(--ink-2); transition: stroke-dashoffset var(--dur-3, 300ms) var(--ease-out, ease), stroke var(--dur-2, 220ms) ease; }
-.dark .context-ring-bar { stroke: rgba(235, 241, 255, 0.82); }
+/* §78.1 小饼图：轨道一圈细线，扇形淡墨色（不到一半时更淡），70% 以上琥珀、90% 以上红。 */
+.context-ring-track { stroke: rgba(22, 36, 62, 0.28); }
+.dark .context-ring-track { stroke: rgba(255, 255, 255, 0.3); }
+.context-ring-bar { stroke: rgba(22, 36, 62, 0.42); transition: stroke-dashoffset var(--dur-3, 300ms) var(--ease-out, ease), stroke var(--dur-2, 220ms) ease; }
+.dark .context-ring-bar { stroke: rgba(235, 241, 255, 0.5); }
 .context-ring.is-warn .context-ring-bar { stroke: var(--warn); }
 .context-ring.is-full .context-ring-bar { stroke: var(--danger); }
 .context-ring.is-unknown .context-ring-track { stroke-dasharray: 2.2 2.2; }
 .context-meter { cursor: pointer; }
 .context-tip { padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.context-meter.is-running .context-ring-bar { animation: context-ring-breathe 1.6s ease-in-out infinite; }
-@keyframes context-ring-breathe { 50% { opacity: 0.45; } }
+/* 回复中不再呼吸（§78.1）：紧挨着停止键的一个会动的圆，看起来就是加载圈。 */
 
 .context-popover {
   width: min(280px, calc(100vw - 24px));
@@ -4694,7 +4703,6 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 @media (prefers-reduced-motion: reduce) {
   .context-ring-bar,
 .context-popover-fill { transition: none; }
-  .context-meter.is-running .context-ring-bar { animation: none; }
 }
 
 /* ---------- 工作流（DESIGN.md §26，2026-10-13） ---------- */

@@ -24,26 +24,32 @@ const SOURCE_TEXT: Record<ThreadContextReading["source"], string> = {
   estimate: "按消息文字估算（不含系统提示与工具定义，可能偏小）",
 };
 
-/** 小圆环：占用比例；窗口未知时只画一圈虚线轨道（没有比例可画，不编一个）。 */
+/**
+ * 小饼图（DESIGN.md §78.1）：外面一圈细轨道，里面按占用比例填一块扇形（从 12 点钟方向顺时针）。
+ * 以前是一段弧线的圆环，紧挨着发送键，看起来像一直在转的加载圈；扇形是「装了多少」，不像在转。
+ * 窗口未知时只画一圈虚线轨道（没有比例可画，不编一个）。
+ */
 function Ring({ ratio, level, unknown = false }: { ratio: number; level: "ok" | "warn" | "full"; unknown?: boolean }) {
-  const r = 7;
+  // 扇形 = 半径 r 的圆、描边宽 2r：描边的一段就是一块扇形。
+  const r = 3.25;
   const c = 2 * Math.PI * r;
   const shown = Math.max(0, Math.min(1, ratio));
   return (
     <svg aria-hidden className={cn("context-ring", `is-${level}`, unknown && "is-unknown")} height="18" viewBox="0 0 18 18" width="18">
-      <circle className="context-ring-track" cx="9" cy="9" fill="none" r={r} strokeWidth="2.25" />
-      {unknown ? null : <circle
-        className="context-ring-bar"
-        cx="9"
-        cy="9"
-        fill="none"
-        r={r}
-        strokeDasharray={`${c} ${c}`}
-        strokeDashoffset={c * (1 - shown)}
-        strokeLinecap="round"
-        strokeWidth="2.25"
-        transform="rotate(-90 9 9)"
-      />}
+      <circle className="context-ring-track" cx="9" cy="9" fill="none" r="7.6" strokeWidth="1.3" />
+      {unknown || shown <= 0 ? null : (
+        <circle
+          className="context-ring-bar"
+          cx="9"
+          cy="9"
+          fill="none"
+          r={r}
+          strokeDasharray={`${c} ${c}`}
+          strokeDashoffset={c * (1 - Math.max(shown, 0.04))}
+          strokeWidth={r * 2}
+          transform="rotate(-90 9 9)"
+        />
+      )}
     </svg>
   );
 }
