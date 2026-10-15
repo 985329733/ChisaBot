@@ -7,7 +7,6 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { genericOAuth, okta } from "better-auth/plugins";
 import { eq, sql } from "drizzle-orm";
-import { createEnterpriseStore } from "../admin/settings-store";
 import type { AuditEventInput, AuditStore } from "../audit";
 import { recordAuditEvent } from "../audit";
 import type { DeploymentConfig } from "../config";
@@ -206,7 +205,6 @@ export function createAuth(
     ...(auditStore ? { auditStore } : {}),
   };
   const scimPluginOptions = scimOptions(scimDeps);
-  const enterpriseStore = createEnterpriseStore(database);
 
   /*
    * The native app signs in through its custom scheme, and the Expo plugin appends the session cookie
@@ -282,8 +280,8 @@ export function createAuth(
         const verdict = await decideSignInMethod({
           method: source.method,
           email: typeof user.email === "string" ? user.email : undefined,
-          ssoRequired: async () =>
-            (await enterpriseStore.settings()).ssoRequired,
+          // The upstream "Require SSO" switch was removed in slimming P6-1.
+          ssoRequired: async () => false,
           initialAdminEmails: authConfig.initialAdminEmails,
         });
         if (verdict === "allow") return;

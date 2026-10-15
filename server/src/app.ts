@@ -4,10 +4,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { MAX_IMAGE_BYTES } from "../../shared/attachments";
-import { enterpriseControls } from "./admin/controls";
 import type { PanelServices } from "./panels/service";
-import { createEnterpriseGate, runtimeRun } from "./admin/gate";
-import { createEnterpriseAdminRoutes } from "./admin/routes";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
@@ -15,6 +12,7 @@ import {
   sameToken,
 } from "./agents/callback-token";
 import { computerAccessCheck } from "./agents/computer-access";
+import { runtimeRun } from "./agents/runtime-path";
 import {
   type BotLifecycleServices,
   createBotLifecycleRoutes,
@@ -90,11 +88,10 @@ import type { HostAccessBroker } from "./host-access/broker";
 import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import type { LocalConversationBackend } from "./local-conversations";
-import { parsePageLimit } from "./paging";
 import { createPasswordRoutes, createSignInRoutes } from "./passwords/routes";
 import type { SignInService } from "./passwords/service";
 import type { OnboardingStore } from "./people/onboarding";
-import { MAX_PAGE, type PeopleStore } from "./people/store";
+import type { PeopleStore } from "./people/store";
 import type { ComposioBroker } from "./plugins/broker";
 import { createPluginRoutes } from "./plugins/routes";
 import {
@@ -179,26 +176,6 @@ export type DeploymentToolCallInput = {
 export type DeploymentToolCaller = (
   input: DeploymentToolCallInput,
 ) => Promise<{ text: string; isError: boolean } | null>;
-
-async function recordPersonEvent(
-  auditStore: AuditStore | undefined,
-  context: { var: AppVariables },
-  eventType:
-    | "person.role_changed"
-    | "person.access_revoked"
-    | "person.access_restored",
-  person: { id: string; email: string },
-  payload: Record<string, unknown>,
-) {
-  if (!auditStore) return;
-  await recordAuditEvent(auditStore, {
-    eventType,
-    targetType: "person",
-    targetId: person.id,
-    actorUserId: context.var.actor.id,
-    payload: { email: person.email, ...payload },
-  });
-}
 
 export function createApp(
   config: DeploymentConfig,
@@ -485,12 +462,8 @@ export function createApp(
        * companies use this deployment, which is not theirs to have before they sign in.
        */
       ssoConfigured: ((await identityProviders?.list()) ?? []).length > 0,
-      /*
-       * Whether an administrator requires SSO. The screen then leads with SSO and keeps social
-       * sign-in only as the administrators' audited break-glass; the server refuses everybody else.
-       */
-      ssoRequired:
-        enterpriseControls()?.snapshot()?.settings.ssoRequired === true,
+      // "Require SSO" was an upstream enterprise switch, removed in slimming P6-1.
+      ssoRequired: false,
     }),
   );
   /*
@@ -597,10 +570,8 @@ export function createApp(
     : auth && roleRepository
       ? createRequireUser(auth, roleRepository)
       : authenticationUnavailable;
-  // Enterprise controls: capability switches and the model allowlist in front of the routes they
-  // govern, the admin screen's API, and the SCIM verbs the GET/POST auth handler above does not take.
-  app.use("/api/*", createEnterpriseGate(requireUser));
-  app.route("/api/admin/enterprise", createEnterpriseAdminRoutes(requireUser));
+  // The upstream enterprise gate (capability switches, model allowlist) and /api/admin/enterprise were
+  // removed in slimming P6-1: every route checks its own actor / owner / admin role. SCIM verbs below.
   app.on(["PUT", "PATCH", "DELETE"], "/api/auth/scim/*", (context) =>
     auth
       ? auth.handler(context.req.raw)
@@ -811,191 +782,9 @@ export function createApp(
       throw error;
     }
   });
-  /*
-   * Who is here, and what they may do.
-   *
-   * Administrator-only, like every other route in this group. A plain user reading the list would
-   * learn every colleague's address and when they last signed in, which is not theirs to have.
-   */
-  app.get("/api/admin/people", requireUser, async (context) => {
-    const denied = requireAdmin(context);
-    if (denied) {
-      return denied;
-    }
-    if (!peopleStore) {
-      return context.json({ error: "People are not available." }, 503);
-    }
-
-    /*
-     * A page, not the deployment.
-     *
-     * `limit` is parsed strictly and clamped into range at the edge, against the same ceiling the
-     * store enforces, so a caller cannot ask for everybody by naming a large number and a typo
-     * like `12abc` is a 400 rather than a silently coerced page. `search` is what makes paging
-     * usable: an administrator looking for one colleague should not have to walk pages to reach
-     * them.
-     */
-    const url = new URL(context.req.url);
-    const parsed = parsePageLimit(url.searchParams.get("limit"), MAX_PAGE);
-    if (!parsed.ok) {
-      return context.json({ error: parsed.error }, 400);
-    }
-    // An unbounded `search` becomes a `%...% ILIKE` full scan. Cap it so a multi-megabyte
-    // query cannot be used as a cheap denial of service against the people table.
-    const search = url.searchParams.get("search");
-    if (search !== null && search.length > 200) {
-      return context.json(
-        { error: "A search of at most 200 characters is required." },
-        400,
-      );
-    }
-
-    return context.json(
-      await peopleStore.list({
-        ...(url.searchParams.get("search")
-          ? { search: url.searchParams.get("search") as string }
-          : {}),
-        ...(url.searchParams.get("cursor")
-          ? { cursor: url.searchParams.get("cursor") as string }
-          : {}),
-        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-      }),
-    );
-  });
-
-  app.post("/api/admin/people/:userId/role", requireUser, async (context) => {
-    const denied = requireAdmin(context);
-    if (denied) {
-      return denied;
-    }
-    if (!peopleStore) {
-      return context.json({ error: "People are not available." }, 503);
-    }
-
-    const body = await context.req.json().catch(() => null);
-    const role = (body as { role?: unknown } | null)?.role;
-    if (role !== "admin" && role !== "user") {
-      return context.json(
-        { error: "A role of admin or user is required." },
-        400,
-      );
-    }
-
-    const userId = context.req.param("userId");
-    const person = await peopleStore.find(userId);
-    if (!person) {
-      return context.json({ error: "That person is not here." }, 404);
-    }
-
-    /*
-     * The configured floor wins over the screen.
-     *
-     * Somebody named in INITIAL_ADMIN_EMAILS is promoted again at their next sign-in whatever this
-     * route writes, so allowing the demotion would produce a screen that lies until they come back.
-     * Refusing says the real thing: change the deployment's configuration.
-     */
-    if (person.configuredAdmin && role !== "admin") {
-      return context.json(
-        {
-          error:
-            "This deployment names that address in INITIAL_ADMIN_EMAILS, so they stay an administrator. Change the configuration instead.",
-        },
-        409,
-      );
-    }
-
-    /*
-     * Nobody demotes themselves.
-     *
-     * An administrator who does has just locked themselves out of the screen that would undo it,
-     * and on a deployment with one administrator that is the whole deployment. Somebody else with
-     * the role can do it, which is the check that makes handover possible without making lockout
-     * a slip of the finger.
-     */
-    if (context.var.actor.id === userId && role !== "admin") {
-      return context.json(
-        { error: "You cannot remove your own administrator role." },
-        409,
-      );
-    }
-
-    if (person.role !== role) {
-      await peopleStore.setRole(userId, role);
-      await recordPersonEvent(
-        auditStore,
-        context,
-        "person.role_changed",
-        person,
-        {
-          from: person.role,
-          to: role,
-        },
-      );
-    }
-
-    return context.json({ person: await peopleStore.find(userId) });
-  });
-
-  app.post("/api/admin/people/:userId/access", requireUser, async (context) => {
-    const denied = requireAdmin(context);
-    if (denied) {
-      return denied;
-    }
-    if (!peopleStore) {
-      return context.json({ error: "People are not available." }, 503);
-    }
-
-    const body = await context.req.json().catch(() => null);
-    const revoked = (body as { revoked?: unknown } | null)?.revoked;
-    if (typeof revoked !== "boolean") {
-      return context.json({ error: "revoked must be true or false." }, 400);
-    }
-
-    const userId = context.req.param("userId");
-    const person = await peopleStore.find(userId);
-    if (!person) {
-      return context.json({ error: "That person is not here." }, 404);
-    }
-
-    // The same floor, for the same reason: removing somebody the configuration names would last
-    // until their next sign-in and no longer.
-    if (person.configuredAdmin && revoked) {
-      return context.json(
-        {
-          error:
-            "This deployment names that address in INITIAL_ADMIN_EMAILS, so they cannot be removed here. Change the configuration instead.",
-        },
-        409,
-      );
-    }
-
-    // Nobody can remove themselves. An administrator who does has locked themselves out of the
-    // screen that would undo it.
-    if (revoked && context.var.actor.id === userId) {
-      return context.json({ error: "You cannot remove your own access." }, 409);
-    }
-
-    if (person.revoked !== revoked) {
-      if (revoked) {
-        await peopleStore.revoke(userId, context.var.actor.id);
-      } else {
-        await peopleStore.restore(userId);
-      }
-      await recordPersonEvent(
-        auditStore,
-        context,
-        revoked ? "person.access_revoked" : "person.access_restored",
-        person,
-        {},
-      );
-    }
-
-    if (revoked) {
-      await peopleStore.retireOwned(userId, context.var.actor.id);
-    }
-
-    return context.json({ person: await peopleStore.find(userId) });
-  });
+  // `/api/admin/people` (list / role / revoke + offboard) was removed in slimming P6-1: friend
+  // accounts are managed in the login gateway (设置 → 管理 → 账号, docs/accounts.md), whose signed
+  // identity carries the role.
 
   // `/api/admin/identity-providers` (list / remove SSO providers) was removed in slimming P4b-3; the
   // admin page went in P4a. Better Auth's own SSO plugin routes under /api/auth stay (auth is shared).

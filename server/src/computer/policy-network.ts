@@ -1,63 +1,58 @@
 /**
- * Which network policy a Bot's computer runs under, and getting it there.
+ * Getting a Bot's computer its network policy.
  *
- * The rules and their matcher are `agent-computer/src/egress.ts`, imported rather than copied so the
- * API server refusing a navigation and the computer refusing a connection are the same code.
- *
- * WHO A COMPUTER BELONGS TO is the Bot's owner (`agent_profiles.owner_user_id`). Their directory
- * groups pick the policy: a group with a policy of its own replaces the organization's, unless the
- * organization policy is locked (Grok Bot: "groups can override team policy with their own, with
- * optional locks enforcing team-level restrictions"). When the owner's "Cloud network access"
- * capability is off, the computer gets `deny_all` whatever the policy says.
- *
- * APPLIED LIVE by pushing to every running computer: on the enterprise LISTEN/NOTIFY announcement
- * (see `admin/controls.ts`) and on a short interval so a computer that started since the last push
- * catches up. The computer consults the pushed policy on its next connection, so nothing restarts.
+ * The rules and their matcher are `agent-computer/src/egress.ts`. A computer refuses every connection
+ * until a policy has been pushed to it. ChisaBot has no network policy screen (the upstream enterprise
+ * controls were removed in slimming P6-1), so every computer gets {@link NO_NETWORK_POLICY}
+ * ("allow all"), which is what upstream pushed when no organization row existed. Pushed on the way to
+ * every action ({@link withPolicyPushOnWake}) and every 30 seconds to running computers
+ * ({@link startEgressPolicyPush}).
  */
-import {
-  DEFAULT_EGRESS_DESTINATIONS,
-  type EgressPolicy,
-  type EgressRule,
-  egressDecision,
-  parseEgressRules,
-} from "../../../agent-computer/src/egress";
-import type { NetworkPolicyRow } from "../admin/settings-store";
+import type { EgressPolicy, EgressRule } from "../../../agent-computer/src/egress";
 import type { ComputerProvider } from "./provider";
 
 export type { EgressPolicy, EgressRule };
-export { DEFAULT_EGRESS_DESTINATIONS, egressDecision, parseEgressRules };
 
-/** No organization row at all: the computer is left as it was, which is "allow all". */
+/** The only policy ChisaBot pushes: the computer reaches the network freely. */
 export const NO_NETWORK_POLICY: EgressPolicy = { mode: "allow_all", rules: [] };
 
-export function effectiveNetworkPolicy(
-  rows: readonly NetworkPolicyRow[],
-  member: { groups: readonly string[] },
-  cloudNetworkAllowed: boolean,
-): EgressPolicy & { from: string } {
-  if (!cloudNetworkAllowed) {
-    return { mode: "deny_all", rules: [], from: "capability" };
-  }
-  const organization = rows.find((row) => row.scopeKind === "organization");
-  if (!organization?.locked) {
-    const group = rows
-      .filter(
-        (row) =>
-          row.scopeKind === "group" && member.groups.includes(row.scopeId),
-      )
-      .sort((a, b) => a.scopeId.localeCompare(b.scopeId))[0];
-    if (group) return { ...toPolicy(group), from: `group:${group.scopeId}` };
-  }
-  if (organization) return { ...toPolicy(organization), from: "organization" };
-  return { ...NO_NETWORK_POLICY, from: "none" };
-}
-
-function toPolicy(row: NetworkPolicyRow): EgressPolicy {
-  const parsed = parseEgressRules(row.rules);
-  // A stored row that no longer parses is refused wholesale rather than half-applied.
-  return parsed.ok
-    ? { mode: row.mode, rules: parsed.rules }
-    : { mode: "allowlist_only", rules: [] };
+/** Keep every running computer on {@link NO_NETWORK_POLICY}; returns a stop function. */
+export function startEgressPolicyPush(options: {
+  provider?: ComputerProvider;
+  token?: string;
+  intervalMs?: number;
+}): () => void {
+  const provider = options.provider;
+  if (!provider) return () => undefined;
+  let pushing = false;
+  const push = async () => {
+    if (pushing) return;
+    pushing = true;
+    try {
+      const report = await pushEgressPolicies({
+        provider,
+        ...(options.token ? { token: options.token } : {}),
+        policyForBot: async () => NO_NETWORK_POLICY,
+      });
+      if (report.failed.length > 0)
+        console.warn(
+          JSON.stringify({ type: "egress-policy-push-incomplete", ...report }),
+        );
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          type: "egress-policy-push-failed",
+          error: String(error),
+        }),
+      );
+    } finally {
+      pushing = false;
+    }
+  };
+  const timer = setInterval(() => void push(), options.intervalMs ?? 30_000);
+  timer.unref?.();
+  void push();
+  return () => clearInterval(timer);
 }
 
 export type EgressPushReport = {

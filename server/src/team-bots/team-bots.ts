@@ -15,8 +15,6 @@
  * call (grant, policy, approvals, audit) is still decided as the teammate who is asking.
  */
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { capabilityRefusal } from "../admin/capabilities";
-import { enterpriseControls } from "../admin/controls";
 import type { AgentActor } from "../agents/profile-types";
 import type { Database } from "../db/client";
 import { agents, users } from "../db/schema/core";
@@ -289,16 +287,6 @@ export function createTeamBots(options: {
         groups: string[];
       },
     ) {
-      // The "Team Bots" switch, here rather than only at the HTTP gate, so every caller meets it.
-      // Fails closed when the controls cannot be read.
-      const controls = enterpriseControls();
-      if (controls) {
-        const allowed = await controls
-          .capabilityFor(actor.id, "teamBots")
-          .catch(() => false);
-        if (!allowed)
-          throw new TeamBotForbiddenError(capabilityRefusal("teamBots"));
-      }
       const bot = await owned(actor, botId, false);
       // A teammate cannot tell an undescribed Bot from any other, so it is not published.
       if (

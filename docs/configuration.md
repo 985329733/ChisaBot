@@ -537,20 +537,7 @@ address: its page and the Bot both say inbound email is not configured on this d
 
 ## OpenTelemetry export
 
-Every audit row is also sent as an OTLP log record over HTTP, so a SIEM or an OpenTelemetry
-Collector receives the same events the **Audit** page shows, as they happen. Each record carries
-`openbot.surface`: `bot`, `identity` or `control_plane`. Export never stops a request: when the
-collector cannot be reached, records are dropped after the SDK's retries, and the row in PostgreSQL
-is still the record.
-
-| Variable                           | Meaning                                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | Where log records go, used exactly as written. Takes precedence over the next one.                    |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`      | Collector base URL; OpenBot appends `/v1/logs`. Setting either endpoint switches export on.           |
-| `OTEL_EXPORTER_OTLP_LOGS_HEADERS`  | Headers for the logs endpoint, as `key=value` pairs separated by commas (for a collector's API key).  |
-| `OTEL_EXPORTER_OTLP_HEADERS`       | The same, used when `OTEL_EXPORTER_OTLP_LOGS_HEADERS` is unset.                                        |
-| `OTEL_SERVICE_NAME`                | The `service.name` on every record. Defaults to `openbot`.                                             |
-| `OPENBOT_OTEL_EXPORT`              | `off` turns export off while an endpoint is still set.                                                 |
+已在瘦身 P6-1 删除（随上游企业控制一起；`OTEL_*` / `OPENBOT_OTEL_EXPORT` 不再读取）。审计记录仍写在 PostgreSQL。
 
 ## Computer and supervisor
 
@@ -715,8 +702,8 @@ The file is optional and gitignored. Without it every Bot's browser goes out dir
 default. Both the shared computer and the supervisor are given it: the computer resolves its own
 proxy from these names, and the supervisor forwards them into each computer it creates.
 
-Every computer runs its own filtering proxy on `127.0.0.1`, which applies the network policy an
-administrator sets under **Admin > Enterprise controls**, and it sets `HTTP_PROXY`, `HTTPS_PROXY` and
+Every computer runs its own filtering proxy on `127.0.0.1`, which applies the network policy the
+server pushes (ChisaBot always pushes "allow all"; the upstream network-policy screen was removed in slimming P6-1), and it sets `HTTP_PROXY`, `HTTPS_PROXY` and
 `NO_PROXY` for itself and its shell to point at that filter. Do not set those three to reach an
 upstream proxy; use `EGRESS_PROXY_<BOT_ID>` or `EGRESS_PROXY_DEFAULT`, which the filter chains to.
 
