@@ -47,6 +47,8 @@ describe("runtime capabilities", () => {
       generativeUi: true,
       // 设置 → 管理 →「账号」入口：默认隐藏（CHISABOT_ACCOUNTS_UI）。
       accountsUi: false,
+      // 功能精简（DESIGN.md §74）：默认隐藏的功能里重新打开的，默认没有。
+      extras: [],
       // Default-on: a fresh clone is somebody evaluating the template.
       selfHostBanner: true,
       transcription: false,
@@ -70,6 +72,7 @@ describe("runtime capabilities", () => {
       "durableHistory",
       "generativeUi",
       "accountsUi",
+      "extras",
       "selfHostBanner",
       "transcription",
       "authProviders",

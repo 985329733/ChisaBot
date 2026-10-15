@@ -1,3 +1,4 @@
+import { requireExtra } from "@/lib/deployment/extras";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -46,6 +47,8 @@ const PRESETS: { label: string; rule: string; cost?: string }[] = [
 ];
 
 export const Route = createFileRoute("/_authed/admin/boundaries")({
+  // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 boundaries 才能进。
+  beforeLoad: requireExtra("boundaries"),
   component: BoundariesPage,
 });
 

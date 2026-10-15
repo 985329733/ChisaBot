@@ -35,8 +35,10 @@ import { queryClient } from "@/query-client";
  * 「所有的机器人都是私有」「创建就是在服务器上创建」）。
  *
  * 以前是三步向导：名字和角色 → 谁可以看到它（私有 / 公开）→ 它在哪里运行（内置 / 自托管端点）。
- * 现在只问名字、职责和提示词（只有名字必填，2026-10-15 成熟度扫查）：机器人一律私有（服务器也强制），一律在这台服务器上运行（不再提供
- * 自托管端点）。提示词从空白开始，没有「财务 / 报销」之类的示例或模板，由用户自己写。
+ * 2026-10-16 功能精简（DESIGN.md §74.2，用户：「新建机器人的流程，一直不太好使」）：只剩两格——「名称」（必填）和
+ * 「它做什么」（可不填）。以前的「职责」和「提示词」是两格意思重叠的字段，新用户分不清；现在职责从「它做什么」的第一句取，
+ * 提示词由 withCreateDefaults 补成完整的工作说明，之后都能在机器人资料里改。机器人一律私有（服务器也强制），一律在这台服务器上
+ * 运行。输入框从空白开始，没有示例或模板。
  */
 export function CreateAgentDialog({
   open,
@@ -75,10 +77,9 @@ export function CreateAgentDialog({
 
 /** 这张表要校验的字段，和服务器的上限一致。 */
 const identitySchema = agentFormSchema
-  .pick({ name: true, title: true, roleDescription: true })
-  // 只有名称必填：职责、提示词留空时 withCreateDefaults 补一句（成熟度扫查 F1）。
+  .pick({ name: true, roleDescription: true })
+  // 只有名称必填：「它做什么」留空时 withCreateDefaults 补一句（成熟度扫查 F1）。
   .extend({
-    title: agentFormSchema.shape.title.or(z.literal("")),
     roleDescription: agentFormSchema.shape.roleDescription.or(z.literal("")),
   });
 
@@ -177,29 +178,15 @@ const CreateAgentWizard = memo(function CreateAgentWizard({
               <FieldError errors={[{ message: errors.name }]} />
             ) : null}
           </Field>
-          <Field data-invalid={errors.title ? true : undefined}>
-            <FieldLabel htmlFor="create-agent-title">{"职责"}<span className="field-optional">{"可不填"}</span></FieldLabel>
-            <Input
-              aria-invalid={errors.title ? true : undefined}
-              autoComplete="off"
-              id="create-agent-title"
-              onChange={(event) => set("title", event.target.value)}
-              placeholder={"一句话说明它负责什么"}
-              value={values.title}
-            />
-            {errors.title ? (
-              <FieldError errors={[{ message: errors.title }]} />
-            ) : null}
-          </Field>
           <Field data-invalid={errors.roleDescription ? true : undefined}>
-            <FieldLabel htmlFor="create-agent-role">{"提示词"}<span className="field-optional">{"可不填，之后在资料页改"}</span></FieldLabel>
+            <FieldLabel htmlFor="create-agent-role">{"它做什么"}<span className="field-optional">{"可不填，之后在机器人资料里改"}</span></FieldLabel>
             <Textarea
               aria-invalid={errors.roleDescription ? true : undefined}
-              className="min-h-32"
+              className="min-h-28"
               id="create-agent-role"
               onChange={(event) => set("roleDescription", event.target.value)}
-              placeholder={"写下它的工作说明：它是谁、做什么、怎么回答。"}
-              rows={5}
+              placeholder={"一两句话说清它负责什么、怎么回答。"}
+              rows={4}
               value={values.roleDescription}
             />
             {errors.roleDescription ? (

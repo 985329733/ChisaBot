@@ -68,15 +68,16 @@ function draw(screen: ReactNode) {
 test("one step, empty fields, no preset roles, no visibility or location choice", async () => {
   const view = draw(<CreateAgentDialog onClose={() => {}} onCreated={() => {}} open />);
   const name = (await view.findByLabelText("名称")) as HTMLInputElement;
-  const title = view.getByLabelText("职责") as HTMLInputElement;
-  const prompt = view.getByLabelText("提示词") as HTMLTextAreaElement;
+  const prompt = view.getByLabelText("它做什么") as HTMLTextAreaElement;
+  // 只有两格：以前的「职责」「提示词」并成「它做什么」（DESIGN.md §74.2）。
+  expect(view.queryByLabelText("职责")).toBeNull();
+  expect(view.queryByLabelText("提示词")).toBeNull();
   expect(name.value).toBe("");
-  expect(title.value).toBe("");
   expect(prompt.value).toBe("");
   const text = document.body.textContent ?? "";
   for (const gone of ["财务", "报销", "发票", "第 1 步", "谁可以看到", "公开", "在哪里运行", "自托管", "内置", "端点"]) {
     expect(text.includes(gone)).toBe(false);
-    for (const field of [name, title, prompt]) expect(field.placeholder.includes(gone)).toBe(false);
+    for (const field of [name, prompt]) expect(field.placeholder.includes(gone)).toBe(false);
   }
   expect(view.queryByRole("radio")).toBeNull();
   expect(view.getByRole("button", { name: /创建机器人/ })).toBeTruthy();
@@ -89,8 +90,7 @@ test("creates a private, server-side bot from what the user wrote", async () => 
   );
   const user = userEvent.setup({ document });
   await user.type(await view.findByLabelText("名称"), "测试");
-  await user.type(view.getByLabelText("职责"), "试一下");
-  await user.type(view.getByLabelText("提示词"), "你是我自己写的提示词。");
+  await user.type(view.getByLabelText("它做什么"), "你是我自己写的提示词。");
   await act(async () => {
     await user.click(view.getByRole("button", { name: /创建机器人/ }));
   });
@@ -100,7 +100,7 @@ test("creates a private, server-side bot from what the user wrote", async () => 
   expect(writes.map((w) => w.request)).toEqual(["POST /api/agents"]);
   expect(writes[0]?.body).toMatchObject({
     name: "测试",
-    title: "试一下",
+    title: "我自己写的提示词",
     roleDescription: "你是我自己写的提示词。",
     visibility: "private",
     endpoint: "",

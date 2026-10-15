@@ -1,3 +1,4 @@
+import { requireExtra } from "@/lib/deployment/extras";
 import {
   IconCopy,
   IconDots,
@@ -42,6 +43,8 @@ import {
 } from "@/lib/workflows";
 
 export const Route = createFileRoute("/_authed/_app/workflows/")({
+  // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 workflows 才能进。
+  beforeLoad: requireExtra("workflows"),
   validateSearch: (search: Record<string, unknown>): { run?: string } =>
     typeof search.run === "string" ? { run: search.run } : {},
   component: WorkflowsPage,

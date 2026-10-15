@@ -172,8 +172,7 @@ test("the new-bot form does not create from the Enter that confirms a composed c
 
   const name = await view.findByLabelText("名称");
   await type(name, "経費");
-  await type(view.getByLabelText("职责"), "整理票据");
-  await type(view.getByLabelText("提示词"), "你负责整理票据。");
+  await type(view.getByLabelText("它做什么"), "你负责整理票据。");
 
   await confirmComposedCharacter(name);
   await settle();

@@ -286,6 +286,12 @@ export type DeploymentConfig = {
    */
   accountsUi?: boolean;
   /**
+   * 默认隐藏的「额外」功能里重新打开的那些（功能精简，2026-10-16，DESIGN.md §74）。
+   * CHISABOT_EXTRAS=workflows,plugins,boundaries,components（或 all）。没列的：入口不显示、旧地址回设置，
+   * 工作流也不再给机器人工具。代码、接口和数据都保留，打开即恢复。
+   */
+  extras?: readonly ChisabotExtra[];
+  /**
    * Where the built app is, when this process serves it.
    *
    * Set in a container image that carries both. Unset in development, where Vite serves the app and
@@ -1243,6 +1249,7 @@ export function loadConfig(
     generativeUi: generativeUiEnabled(environment),
     selfHostBanner: selfHostBannerEnabled(environment),
     accountsUi: ["1", "true"].includes(optional(environment, "CHISABOT_ACCOUNTS_UI") ?? ""),
+    extras: parseChisabotExtras(optional(environment, "CHISABOT_EXTRAS")),
     ...(optional(environment, "APP_DIST_DIR")
       ? { appDistDir: optional(environment, "APP_DIST_DIR") as string }
       : {}),
@@ -1254,3 +1261,17 @@ export function loadConfig(
   };
 }
 
+
+/** 默认隐藏、管理员可用 CHISABOT_EXTRAS 重新打开的功能（DESIGN.md §74）。 */
+export const CHISABOT_EXTRAS = ["workflows", "plugins", "boundaries", "components"] as const;
+export type ChisabotExtra = (typeof CHISABOT_EXTRAS)[number];
+
+/** `CHISABOT_EXTRAS=workflows,plugins` → 这两项；`all` → 全部；不认识的名字忽略。 */
+export function parseChisabotExtras(value: string | undefined): ChisabotExtra[] {
+  const names = (value ?? "")
+    .split(/[\s,]+/)
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+  if (names.includes("all")) return [...CHISABOT_EXTRAS];
+  return CHISABOT_EXTRAS.filter((extra) => names.includes(extra));
+}

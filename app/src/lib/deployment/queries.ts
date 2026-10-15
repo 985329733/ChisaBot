@@ -29,6 +29,8 @@ export type DeploymentCapabilities = {
   selfHostBanner: boolean;
   /** 设置 → 管理 →「账号」入口（朋友账号，CB-040）。默认隐藏：多用户以后再做（2026-10-15）。 */
   accountsUi?: boolean;
+  /** 功能精简（DESIGN.md §74）：默认隐藏、这台部署用 CHISABOT_EXTRAS 重新打开的功能。 */
+  extras: string[];
   transcription?: boolean;
 };
 
@@ -70,6 +72,7 @@ export function deploymentCapabilitiesQueryOptions() {
         generativeUi?: boolean;
         selfHostBanner?: boolean;
         accountsUi?: boolean;
+        extras?: unknown;
         transcription?: boolean;
       };
 
@@ -84,6 +87,9 @@ export function deploymentCapabilitiesQueryOptions() {
         generativeUi: body.generativeUi === true,
         selfHostBanner: body.selfHostBanner === true,
         accountsUi: body.accountsUi === true,
+        extras: Array.isArray(body.extras)
+          ? body.extras.filter((extra): extra is string => typeof extra === "string")
+          : [],
         transcription: body.transcription === true,
       };
     },
