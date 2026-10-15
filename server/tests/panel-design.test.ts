@@ -66,6 +66,25 @@ describe("panel design guide", () => {
     expect(lintPanelSpec(spec, "测试")).toEqual([]);
   });
 
+  test("Products is a big part, holds at most 4 items in a panel, and its url / image are checked", () => {
+    const item = (i: number) => ({ name: `耳机 ${i}`, price: "¥1,299", url: "javascript:alert(1)", image: "http://x.cn/a.jpg" });
+    const spec = JSON.stringify({
+      root: "r",
+      elements: {
+        r: { type: "Stack", props: {}, children: ["p", "l1", "l2", "l3"] },
+        p: { type: "Products", props: { items: [1, 2, 3, 4, 5].map(item) }, children: [] },
+        l1: { type: "List", props: { items: [{ title: "a" }] }, children: [] },
+        l2: { type: "List", props: { items: [{ title: "b" }] }, children: [] },
+        l3: { type: "List", props: { items: [{ title: "c" }] }, children: [] },
+      },
+    });
+    const issues = lintPanelSpec(spec, "测试").join("\n");
+    expect(issues).toContain("大块太多");
+    expect(issues).toContain("商品网格太多");
+    expect(issues).toContain("不是 http(s) 链接");
+    expect(PANEL_DESIGN_GUIDE).toContain("Products ≤ 4 个");
+  });
+
   test("countdown targets and clock time zones are checked", () => {
     const spec = JSON.stringify({
       root: "r",

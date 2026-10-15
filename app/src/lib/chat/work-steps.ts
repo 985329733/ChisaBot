@@ -23,7 +23,9 @@ export function summarizeWork(calls: readonly WorkCall[]): WorkSummary | null {
   let current = "";
   for (let i = calls.length - 1; i >= 0 && !current; i--) {
     const call = calls[i]!;
-    current = describeWorkerStep(call.name, parseArgs(call.arguments)) ?? "";
+    const line = describeWorkerStep(call.name, parseArgs(call.arguments)) ?? "";
+    // 没有中文说法的工具（skill_load 等）不当「当前步骤」，往前找一个说得出来的；都没有就「正在处理」（§69.3 不给用户看工具名）。
+    current = line.startsWith("正在使用 ") ? "" : line;
   }
   return {
     count: calls.length,

@@ -1825,6 +1825,39 @@ function useSmoothSendScroll(
   }, [newestUserMessageId, reducedMotion, viewport]);
 }
 
+/**
+ * 历史晚到、补在上面时，正在看底部的人画面不动（CB-047）。
+ *
+ * 打开很长的对话时，先画的是接入快照里的尾巴（常常不满一屏，scrollTop 停在 0）；存下的整段历史晚几秒到
+ * （`readThreadMessages` 4 秒截止后后台重试），并进来是补在最上面——浏览器的滚动锚定在 scrollTop 为 0 时
+ * 不起作用，画面就停在最上面，离底部两万 px。这里记着「人是不是在底部」（滚动时更新，一开始算在底部），
+ * 第一行换了（前面补进来了 / 换了对话）而人在底部时，画完那一刻直接回到底部（不平滑，不算跳）。
+ * 人往上翻着看的时候不动，交给浏览器的滚动锚定。
+ */
+function useKeepBottomOnPrepend(viewport: React.RefObject<HTMLDivElement | null>, firstId: string | null) {
+  const atBottom = useRef(true);
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const onScroll = () => {
+      atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+    };
+    element.addEventListener("scroll", onScroll, { passive: true });
+    return () => element.removeEventListener("scroll", onScroll);
+  }, [viewport]);
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    const previous = seen.current;
+    seen.current = firstId;
+    if (!element || previous === null || firstId === null || previous === firstId || !atBottom.current) return;
+    const behavior = element.style.scrollBehavior;
+    element.style.scrollBehavior = "auto";
+    element.scrollTop = element.scrollHeight;
+    element.style.scrollBehavior = behavior;
+  }, [firstId, viewport]);
+}
+
 export function ChatTranscript({
   busy = false,
   commandNames = "",
@@ -1931,6 +1964,7 @@ export function ChatTranscript({
         item.kind === "attachments",
     )?.id ?? null;
   useSmoothSendScroll(viewportRef, newestUserMessageId);
+  useKeepBottomOnPrepend(viewportRef, items[0]?.id ?? null);
 
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
   const anchorRows = anchorRowIds(items);

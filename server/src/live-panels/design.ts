@@ -219,12 +219,12 @@ export const PANEL_DESIGN_GUIDE = [
   "硬限制：",
   `- 只有一层外壳：卡片本身就是外壳，规范里不用 Card。最外层用 Stack（gap md），小节标题用 Heading level 3（可带 icon）。从根算起最多 ${L.depth} 层，全部元素不超过 ${L.elements} 个。`,
   "- 不重复标题：卡片头已经显示面板标题，规范里不要再写一遍；需要时间 / 地点说明就用一行 Text（tone muted，size sm），例如「10/13 09:00 · 香港」；时间一律写用户当地时间（不知道就用北京时间），不写 UTC。卡片底部会自己显示「x 分钟前更新」，不要自己写更新时间。",
-  `- 大块最多 ${L.bigParts} 个（Table、List、Chart、Hero、Timeline、KeyValue、Carousel、Gauge、Image、日历 HeatStrip、多段 Ring 各算一块；Tabs 只算最大的那一页）。Hero 最多 1 个。`,
+  `- 大块最多 ${L.bigParts} 个（Table、List、Chart、Hero、Timeline、KeyValue、Carousel、Products、Gauge、Image、日历 HeatStrip、多段 Ring 各算一块；Tabs 只算最大的那一页）。Hero 最多 1 个。`,
   `- Metric 最多 ${L.metrics} 个（2 个一排放进 Grid columns 2；主数字可以单独放在 Grid 外面）。着色磁贴（variant tinted + icon + tone）适合 2–4 个并排的关键数；平铺 Metric 的 tone 只给涨跌 / 预警，最多 2 个。`,
   `- 标签要短：Metric 的 label、表头、Badge、Heading、Tabs 的标签不超过 ${L.label} 个汉字（或 ${L.label * 2} 个字母）。`,
   `- 数字带单位：Metric 的 value 写成「数字 + 单位」的短串（26.9℃、73%、2.9 km/h、$81,272、12 天），不超过 ${L.value} 个汉字宽，不要写句子；单位会自动缩小变淡，刷新时数字会从旧值平滑滚到新值。delta + trend 只写「和过去比」的变化（较昨日 +1.2%、24h -3.1%）。`,
   `- 图表：每条线 ≤ ${L.chartPoints} 个点，labels 写短（10/13、09:00），最多 3 条线；height 默认即可（窄卡 100–140）。迷你走势用 Metric 的 spark 或 Sparkline（6–30 个点）。`,
-  `- 列表、表格、时间线默认最多 ${L.rows} 行（用户明确要更多时最多 ${L.rowsMax} 行）；KeyValue ≤ ${L.keyValues} 行；Carousel ≤ ${L.carousel} 张；Tabs ≤ ${L.tabs} 页。表格最多 ${L.columns} 列，每格不超过 ${L.cell} 个汉字宽，日期写短，相关的数合并成一列（31°/24°）。`,
+  `- 列表、表格、时间线默认最多 ${L.rows} 行（用户明确要更多时最多 ${L.rowsMax} 行）；KeyValue ≤ ${L.keyValues} 行；Carousel ≤ ${L.carousel} 张；Products ≤ 4 个（窄卡固定 2 列）；Tabs ≤ ${L.tabs} 页。表格最多 ${L.columns} 列，每格不超过 ${L.cell} 个汉字宽，日期写短，相关的数合并成一列（31°/24°）。`,
   `- 不写段落：Text 只用来写一行说明（不超过 ${L.text} 个汉字宽），解释、建议说在对话里，不放进面板。`,
   "- 会自己走的时间：倒计时用 Countdown、世界时间用 Clock、发布时间用 List 的 time 或 RelativeTime（都写 ISO 带时区），浏览器里自己更新，不用为它们刷新面板。",
   "- 图片只用工具结果里真实出现过的 https 地址（新闻配图、头像、logo）；没有就不放，Hero 会用 tone 渐变。",
@@ -239,7 +239,7 @@ export const PANEL_DESIGN_GUIDE = [
 type El = { type?: string; props?: Record<string, unknown>; children?: unknown[]; repeat?: unknown };
 
 /** 算「大块」的组件（HeatStrip 只有日历形态算，Ring 只有多段甜甜圈算，见 isBig）。 */
-const BIG_PARTS = new Set(["Table", "List", "Image", "Chart", "Hero", "Timeline", "KeyValue", "Carousel", "Gauge"]);
+const BIG_PARTS = new Set(["Table", "List", "Image", "Chart", "Hero", "Timeline", "KeyValue", "Carousel", "Gauge", "Products"]);
 
 /** 链接 / 图片地址：必须是 http(s)（图片 https），且不是示例里的占位地址。 */
 function badUrl(value: unknown, httpsOnly: boolean): string | null {
@@ -404,6 +404,11 @@ export function lintPanelSpec(source: string, panelTitle: string): string[] {
       case "Carousel":
         if ((Array.isArray(el.children) ? el.children.length : 0) > L.carousel) issues.push(`横滑卡片太多（最多 ${L.carousel} 张）：只留最重要的几张。`);
         break;
+      case "Products": {
+        const items = Array.isArray(p.items) ? p.items : [];
+        if (items.length > 4) issues.push(`商品网格太多（${items.length} 个，最多 4 个）：窄卡里只留最值得看的 4 个。`);
+        break;
+      }
       case "Timeline": {
         const items = Array.isArray(p.items) ? p.items : [];
         if (items.length > L.rowsMax) issues.push(`时间线太长（${items.length} 条，最多 ${L.rowsMax} 条）：只留最近的 ${L.rows} 条。`);
@@ -453,6 +458,7 @@ export function lintPanelSpec(source: string, panelTitle: string): string[] {
     for (const item of Array.isArray(p.items) ? (p.items as Record<string, unknown>[]) : []) {
       if (!item || typeof item !== "object") continue;
       check(item.href, "href", false);
+      if (el.type === "Products") check(item.url, "url", false);
       check(item.image, "image", true);
     }
   }

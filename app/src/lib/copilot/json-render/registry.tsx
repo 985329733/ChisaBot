@@ -31,6 +31,7 @@ import {
   Timeline,
 } from "./rich";
 import { ActionArea, useLiveValue, useRichActions } from "./rich-context";
+import { Products } from "./products";
 import { safeHttp, safeHttps, trendOfText } from "./rich-utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -608,6 +609,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
         {children}
       </Tabs>
     ),
+    Products: ({ props }) => <Products columns={props.columns} items={props.items} />,
     Carousel: ({ props, children }) => <Carousel itemWidth={props.itemWidth}>{children}</Carousel>,
     Timeline: ({ props }) => <Timeline items={props.items} />,
     KeyValue: ({ props }) => <KeyValue columns={props.columns} items={props.items} />,
