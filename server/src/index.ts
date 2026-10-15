@@ -287,6 +287,7 @@ import { createUserPreferencesStore } from "./user-preferences";
 import { repeatAfterEach } from "./work/loop";
 import { createWorkerService, type WorkerService } from "./workers/service";
 import { createLocalAgentService, type LocalAgentService } from "./local-agents/service";
+import { createCloudCcService, type CloudCcService } from "./cloud-cc/service";
 import {
   createWorkQueue,
   DEFAULT_MAX_ATTEMPTS,
@@ -2085,6 +2086,21 @@ try {
   console.warn("local agents unavailable", error);
   localAgents = undefined;
 }
+/**
+ * 云端 Claude Code（server/src/cloud-cc，docs/cloud-claude-code.md，ADR-0014）：云端工作区节点（一台设备）上的 Claude Code
+ * 登录、会话、审批。它的设备扩展排在本地 agent 前面：cc_* 消息自己处理，其余交给本地 agent。
+ */
+let cloudCc: CloudCcService | undefined;
+try {
+  cloudCc = createCloudCcService({ database, hub: deviceHub, deviceStore, next: localAgents?.extension ?? null });
+  await cloudCc.ensure();
+  const interrupted = await cloudCc.recover();
+  if (interrupted) console.log(JSON.stringify({ type: "cloud-cc-turns-interrupted-by-restart", count: interrupted }));
+  deviceHub.setExtension(cloudCc.extension);
+} catch (error) {
+  console.warn("cloud claude code unavailable", error);
+  cloudCc = undefined;
+}
 /** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
 /**
  * 群聊（一个频道里不止一个机器人）的对话：不给委派、定时任务、本地 agent。
@@ -3617,6 +3633,12 @@ const app = createApp(
       ["/p", pages.publicRoutes()],
       ["/api/schedules", schedules.routes(requireUser)],
       ...(localAgents ? [["/api/local-agents", localAgents.routes(requireUser)] satisfies [string, unknown]] : []),
+      ...(cloudCc
+        ? [
+            ["/api/cloud-workspace", cloudCc.workspaceRoutes(requireUser)] satisfies [string, unknown],
+            ["/api/claude-code", cloudCc.codeRoutes(requireUser)] satisfies [string, unknown],
+          ]
+        : []),
       ["/api/chat-files", chatFiles.routes(requireUser)],
       ["/api/confirmations", confirmations.routes(requireUser)],
       ["/api/media-models", chatFiles.media.routes(requireUser)],
@@ -3653,6 +3675,7 @@ const app = createApp(
           requireUser,
           auditStore: bootAuditStore,
           toolsFor: (actorId, botId) => deviceToolsFor(actorId, botId),
+          refuseFullAccess: (device) => cloudCc?.refuseFullAccess(device.id) ?? null,
           ...(config.appDistDir ? { appDistDir: config.appDistDir } : {}),
         }),
       ],

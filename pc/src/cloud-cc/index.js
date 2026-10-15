@@ -1,0 +1,661 @@
+"use strict";
+/**
+ * 云端工作区节点上的 Claude Code 运行时（docs/cloud-claude-code.md，ADR-0014）。
+ *
+ * 只在云端节点容器里打开（环境变量 CHISABOT_CLOUD_WORKSPACE=1，见 deploy/cloud-node/）。和设备节点共用同一条 WebSocket：
+ * core 把不认识的消息交给 onExtra，这里认 cc_* 消息，其余交回本地 agent 运行时。
+ *
+ * 服务器 → 节点
+ *   cc_probe                                   问「你是云端工作区吗」→ 回 cc_info
+ *   cc_rpc { id, op, args }                    一问一答（登录、状态、目录树、读文件、diff、撤销…）→ cc_rpc_result { id, ok, result | error }
+ *   cc_turn { sessionId, turnId, workspaceId, prompt, claudeSessionId, resume, model, effort, rules }
+ *   cc_stop { sessionId }
+ *   cc_approval_result { approvalId, decision: "approve" | "deny", always }
+ * 节点 → 服务器
+ *   cc_info { version, claudeVersion, root }
+ *   cc_event { sessionId, turnId, seq, event }  （event 见 stream.js，另加 status / approval / approval_done）
+ *   cc_done { sessionId, turnId, ok, stopped, error, claudeSessionId, costUsd, turns, changes }
+ *   cc_approval_request { sessionId, turnId, approvalId, tool, summary, input, rule }
+ *
+ * 授权码、令牌：只经过登录进程的标准输入，不写日志、不回传。
+ */
+const fs = require("node:fs");
+const os = require("node:os");
+const net = require("node:net");
+const path = require("node:path");
+const crypto = require("node:crypto");
+const { spawn, execFile } = require("node:child_process");
+const { parseLine, slimInput } = require("./stream");
+const { decide } = require("./policy");
+
+const HANDLED = new Set(["cc_probe", "cc_rpc", "cc_turn", "cc_stop", "cc_approval_result"]);
+const ID = /^[A-Za-z0-9_-]{1,80}$/;
+const APPROVAL_MS = 125_000;
+const LOGIN_MS = 10 * 60_000;
+const FILE_CAP = 1024 * 1024;
+const PATCH_CAP = 400 * 1024;
+const SNAP_EXCLUDE = ["node_modules/", ".venv/", "venv/", "__pycache__/", ".next/", ".cache/", "dist/", "build/", "coverage/", ".git"].join("\n");
+
+function killTree(child) {
+  if (!child || !child.pid) return;
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }
+}
+
+function run(file, args, options = {}) {
+  return new Promise((resolve) => {
+    execFile(file, args, { maxBuffer: 16 * 1024 * 1024, timeout: options.timeout || 60_000, ...options }, (error, stdout, stderr) => {
+      resolve({ code: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout: String(stdout || ""), stderr: String(stderr || ""), error });
+    });
+  });
+}
+
+function lines(onLine) {
+  let buffer = "";
+  return {
+    push(chunk) {
+      buffer += chunk;
+      let i;
+      while ((i = buffer.indexOf("\n")) >= 0) {
+        onLine(buffer.slice(0, i).replace(/\r$/, ""));
+        buffer = buffer.slice(i + 1);
+      }
+      if (buffer.length > 4_000_000) buffer = "";
+    },
+    end() {
+      if (buffer) onLine(buffer);
+      buffer = "";
+    },
+  };
+}
+
+/** 登录输出里的授权地址。 */
+function findUrl(text) {
+  const m = /(https:\/\/[^\s"'<>]+oauth[^\s"'<>]*)/i.exec(text) || /visit:\s*(https:\/\/\S+)/i.exec(text);
+  return m ? m[1] : null;
+}
+
+function parseStatus(stdout) {
+  try {
+    const j = JSON.parse(stdout);
+    const email = j.email || (j.account && j.account.email) || j.emailAddress || null;
+    const plan = j.subscriptionType || j.plan || (j.account && j.account.subscriptionType) || null;
+    return { loggedIn: !!j.loggedIn, method: j.authMethod || null, email, plan: plan ? String(plan) : null, org: j.orgName || null };
+  } catch {
+    return { loggedIn: false, method: null, email: null, plan: null, org: null, error: "读不懂 claude auth status 的输出" };
+  }
+}
+
+/**
+ * @param {{ send: (m: object) => boolean, log?: (s: string) => void, root?: string, claude?: string, hookCommand?: string[] }} options
+ */
+function createCloudCc(options) {
+  const log = options.log || (() => {});
+  const root = path.resolve(options.root || process.env.CHISABOT_CC_ROOT || path.join(os.homedir(), "cc-workspace"));
+  const claude = options.claude || process.env.CHISABOT_CLAUDE_BIN || "claude";
+  const hookCommand = options.hookCommand || [process.execPath, path.resolve(process.argv[1] || "chisabot-node.cjs"), "cc-hook"];
+  const turns = new Map(); // turnId -> ctx
+  const bySession = new Map(); // sessionId -> turnId
+  const approvals = new Map(); // approvalId -> { resolve, timer, ctx }
+  const outbox = [];
+  let login = null; // { id, child, output, timer, done }
+  let hookServer = null;
+  let sockPath = null;
+
+  function out(message) {
+    if (options.send(message)) return;
+    outbox.push(message);
+    if (outbox.length > 4000) outbox.shift();
+  }
+  function flush() {
+    while (outbox.length) {
+      if (!options.send(outbox[0])) return;
+      outbox.shift();
+    }
+  }
+
+  // ---------- 路径 ----------
+  function wsDir(workspaceId) {
+    if (!ID.test(String(workspaceId))) throw new Error("工作区 id 不对");
+    return path.join(root, "projects", workspaceId);
+  }
+  function treeDir(workspaceId, sessionId) {
+    if (!ID.test(String(sessionId))) throw new Error("会话 id 不对");
+    return path.join(wsDir(workspaceId), "trees", sessionId);
+  }
+  function snapDir(workspaceId, sessionId) {
+    return path.join(wsDir(workspaceId), ".chisabot", "snap", `${sessionId}.git`);
+  }
+  function turnsFile(workspaceId, sessionId) {
+    return path.join(wsDir(workspaceId), ".chisabot", "turns", `${sessionId}.json`);
+  }
+  function readTurns(workspaceId, sessionId) {
+    try {
+      return JSON.parse(fs.readFileSync(turnsFile(workspaceId, sessionId), "utf8"));
+    } catch {
+      return [];
+    }
+  }
+  function writeTurns(workspaceId, sessionId, list) {
+    const file = turnsFile(workspaceId, sessionId);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify(list.slice(-60)));
+    fs.renameSync(`${file}.tmp`, file);
+  }
+  /** 用户给的相对路径 → 会话目录里的绝对路径（不许跳出去）。 */
+  function within(base, rel) {
+    const target = path.resolve(base, String(rel || "").replace(/^\/+/, ""));
+    if (target !== base && !target.startsWith(base + path.sep)) throw new Error("路径不在会话目录里");
+    return target;
+  }
+
+  // ---------- 快照（独立 GIT_DIR，不碰工作区自己的 .git） ----------
+  function git(workspaceId, sessionId, args, extra = {}) {
+    const env = {
+      ...process.env,
+      GIT_DIR: snapDir(workspaceId, sessionId),
+      GIT_WORK_TREE: treeDir(workspaceId, sessionId),
+      GIT_AUTHOR_NAME: "chisabot",
+      GIT_AUTHOR_EMAIL: "chisabot@localhost",
+      GIT_COMMITTER_NAME: "chisabot",
+      GIT_COMMITTER_EMAIL: "chisabot@localhost",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
+    return run("git", ["-c", "core.autocrlf=false", "-c", "core.quotepath=false", ...args], { cwd: treeDir(workspaceId, sessionId), env, ...extra });
+  }
+  async function ensureTree(workspaceId, sessionId) {
+    const tree = treeDir(workspaceId, sessionId);
+    fs.mkdirSync(tree, { recursive: true });
+    const snap = snapDir(workspaceId, sessionId);
+    if (!fs.existsSync(path.join(snap, "HEAD"))) {
+      fs.mkdirSync(path.dirname(snap), { recursive: true });
+      await run("git", ["init", "-q", "--bare", snap]);
+      fs.mkdirSync(path.join(snap, "info"), { recursive: true });
+      fs.writeFileSync(path.join(snap, "info", "exclude"), SNAP_EXCLUDE + "\n");
+    }
+    return tree;
+  }
+  async function snapshot(workspaceId, sessionId, label) {
+    await git(workspaceId, sessionId, ["add", "-A", "."]);
+    await git(workspaceId, sessionId, ["commit", "-q", "--allow-empty", "--no-verify", "-m", label]);
+    const head = await git(workspaceId, sessionId, ["rev-parse", "HEAD"]);
+    return head.stdout.trim() || null;
+  }
+  async function numstat(workspaceId, sessionId, a, b) {
+    const r = await git(workspaceId, sessionId, ["diff", "--numstat", "-z", "--no-renames", a, b]);
+    const status = await git(workspaceId, sessionId, ["diff", "--name-status", "-z", "--no-renames", a, b]);
+    const kinds = new Map();
+    const st = status.stdout.split("\0").filter(Boolean);
+    for (let i = 0; i + 1 < st.length; i += 2) kinds.set(st[i + 1], st[i]);
+    const files = [];
+    for (const rec of r.stdout.split("\0").filter(Boolean)) {
+      const m = /^(-|\d+)\t(-|\d+)\t(.*)$/s.exec(rec);
+      if (!m) continue;
+      files.push({ path: m[3], add: m[1] === "-" ? null : Number(m[1]), del: m[2] === "-" ? null : Number(m[2]), status: kinds.get(m[3]) || "M" });
+    }
+    return files.slice(0, 500);
+  }
+
+  // ---------- 钩子服务器（PreToolUse） ----------
+  function ensureHookServer() {
+    if (hookServer) return Promise.resolve(sockPath);
+    sockPath = path.join(os.tmpdir(), `chisabot-cc-${process.pid}-${crypto.randomBytes(4).toString("hex")}.sock`);
+    return new Promise((resolve, reject) => {
+      hookServer = net.createServer((socket) => {
+        let buf = "";
+        socket.setEncoding("utf8");
+        socket.on("data", (chunk) => {
+          buf += chunk;
+          if (buf.length > 2_000_000) socket.destroy();
+          const i = buf.indexOf("\n");
+          if (i < 0) return;
+          let q;
+          try {
+            q = JSON.parse(buf.slice(0, i));
+          } catch {
+            socket.end(JSON.stringify({ decision: "deny", reason: "钩子请求格式不对" }) + "\n");
+            return;
+          }
+          onHook(q)
+            .then((answer) => socket.end(JSON.stringify(answer) + "\n"))
+            .catch((error) => socket.end(JSON.stringify({ decision: "deny", reason: `权限检查失败：${error.message}` }) + "\n"));
+        });
+        socket.on("error", () => {});
+      });
+      hookServer.on("error", reject);
+      hookServer.listen(sockPath, () => {
+        try {
+          fs.chmodSync(sockPath, 0o600);
+        } catch {}
+        resolve(sockPath);
+      });
+    });
+  }
+
+  async function onHook(q) {
+    const ctx = turns.get(String(q.turnId || ""));
+    if (!ctx || ctx.finished) return { decision: "deny", reason: "这一轮已经结束" };
+    const verdict = decide({ tool: q.tool, input: q.input, root: ctx.tree, cwd: q.cwd || ctx.tree, rules: ctx.rules });
+    if (verdict.decision !== "ask") {
+      if (verdict.decision === "deny") emit(ctx, { kind: "denied", tool: q.tool, reason: verdict.reason, input: slimInput(q.input) });
+      return verdict;
+    }
+    const approvalId = crypto.randomUUID();
+    const summary = verdict.reason;
+    out({ type: "cc_approval_request", sessionId: ctx.sessionId, turnId: ctx.turnId, approvalId, tool: q.tool, summary, input: slimInput(q.input), rule: verdict.rule || null });
+    const answer = await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        approvals.delete(approvalId);
+        resolve({ decision: "deny", always: false, expired: true });
+      }, APPROVAL_MS);
+      approvals.set(approvalId, { resolve, timer, ctx });
+      ctx.waiting.add(approvalId);
+    });
+    ctx.waiting.delete(approvalId);
+    if (answer.decision === "approve") {
+      if (answer.always && verdict.rule) ctx.rules.push(verdict.rule);
+      return { decision: "allow", reason: "你在 ChisaBot 里允许了" };
+    }
+    return { decision: "deny", reason: answer.expired ? "2 分钟没有人批准，已拒绝。换个不需要这一步的办法。" : answer.stopped ? "这一轮已停止。" : "用户拒绝了这一步。换个办法，或者先问问用户。" };
+  }
+
+  // ---------- 一轮对话 ----------
+  function emit(ctx, event) {
+    ctx.seq += 1;
+    out({ type: "cc_event", sessionId: ctx.sessionId, turnId: ctx.turnId, seq: ctx.seq, event });
+  }
+
+  async function startTurn(m) {
+    const sessionId = String(m.sessionId || "");
+    const turnId = String(m.turnId || "");
+    if (!ID.test(sessionId) || !ID.test(turnId) || !ID.test(String(m.workspaceId || ""))) {
+      out({ type: "cc_done", sessionId, turnId, ok: false, error: "参数不对" });
+      return;
+    }
+    if (bySession.has(sessionId)) {
+      out({ type: "cc_done", sessionId, turnId, ok: false, error: "这个会话上一轮还没结束" });
+      return;
+    }
+    const ctx = { sessionId, turnId, workspaceId: m.workspaceId, tree: "", rules: Array.isArray(m.rules) ? m.rules.slice(0, 200) : [], seq: 0, child: null, stopped: false, finished: false, waiting: new Set(), result: null, claudeSessionId: m.claudeSessionId || null, stderr: [] };
+    turns.set(turnId, ctx);
+    bySession.set(sessionId, turnId);
+    let before = null;
+    try {
+      ctx.tree = await ensureTree(m.workspaceId, sessionId);
+      before = await snapshot(m.workspaceId, sessionId, `before ${turnId}`);
+      const sock = await ensureHookServer();
+      const settingsFile = path.join(os.tmpdir(), `chisabot-cc-settings-${turnId}.json`);
+      const hook = hookCommand.map((p) => (/[\s"'$]/.test(p) ? `'${p.replace(/'/g, "'\\''")}'` : p)).join(" ");
+      fs.writeFileSync(
+        settingsFile,
+        JSON.stringify({ hooks: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: hook, timeout: Math.ceil(APPROVAL_MS / 1000) + 30 }] }] } }),
+        { mode: 0o600 },
+      );
+      const args = ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", "default", "--settings", settingsFile];
+      if (ctx.claudeSessionId && m.resume) args.push("--resume", ctx.claudeSessionId);
+      else if (ctx.claudeSessionId) args.push("--session-id", ctx.claudeSessionId);
+      if (m.model) args.push("--model", String(m.model));
+      if (m.effort) args.push("--effort", String(m.effort));
+      emit(ctx, { kind: "status", text: "Claude Code 启动中" });
+      const env = {
+        HOME: process.env.HOME || os.homedir(),
+        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        LANG: process.env.LANG || "C.UTF-8",
+        TERM: "dumb",
+        TMPDIR: os.tmpdir(),
+        DISABLE_AUTOUPDATER: "1",
+        CHISABOT_CC_SOCK: sock,
+        CHISABOT_CC_TURN: turnId,
+        ...(process.env.CHISABOT_CC_EXTRA_ENV ? JSON.parse(process.env.CHISABOT_CC_EXTRA_ENV) : {}),
+      };
+      const exit = await new Promise((resolve) => {
+        let child;
+        try {
+          child = spawn(claude, args, { cwd: ctx.tree, env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+        } catch (error) {
+          resolve({ code: -1, error });
+          return;
+        }
+        ctx.child = child;
+        const so = lines((line) => {
+          for (const event of parseLine(line)) {
+            if (event.kind === "init") {
+              ctx.sawInit = true;
+              if (event.sessionId) ctx.claudeSessionId = event.sessionId;
+            }
+            if (event.kind === "result") {
+              ctx.result = event;
+              if (event.sessionId) ctx.claudeSessionId = event.sessionId;
+            }
+            emit(ctx, event);
+          }
+        });
+        const se = lines((line) => {
+          if (ctx.stderr.length < 200 && line.trim()) ctx.stderr.push(line.slice(0, 500));
+        });
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+        child.stdout.on("data", (c) => so.push(c));
+        child.stderr.on("data", (c) => se.push(c));
+        child.on("error", (error) => resolve({ code: -1, error }));
+        child.on("close", (code) => {
+          so.end();
+          se.end();
+          resolve({ code });
+        });
+        child.stdin.on("error", () => {});
+        child.stdin.end(String(m.prompt || ""));
+      });
+      try {
+        fs.unlinkSync(settingsFile);
+      } catch {}
+      ctx.finished = true;
+      for (const id of [...ctx.waiting]) {
+        const a = approvals.get(id);
+        if (a) {
+          clearTimeout(a.timer);
+          approvals.delete(id);
+          a.resolve({ decision: "deny", stopped: true });
+        }
+      }
+      const after = await snapshot(m.workspaceId, sessionId, `after ${turnId}`);
+      const changes = before && after ? await numstat(m.workspaceId, sessionId, before, after) : [];
+      const list = readTurns(m.workspaceId, sessionId);
+      list.push({ turnId, before, after, at: new Date().toISOString(), files: changes.length });
+      writeTurns(m.workspaceId, sessionId, list);
+      const ok = !ctx.stopped && !!ctx.result && ctx.result.ok;
+      let error = null;
+      if (!ok && !ctx.stopped) {
+        if (exit.error && exit.error.code === "ENOENT") error = "云端节点上没有找到 claude 命令。";
+        else if (ctx.result && ctx.result.error) error = ctx.result.error;
+        else {
+          const tail = ctx.stderr.join("\n");
+          error = /not logged in|login|unauthor|401|invalid api key|OAuth/i.test(tail) ? "Claude 账号没有登录或登录已失效：去 设置 → 云端工作区 重新登录。" : `Claude Code 退出（${exit.code}）${tail ? `：${tail.slice(-600)}` : ""}`;
+        }
+      }
+      out({
+        type: "cc_done",
+        sessionId,
+        turnId,
+        ok,
+        stopped: ctx.stopped,
+        error,
+        claudeSessionId: ctx.claudeSessionId,
+        resumable: !!ctx.sawInit,
+        costUsd: ctx.result ? ctx.result.costUsd : null,
+        turns: ctx.result ? ctx.result.turns : null,
+        changes,
+      });
+    } catch (error) {
+      ctx.finished = true;
+      out({ type: "cc_done", sessionId, turnId, ok: false, stopped: ctx.stopped, error: `云端节点出错：${error.message}`, claudeSessionId: ctx.claudeSessionId, changes: [] });
+    } finally {
+      turns.delete(turnId);
+      if (bySession.get(sessionId) === turnId) bySession.delete(sessionId);
+    }
+  }
+
+  function stopSession(sessionId) {
+    const turnId = bySession.get(String(sessionId || ""));
+    const ctx = turnId ? turns.get(turnId) : null;
+    if (!ctx) return false;
+    ctx.stopped = true;
+    for (const id of [...ctx.waiting]) {
+      const a = approvals.get(id);
+      if (a) {
+        clearTimeout(a.timer);
+        approvals.delete(id);
+        a.resolve({ decision: "deny", stopped: true });
+      }
+    }
+    killTree(ctx.child);
+    return true;
+  }
+
+  // ---------- 登录 ----------
+  async function authStatus() {
+    const r = await run(claude, ["auth", "status", "--json"], { timeout: 20_000, env: { ...process.env, TERM: "dumb" } });
+    if (r.error && r.error.code === "ENOENT") return { loggedIn: false, error: "云端节点上没有找到 claude 命令" };
+    return parseStatus(r.stdout);
+  }
+  function endLogin(reason) {
+    if (!login) return;
+    clearTimeout(login.timer);
+    killTree(login.child);
+    log(`登录流程结束：${reason}`);
+    login = null;
+  }
+  function loginStart(args) {
+    if (login) endLogin("新的登录流程");
+    const id = String(args.id || crypto.randomUUID());
+    return new Promise((resolve, reject) => {
+      let child;
+      try {
+        child = spawn(claude, ["auth", "login", "--claudeai"], { env: { ...process.env, TERM: "dumb", BROWSER: "/bin/false" }, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      const state = { id, child, output: "", url: null, exited: null, timer: null, waiters: [] };
+      login = state;
+      state.timer = setTimeout(() => {
+        if (login === state) endLogin("过期");
+      }, LOGIN_MS);
+      const onData = (chunk) => {
+        state.output = (state.output + chunk).slice(-20000);
+        if (!state.url) {
+          const url = findUrl(state.output);
+          if (url) {
+            state.url = url;
+            resolve({ id, url, expiresInMs: LOGIN_MS });
+          }
+        }
+      };
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", onData);
+      child.stderr.on("data", onData);
+      child.stdin.on("error", () => {});
+      child.on("error", (error) => {
+        if (login === state) login = null;
+        reject(error.code === "ENOENT" ? new Error("云端节点上没有找到 claude 命令") : error);
+      });
+      child.on("close", (code) => {
+        state.exited = code;
+        for (const w of state.waiters) w(code);
+        state.waiters = [];
+        if (!state.url) reject(new Error("claude 没有给出授权地址"));
+      });
+      setTimeout(() => {
+        if (!state.url && login === state) {
+          endLogin("没拿到授权地址");
+          reject(new Error("30 秒内没有拿到授权地址"));
+        }
+      }, 30_000).unref?.();
+    });
+  }
+  async function loginCode(args) {
+    const state = login;
+    if (!state || state.id !== String(args.id || "")) throw new Error("登录流程已经过期，请重新开始");
+    const code = String(args.code || "").trim();
+    if (!code || code.length > 4000 || /[\r\n]/.test(code)) throw new Error("授权码格式不对");
+    const exited = new Promise((resolve) => {
+      if (state.exited !== null) resolve(state.exited);
+      else state.waiters.push(resolve);
+    });
+    state.child.stdin.write(`${code}\n`);
+    let raceTimer = null;
+    const code2 = await Promise.race([exited, new Promise((r) => (raceTimer = setTimeout(() => r("timeout"), 60_000)))]);
+    clearTimeout(raceTimer);
+    const tail = state.output.slice(-1500).replace(/https:\/\/\S+/g, "[地址]");
+    if (login === state) {
+      clearTimeout(state.timer);
+      if (code2 === "timeout") killTree(state.child);
+      login = null;
+    }
+    const status = await authStatus();
+    if (status.loggedIn) return { ok: true, ...status };
+    const reason = code2 === "timeout" ? "Claude 60 秒内没有完成登录" : /invalid|expired|error|fail/i.test(tail) ? "授权码无效或已过期，请重新开始登录" : "登录没有成功";
+    return { ok: false, error: reason, ...status };
+  }
+
+  // ---------- 文件 / diff / 撤销 ----------
+  function listDir(args) {
+    const base = treeDir(args.workspaceId, args.sessionId);
+    if (!fs.existsSync(base)) return { entries: [] };
+    const dir = within(base, args.path || "");
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.name !== ".git")
+      .slice(0, 800)
+      .map((e) => {
+        let size = null;
+        try {
+          if (e.isFile()) size = fs.statSync(path.join(dir, e.name)).size;
+        } catch {}
+        return { name: e.name, dir: e.isDirectory(), size };
+      })
+      .sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1));
+    return { path: path.relative(base, dir).split(path.sep).join("/"), entries };
+  }
+  function readFile(args) {
+    const base = treeDir(args.workspaceId, args.sessionId);
+    const file = within(base, args.path || "");
+    const st = fs.statSync(file);
+    if (!st.isFile()) throw new Error("不是文件");
+    if (st.size > FILE_CAP) return { path: args.path, size: st.size, tooLarge: true, text: null };
+    const buf = fs.readFileSync(file);
+    const binary = buf.subarray(0, 8000).includes(0);
+    return { path: args.path, size: st.size, binary, text: binary ? null : buf.toString("utf8") };
+  }
+  async function diff(args) {
+    const list = readTurns(args.workspaceId, args.sessionId);
+    const t = args.turnId ? list.find((x) => x.turnId === args.turnId) : list[list.length - 1];
+    if (!t || !t.before || !t.after) return { turnId: args.turnId || null, files: [], patch: "" };
+    const files = await numstat(args.workspaceId, args.sessionId, t.before, t.after);
+    const p = await git(args.workspaceId, args.sessionId, ["diff", "--no-renames", "--no-color", t.before, t.after]);
+    const patch = p.stdout.length > PATCH_CAP ? `${p.stdout.slice(0, PATCH_CAP)}\n…（diff 太长，已截断）` : p.stdout;
+    return { turnId: t.turnId, files, patch };
+  }
+  async function undo(args) {
+    if (bySession.has(String(args.sessionId))) throw new Error("这一轮还在进行，先停止");
+    const list = readTurns(args.workspaceId, args.sessionId);
+    const t = list[list.length - 1];
+    if (!t || (args.turnId && t.turnId !== args.turnId)) throw new Error("只能撤销最后一轮");
+    if (t.undone) throw new Error("这一轮已经撤销过了");
+    const now = await snapshot(args.workspaceId, args.sessionId, `check ${t.turnId}`);
+    const since = await numstat(args.workspaceId, args.sessionId, t.after, now);
+    if (since.length) throw new Error("这一轮之后目录又被改过，不能自动撤销");
+    const added = (await numstat(args.workspaceId, args.sessionId, t.before, t.after)).filter((f) => f.status === "A");
+    const r = await git(args.workspaceId, args.sessionId, ["checkout", "-f", t.before, "--", "."]);
+    if (r.code !== 0 && !/did not match/.test(r.stderr)) throw new Error(`恢复失败：${r.stderr.slice(0, 300)}`);
+    const base = treeDir(args.workspaceId, args.sessionId);
+    for (const f of added) {
+      try {
+        fs.rmSync(within(base, f.path), { force: true });
+      } catch {}
+    }
+    await snapshot(args.workspaceId, args.sessionId, `undo ${t.turnId}`);
+    t.undone = true;
+    writeTurns(args.workspaceId, args.sessionId, list);
+    return { turnId: t.turnId, restored: true };
+  }
+
+  async function rpc(op, args) {
+    switch (op) {
+      case "status":
+        return await authStatus();
+      case "login_start":
+        return await loginStart(args);
+      case "login_code":
+        return await loginCode(args);
+      case "login_cancel":
+        endLogin("取消");
+        return { cancelled: true };
+      case "logout": {
+        endLogin("退出");
+        await run(claude, ["auth", "logout"], { timeout: 20_000 });
+        return await authStatus();
+      }
+      case "session_init":
+        await ensureTree(args.workspaceId, args.sessionId);
+        return { tree: path.relative(root, treeDir(args.workspaceId, args.sessionId)) };
+      case "tree":
+        return listDir(args);
+      case "read":
+        return readFile(args);
+      case "diff":
+        return await diff(args);
+      case "undo":
+        return await undo(args);
+      case "running":
+        return { sessions: [...bySession.keys()] };
+      default:
+        throw new Error(`不认识的操作 ${op}`);
+    }
+  }
+
+  async function info() {
+    const v = await run(claude, ["--version"], { timeout: 15_000 });
+    out({ type: "cc_info", root, claudeVersion: v.code === 0 ? v.stdout.trim().split("\n")[0].slice(0, 120) : null, running: [...bySession.keys()] });
+  }
+
+  return {
+    root,
+    handles: (type) => HANDLED.has(type),
+    handle(message) {
+      if (!message || !HANDLED.has(message.type)) return false;
+      switch (message.type) {
+        case "cc_probe":
+          void info();
+          break;
+        case "cc_rpc":
+          Promise.resolve()
+            .then(() => rpc(String(message.op || ""), message.args || {}))
+            .then((result) => out({ type: "cc_rpc_result", id: message.id, ok: true, result }))
+            .catch((error) => out({ type: "cc_rpc_result", id: message.id, ok: false, error: String(error && error.message ? error.message : error).slice(0, 500) }));
+          break;
+        case "cc_turn":
+          void startTurn(message);
+          break;
+        case "cc_stop":
+          stopSession(message.sessionId);
+          break;
+        case "cc_approval_result": {
+          const a = approvals.get(String(message.approvalId || ""));
+          if (a) {
+            clearTimeout(a.timer);
+            approvals.delete(String(message.approvalId));
+            a.resolve({ decision: message.decision === "approve" ? "approve" : "deny", always: !!message.always });
+          }
+          break;
+        }
+      }
+      return true;
+    },
+    onOnline() {
+      flush();
+      void info();
+    },
+    stopAll() {
+      for (const sessionId of [...bySession.keys()]) stopSession(sessionId);
+      endLogin("紧急停止");
+    },
+    close() {
+      this.stopAll();
+      if (hookServer) hookServer.close();
+      if (sockPath) {
+        try {
+          fs.unlinkSync(sockPath);
+        } catch {}
+      }
+    },
+  };
+}
+
+module.exports = { createCloudCc, findUrl, parseStatus };

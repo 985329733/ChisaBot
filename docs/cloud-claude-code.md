@@ -8,11 +8,35 @@
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | P0 | 文档：本文、ADR-0014、BACKLOG CB-061…CB-065 | 已合并 |
-| P1 | 云端节点容器（`deploy/cloud-node/`）+ 设置 → 云端工作区 → Claude 登录 | 进行中 |
+| P1 | 云端节点容器（`deploy/cloud-node/`）+ 设置 → 云端工作区 → Claude 登录 | 已上线（真实登录要用户自己点一次） |
 | P2 | 左栏切换「机器人｜Claude Code」、「草稿」工作区、会话、对话、审批、右栏 / 手机抽屉 | 未开始 |
 | P3 | GitHub 工作区：克隆、每会话 worktree + `cc/…` 分支、合入工作目录、推送并开 PR | 未开始 |
 | P4 | 电脑文件夹同步（`chisabot-sync` + 自编译 MIT Mutagen，PC 新版） | 未开始 |
 | P5 | ChisaCloudCode 留还是下线（单独决定） | 未开始 |
+
+## 实现（以代码为准）
+
+| 部分 | 代码 |
+|---|---|
+| 节点容器 | `deploy/cloud-node/`（Dockerfile、compose.yaml、entrypoint.sh、firewall.sh、README.md） |
+| 节点运行时 | `pc/src/cloud-cc/`：`index.js`（登录、每一轮、快照、目录 / 文件 / diff / 撤销）、`policy.js`（PreToolUse 规则）、`stream.js`（stream-json 解析）、`hook.js`（`chisabot-node cc-hook`）；`pc/src/headless.js` 在 `CHISABOT_CLOUD_WORKSPACE=1` 时接上 |
+| 服务器 | `server/src/cloud-cc/service.ts`（设备 hub 扩展排在本地 agent 前面；`/api/cloud-workspace/*`、`/api/claude-code/*`） |
+| 共享类型 | `shared/cloud-cc.ts` |
+| 网页 | 设置 → 云端工作区 `app/src/routes/_authed/settings/cloud-workspace.tsx`；Claude Code 视图 `app/src/routes/_authed/cc/`、`app/src/components/cloud-cc/`；`app/src/lib/cloud-cc.ts` |
+| 测试 | `pc/test/cloud-cc.check.js`（模拟 CLI `tests/cloud-cc/mock-claude.cjs`：登录、两轮接着上次、审批、拒绝推送、停止、撤销） |
+
+**设备连接上的消息**（同一条 WSS；旧客户端不认识就忽略）
+
+- 服务器 → 节点：`cc_probe`（连上时问一次）、`cc_rpc{id, op, args}`（`status` / `login_start` / `login_code` / `login_cancel` / `logout` / `session_init` / `tree` / `read` / `diff` / `undo` / `running`）、`cc_turn{sessionId, turnId, workspaceId, prompt, claudeSessionId, resume, model, effort, rules}`、`cc_stop{sessionId}`、`cc_approval_result{approvalId, decision, always}`。
+- 节点 → 服务器：`cc_info{claudeVersion, root, running}`（服务器据此登记云端工作区）、`cc_rpc_result{id, ok, result | error}`、`cc_event{sessionId, turnId, seq, event}`、`cc_approval_request{…, tool, summary, input, rule}`、`cc_done{ok, stopped, error, claudeSessionId, resumable, costUsd, turns, changes}`。
+
+**一轮**：节点在 `projects/<工作区>/trees/<会话>` 里跑 `claude -p --output-format stream-json --verbose --include-partial-messages --permission-mode default --settings <钩子> [--session-id U | --resume U] [--model] [--effort]`，提示词走标准输入；会话 id 由服务器生成（第一轮 `--session-id`，之后 `--resume`，「新的 Claude 会话」换一个）。每一轮前后用独立的 `GIT_DIR`（`.chisabot/snap/<会话>.git`）拍快照，diff 进改动卡和右栏，「撤销最后一轮」恢复到这一轮之前（之后目录又被改过就拒绝）。
+
+**权限**（`policy.js`）：会话目录里的 Read / Grep / Glob / LS 和 Edit / Write 直接放行（目录外：读要审批，写拒绝）；只读命令白名单（`git status/diff/log/show`、`ls`、`cat`、`rg`…，按 `; && || |` 拆开每段都要在白名单里，不能有重定向和命令替换）直接放行；`git push`、改 remote、`gh`、`ssh/scp/rsync`、`sudo`、`curl` 往外发数据、改 `~/.claude` 一律拒绝（提示用「推送并开 PR」）；其他命令、目录外读取、每个域名第一次 WebFetch、MCP、不认识的工具弹审批卡，2 分钟没人处理按拒绝；「本会话总是允许」存进 `chisabot_cc_permission_rules`，下一轮随 `cc_turn` 带给节点。钩子问不到节点（进程不在、超时）一律拒绝。
+
+**表**（开机 `CREATE TABLE IF NOT EXISTS`，回滚安全）：`chisabot_cloud_workspaces`、`chisabot_cc_workspaces`、`chisabot_cc_sessions`、`chisabot_cc_messages`（会话记录，parts 是 JSON：文字 / 工具 / 审批 / 改动 / 出错 / 提示）、`chisabot_cc_permission_rules`、`chisabot_cc_events`（操作记录，不含授权码、令牌、对话内容）。P3 / P4 的表（同步绑定、租约、冲突）到时候再建。
+
+**和设计稿的差别**：会话记录存在 `chisabot_cc_messages`，不是机器人聊天线程（ADR-0014 第 4 条）；「草稿」工作区每个会话一个自己的目录（`trees/<会话>`），不共用工作目录；审批卡只在会话里（以及操作记录），P2 还没有手机推送。
 
 > 下文的「ChisaCloudCode」（简称 CCC）是作者的另一个项目（Windows 桌面端 + 服务器工作区），电脑同步的交接逻辑来自它的桌面端代码。
 
