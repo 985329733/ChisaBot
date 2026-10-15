@@ -32,8 +32,8 @@ export function summarizeWork(calls: readonly WorkCall[]): WorkSummary | null {
   };
 }
 
-/** 不算「干活」的工具：画卡片、维护清单（结束后的一行里不数它们）。 */
-const NOT_WORK = new Set(["render_ui", "worker_plan"]);
+/** 不算「干活」的工具：画卡片、维护清单、读技能说明（结束后的一行里不数它们）。 */
+const NOT_WORK = new Set(["render_ui", "worker_plan", "skill_load"]);
 
 export type DoneWork = { label: string; steps: string[] };
 
@@ -51,7 +51,8 @@ export function summarizeDoneWork(calls: readonly WorkCall[]): DoneWork | null {
     if (call.name === "web_search") searches += 1;
     else if (call.name === "web_fetch" || call.name === "computer_navigate") pages += 1;
     const line = describeWorkerStep(call.name, parseArgs(call.arguments));
-    if (!line) continue;
+    // 没有中文说法的工具（「正在使用 xxx」）不进步骤清单：不把工具名给用户看（§69.3）。
+    if (!line || line.startsWith("正在使用 ")) continue;
     const past = line.replace(/^正在/, "");
     if (steps[steps.length - 1] !== past) steps.push(past);
   }

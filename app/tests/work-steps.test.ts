@@ -41,6 +41,11 @@ describe("summarizeDoneWork（DESIGN.md §70.2）", () => {
     expect(done?.label).toBe("做了 3 步");
     expect(done?.steps).toEqual(["点击", "搜索「x」"]);
   });
+  test("读技能不算一步；没有中文说法的工具算一步但不列名字", () => {
+    const done = summarizeDoneWork([call("skill_load", { name: "x" }), call("web_search", { query: "q" }), call("some_tool")]);
+    expect(done?.label).toBe("做了 2 步");
+    expect(done?.steps).toEqual(["搜索「q」"]);
+  });
   test("只画了卡片：不出这一行", () => {
     expect(summarizeDoneWork([call("render_ui")])).toBeNull();
     expect(summarizeDoneWork([])).toBeNull();
