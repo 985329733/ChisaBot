@@ -34,7 +34,7 @@
 | [CB-019](#cb-019) | 发版 0.2.0（PC + Android） | 0.2.0 release | `type: chore` · `area: infra` · `area: pc` · `area: android` · `P1` |
 | [CB-020](#cb-020) | CI「ChisaBot checks」server-typecheck 在 main 上一直失败 | 精简 Slim | `type: bug` · `area: infra` · `P1` · `status: done` |
 | [CB-021](#cb-021) | 一轮里两次 page_update 会出两张同一页面的卡片 | 成熟度 Maturity | `type: bug` · `area: pages` · `area: chat` · `P2` · `status: done` |
-| [CB-022](#cb-022) | 只读工具的结果没有卡片（只有文字） | 成熟度 Maturity | `type: feat` · `area: chat` · `P2` |
+| [CB-022](#cb-022) | 只读工具的结果没有卡片（只有文字） | 成熟度 Maturity | `type: feat` · `area: chat` · `P2` · `status: done` |
 | [CB-023](#cb-023) | 后台任务卡片在参数流完前显示笼统的「正在交给后台…」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` · `status: done` |
 | [CB-024](#cb-024) | 切换暗色外观卡约 400ms（毛玻璃重绘已修，长对话主线程见 CB-025） | 成熟度 Maturity | `type: perf` · `area: chat` · `area: settings` · `P2` · `status: done` |
 | [CB-025](#cb-025) | 打开长对话首屏渲染约 1 秒 | 成熟度 Maturity | `type: perf` · `area: chat` · `P2` |
@@ -477,9 +477,11 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 
 #### 验收标准
 
-- [ ] DESIGN.md 写清读结果出卡的规则
-- [ ] 按规则实现，结果卡不撑高聊天、不跳版
-- [ ] 不增加首轮渲染时间
+- [x] DESIGN.md 写清读结果出卡的规则（§70.3：只读结果不出卡，干活卡 / 步骤清单里一句中文）
+- [x] 按规则实现，结果卡不撑高聊天、不跳版（不加卡，只补说法）
+- [x] 不增加首轮渲染时间
+
+> 2026-10-15（fix/read-steps）：`shared/work-step.ts` 给记忆 / GitHub / 页面 / 定时任务 / 技能 / 面板 / 设备等读类工具补中文说法；顺带纠正 memory_save、panel_list 的说法。测试 `app/tests/work-steps.test.ts`。
 
 #### 相关
 
