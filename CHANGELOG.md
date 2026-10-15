@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 瘦身 P6-3（依赖变动，部署走完整构建）：删掉 `worker/`（上游 Intelligence 工作进程，生产 `local` 模式从不运行）、`scripts/setup-learning.ts` / `scripts/self-hosted-learning.ts` 与 `docs/automatic-learning.md`；依赖去掉 `@better-auth/sso`、`@better-auth/scim`、`@better-auth/expo`（原生 Expo 客户端早已删除，`EXPO_PROJECT_ID` 不再读）和 4 个 `@opentelemetry/*`（审计 OTel 导出 P6-1 已删）。`bun.lock` 重新生成。行为不变。见 `docs/slimming.md`。
 - 朋友账号先隐藏（多用户以后再做）：设置 → 管理 →「账号」入口默认不显示，部署设 `CHISABOT_ACCOUNTS_UI=1` 才出现（`/api/capabilities` 多了 `accountsUi`）；登录网关 `config.json` 新增 `invites`（默认关）：关着时不能发邀请、不能直接建账号，未用的邀请链接失效，已有账号照常登录。网关多账号、签名身份、按人隔离都保留。**升级网关**：换 `deploy/public/auth/server.ts` 后重启登录服务；想继续邀请就在 `config.json` 加 `"invites": true`。（撤回了 #130 的删除。）
 - 瘦身 P6-2：去掉 Better Auth 的 SSO / SCIM 插件和 `/api/auth/*` 里的公司身份提供者分支（`/api/auth/sso/*`、`/api/auth/scim/*`、SSO 配置加密、身份提供者表的读写）；登录页的「用公司邮箱登录」框去掉。`SSO_*` / `SCIM_*` 等环境变量不再读；审计类型 `identity_provider.*`、`session.break_glass`、`person.*provisioned` 不再写入（旧记录照常显示）。生产一直没配 SSO，登录只走网关，行为不变；表不动。见 `docs/slimming.md`。
 - 瘦身 P6-1：去掉上游「企业控制」——每个请求前的能力开关闸门、模型允许名单（以及每轮写一行的 `model_usage`）、电脑网络策略 / MCP 允许名单覆盖层、长期不用的电脑自动停止、动作录制、离职（offboard）、审计 OpenTelemetry 导出（`OTEL_*` 不再读），以及 `/api/admin/enterprise/*`、`/api/admin/people/*`（朋友账号在 设置 → 管理 → 账号 管理，角色来自网关签名身份；该入口目前默认隐藏）。权限照旧由每个接口自己判断（本人 / 主人 / 管理员）；默认模型、备用模型（`enterprise_settings` 里的 `model_connection` / `model_fallbacks` 两行）照常读写；机器人电脑照旧收到「全部放行」的网络策略。表和旧数据不动。见 `docs/slimming.md`。

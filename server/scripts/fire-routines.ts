@@ -80,7 +80,7 @@ async function dispatch(routineRunId: string): Promise<void> {
       "content-type": "application/json",
     },
     body: JSON.stringify({ routineRunId }),
-    // Mirrors worker/src/index.ts's dispatch: a wedged server must not stall the sweep, even under
+    // Mirrors the former worker/ loop's dispatch (removed in slimming P6-3): a wedged server must not stall the sweep, even under
     // the CronJob's own activeDeadlineSeconds.
     signal: AbortSignal.timeout(30_000),
   });

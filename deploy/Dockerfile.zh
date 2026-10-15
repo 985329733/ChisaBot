@@ -6,7 +6,6 @@ WORKDIR /openbot-deps
 COPY package.json bun.lock ./
 COPY app/package.json app/package.json
 COPY server/package.json server/package.json
-COPY worker/package.json worker/package.json
 RUN bun install --frozen-lockfile --production --linker hoisted --backend copyfile \
     && mkdir -p server/node_modules \
     && cd server \
