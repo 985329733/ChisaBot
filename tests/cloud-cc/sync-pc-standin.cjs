@@ -40,6 +40,8 @@ const manager = createSyncManager({
   sshPath: process.env.SSH || "/usr/bin/ssh",
   nodeExe: process.execPath,
   tunnelScript: path.join(PC, "sync", "tunnel.js"),
+  // PROXY_EXE=编译好的 pc/sync-shim（Linux 版）：ProxyCommand 用 Go 包装器的 --chisabot-proxy（Windows 上的那条路）
+  proxyExe: process.env.PROXY_EXE || undefined,
   platform: "linux",
   deviceLabel: "pc-standin",
   log,

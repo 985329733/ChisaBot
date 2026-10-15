@@ -63,8 +63,9 @@ export function CcSyncPillButton({ ws, className }: { ws: CcWorkspaceView; class
   );
 }
 
-function IgnoreRules({ rules }: { rules: string[] }) {
+function IgnoreRules({ rules: given }: { rules: string[] }) {
   const [open, setOpen] = useState(false);
+  const rules = given.length ? given : DEFAULT_RULES;
   return (
     <div className="cc-sync-rules" data-open={open ? "" : undefined}>
       <button aria-expanded={open} className="cc-sync-rules-h" onClick={() => setOpen((o) => !o)} type="button">
@@ -156,9 +157,10 @@ export function CcSyncDialog({ ws, open, onOpenChange }: { ws: CcWorkspaceView; 
   );
 
   let headline = "没有绑定电脑 · 只在云端";
-  if (b?.enabled && state === "conflict") headline = `「${b.deviceName}」上有冲突`;
+  const offlineMin = b?.offlineMs ? Math.max(1, Math.round(b.offlineMs / 60_000)) : null;
+  if (b?.enabled && state === "conflict") headline = `「${b.deviceName}」上有冲突${!b.online && offlineMin ? ` · 离线 ${offlineMin} 分钟` : ""}`;
   else if (b?.enabled && b.online) headline = state === "pc_active" ? `在「${b.deviceName}」上同步中` : `「${b.deviceName}」${SYNC_STATE_ZH[state]}`;
-  else if (b?.enabled) headline = `「${b.deviceName}」离线 ${b.offlineMs ? Math.max(1, Math.round(b.offlineMs / 60_000)) : "?"} 分钟`;
+  else if (b?.enabled) headline = `「${b.deviceName}」离线 ${offlineMin ?? "?"} 分钟`;
   else if (b) headline = `已暂停 · 上次在「${b.deviceName}」`;
 
   const busyText = local?.busy;

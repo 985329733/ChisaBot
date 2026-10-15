@@ -170,7 +170,7 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
       <button className="cc-new-ws" data-testid="cc-new-ws" onClick={() => setNewOpen(true)} type="button">
         <IconFolderPlus className="size-4" />
         {"新建工作区"}
-        <span className="cc-new-ws-s">{pcSyncBridge() ? "GitHub · 电脑文件夹" : "从 GitHub"}</span>
+        <span className="cc-new-ws-s">{pcSyncBridge() ? "GitHub · 电脑" : "从 GitHub"}</span>
       </button>
       <CcNewWorkspaceDialog onOpenChange={setNewOpen} open={newOpen} />
       {syncWs ? <CcSyncDialog onOpenChange={(o) => !o && setSyncWs(null)} open ws={workspaces.data.find((w) => w.id === syncWs.id) ?? syncWs} /> : null}

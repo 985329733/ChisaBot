@@ -7157,3 +7157,9 @@ a.cc-pill { text-decoration: none; }
 .cc-local-foot { display: flex; justify-content: flex-end; margin-top: 14px; }
 @media (max-width: 640px) { .cc-conf-a > * { flex: 1 1 auto; min-height: 44px; } .cc-sync-row.is-sub { flex-direction: column; align-items: flex-start; gap: 2px; } }
 @media (prefers-reduced-motion: reduce) { .cc-sync-pill[data-state="syncing"] .cc-dot, .cc-sync-rules-b { animation: none; } .cc-sync-rules-h svg { transition: none; } }
+/* Claude Code 的对话框（新建工作区、电脑同步、冲突）：后面是工作区树和对话，字多，底色再实一点，手机暗色下不透字（同 §73.6 抽屉）。 */
+.cc-dlg[data-slot="dialog-content"] { background: rgba(255, 255, 255, 0.95); }
+.dark .cc-dlg[data-slot="dialog-content"] { background: rgba(24, 33, 50, 0.97); }
+.cc-new-ws { white-space: nowrap; min-width: 0; }
+.cc-new-ws .cc-new-ws-s { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cc-sync-rules-h:focus:not(:focus-visible) { outline: none; }

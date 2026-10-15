@@ -74,6 +74,7 @@ function pcCopyName(file) {
  *   sshShim?: string | null,               Windows：ssh 包装器 exe（复制成 ssh.exe / scp.exe）；其它平台用 sh 脚本
  *   nodeExe: string, nodeArgs?: string[],  跑 tunnel.js 的程序（PC：ChisaBotPC.exe + ELECTRON_RUN_AS_NODE=1）
  *   tunnelScript: string,
+ *   proxyExe?: string,                     测试用：在非 Windows 上也用 Go 写的 ssh 包装器当 ProxyCommand
  *   gitPath?: string,
  *   deviceLabel?: string,
  *   platform?: string,
@@ -144,8 +145,8 @@ function createSyncManager(options) {
     fs.mkdirSync(wrapperDir, { recursive: true });
     // Windows：ssh 包装器自己就能当 ProxyCommand（--chisabot-proxy，连本机中转）；其它平台用 Node 跑 tunnel.js
     const proxyFor = (ws) =>
-      platform === "win32"
-        ? `${q(path.join(wrapperDir, "ssh.exe"))} --chisabot-proxy ${broker.address()} ${ws}`
+      platform === "win32" || options.proxyExe
+        ? `${q(options.proxyExe || path.join(wrapperDir, "ssh.exe"))} --chisabot-proxy ${broker.address()} ${ws}`
         : `${[options.nodeExe, ...(options.nodeArgs || []), options.tunnelScript].map(q).join(" ")} --broker ${broker.address()} --workspace ${ws}`;
     const lines = [];
     const known = [];
