@@ -45,7 +45,6 @@ import {
   type RoleRepository,
   requireAdmin,
 } from "./auth/guards";
-import type { IdentityProviderStore } from "./auth/identity-provider-store";
 import { desktopAuthPage } from "./auth/native-browser";
 import {
   createAttachmentRoutes,
@@ -247,14 +246,8 @@ export function createApp(
    * answers and an administrator deciding who has access needs to know which one they are reading.
    */
   peopleStore?: PeopleStore,
-  /**
-   * The enterprise identity providers this deployment has registered.
-   *
-   * Read here rather than through Better Auth's own listing route, which scopes to the person asking:
-   * a company's Okta tenant belongs to the deployment, not to whichever administrator pasted the
-   * metadata in. See identity-provider-store.ts.
-   */
-  identityProviders?: IdentityProviderStore,
+  // Enterprise identity providers (SSO) removed in slimming P6-2; positional slot kept.
+  _removedIdentityProviders?: undefined,
   /**
    * Chooses which coworker an untagged message is for, before a channel is pinned to one.
    *
@@ -454,37 +447,8 @@ export function createApp(
        * build machine cannot offer a provider that machine had never heard of.
        */
       authProviders: configuredAuthProviders(config.auth),
-      /*
-       * Whether any enterprise identity provider has been registered.
-       *
-       * A count, not a list. The sign-in screen only needs to know whether to offer the email box
-       * that routes by domain; naming the providers would tell anybody who loads the page which
-       * companies use this deployment, which is not theirs to have before they sign in.
-       */
-      ssoConfigured: ((await identityProviders?.list()) ?? []).length > 0,
-      // "Require SSO" was an upstream enterprise switch, removed in slimming P6-1.
-      ssoRequired: false,
     }),
   );
-  /*
-   * Registering an identity provider is an administrator's decision, not a signed-in one.
-   *
-   * Better Auth's SSO plugin guards these with `sessionMiddleware`, which asks only that somebody is
-   * signed in. That is the wrong bar here: registering an IdP for a domain means anybody it vouches
-   * for can sign in, so a plain user reaching this could mint themselves colleagues. The routes are
-   * mounted through this handler, so the check goes in front of it.
-   */
-  const ADMIN_ONLY_AUTH_ROUTES = new Set([
-    "/api/auth/sso/register",
-    "/api/auth/sso/update-provider",
-    "/api/auth/sso/delete-provider",
-  ]);
-
-  const AUTH_ROUTE_EVENTS: Record<string, AuditEventType | undefined> = {
-    "/api/auth/sso/register": "identity_provider.registered",
-    "/api/auth/sso/delete-provider": "identity_provider.removed",
-  };
-
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
     if (
       context.req.method === "GET" &&
@@ -503,60 +467,9 @@ export function createApp(
       );
     }
 
-    if (ADMIN_ONLY_AUTH_ROUTES.has(new URL(context.req.url).pathname)) {
-      const session = await auth.api.getSession({
-        headers: context.req.raw.headers,
-        // Fresh, not the cookie cache: a role changed a moment ago has to apply to this request.
-        query: { disableCookieCache: true },
-      });
-      const roles = session?.user
-        ? ((await roleRepository?.rolesForUser(session.user.id)) ?? [])
-        : [];
-      if (!roles.includes("admin")) {
-        return context.json(
-          { error: "Only an administrator may change identity providers." },
-          403,
-        );
-      }
-    }
-
-    const eventType =
-      AUTH_ROUTE_EVENTS[new URL(context.req.url).pathname] ?? undefined;
-
-    // Read before the handler runs, because it consumes the stream: a clone taken afterwards is of
-    // a request whose body is already gone, and the row would name no provider.
-    const named =
-      auditStore && eventType
-        ? ((await context.req.raw
-            .clone()
-            .json()
-            .catch(() => null)) as { providerId?: unknown } | null)
-        : null;
-
-    const answer = await auth.handler(context.req.raw);
-
-    if (auditStore && eventType && answer.ok) {
-      const session = await auth.api.getSession({
-        headers: context.req.raw.headers,
-        query: { disableCookieCache: true },
-      });
-      await recordAuditEvent(auditStore, {
-        eventType,
-        targetType: "identity_provider",
-        ...(typeof named?.providerId === "string"
-          ? { targetId: named.providerId }
-          : {}),
-        ...(session?.user ? { actorUserId: session.user.id } : {}),
-        payload: {
-          ...(typeof named?.providerId === "string"
-            ? { providerId: named.providerId }
-            : {}),
-          ...(session?.user?.email ? { by: session.user.email } : {}),
-        },
-      });
-    }
-
-    return answer;
+    // Better Auth's own routes (social sign-in, sessions, desktop handoff). The enterprise SSO and
+    // SCIM plugins and their admin-only / audited branches were removed in slimming P6-2.
+    return auth.handler(context.req.raw);
   });
 
   const authenticationUnavailable: MiddlewareHandler<{
@@ -571,12 +484,7 @@ export function createApp(
       ? createRequireUser(auth, roleRepository)
       : authenticationUnavailable;
   // The upstream enterprise gate (capability switches, model allowlist) and /api/admin/enterprise were
-  // removed in slimming P6-1: every route checks its own actor / owner / admin role. SCIM verbs below.
-  app.on(["PUT", "PATCH", "DELETE"], "/api/auth/scim/*", (context) =>
-    auth
-      ? auth.handler(context.req.raw)
-      : context.json({ error: "No identity provider is configured." }, 503),
-  );
+  // removed in slimming P6-1: every route checks its own actor / owner / admin role.
 
   app.route(
     "/api/audio",

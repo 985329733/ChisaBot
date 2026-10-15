@@ -425,21 +425,7 @@ A [Composio](plugins/composio.md) app needs `OPENBOT_APP_URL` and nothing else o
 
 ### SCIM provisioning
 
-A directory such as Okta or Entra ID can create, update and remove people through SCIM 2.0 at
-`<BETTER_AUTH_URL>/api/auth/scim/v2`. It is off while `SCIM_BEARER_TOKEN` is unset.
-
-| Variable                 | Meaning                                                                                                     |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `SCIM_BEARER_TOKEN`      | The token the directory sends as a bearer token. Setting it switches SCIM on.                              |
-| `SCIM_BEARER_TOKEN_NEXT` | Optional second token accepted beside the first, so the directory can move to a new one before the old one is removed. |
-| `SCIM_CONNECTION_ID`     | The name of the directory connection. Defaults to `directory`.                                             |
-
-A person the directory creates gets the `user` role, or `admin` when their address is in
-`INITIAL_ADMIN_EMAILS`, and still signs in through the company's identity provider: SCIM creates no
-password. Their directory groups become their OpenBot groups, which per-group capability switches
-and network policies read. Deactivating or deleting someone in the directory ends their sessions,
-deny-lists the address, retires the connector credentials they granted and stops their Bots'
-computers. Reactivating them lifts a deny-list entry SCIM wrote, never one an administrator wrote.
+已在瘦身 P6-2 删除（`SCIM_*` 不再读取；SSO / SCIM 插件、身份提供者注册都已去掉，`scim_*` / `sso_providers` 表保留到 P5）。
 
 ## One Bot handing work to another
 

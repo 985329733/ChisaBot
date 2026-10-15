@@ -94,7 +94,6 @@ import { createAuth } from "./auth";
 import { DEV_ACTOR, initializeDevActorUser } from "./auth/dev-actor";
 import type { AuthService } from "./auth/guards";
 import { createRoleRepository } from "./auth/guards";
-import { createIdentityProviderStore } from "./auth/identity-provider-store";
 import { createOrganizationAuth } from "./auth/organization";
 import { organizationUserStore } from "./auth/organization-store";
 import { type OpenBotRole, setRole } from "./auth/roles";
@@ -478,7 +477,6 @@ const peopleStore = createPeopleStore(
    */
   (userId, by) => pluginStore.retireConnectionsFor(userId, by),
 );
-const identityProviderStore = createIdentityProviderStore(database);
 /*
  * Built before `auth` for the same reason the people store is: sign-in writes to the trail, and the
  * store that receives those rows has to exist before anything can sign in.
@@ -3567,9 +3565,8 @@ const app = createApp(
   threadIdentity,
   // Who has signed in, and what an administrator may do about them.
   peopleStore,
-  // The enterprise identity providers registered here. Read as facts about the deployment rather
-  // than through Better Auth's own listing, which answers per person. See identity-provider-store.ts.
-  identityProviderStore,
+  // Enterprise identity providers (SSO) removed in slimming P6-2; positional slot.
+  undefined,
   // Intent routing (choose a coworker for an untagged message) removed in slimming P4b; positional slot.
   undefined,
   // What a browsing turn's screen looked like when it finished, so the transcript can show it later.
