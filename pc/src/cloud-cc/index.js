@@ -22,6 +22,9 @@
  *   cc_approval_request { sessionId, turnId, approvalId, tool, summary, input, rule }
  *   cc_browser_frame { loginId, data, w, h } / cc_browser_state { loginId, url, egress, closed… } / cc_browser_done { loginId, ok, error, …登录状态 }
  *
+ *   电脑文件夹同步（P4，sync.js）：sync_tunnel_open { tunnelId } / sync_tunnel_close；cc_rpc sync_keys_set / sync_host_key /
+ *   sync_lease / sync_lease_get / ws_init_local / ws_manifest。ws_merge 先过租约（电脑正在用 work/ 时拒绝）。
+ *
  * 授权码、令牌：只经过登录进程的标准输入，不写日志、不回传。
  */
 const fs = require("node:fs");
@@ -35,8 +38,9 @@ const { decide } = require("./policy");
 const { createForwarder, parseProxy, maskProxy, scrubProxy, httpsGet, traceIp, testRoute } = require("./proxy");
 const { createRemoteBrowser, findChromium } = require("./browser");
 const { createGitWorkspaces } = require("./git");
+const { createSyncNode } = require("./sync");
 
-const HANDLED = new Set(["cc_probe", "cc_rpc", "cc_turn", "cc_stop", "cc_approval_result", "cc_browser_input"]);
+const HANDLED = new Set(["cc_probe", "cc_rpc", "cc_turn", "cc_stop", "cc_approval_result", "cc_browser_input", "sync_tunnel_open", "sync_tunnel_close"]);
 const TRACE_URL = process.env.CHISABOT_EGRESS_TRACE_URL || "https://claude.ai/cdn-cgi/trace";
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const APPROVAL_MS = 125_000;
@@ -103,7 +107,7 @@ function parseStatus(stdout) {
 }
 
 /**
- * @param {{ send: (m: object) => boolean, log?: (s: string) => void, root?: string, claude?: string, hookCommand?: string[] }} options
+ * @param {{ send: (m: object) => boolean, log?: (s: string) => void, root?: string, claude?: string, hookCommand?: string[], serverUrl?: string, getToken?: () => string }} options
  */
 function createCloudCc(options) {
   const log = options.log || (() => {});
@@ -127,6 +131,8 @@ function createCloudCc(options) {
     return { HTTPS_PROXY: url, HTTP_PROXY: url, https_proxy: url, http_proxy: url, NO_PROXY: "localhost,127.0.0.1", no_proxy: "localhost,127.0.0.1" };
   }
   const gitWs = createGitWorkspaces({ root, log });
+  // 电脑文件夹同步（P4，sync.js）：隧道、公钥、租约
+  const syncNode = createSyncNode({ root, log, serverUrl: options.serverUrl, getToken: options.getToken });
 
   function out(message) {
     if (options.send(message)) return;
@@ -704,6 +710,8 @@ function createCloudCc(options) {
       case "ws_merge":
         treeDir(args.workspaceId, args.sessionId);
         if (bySession.has(String(args.sessionId))) throw new Error("这一轮还在进行，先停止");
+        // 第二道闸（服务器的租约为准）：电脑正在用 work/ 时不写，交接中要带对得上的交接号
+        syncNode.assertCloudMayWrite(args.workspaceId, args.handoffId);
         return await gitWs.merge(args);
       case "ws_push_preview":
         treeDir(args.workspaceId, args.sessionId);
@@ -725,6 +733,7 @@ function createCloudCc(options) {
         return await gitWs.remove(args.workspaceId);
       }
       default:
+        if (syncNode.rpcs.has(op)) return await syncNode.rpc(op, args);
         throw new Error(`不认识的操作 ${op}`);
     }
   }
@@ -755,6 +764,10 @@ function createCloudCc(options) {
         case "cc_stop":
           stopSession(message.sessionId);
           break;
+        case "sync_tunnel_open":
+        case "sync_tunnel_close":
+          syncNode.handle(message);
+          break;
         case "cc_browser_input":
           if (remote && remote.loginId === String(message.loginId || "")) void remote.browser.input(message.events);
           break;
@@ -775,6 +788,7 @@ function createCloudCc(options) {
       void info();
     },
     stopAll() {
+      syncNode.closeAll();
       if (remote) void remote.browser.stop("紧急停止");
       for (const sessionId of [...bySession.keys()]) stopSession(sessionId);
       endLogin("紧急停止");

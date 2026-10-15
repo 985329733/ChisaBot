@@ -6,7 +6,7 @@ set -eu
 DIR="${CHISABOT_NODE_DIR:-$HOME/.chisabot-node}"
 SERVER="${CHISABOT_SERVER:?缺少 CHISABOT_SERVER}"
 SERVER="${SERVER%/}"
-mkdir -p "$DIR" "$HOME/.claude"
+mkdir -p "$DIR" "$HOME/.claude" /workspace/projects   # projects/ = 同步边车挂的子目录（compose volume subpath）
 chmod 700 "$DIR" "$HOME/.claude"
 if curl -fsSL --retry 3 --max-time 60 "$SERVER/api/devices/agent/node/chisabot-node.cjs" -o "$DIR/chisabot-node.cjs.new"; then
   mv -f "$DIR/chisabot-node.cjs.new" "$DIR/chisabot-node.cjs"

@@ -125,6 +125,9 @@ function run(dir) {
       ? require("./cloud-cc").createCloudCc({
           send: (message) => (agentRef ? agentRef.sendRaw(message) : false),
           log: (line) => console.log(new Date().toISOString(), `[云端工作区] ${line}`),
+          // 同步隧道（P4）：节点自己开出站 WSS 回服务器
+          serverUrl: config.server,
+          getToken: () => config.token,
         })
       : null;
   const agent = createNodeAgent({

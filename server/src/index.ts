@@ -288,6 +288,7 @@ import { repeatAfterEach } from "./work/loop";
 import { createWorkerService, type WorkerService } from "./workers/service";
 import { createLocalAgentService, type LocalAgentService } from "./local-agents/service";
 import { createCloudCcService, type CloudCcService } from "./cloud-cc/service";
+import { createCloudSyncService, type CloudSyncService } from "./cloud-cc/sync";
 import {
   createWorkQueue,
   DEFAULT_MAX_ATTEMPTS,
@@ -2109,6 +2110,19 @@ try {
   console.warn("cloud claude code unavailable", error);
   cloudCc = undefined;
 }
+/** 电脑文件夹同步（server/src/cloud-cc/sync.ts，P4）：绑定、租约、隧道。跟着云端 Claude Code 一起有。 */
+let cloudSync: CloudSyncService | undefined;
+if (cloudCc) {
+  try {
+    const cc = cloudCc;
+    cloudSync = createCloudSyncService({ database, hub: deviceHub, deviceStore, nodeRpc: (id, op, args, ms) => cc.nodeRpc(id, op, args as never, ms), nodeFor: (owner) => cc.nodeFor(owner) });
+    await cloudSync.ensure();
+    await cloudSync.recover();
+  } catch (error) {
+    console.warn("cloud folder sync unavailable", error);
+    cloudSync = undefined;
+  }
+}
 /** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
 /**
  * 群聊（一个频道里不止一个机器人）的对话：不给委派、定时任务、本地 agent。
@@ -3645,6 +3659,7 @@ const app = createApp(
         ? [
             ["/api/cloud-workspace", cloudCc.workspaceRoutes(requireUser)] satisfies [string, unknown],
             ["/api/claude-code", cloudCc.codeRoutes(requireUser)] satisfies [string, unknown],
+            ...(cloudSync ? [["/api/claude-code", cloudSync.webRoutes(requireUser)] satisfies [string, unknown]] : []),
           ]
         : []),
       ["/api/chat-files", chatFiles.routes(requireUser)],
@@ -3684,6 +3699,7 @@ const app = createApp(
           auditStore: bootAuditStore,
           toolsFor: (actorId, botId) => deviceToolsFor(actorId, botId),
           refuseFullAccess: (device) => cloudCc?.refuseFullAccess(device.id) ?? null,
+          sync: cloudSync ?? null,
           ...(config.appDistDir ? { appDistDir: config.appDistDir } : {}),
         }),
       ],
