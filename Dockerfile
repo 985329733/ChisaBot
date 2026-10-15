@@ -54,7 +54,6 @@ COPY package.json bun.lock ./
 COPY tsconfig.base.json bunfig.toml ./
 COPY app/package.json app/package.json
 COPY server/package.json server/package.json
-COPY worker/package.json worker/package.json
 # HOISTED, NOT ISOLATED. `shared/` is not a workspace, yet both the app and the server import it, and
 # its imports (`@json-render/core` and friends) are declared by the workspaces that use it. Under bun's
 # isolated linker those packages exist only in each workspace's own `node_modules`, so resolving from
@@ -74,10 +73,9 @@ RUN cd agent-computer && bun install --frozen-lockfile
 # A second tree with the build-time dependencies left out, for the runtime stage to take. Vite,
 # biome and the test tooling are a gigabyte that nothing in a running container imports.
 RUN mkdir -p /prod && cp package.json bun.lock /prod/ \
-  && cd /prod && mkdir -p app server worker \
+  && cd /prod && mkdir -p app server \
   && cp /src/app/package.json app/package.json \
   && cp /src/server/package.json server/package.json \
-  && cp /src/worker/package.json worker/package.json \
   && bun install --frozen-lockfile --production --linker hoisted \
   && mkdir -p /prod/server/node_modules
 

@@ -38,10 +38,9 @@ afterAll(async () => {
   await database.$client.end({ timeout: 5 });
 });
 
-test("without the native app, no sign-in redirect carries a session to the app's scheme", async () => {
+// The Expo plugin was removed with the upstream mobile app (slimming P6-3): the scheme is never trusted.
+test("no sign-in redirect carries a session to the native app's scheme, even with EXPO_PROJECT_ID", async () => {
   expect(await sendsSessionTo(createAuth(config, database))).toBe(false);
-});
-test("a deployment that runs the native app still lets it sign in", async () => {
   process.env.EXPO_PROJECT_ID = "0b6c3a0e-2a5e-4a4c-9d5a-2f3b8f0c1d2e";
-  expect(await sendsSessionTo(createAuth(config, database))).toBe(true);
+  expect(await sendsSessionTo(createAuth(config, database))).toBe(false);
 });

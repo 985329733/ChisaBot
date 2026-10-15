@@ -1,6 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { electron } from "@better-auth/electron";
-import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { genericOAuth, okta } from "better-auth/plugins";
@@ -12,9 +11,6 @@ import type { Database } from "../db/client";
 import { accounts, sessions, users, verifications } from "../db/schema";
 import { DOMAIN_REFUSAL_MESSAGE, emailDomainAllowed } from "./email-domain";
 import { applyConfiguredAdmin, seedRole } from "./roles";
-
-/** The native app's custom scheme (mobile/app.config.ts). */
-const NATIVE_APP_ORIGIN = "openbotmobile://";
 
 /**
  * Write a row about a sign-in, and never let the writing of it stop one.
@@ -148,15 +144,7 @@ export function createAuth(
    * sign-in screen has one code path and does not need to know which kind each provider is.
    */
 
-  /*
-   * The native app signs in through its custom scheme, and the Expo plugin appends the session cookie
-   * to that redirect. Any Android app can register the same scheme, so the scheme is trusted only on
-   * a deployment that runs the native app (EXPO_PROJECT_ID, as for push). Elsewhere a sign-in can
-   * never be sent there.
-   */
-  const nativeApp = Boolean(process.env.EXPO_PROJECT_ID?.trim());
   const plugins = [
-    ...(nativeApp ? [expo()] : []),
     electron({ clientID: "openbot-desktop", codeExpiresIn: 120 }),
     ...(authConfig.okta
       ? [
@@ -186,10 +174,7 @@ export function createAuth(
     },
     baseURL: authConfig.baseUrl,
     secret: authConfig.secret,
-    trustedOrigins: [
-      ...authConfig.trustedOrigins,
-      ...(nativeApp ? [NATIVE_APP_ORIGIN] : []),
-    ],
+    trustedOrigins: authConfig.trustedOrigins,
     database: drizzleAdapter(database, {
       provider: "pg",
       usePlural: true,
