@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 瘦身 P6-4（依赖变动，部署走完整构建）：去掉上游桌面端留下的服务端部分——Better Auth `electron` 插件与 `/api/auth/desktop`（依赖 `@better-auth/electron`）、组织登录（`OPENBOT_ORGANIZATION_AUTH_URL`，现在设了服务器会拒绝启动）、原生文件夹代理 `/api/host-access/*` 与 `host_*` 工具（管理 → 云端浏览器 里的「文件夹」区块随之去掉）。`.env.example` 不再列 OpenTag / Twilio / Expo 变量（P4b-2 起就不读了）。ChisaBot 的电脑访问一直走 设置 → 设备（PC 节点），行为不变。见 `docs/slimming.md`。
 - 瘦身 P6-3（依赖变动，部署走完整构建）：删掉 `worker/`（上游 Intelligence 工作进程，生产 `local` 模式从不运行）、`scripts/setup-learning.ts` / `scripts/self-hosted-learning.ts` 与 `docs/automatic-learning.md`；依赖去掉 `@better-auth/sso`、`@better-auth/scim`、`@better-auth/expo`（原生 Expo 客户端早已删除，`EXPO_PROJECT_ID` 不再读）和 4 个 `@opentelemetry/*`（审计 OTel 导出 P6-1 已删）。`bun.lock` 重新生成。行为不变。见 `docs/slimming.md`。
 - 朋友账号先隐藏（多用户以后再做）：设置 → 管理 →「账号」入口默认不显示，部署设 `CHISABOT_ACCOUNTS_UI=1` 才出现（`/api/capabilities` 多了 `accountsUi`）；登录网关 `config.json` 新增 `invites`（默认关）：关着时不能发邀请、不能直接建账号，未用的邀请链接失效，已有账号照常登录。网关多账号、签名身份、按人隔离都保留。**升级网关**：换 `deploy/public/auth/server.ts` 后重启登录服务；想继续邀请就在 `config.json` 加 `"invites": true`。（撤回了 #130 的删除。）
 - 瘦身 P6-2：去掉 Better Auth 的 SSO / SCIM 插件和 `/api/auth/*` 里的公司身份提供者分支（`/api/auth/sso/*`、`/api/auth/scim/*`、SSO 配置加密、身份提供者表的读写）；登录页的「用公司邮箱登录」框去掉。`SSO_*` / `SCIM_*` 等环境变量不再读；审计类型 `identity_provider.*`、`session.break_glass`、`person.*provisioned` 不再写入（旧记录照常显示）。生产一直没配 SSO，登录只走网关，行为不变；表不动。见 `docs/slimming.md`。

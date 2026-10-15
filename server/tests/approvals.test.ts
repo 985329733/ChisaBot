@@ -13,7 +13,6 @@ import {
 } from "../src/approvals/types";
 import { createComputerGateway } from "../src/computer/gateway";
 import { HeadlessToolSuspension } from "../src/computer/headless-tools";
-import { createHostAccessBroker } from "../src/host-access/broker";
 import { CatalogueEntryUnknownError } from "../src/plugins/store";
 
 const context = {
@@ -343,60 +342,6 @@ test("computer policy runs before personal approval and simultaneous once reques
     ),
   ).rejects.toThrow();
   expect(await store.list("owner")).toHaveLength(1);
-});
-
-test("native host approval queues one operation, replays its saved result, and respects revoked grants", async () => {
-  const store = storeFixture();
-  const service = serviceModule.createApprovalService(store);
-  const broker = createHostAccessBroker(Date.now, {
-    approvalGate: service.gate,
-  });
-  broker.nextDesktopOperation();
-  broker.rememberGrant({
-    id: "folder",
-    actorId: "owner",
-    botId: "bot",
-    displayName: "Project",
-    revoked: false,
-  });
-  const args = {
-    kind: "write_file" as const,
-    botId: "bot",
-    actorId: "owner",
-    grantId: "folder",
-    relativePath: "notes.txt",
-    content: "private file",
-  };
-  const invoke = () =>
-    withApprovalContext({ ...context, toolName: "host_write_file", args }, () =>
-      broker.callHost(args),
-    );
-  await expect(invoke()).rejects.toMatchObject({
-    name: "HeadlessToolSuspension",
-  });
-  expect(broker.statusFor("owner").pending).toHaveLength(0);
-  const [row] = await store.list("owner");
-  if (!row) throw new Error("missing request");
-  await service.decide("owner", row.id, "allow_once");
-  const running = invoke();
-  for (
-    let attempt = 0;
-    attempt < 20 && broker.statusFor("owner").pending.length === 0;
-    attempt += 1
-  )
-    await Bun.sleep(1);
-  const operation = broker.nextDesktopOperation()?.operations[0];
-  if (!operation) throw new Error("missing operation");
-  broker.resolveDesktopOperation({
-    operationId: operation.operationId,
-    ok: true,
-    result: { saved: true },
-  });
-  await expect(running).resolves.toEqual({ saved: true });
-  await expect(invoke()).resolves.toEqual({ saved: true });
-  expect(broker.statusFor("owner").pending).toHaveLength(0);
-  broker.revokeGrant("folder", "owner");
-  await expect(invoke()).rejects.toThrow("no longer available");
 });
 
 test("owner inbox exposes sanitized context and rejects another owner's decisions", async () => {

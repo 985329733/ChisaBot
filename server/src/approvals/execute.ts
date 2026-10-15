@@ -3,7 +3,6 @@ import type { RunAssertion } from "../agents/callback-token";
 import type { AuditInitiator } from "../audit";
 import type { HeadlessTool } from "../computer/headless-tools";
 import { PluginRefusedError } from "../plugins/store";
-import type { GrantedTool } from "../plugins/tools";
 import { isApprovalRecheck } from "./service";
 import {
   type ApprovalAction,
@@ -30,11 +29,6 @@ export type ApprovedActionDependencies = {
     botId: string,
     initiator: AuditInitiator,
   ): Promise<HeadlessTool[]>;
-  hostTools(input: {
-    actorId: string;
-    botId: string;
-    initiator: AuditInitiator;
-  }): GrantedTool[];
   callTool(input: {
     ref: string;
     args: Record<string, unknown>;
@@ -122,19 +116,6 @@ export function createApprovedActionExecutor(deps: ApprovedActionDependencies) {
         toolCallId: snapshot.toolCallId,
         signal: new AbortController().signal,
       });
-    }
-    if (snapshot.toolName.startsWith("host_")) {
-      const tool = deps
-        .hostTools({ actorId: action.actorId, botId: action.botId, initiator })
-        .find((tool) => tool.name === snapshot.toolName);
-      if (!tool)
-        throw new ApprovalRefusedError(
-          "That host tool is no longer available.",
-        );
-      const result = await tool.execute(snapshot.args);
-      if (result.startsWith(deps.refusalMarker))
-        throw new ApprovalRefusedError(result);
-      return result;
     }
     const args = z.record(z.string(), z.unknown()).parse(snapshot.args);
     // A hand-off is not a connector call: sent to the connector path, it was refused as not

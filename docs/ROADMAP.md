@@ -61,6 +61,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 2026-10-15 | 朋友账号：邀请链接、网关签名身份、按人隔离（CB-040） | #128 | DESIGN §65、[accounts.md](accounts.md)、ADR-0011 |
 | 2026-10-15 | 频道聊天刷新 / 换设备接着看正在写的回答（CB-041 P0、CB-043） | #124 | DESIGN §64 |
 | 2026-10-15 | 成熟度 2：只填名字建机器人、空聊天「试试这样问」（CB-003） | #122 | DESIGN §63 |
+| 2026-10-15 | 瘦身 P6-4：删上游桌面端残留（electron 插件、组织登录、host-access），清理 .env.example（约 3.5k 行，完整构建） | #135 | [slimming.md](slimming.md) |
 | 2026-10-15 | 瘦身 P6-3：删 worker/、Intelligence 开通脚本，去掉 SSO / SCIM / Expo / OTel 依赖（约 1.8k 行，完整构建） | #134 | [slimming.md](slimming.md) |
 | 2026-10-15 | 朋友账号入口默认隐藏、网关邀请默认关（多用户以后再做；撤回 #130） | #133 | DESIGN §65、[accounts.md](accounts.md) |
 | 2026-10-15 | 瘦身 P6-2：去掉 SSO / SCIM 插件与身份提供者分支（约 1.2k 行） | #132 | [slimming.md](slimming.md) |

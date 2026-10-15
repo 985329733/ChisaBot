@@ -1,7 +1,6 @@
 /** Runtime storage is chosen explicitly at the boot boundary. */
 import { singleUserEnabled } from "./auth/dev-actor";
 import { normalizeDomain } from "./auth/email-domain";
-import { organizationAuthority } from "./auth/organization";
 import type { ActionPolicy } from "./computer/policy";
 import { parseActionPolicy } from "./computer/policy-store";
 import {
@@ -250,8 +249,6 @@ export type DeploymentConfig = {
     google?: { clientId: string; clientSecret: string };
   };
   auth?: AuthConfig;
-  /** Customer OpenBot authority for employee desktop sessions, separate from Intelligence. */
-  organizationAuthUrl?: string;
   /**
    * Admit everybody as one fixed administrator instead of requiring sign-in.
    *
@@ -1215,13 +1212,13 @@ export function loadConfig(
 ): DeploymentConfig {
   const google = oauthClient(environment, "GOOGLE");
   const auth = authConfig(environment, google);
-  const organizationAuthValue = optional(
-    environment,
-    "OPENBOT_ORGANIZATION_AUTH_URL",
-  );
-  const organizationAuthUrl = organizationAuthValue
-    ? organizationAuthority(organizationAuthValue)
-    : undefined;
+  // Organization sign-in (an external OpenBot authority for the upstream desktop app) was removed in
+  // slimming P6-4. Refuse to start rather than silently fall back to the single-user actor.
+  if (optional(environment, "OPENBOT_ORGANIZATION_AUTH_URL")) {
+    throw new Error(
+      "OPENBOT_ORGANIZATION_AUTH_URL is no longer supported (organization sign-in was removed); unset it.",
+    );
+  }
   const managedAgent = managedAgentConfig(environment);
   const workerSharedSecret = optional(environment, "WORKER_SHARED_SECRET");
   const runtime = runtimeCapabilities(environment);
@@ -1252,14 +1249,7 @@ export function loadConfig(
     auditRetentionDays: auditRetentionDays(environment),
     oauth: { google },
     auth,
-    ...(organizationAuthUrl ? { organizationAuthUrl } : {}),
-    /*
-     * The authority short-circuits this, and that ordering is load-bearing: a white-label
-     * deployment naming an external authority lets it win, and `singleUserAllowed` is never
-     * reached and so cannot refuse a combination that already resolves.
-     */
     singleUser:
-      !organizationAuthUrl &&
       singleUserAllowed(environment, configuredAuthProviders(auth).length > 0),
     accessibility: accessibilityEnabled(environment),
     generativeUi: generativeUiEnabled(environment),

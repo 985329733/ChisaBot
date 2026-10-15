@@ -1,5 +1,4 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { electron } from "@better-auth/electron";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { genericOAuth, okta } from "better-auth/plugins";
@@ -145,7 +144,6 @@ export function createAuth(
    */
 
   const plugins = [
-    electron({ clientID: "openbot-desktop", codeExpiresIn: 120 }),
     ...(authConfig.okta
       ? [
           genericOAuth({
