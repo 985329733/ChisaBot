@@ -121,7 +121,7 @@ export function agentListQueryOptions(hidden = false) {
   return queryOptions({
     queryKey: agentKeys.list(hidden),
     queryFn: async (): Promise<AgentProfile[]> => {
-      const fallback = "无法加载 AI 同事";
+      const fallback = "无法加载机器人列表";
       const response = await client(
         `/api/agents${hidden ? "?hidden=true" : ""}`,
         { fallback },
@@ -155,7 +155,7 @@ export function agentQueryOptions(agentId: string) {
     queryKey: agentKeys.detail(agentId),
     queryFn: (): Promise<AgentProfile> =>
       client(agentApiPath(agentId), "agent", {
-        fallback: "无法加载此AI同事",
+        fallback: "无法加载这个机器人",
       }),
   });
 }

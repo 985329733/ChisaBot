@@ -59,6 +59,14 @@
 | [CB-048](#cb-048) | 对话像发短信：先答、短气泡、不讲方法、草稿卡 / 代码卡 / 回复引用（完成） | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-049](#cb-049) | 主对话干活卡：当前步骤 + 用时，结束收成一行（完成） | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-050](#cb-050) | 商品 / 地点推荐用带图的卡片网格 | Hark parity | `type: feature` · `area: chat` · `P2` |
+| [CB-051](#cb-051) | 「待处理」页是上游审批页：重复的开关、英文、已不存在的桌面应用、团队规则 | 成熟度 Maturity | `type: bug` · `area: approvals` · `area: settings` · `P1` |
+| [CB-052](#cb-052) | 手机上设备「完全访问」时长按钮一个字一行 | 成熟度 Maturity | `type: bug` · `area: devices` · `area: pwa` · `P1` |
+| [CB-053](#cb-053) | 找不到 / 读不到：机器人、对话只有一行红字没有出路；连接器页标题是原始 key | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
+| [CB-054](#cb-054) | 机翻 / 上游行话残留：账号连接空状态、「AI 同事」 | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
+| [CB-055](#cb-055) | 机器人资料页模型下拉显示原始模型 id | 成熟度 Maturity | `type: bug` · `area: models` · `P2` |
+| [CB-056](#cb-056) | 管理页英文：插件目录说明、权限规则快捷规则说明、活动记录事件类型 | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
+| [CB-057](#cb-057) | 活动记录表格在 390 宽被截掉右边几列 | 成熟度 Maturity | `type: bug` · `area: settings` · `area: pwa` · `P2` |
+| [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示 | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
 
 ## CB-001
 
@@ -884,6 +892,89 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 #### 验收标准
 - [ ] render_ui 目录里有商品网格（图 / 名称 / 价格 / 一句卖点 / 链接），提示词要求推荐类先查现价再画
 - [ ] 图片走服务器转存（同链接卡 §48.3），不直连第三方
+
+## CB-051
+
+**「待处理」页是上游审批页**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: approvals` `area: settings` `P1`
+
+#### 背景（成熟度扫查第 3 轮，2026-10-15）
+账号菜单「待处理」进 `/approvals`：顶上是上游的「更改前询问 / 自动审核 / 您电脑上的命令（ChisaBot 桌面应用…）」开关，和 设置 → 审批偏好（§58）重复且说法不同；下面「规则」区写「“ask”规则胜过“allow”规则。团队规则已锁定」，表单字段 Target、allow 英文；等待项显示机器人 id 和原始 JSON；聊天里没点的 §58 确认卡片反而不在这里。新朋友点「待处理」看到的是一页企业设置。生产上游 approval_* 表全是 0 行。
+
+#### 验收标准
+- [x] 待处理只列：没点的确认卡片、交给你的一步、在等你回答的问题；机器人显示名字；参数折叠；空状态 / 错误卡
+- [x] 去掉上游开关和规则表；页尾入口到 设置 → 审批偏好；菜单上的数算上确认卡片
+- [x] DOM 测试；1280 亮 / 390 暗截图（DESIGN.md §71.1）
+
+## CB-052
+
+**手机上设备「完全访问」时长按钮一个字一行**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: devices` `area: pwa` `P1`
+
+#### 背景
+390 宽 设置 → 设备 → 某台电脑 → 权限：「1 小时 / 24 小时 / 永久」被 `flex: 1` 挤成每个字一行。
+
+#### 验收标准
+- [x] 分段按钮不换行（`.sg-segmented-item` 全局）；窄屏分段独占一行、三段平分（DESIGN.md §71.2）
+
+## CB-053
+
+**找不到 / 读不到的状态**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: settings` `P2`
+
+#### 背景
+`/bots/<已删除>`、`/channel/<已删除>` 只有一行红字（对话页在左上角），没有返回；机器人资料接口 500 也说「找不到这个机器人」；`/settings/connected-accounts/<不存在>` 标题直接是 key（`nope`、`github`），说「这不是你自己连接的服务」。
+
+#### 验收标准
+- [x] 错误卡 + 出路按钮（看我的机器人 / 回到聊天），原始错误折叠在「查看详情」（DESIGN.md §71.3）
+- [x] 连接器 key 不存在：「找不到这项连接」；`github` 指回账号连接页
+
+## CB-054
+
+**机翻 / 上游行话残留**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: settings` `P2`
+
+#### 验收标准
+- [x] 账号连接页空状态 / 错误不说「读取为询问者的连接器」「可能错误的列表」
+- [x] 界面里不再出现「AI 同事」（机器人编辑框、加载失败文案、提议卡片）
+
+## CB-055
+
+**机器人资料页模型下拉显示原始模型 id**（第一轮 C8）  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: models` `P2`
+
+#### 验收标准
+- [x] 「部署默认（Muse Spark 1.3 Contributor）」这样显示目录里的名字，没有名字时才回退 id（DESIGN.md §71.4）
+
+## CB-056
+
+**管理页英文**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: settings` `P2`
+
+#### 背景
+`/admin/plugins` 插件目录的说明（Parallel Search、Google Drive、Notion、Routines…「Files in the Drive of whoever is asking」）；`/admin/boundaries` 三条快捷规则的说明（「Also stops the Bot pressing Enter…」）；`/admin/audit` 事件类型 `computer.policy_loaded`、`bot.created`，筛选「Boundary at start-up」。只有管理员看得到，但管理员就是用户本人。
+
+#### 验收标准
+- [ ] 三处都是中文；事件类型显示中文名，原始类型放悬停 / 详情
+
+## CB-057
+
+**活动记录表格在 390 宽被截掉右边几列**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: settings` `area: pwa` `P2`
+
+#### 验收标准
+- [ ] 窄屏改成一行一条（时间 · 什么 · 谁），或表格横向滚动有提示
+
+## CB-058
+
+**设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外**  
+里程碑：成熟度 Maturity · 标签：`type: chore` `area: settings` `P2`
+
+#### 背景
+左栏 19 项（个人 11 + 管理 6 + 高级 2），笔记本常见 1280×800 / 860 上「云端浏览器」以下要滚动，只有底部淡出提示。
+
+#### 验收标准
+- [ ] 先定设计（行高 36px / 管理与高级可折叠 / 高级并入管理），再改；手机抽屉不受影响
 
 ## 已完成
 

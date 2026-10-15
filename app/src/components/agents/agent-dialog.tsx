@@ -118,7 +118,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-6 text-sm text-destructive" role="alert">
-        {"无法加载此AI同事。"}
+        {"无法加载这个机器人。"}
       </p>
     );
   }
@@ -466,7 +466,7 @@ function AccessSection({ agentId }: { agentId: string }) {
   if (plugins.error || !plugins.data) {
     return (
       <p className="text-sm text-destructive" role="alert">
-        {"此AI同事可以访问的内容无法加载。"}
+        {"这个机器人可以访问的内容无法加载。"}
       </p>
     );
   }
@@ -501,7 +501,7 @@ function AccessSection({ agentId }: { agentId: string }) {
           </EmptyTitle>
           <EmptyDescription>
             {
-              "管理员从插件屏幕授予连接器和技能。在此之前，此 AI 同事可以对话，仅此而已。"
+              "管理员从插件屏幕授予连接器和技能。在此之前，这个机器人只能对话。"
             }
           </EmptyDescription>
         </EmptyHeader>
@@ -513,7 +513,7 @@ function AccessSection({ agentId }: { agentId: string }) {
     <>
       <p className="text-sm text-muted-foreground">
         {
-          "此AI同事在工作时可以访问的内容。由管理员在插件页面授予；未列出的任何内容在调用时被拒绝。"
+          "这个机器人在工作时可以访问的内容。由管理员在插件页面授予；未列出的任何内容在调用时被拒绝。"
         }
       </p>
       <div className="flex flex-col gap-2">

@@ -2999,7 +2999,7 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 }
 /* 分段控件 */
 .sg-segmented { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--glass-hover); border: 1px solid var(--line); }
-.sg-segmented-item { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px; border-radius: var(--r-pill); font-size: 13px; font-weight: 500; color: var(--ink-2); transition: background var(--dur-2), color var(--dur-2), box-shadow var(--dur-2); }
+.sg-segmented-item { display: inline-flex; flex: none; white-space: nowrap; align-items: center; gap: 6px; height: 30px; padding: 0 14px; border-radius: var(--r-pill); font-size: 13px; font-weight: 500; color: var(--ink-2); transition: background var(--dur-2), color var(--dur-2), box-shadow var(--dur-2); }
 .sg-segmented-item:hover { color: var(--ink-1); }
 .sg-segmented-item[aria-checked="true"] { background: var(--glass-3); color: var(--ink-1); box-shadow: var(--shadow-1); }
 .dark .sg-segmented-item[aria-checked="true"] { background: rgba(255, 255, 255, 0.12); }
@@ -6556,6 +6556,19 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
   .ap-pref .ap-seg { margin-left: 68px; }
 }
 .ap-status { font-size: 12px; white-space: nowrap; color: var(--ink-3); }
+/* 待处理（/approvals，DESIGN.md §71.1） */
+.pending-card { display: grid; gap: 8px; padding: 14px 16px; }
+.pending-card-t { font-size: 14px; font-weight: 600; color: var(--ink-1); line-height: 1.45; }
+.pending-card-s { font-size: 12.5px; line-height: 1.5; color: var(--ink-3); }
+.pending-card-d { font-size: 12px; color: var(--ink-3); }
+.pending-card-d summary { cursor: pointer; width: fit-content; }
+.pending-card-d pre { max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 6px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--glass-hover); font-family: var(--font-code); font-size: 12px; }
+.pending-card-a { display: flex; flex-wrap: wrap; gap: 8px; }
+.pending-prefs-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: var(--r-card, 16px); border: 1px solid var(--line); color: var(--ink-2); transition: background var(--dur-2); }
+.pending-prefs-link:hover { background: var(--glass-hover); color: var(--ink-1); }
+.pending-prefs-t { display: block; font-size: 14px; font-weight: 500; color: var(--ink-1); }
+.pending-prefs-s { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); }
+@media (max-width: 560px) { .pending-inbox .ap-row { flex-wrap: wrap; padding-bottom: 12px; } .pending-inbox .ap-row .im-row-main { flex-basis: 100%; } .pending-inbox .ap-row > .flex { margin-left: 68px; } }
 .ap-status[data-status="approved"] { color: var(--success); }
 .ap-status[data-status="pending"] { color: var(--warn); }
 /* §59 生图模型 / 识图模型（设置 → 模型 默认，设置 → 生图与识图 个人） */
@@ -6625,6 +6638,8 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 @media (max-width: 640px) {
   .full-access-actions { justify-content: stretch; }
   .full-access-actions > * { flex: 1; }
+  .full-access-actions > .sg-segmented { flex: 1 1 100%; }
+  .full-access-actions .sg-segmented-item { flex: 1; justify-content: center; }
   .device-job { flex-wrap: wrap; }
 }
 

@@ -4,13 +4,13 @@ import {
   beforeAll,
   beforeEach,
   expect,
+  mock,
   test,
 } from "bun:test";
+import type * as React from "react";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { ApprovalInbox } from "@/components/approvals/inbox";
 import { InlineApproval } from "@/components/approvals/inline-approval";
 import {
   BrowserActivity,
@@ -18,12 +18,21 @@ import {
 } from "@/components/channels/browser-activity";
 import { toVisibleChatItems } from "@/components/channels/chat-messages";
 
+// 待处理页里有 <Link>（去审批偏好），测试里没有路由：换成普通 <a>。
+const realRouter = await import("@tanstack/react-router");
+mock.module("@tanstack/react-router", () => ({
+  ...realRouter,
+  Link: ({ children, to }: { children?: React.ReactNode; to?: string }) => <a href={to}>{children}</a>,
+}));
+const { PendingInbox } = await import("@/components/approvals/inbox");
+
 beforeAll(() => GlobalRegistrator.register());
 afterEach(cleanup);
 afterAll(() => GlobalRegistrator.unregister());
 
 const originalFetch = global.fetch;
-let role: "user" | "admin" = "user";
+const role: "user" | "admin" = "user";
+let confirmations: unknown[] = [];
 const sent: { path: string; method: string; body: unknown }[] = [];
 
 const inbox = {
@@ -95,6 +104,8 @@ beforeEach(() => {
         return Response.json({ ok: true });
       }
       if (url === "/api/approvals") return Response.json(inbox);
+      if (url.startsWith("/api/confirmations/requests")) return Response.json({ requests: confirmations });
+      if (url.startsWith("/api/agents")) return Response.json({ agents: [{ id: "Shopper", name: "购物助手" }, { id: "agent_mail", name: "邮件助手" }] });
       if (url === "/api/me")
         return Response.json({
           user: { id: "me", email: "me@example.test", role },
@@ -115,16 +126,17 @@ function draw() {
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <ApprovalInbox />
+      <PendingInbox />
     </QueryClientProvider>,
   );
 }
 
-test("a hand-off is marked done by the person, never allowed on their behalf", async () => {
+test("待处理：交给你的一步只能标记自己完成或不要执行，不能替你允许", async () => {
+  confirmations = [];
   const view = draw();
-  await view.findByText(/Handed to you: Paying/);
-  expect(view.queryByRole("button", { name: "Allow once" })).toBeNull();
-  fireEvent.click(view.getByRole("button", { name: "I did it myself" }));
+  await view.findByText("购物助手把这一步交给你亲自完成");
+  expect(view.queryByRole("button", { name: "允许一次" })).toBeNull();
+  fireEvent.click(view.getByRole("button", { name: "我已自己完成" }));
   await waitFor(() =>
     expect(sent).toContainEqual({
       path: "/api/approvals/request-1/decision",
@@ -134,94 +146,41 @@ test("a hand-off is marked done by the person, never allowed on their behalf", a
   );
 });
 
-test("team rules are locked for members, enforced auto-review is shown as required, and the host cap is named", async () => {
+test("待处理：不再有上游的开关和规则表，只放等你点头的事和去审批偏好的入口", async () => {
+  confirmations = [];
   const view = draw();
-  await view.findByText("Ask before taking action (team rule)");
-  const mine = view.getByRole("combobox", {
-    name: "Behaviour for mcp/gmail/*",
-  }) as HTMLSelectElement;
-  expect(mine.value).toBe("allow");
-  expect(view.getByText("Locked")).toBeTruthy();
-  const review = view.getByRole("switch", { name: "Auto-review" });
-  expect(review.getAttribute("aria-checked")).toBe("true");
-  expect(view.getByText(/Required by your team/)).toBeTruthy();
-  expect(
-    view.getByText(/Your team limits this to "Ask every time"/),
-  ).toBeTruthy();
-  expect(view.queryByText("Team settings")).toBeNull();
+  await view.findByText("购物助手把这一步交给你亲自完成");
+  expect(view.queryByText("自动审核")).toBeNull();
+  expect(view.queryByText("更改前询问")).toBeNull();
+  expect(view.queryByText("添加规则")).toBeNull();
+  expect(view.getByText("哪些事先问我")).toBeTruthy();
 });
 
-test("a member changes a saved rule in place", async () => {
-  const view = draw();
-  const mine = await view.findByRole("combobox", {
-    name: "Behaviour for mcp/gmail/*",
-  });
-  fireEvent.change(mine, { target: { value: "hand_off" } });
-  await waitFor(() =>
-    expect(sent).toContainEqual({
-      path: "/api/approvals/rules/mine",
-      method: "PATCH",
-      body: { behaviour: "hand_off" },
-    }),
-  );
-  expect(
-    view.queryByRole("combobox", { name: "Behaviour for mcp/drive/share" }),
-  ).toBeNull();
-});
-
-test("a member adds a rule with one of the four behaviours", async () => {
-  const view = draw();
-  await view.findByText("Add a rule");
-  const user = userEvent.setup({ document });
-  await user.type(
-    view.getByRole("textbox", { name: "Tool or app" }),
-    "mcp/slack/*",
-  );
-  fireEvent.change(
-    view.getAllByRole("combobox", { name: "Behaviour" })[0] as HTMLElement,
+test("待处理：聊天里没点的确认卡片带机器人名字，能直接确认", async () => {
+  confirmations = [
     {
-      target: { value: "pre_approved" },
+      id: "c1",
+      agentId: "agent_mail",
+      threadId: "t1",
+      toolCallId: "x",
+      category: "message",
+      tool: "send_email",
+      title: "给张三发邮件",
+      target: "zhangsan@example.com",
+      details: [],
+      status: "pending",
+      decidedVia: null,
+      createdAt: new Date().toISOString(),
+      decidedAt: null,
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
     },
-  );
-  const save = view.getByRole("button", { name: "Save rule" });
-  fireEvent.submit(save.closest("form") as HTMLFormElement);
-  await waitFor(() =>
-    expect(sent).toContainEqual({
-      path: "/api/approvals/rules",
-      method: "POST",
-      body: {
-        botId: "*",
-        toolRef: "mcp/slack/*",
-        effect: "*",
-        scope: "*",
-        behaviour: "pre_approved",
-      },
-    }),
-  );
-});
-
-test("an administrator sets the team-wide controls", async () => {
-  role = "admin";
-  try {
-    const view = draw();
-    await view.findByText("Team settings");
-    fireEvent.change(
-      view.getByRole("combobox", {
-        name: "Commands on members' computers, at most",
-      }),
-      { target: { value: "never" } },
-    );
-    await waitFor(() =>
-      expect(sent).toContainEqual({
-        path: "/api/approvals/team",
-        method: "PATCH",
-        body: { hostCommandsCap: "never" },
-      }),
-    );
-    expect(view.getAllByRole("button", { name: "Remove" }).length).toBe(2);
-  } finally {
-    role = "user";
-  }
+  ];
+  const view = draw();
+  await view.findByText("给张三发邮件");
+  expect(view.getByText(/邮件助手 · /)).toBeTruthy();
+  expect(view.getByText("等你确认 · 1")).toBeTruthy();
+  fireEvent.click(view.getByRole("button", { name: "确认" }));
+  await waitFor(() => expect(sent.some((s) => s.path.includes("/api/confirmations/") && s.method === "POST")).toBe(true));
 });
 
 test("a pending change is drawn in the conversation where the action was, and decided there", async () => {

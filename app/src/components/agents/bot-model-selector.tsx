@@ -34,7 +34,9 @@ function BotModelSettingsRow({ agentId, disabled = false, bare = false }: { agen
   const options = useMemo((): ModelOption[] => {
     const models: ModelOption[] = catalog.data?.models ?? [];
     if (!state.data) return models;
-    const inherited: ModelOption = { id: "", label: `部署默认（${state.data.defaultModel}）`, provider: "" };
+    // 部署默认那一项显示模型的名字（目录里的 label），不是原始 id（C8，DESIGN.md §71.4）。
+    const defaultName = models.find((item) => item.id === state.data?.defaultModel)?.label || state.data.defaultModel;
+    const inherited: ModelOption = { id: "", label: `部署默认（${defaultName}）`, provider: "" };
     if (state.data.overrideModel && !models.some((item) => item.id === state.data?.overrideModel)) {
       return [inherited, { id: state.data.overrideModel, label: state.data.overrideModel, provider: "", missing: true }, ...models];
     }
