@@ -105,12 +105,13 @@ export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; 
         <span className="chat-work-step" role={live ? "status" : undefined}>
           <AnimatePresence initial={false} mode="popLayout">
             <motion.span
-              animate={{ opacity: 1 }}
+              animate={{ opacity: 1, y: 0 }}
               className={live ? "tool-line-running chat-work-step-text" : "chat-work-step-text"}
-              exit={{ opacity: 0 }}
-              initial={{ opacity: 0 }}
+              // 换字：旧的往上淡出、新的从下面淡入（§78.3），两行不在同一处叠着，读起来不像两段字。
+              exit={{ opacity: 0, y: reduce ? 0 : -8 }}
+              initial={{ opacity: 0, y: reduce ? 0 : 8 }}
               key={text}
-              transition={{ duration: reduce ? 0 : 0.18 }}
+              transition={{ duration: reduce ? 0 : 0.2, ease: [0.23, 1, 0.32, 1] }}
             >
               {text}
             </motion.span>
