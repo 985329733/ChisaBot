@@ -15,14 +15,13 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图、审批、生图/识图设置已上线；对话体验第五轮（短气泡、干活卡）已上线；简报、Google 账号最后 | 9 / 11 已上线（剩简报、Google 账号） |
 | [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1–P4b、P6-1…P6-4（企业闸门、SSO/SCIM、worker/、桌面端残留）、删语音、P4c-1（routines 并入定时任务）已上线；P4c 其余合并按依赖排；P5 删空表等 ≥ 2 周 |
 | [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问 / 本地 agent 已上线；待真机验证 |
-| [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 第 1、2 轮已上线（#115、#122、#124、#125）；第 3 轮（非聊天页面）在做 |
+| [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 第 1、2、3 轮已上线（#115、#122、#124、#125；第 3 轮非聊天页面 #142、#144、#145） |
 | [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
 
 ## 现在（进行中）
 
 | 条目 | 内容 | 里程碑 | 分支 |
 |---|---|---|---|
-| [CB-003](BACKLOG.md#cb-003) | 成熟度扫查第 3 轮：设置、机器人资料、设备、页面、技能、记忆、密钥、GitHub、IM、面板、审批、模型、404 / 空 / 错误状态（缺陷记为 CB-051 起） | 成熟度 | `docs/board-cleanup-3`、`fix/maturity-5…` |
 | [CB-047](BACKLOG.md#cb-047) / [CB-050](BACKLOG.md#cb-050) | 长对话打开时历史晚到；商品推荐带图网格（向 Hark 看齐 第五轮） | 成熟度 / Hark parity | `feat/harkchat-*` |
 
 ## 接下来
@@ -55,6 +54,9 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
 | 2026-10-15 | 瘦身 P4c-1：上游 Routines 并入定时任务，只剩一套（CB-015，约 8.6k 行） | #143 | DESIGN §55、[slimming.md](slimming.md) |
+| 2026-10-15 | 成熟度 3c：设置左栏三组可折叠、默认只展开当前页所在组，笔记本上不用滚（CB-058） | #145 | DESIGN §71.7 |
+| 2026-10-15 | 成熟度 3b：管理页说中文（插件目录、权限规则、活动记录），手机上活动记录一条一张卡（CB-056、CB-057） | #144 | DESIGN §71.6 |
+| 2026-10-15 | 成熟度 3：「待处理」只放等你点头的事、手机上完全访问时长按钮、找不到的错误卡、文案、资料页模型名（CB-051…CB-055） | #142 | DESIGN §71 |
 | 2026-10-15 | 干活卡结束后收成一行「搜索 2 次 · 看了 3 个网页」、提示词去免责段（CB-049 完成） | #141 | DESIGN §70.2 |
 | 2026-10-15 | 干活卡：「思考中」换成当前步骤 · 第几步 · 用时（CB-049） | #139 | DESIGN §70 |
 | 2026-10-15 | 对话像发短信：短气泡、草稿卡、回复引用、代码卡、提示词第二版（CB-048） | #138 | DESIGN §69 |

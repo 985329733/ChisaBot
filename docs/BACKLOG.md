@@ -59,14 +59,14 @@
 | [CB-048](#cb-048) | 对话像发短信：先答、短气泡、不讲方法、草稿卡 / 代码卡 / 回复引用（完成） | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-049](#cb-049) | 主对话干活卡：当前步骤 + 用时，结束收成一行（完成） | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-050](#cb-050) | 商品 / 地点推荐用带图的卡片网格 | Hark parity | `type: feature` · `area: chat` · `P2` |
-| [CB-051](#cb-051) | 「待处理」页是上游审批页：重复的开关、英文、已不存在的桌面应用、团队规则 | 成熟度 Maturity | `type: bug` · `area: approvals` · `area: settings` · `P1` |
-| [CB-052](#cb-052) | 手机上设备「完全访问」时长按钮一个字一行 | 成熟度 Maturity | `type: bug` · `area: devices` · `area: pwa` · `P1` |
-| [CB-053](#cb-053) | 找不到 / 读不到：机器人、对话只有一行红字没有出路；连接器页标题是原始 key | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
-| [CB-054](#cb-054) | 机翻 / 上游行话残留：账号连接空状态、「AI 同事」 | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
-| [CB-055](#cb-055) | 机器人资料页模型下拉显示原始模型 id | 成熟度 Maturity | `type: bug` · `area: models` · `P2` |
-| [CB-056](#cb-056) | 管理页英文：插件目录说明、权限规则快捷规则说明、活动记录事件类型 | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
-| [CB-057](#cb-057) | 活动记录表格在 390 宽被截掉右边几列 | 成熟度 Maturity | `type: bug` · `area: settings` · `area: pwa` · `P2` |
-| [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示 | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
+| [CB-051](#cb-051) | 「待处理」页是上游审批页：重复的开关、英文、已不存在的桌面应用、团队规则（完成） | 成熟度 Maturity | `type: bug` · `area: approvals` · `area: settings` · `P1` |
+| [CB-052](#cb-052) | 手机上设备「完全访问」时长按钮一个字一行（完成） | 成熟度 Maturity | `type: bug` · `area: devices` · `area: pwa` · `P1` |
+| [CB-053](#cb-053) | 找不到 / 读不到：机器人、对话只有一行红字没有出路；连接器页标题是原始 key（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
+| [CB-054](#cb-054) | 机翻 / 上游行话残留：账号连接空状态、「AI 同事」（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
+| [CB-055](#cb-055) | 机器人资料页模型下拉显示原始模型 id（完成） | 成熟度 Maturity | `type: bug` · `area: models` · `P2` |
+| [CB-056](#cb-056) | 管理页英文：插件目录说明、权限规则快捷规则说明、活动记录事件类型（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
+| [CB-057](#cb-057) | 活动记录表格在 390 宽被截掉右边几列（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `area: pwa` · `P2` |
+| [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示（完成） | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
 
 ## CB-001
 
@@ -131,7 +131,7 @@
 - [ ] 宽 1280 / 窄 420 / 暗色三种截图证据
 - [ ] 扫查结果汇总进 ROADMAP「现在」
 
-> 第 1 轮 #115（§60）、第 2 轮 #122 / #124 / #125（§63 / §64）已上线。**第 3 轮在做**（2026-10-15 14:00 起，worker cb-mat3，分支 fix/maturity-5…）：非聊天页面（设置各栏、机器人资料、设备、页面、技能、记忆、密钥、GitHub、IM、面板、审批、模型、404 / 空 / 错误状态），1280 亮 / 390 暗，新朋友视角；缺陷记为 CB-051 起。完成时在 PR 里 `Backlog: CB-003`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
+> 第 1 轮 #115（§60）、第 2 轮 #122 / #124 / #125（§63 / §64）已上线。**第 3 轮已上线**（2026-10-15，#142 / #144 / #145，DESIGN §71）：非聊天页面（设置各栏、机器人资料、设备、页面、技能、记忆、密钥、GitHub、IM、面板、审批、模型、404 / 空 / 错误状态），1280 亮 / 390 暗，新朋友视角；缺陷记为 CB-051 起。完成时在 PR 里 `Backlog: CB-003`（issue 开启后改为 `Closes #编号`），同一个 PR 更新 docs/ 与 CHANGELOG.md（见 [CONTRIBUTING.md](../CONTRIBUTING.md)）。
 
 ## CB-004
 
