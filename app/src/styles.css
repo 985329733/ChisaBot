@@ -6682,6 +6682,20 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 }
 .chat-draft-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .chat-draft-body { padding: 12px 16px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; color: var(--ink-1); }
+/* §76 文档卡：沿用草稿卡的玻璃外壳和头部；正文是 Markdown，超过约 10 行收起（淡出 +「展开全文」） */
+.chat-doc-body { position: relative; overflow: hidden; padding: 10px 16px 12px; font-size: 14px; line-height: 1.65; color: var(--ink-1); }
+.chat-doc-card { max-width: 100%; }
+.chat-doc-body[data-collapsed] { mask-image: linear-gradient(to bottom, #000 calc(100% - 72px), transparent); }
+.chat-doc-inner > :first-child { margin-top: 0; }
+.chat-doc-inner > :last-child { margin-bottom: 0; }
+.chat-doc-inner :is(h1, h2, h3, h4) { margin: 14px 0 4px; font-size: 15px; font-weight: 600; line-height: 1.45; color: var(--ink-1); letter-spacing: 0; }
+.chat-doc-inner :is(ul, ol) { margin: 2px 0 6px; }
+.chat-doc-inner li { margin: 1px 0; }
+.chat-doc-more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; padding: 7px 0 9px; border: 0; border-top: 1px solid var(--line, rgba(22, 24, 29, 0.06)); background: transparent; color: var(--ink-3); font: inherit; font-size: 12.5px; cursor: pointer; transition: color 0.15s ease, background-color 0.15s ease; }
+.chat-doc-more:hover { color: var(--ink-1); background: var(--glass-1); }
+.chat-doc-more svg { transition: transform 0.18s ease; }
+.chat-doc-more svg[data-open] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .chat-doc-more, .chat-doc-more svg { transition: none; } }
 /* §70 / §75 干活卡：沿用「思考中」胶囊，一行当前步骤 + 第几步 · 用时 + ⌄；画在这一轮第一个干活的工具那一行里。
    结束时同一个按钮换成「✓ 搜索 2 次 · 12 秒 ⌄」：同样的内边距和字号 → 同样高，结束那一刻不跳（§75.1）。 */
 .chat-work { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 100%; }

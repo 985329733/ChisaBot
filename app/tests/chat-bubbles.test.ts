@@ -75,4 +75,35 @@ describe("splitBubbles（DESIGN.md §69）", () => {
     expect(s[MAX_BUBBLES - 1]?.text).toContain("第 9 段。");
     expect(s[MAX_BUBBLES - 1]?.text).toContain(`第 ${MAX_BUBBLES} 段。`);
   });
+  test("```doc / ```summary = 文档卡（§76）：标题行拿出来，正文 Markdown 原样（含空行、列表）", () => {
+    const s = splitBubbles("React 19 主要是表单和异步更省事。\n\n```doc\n标题：React 19 新特性\n## Actions\n- useActionState\n- useFormStatus\n\n## 其他\nref 可以当 prop。\n```\n\n要我按升级顺序再排一下吗？");
+    expect(s.map((x) => x.kind)).toEqual(["text", "doc", "text"]);
+    expect(s[1]?.title).toBe("React 19 新特性");
+    expect(s[1]?.text).toBe("## Actions\n- useActionState\n- useFormStatus\n\n## 其他\nref 可以当 prop。");
+    expect(s[1]?.wide).toBe(true);
+    expect(splitBubbles("```summary\n要点一\n```")[0]?.kind).toBe("doc");
+  });
+  test("流式时没闭合的 ```doc 也是文档卡", () => {
+    const s = splitBubbles("先说结论。\n\n```doc\n标题：笔记\n第一点\n\n第二点");
+    expect(s.map((x) => x.kind)).toEqual(["text", "doc"]);
+    expect(s[1]?.text).toBe("第一点\n\n第二点");
+  });
+  test("标题行 + 草稿 / 文档卡：标题当卡片标题，不塞进正文", () => {
+    const s = splitBubbles("## 给房东的消息\n\n```draft\n房东您好。\n```");
+    expect(s).toEqual([{ kind: "draft", text: "房东您好。", title: "给房东的消息", wide: true }]);
+    const d = splitBubbles("### 学习计划\n```doc\n标题：Rust 四周\n第一周\n```");
+    expect(d[0]?.kind).toBe("doc");
+    expect(d[0]?.title).toBe("Rust 四周");
+    expect(d[0]?.text).toBe("第一周");
+  });
+  test("并进最后一个气泡的文档卡写回 ```doc", () => {
+    const parts = Array.from({ length: MAX_BUBBLES }, (_, i) => `第 ${i + 1} 段。`);
+    const s = splitBubbles([...parts, "```doc\n标题：附录\n内容\n```"].join("\n\n"));
+    expect(s[MAX_BUBBLES - 1]?.text).toContain("```doc\n标题：附录\n内容\n```");
+  });
+  test("````doc 里面可以放 ``` 代码块（收尾围栏至少一样长）", () => {
+    const s = splitBubbles("````doc\n标题：用法\n```ts\nconst a = 1;\n```\n说明\n````\n\n好了。");
+    expect(s.map((x) => x.kind)).toEqual(["doc", "text"]);
+    expect(s[0]?.text).toBe("```ts\nconst a = 1;\n```\n说明");
+  });
 });
