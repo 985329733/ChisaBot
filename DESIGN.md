@@ -1310,4 +1310,8 @@ CB-046（ADR-0013）。以前机器人聊天有两条路：左栏点机器人进
 
 **68.3 删掉的**：`rich-message-view`、`message-list`、`bot-model-input`、`reasoning-zh`、`useBotThread`、`useTurnCompaction`、`useStoppedTurn`、`MessageConfirmCards`、`botAttachments`、`SmoothMarkdownRenderer` 和它们的测试；`styles.css` 里只给 `/bot` 用的规则（约 10 KB）。
 
-**68.4 不变的**：频道聊天的外观、滚动（§35，回归脚本 `tests/chat-scroll/*` 改用频道选择器）、刷新续写（§64）、重新生成 / 编辑（§67）。
+**68.4 发送那一刻不跳**（`tests/chat-scroll/regression.sh` 改用频道选择器后第一次跑，main 上同样红，是频道聊天原来就有的问题）：按下发送时整页先往下跳一截（长对话里每条用户消息矮 30px、上一轮的结果气泡变回开场一句），再滚上去。原因两个，都改了：
+- 「编辑」「重新生成」在回答时不再卸载，按钮留着位置但看不见、点不到（`data-held`，`visibility: hidden`，`disabled`、`tabIndex=-1`、`aria-hidden`；不带 `data-testid`）。
+- 「最后一轮还在跑」从列表真的变了才算（`ChatTranscript` 记下空闲时列表的长度和最后一项）：busy 先变 true、人发的那条几十毫秒后才进列表，这段时间上一轮仍算答完。重新生成 / 编辑重发先截断列表，照样算正在跑。
+
+**68.5 不变的**：频道聊天的外观、滚动（§35）、刷新续写（§64）、重新生成 / 编辑（§67）。
