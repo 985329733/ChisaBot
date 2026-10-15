@@ -48,7 +48,7 @@
 | [CB-033](#cb-033) | 生产跨部署 stale-chunk 测试待跑 | 成熟度 Maturity | `type: chore` · `area: infra` · `P2` |
 | [CB-034](#cb-034) | 用真实账号验证 GitHub 连接与 IM 接入 | 成熟度 Maturity | `type: chore` · `area: github` · `area: im` · `P2` · `status: needs-user` |
 | [CB-035](#cb-035) | 备用模型：管理员排序的回退列表 + 对话里说明换了模型 + 自检走回退 | 成熟度 Maturity | `type: bug` · `area: models` · `area: chat` · `P0` |
-| [CB-040](#cb-040) | 多用户：管理员给朋友开账号（每人独立的机器人 / 记忆 / 密钥 / 设备） | 成熟度 Maturity | `type: feat` · `area: infra` · `area: settings` · `P0` · `status: done` |
+| [CB-040](#cb-040) | 多用户：管理员给朋友开账号（每人独立的机器人 / 记忆 / 密钥 / 设备） | 成熟度 Maturity | `type: feat` · `area: infra` · `area: settings` · `P0` · `status: done（入口默认隐藏）` |
 | [CB-041](#cb-041) | 真实聊天路径（频道聊天）刷新 / 断网后正在写的回答丢失 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` |
 | [CB-042](#cb-042) | 重新生成 / 编辑后重发 | 成熟度 Maturity | `type: feat` · `area: chat` · `P1` |
 | [CB-043](#cb-043) | 频道聊天的跨设备实时同步（手机发的桌面看不到） | 成熟度 Maturity | `type: bug` · `area: chat` · `area: pwa` · `P1` |
@@ -716,6 +716,8 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [x] 设置 → 管理 → 账号：列表、邀请、停用、重置、删除；新朋友直接得到「助手」
 - [x] 单元测试（签名 / 验签、网关账号流程）+ 预览 e2e（两个用户，界面 + 直接 API）+ 生产 e2e（临时账号，验完删除）
 - [ ] 每人每日消息上限（拆到 CB-045）
+
+> **2026-10-15 10:05 先隐藏，多用户以后再做**：代码、网关多账号、签名身份、按人隔离全部保留；界面入口由 `CHISABOT_ACCOUNTS_UI=1` 打开（默认关），网关 `config.json` 的 `invites` 默认关（不能加新人）。09:11 一度删掉（#130），10:05 用户改为隐藏，已撤回。
 
 #### 相关
 

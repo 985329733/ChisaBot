@@ -24,13 +24,14 @@ import type * as React from "react";
 import { type RailGroup, SectionRail } from "@/components/layout/section-rail";
 import type { Sidebar } from "@/components/ui/sidebar";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 
 /**
  * 「设置」— 偏好设置与管理后台合并后的唯一左栏。
  *
  * 导航收敛（2026-10-14，DESIGN.md §57）后分三组：
  * - 个人：通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 生图与识图 · 密钥 · 审批偏好 · 设备 · IM 接入（后续功能页也放这里）；
- * - 管理（仅管理员）：账号（CB-040 朋友账号）· 模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
+ * - 管理（仅管理员）：账号（CB-040 朋友账号；默认隐藏，/api/capabilities 的 accountsUi 打开才显示）· 模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
  * - 高级（默认折叠）：工作流 · 插件与 MCP。
  * 技能管理并入 设置 → 技能（管理员在页内进入），UI 组件不再出现在导航里。路由都还在，旧地址会重定向。
  * 左栏底部「返回聊天」是从设置回到对话的路（顶栏不再有分段导航）。
@@ -135,12 +136,17 @@ const ADMIN: RailGroup[] = [
 
 export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { data: user } = useQuery(currentUserQueryOptions());
+  const { data: capabilities } = useQuery(deploymentCapabilitiesQueryOptions());
+  // 多用户以后再做（2026-10-15）：「账号」入口默认隐藏，部署设 CHISABOT_ACCOUNTS_UI=1 才出现。
+  const admin = capabilities?.accountsUi
+    ? ADMIN
+    : ADMIN.map((group) => ({ ...group, items: group.items.filter((item) => item.linkOptions?.to !== "/admin/accounts") }));
   return (
     <SectionRail
       ariaLabel={"设置分区"}
       title={"设置"}
       footerLink={{ label: "返回聊天", to: "/", icon: IconMessageCircle }}
-      groups={user?.role === "admin" ? [...PERSONAL, ...ADMIN] : PERSONAL}
+      groups={user?.role === "admin" ? [...PERSONAL, ...admin] : PERSONAL}
       {...props}
     />
   );

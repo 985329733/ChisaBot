@@ -24,7 +24,7 @@ export type GatewayInvite = {
   expiresAt: number;
 };
 export type AccountsState =
-  | { available: true; me: string; accounts: GatewayAccount[]; invites: GatewayInvite[] }
+  | { available: true; me: string; accounts: GatewayAccount[]; invites: GatewayInvite[]; invitesEnabled: boolean }
   | { available: false; reason: string };
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -48,12 +48,13 @@ export function accountsQueryOptions() {
       const type = response.headers.get("Content-Type") || "";
       if (!type.includes("application/json")) return { available: false, reason: "这个部署前面没有 ChisaBot 登录网关，账号由部署方式决定。" };
       const data = (await response.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; multiAccount?: boolean; me?: string; accounts?: GatewayAccount[]; invites?: GatewayInvite[] }
+        | { ok?: boolean; error?: string; multiAccount?: boolean; me?: string; accounts?: GatewayAccount[]; invites?: GatewayInvite[]; invitesEnabled?: boolean }
         | null;
       if (response.status === 404 && data?.multiAccount === false)
         return { available: false, reason: "登录网关还没开启多账号（服务器上的 identitySecret 没有配置），见 docs/accounts.md。" };
       if (!response.ok || !data?.accounts) throw new Error(data?.error || `读取失败（${response.status}）`);
-      return { available: true, me: data.me ?? "", accounts: data.accounts, invites: data.invites ?? [] };
+      // 网关 config.json 的 invites 默认关（2026-10-15）：关着时不显示「邀请朋友」。旧网关没有这个字段 = 开着。
+      return { available: true, me: data.me ?? "", accounts: data.accounts, invites: data.invites ?? [], invitesEnabled: data.invitesEnabled !== false };
     },
     staleTime: 10_000,
   });

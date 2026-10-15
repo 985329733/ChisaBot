@@ -15,7 +15,7 @@ beforeAll(async () => {
 });
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
-function app(options: { multi?: boolean; now?: () => number; appFetch?: Fetcher; checkApp?: boolean } = {}) {
+function app(options: { multi?: boolean; now?: () => number; appFetch?: Fetcher; checkApp?: boolean; invites?: boolean } = {}) {
   return createAuthApp({
     databasePath: ":memory:",
     username: "Ayase",
@@ -23,6 +23,7 @@ function app(options: { multi?: boolean; now?: () => number; appFetch?: Fetcher;
     publicOrigin: origin,
     hashOptions: { memoryCost: 4096, timeCost: 1 },
     skipAppIdentityCheck: !options.checkApp,
+    invites: options.invites ?? true,
     ...(options.multi === false ? {} : { identitySecret: secret }),
     ...(options.now ? { now: options.now } : {}),
     ...(options.appFetch ? { appFetch: options.appFetch } : {}),
@@ -86,6 +87,38 @@ describe("signed identity", () => {
   });
   test("rejects a short identitySecret", () => {
     expect(() => createAuthApp({ databasePath: ":memory:", username: "a", passwordHash, publicOrigin: origin, identitySecret: "short" })).toThrow();
+  });
+});
+
+describe("invites closed (default since 2026-10-15)", () => {
+  test("no new invites or accounts; existing friends keep working; old invite links stop opening", async () => {
+    const open = app();
+    const admin = await adminCookie(open);
+    const token = await invite(open, admin);
+    const { cookie } = await friend(open, admin, "friend9", "friend-password-9");
+    open.close();
+    // 同一份配置但不开 invites：新起一个服务看不到上面的库（:memory:），所以在同一个服务里模拟要用文件库。
+    const dir = mkdtempSync(join(tmpdir(), "cb-invites-"));
+    const file = join(dir, "s.sqlite");
+    const base = { databasePath: file, username: "Ayase", passwordHash, publicOrigin: origin, identitySecret: secret, skipAppIdentityCheck: true, hashOptions: { memoryCost: 4096, timeCost: 1 } };
+    let service = createAuthApp({ ...base, invites: true });
+    const admin2 = await adminCookie(service);
+    const pending = await invite(service, admin2);
+    const made = await friend(service, admin2, "friend8", "friend-password-8");
+    service.close();
+    service = createAuthApp(base);
+    const list = await (await service.fetch(req("/auth/admin/accounts", { cookie: admin2 }))).json();
+    expect(list.invitesEnabled).toBe(false);
+    expect(list.accounts.length).toBe(2);
+    expect((await service.fetch(req("/auth/admin/invites", { body: { hours: 24 }, cookie: admin2 }))).status).toBe(403);
+    expect((await service.fetch(req("/auth/admin/accounts", { body: { username: "direct1", password: "password-123" }, cookie: admin2 }))).status).toBe(403);
+    expect((await service.fetch(req("/auth/invite?token=" + pending))).status).toBe(404);
+    // 已有的朋友照常用。
+    expect((await service.fetch(req("/_internal/check", { cookie: made.cookie }))).status).toBe(200);
+    expect((await service.fetch(req("/auth/login", { body: { username: "friend8", password: "friend-password-8" } }))).status).toBe(200);
+    service.close();
+    rmSync(dir, { recursive: true, force: true });
+    expect(token && cookie).toBeTruthy();
   });
 });
 

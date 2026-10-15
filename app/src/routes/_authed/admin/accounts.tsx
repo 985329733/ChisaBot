@@ -1,6 +1,6 @@
 import { IconDots, IconKey, IconLink, IconPlayerPause, IconPlayerPlay, IconPlus, IconTrash, IconUser, IconUserShield } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
@@ -25,8 +25,14 @@ import {
   revokeInvite,
   setAccountDisabled,
 } from "@/lib/accounts";
+import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 
 export const Route = createFileRoute("/_authed/admin/accounts")({
+  // 多用户以后再做（2026-10-15）：入口默认隐藏，直接打开地址也回到设置；CHISABOT_ACCOUNTS_UI=1 才能进。
+  beforeLoad: async ({ context }) => {
+    const capabilities = await context.queryClient.ensureQueryData(deploymentCapabilitiesQueryOptions()).catch(() => null);
+    if (!capabilities?.accountsUi) throw redirect({ to: "/settings", replace: true });
+  },
   component: AccountsPage,
 });
 
@@ -118,7 +124,7 @@ function AccountsPage() {
       <LinkDialog link={link} onOpenChange={(open) => (open ? null : setLink(null))} />
       <PageShell
         action={
-          data?.available ? (
+          data?.available && data.invitesEnabled ? (
             <Button onClick={() => setInviteOpen(true)} size="sm">
               <IconPlus />
               {"邀请朋友"}

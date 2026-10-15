@@ -86,6 +86,11 @@ export type AuthConfig = {
    * 签名身份头 X-ChisaBot-Identity（应用里 CHISABOT_GATEWAY_SECRET 填同一个值）。不配 = 以前的单账号。
    */
   identitySecret?: string;
+  /**
+   * 开放新朋友账号（邀请链接、管理员直接建账号）。默认关（2026-10-15：多用户以后再做，先隐藏）；
+   * 关着时已有朋友账号照常登录、可重置密码 / 停用 / 删除，只是不能再加人，未用的邀请链接也打不开。
+   */
+  invites?: boolean;
   /** config.json 里那个账号在应用里的用户 id（以前单用户时的数据都在它名下）。 */
   adminUserId?: string;
   /** 测试用：不问应用是否认得签名身份。 */
@@ -118,6 +123,8 @@ export function createAuthApp(config: AuthConfig) {
   if (!config.username || !config.passwordHash.startsWith("$argon2id$") || new URL(config.publicOrigin).protocol !== "https:") throw new Error("Invalid authentication configuration");
   if (config.identitySecret !== undefined && (typeof config.identitySecret !== "string" || config.identitySecret.length < 32)) throw new Error("identitySecret must be at least 32 characters");
   const multi = typeof config.identitySecret === "string";
+  const invitesOpen = config.invites === true;
+  const invitesClosed = () => json({ ok: false, error: "邀请新朋友目前已关闭。", invitesEnabled: false }, 403);
   const adminUserId = config.adminUserId || "dev-local-user";
   const now = config.now || Date.now;
   const appUrl = (config.appUrl || "http://127.0.0.1:3001").replace(/\/+$/, "");
@@ -386,11 +393,13 @@ export function createAuthApp(config: AuthConfig) {
         return json({
           ok: true,
           me: principal.id,
+          invitesEnabled: invitesOpen,
           accounts: [{ id: adminUserId, username: config.username, displayName: config.username, role: "admin", disabled: false, builtin: true, createdAt: null, lastLoginAt: null }, ...rows.map(accountView)],
           invites,
         });
       }
       if (method === "POST") {
+        if (!invitesOpen) return invitesClosed();
         const body = await readJson(request);
         if (body instanceof Response) return body;
         const username = typeof body.username === "string" ? body.username.trim() : "";
@@ -407,6 +416,7 @@ export function createAuthApp(config: AuthConfig) {
       return json({ ok: false, error: "请求方法不支持。" }, 405);
     }
     if (rest[0] === "invites" && rest.length === 1 && method === "POST") {
+      if (!invitesOpen) return invitesClosed();
       const body = await readJson(request);
       if (body instanceof Response) return body;
       const hours = typeof body.hours === "number" && Number.isFinite(body.hours) ? Math.min(168, Math.max(1, Math.round(body.hours))) : 72;
@@ -459,6 +469,7 @@ export function createAuthApp(config: AuthConfig) {
     if (typeof token !== "string" || !INVITE_TOKEN.test(token)) return null;
     const row = db.query("SELECT token_hash, kind, account_id, expires_at, used_at FROM invites WHERE token_hash = ?").get(digest(token)) as InviteRow | null;
     if (!row || row.used_at !== null || row.expires_at <= now()) return null;
+    if (row.kind === "invite" && !invitesOpen) return null;
     if (row.kind === "reset") {
       const target = row.account_id ? account(row.account_id) : null;
       if (!target || target.disabled) return null;
