@@ -28,9 +28,8 @@ function whenText(at: string | null): string {
 }
 
 /**
- * 「历史对话」（DESIGN.md §42.6）：机器人 ⋯ 菜单里打开。全端同步后所有设备共用一条当前对话，一台设备
- * 原来的那条就看不到了；这里列出你和这个机器人的对话（最近 30 条），点一条就切过去（所有设备一起换）。
- * 只是切换，不删、不改名。
+ * 「历史对话」（DESIGN.md §42.6 / §68）：机器人 ⋯ 菜单里打开。列出你和这个机器人的对话（最近 30 条，频道聊天的
+ * 和以前 `/bot` 的都在），点一条在频道聊天里打开（没有频道的旧对话由服务器补一个）。只是打开，不删、不改名。
  */
 export function BotThreadHistoryDialog({
   agentId,
@@ -63,7 +62,7 @@ export function BotThreadHistoryDialog({
       <DialogContent className="bot-history max-w-[440px]">
         <DialogHeader>
           <DialogTitle>{"历史对话"}</DialogTitle>
-          <DialogDescription>{"点一条切换过去，所有设备一起换。旧对话都会保留。"}</DialogDescription>
+          <DialogDescription>{"点一条打开，接着聊。旧对话都会保留。"}</DialogDescription>
         </DialogHeader>
         <div className="bot-history-list" role="list">
           {list.isPending ? (

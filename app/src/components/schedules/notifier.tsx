@@ -1,8 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/ui/toast";
 import { scheduleEvents, scheduleKeys } from "@/lib/schedules";
+import { useOpenThread } from "@/lib/channels/open-thread";
 
 const POLL_MS = 20_000;
 
@@ -12,7 +12,7 @@ const POLL_MS = 20_000;
  */
 export function ScheduleNotifier() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const openThread = useOpenThread();
   const since = useRef<string>(new Date().toISOString());
   const seen = useRef(new Set<string>());
   useEffect(() => {
@@ -35,13 +35,13 @@ export function ScheduleNotifier() {
           seen.current.add(event.runId);
           const verb = event.status === "failed" ? "没有完成" : event.status === "waiting" ? "在等你确认" : event.status === "skipped" ? "跳过了" : event.manual ? "运行完了" : "到点了";
           const text = `⏰ 定时任务「${event.title}」${verb}${event.result && event.status !== "ok" && event.status !== "queued" ? `：${event.result.slice(0, 60)}` : ""}`;
-          toast.action(text, "查看", () => void navigate({ to: "/bot", search: { agent: event.agentId } }));
+          toast.action(text, "查看", () => void openThread(event.agentId, event.threadId));
           try {
             if (document.visibilityState === "hidden" && typeof Notification !== "undefined" && Notification.permission === "granted") {
               const n = new Notification(`定时任务「${event.title}」`, { body: (event.result ?? verb).slice(0, 120), tag: `chisabot-schedule-${event.runId}` });
               n.onclick = () => {
                 window.focus();
-                void navigate({ to: "/bot", search: { agent: event.agentId } });
+                void openThread(event.agentId, event.threadId);
               };
             }
           } catch {
@@ -60,6 +60,6 @@ export function ScheduleNotifier() {
       controller.abort();
       if (timer) window.clearTimeout(timer);
     };
-  }, [queryClient, navigate]);
+  }, [queryClient, openThread]);
   return null;
 }

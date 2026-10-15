@@ -1,6 +1,3 @@
-import { useAgent } from "@copilotkit/react-core/v2";
-import { useEffect, useState } from "react";
-
 /**
  * Why the last turn ended without an answer, for a surface that has to say so itself.
  *
@@ -108,16 +105,4 @@ export function stoppedTurnSubscriber(setStopped: (reason: string | null) => voi
       if (!stoppedByUser()) setStopped(stoppedReason(error));
     },
   };
-}
-
-export function useStoppedTurn(agentId: string): string | null {
-  const { agent } = useAgent({ agentId });
-  const [stopped, setStopped] = useState<string | null>(null);
-
-  useEffect(() => {
-    const subscription = agent.subscribe?.(stoppedTurnSubscriber(setStopped));
-    return () => subscription?.unsubscribe();
-  }, [agent]);
-
-  return stopped;
 }

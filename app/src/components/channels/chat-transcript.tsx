@@ -89,6 +89,15 @@ import {
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
 import { ToolRenderBoundary } from "./tool-boundary";
+import { ConfirmResumeRow, isConfirmResume, ToolCallConfirmCards } from "@/components/chat/confirm-card";
+import { ScheduleFiredRow } from "@/components/chat/schedule-row";
+import { WorkerResultRow } from "@/components/chat/worker-card";
+import { LocalAgentResultRow } from "@/components/chat/local-agent-card";
+import { QueuedMessages } from "@/components/chat/queued-messages";
+import { useReadMark } from "@/lib/copilot/thread-inbox";
+import { WORKER_RESULT_MARKER } from "@/lib/copilot/workers";
+import { SCHEDULE_MARKER } from "../../../../shared/schedules";
+import { LOCAL_AGENT_RESULT_MARKER } from "../../../../shared/local-agents";
 import { ToolLine } from "./tool-line";
 import { VoiceChatCard } from "./voice-chat-card";
 
@@ -120,7 +129,58 @@ type ChatTranscriptProps = {
   onRetry?: () => void;
   /** 会话最上方的一句提示（例如较早的消息读不到），在第一条消息之前。 */
   topNotice?: React.ReactNode;
+  /** 换了备用模型的轮次（开启那一轮的用户消息 id → 一句说明），那一轮末尾一行淡色小字（DESIGN.md §61）。 */
+  fallbacks?: ReadonlyMap<string, string>;
 };
+
+/**
+ * 服务器放进对话、以 `role: "user"` 出现但不是人说的那几种消息（CB-046 从 `/bot` 搬来）：定时任务到点（§55）、
+ * 后台任务交回结果（§38.2）、本地 agent 交回结果（§66）、后来才确认的那一步（§58）。画成一行，不是用户气泡，
+ * 不能编辑；但它们各自开启一轮（服务器接着跑），所以收轮次时算一轮的开头。
+ */
+export function serverRowKind(text: string): "schedule" | "worker" | "local-agent" | "confirm" | null {
+  if (text.startsWith(SCHEDULE_MARKER)) return "schedule";
+  if (text.startsWith(LOCAL_AGENT_RESULT_MARKER)) return "local-agent";
+  if (text.startsWith(WORKER_RESULT_MARKER)) return "worker";
+  if (isConfirmResume(text)) return "confirm";
+  return null;
+}
+
+function ServerRow({ messageId, text }: { messageId: string; text: string }) {
+  const kind = serverRowKind(text);
+  if (kind === "schedule")
+    return (
+      <div className="worker-result-msg" data-testid="schedule-fired-message">
+        <ScheduleFiredRow messageId={messageId} text={text} />
+      </div>
+    );
+  if (kind === "local-agent")
+    return (
+      <div className="worker-result-msg" data-testid="local-agent-result-message">
+        <LocalAgentResultRow messageId={messageId} text={text} />
+      </div>
+    );
+  if (kind === "worker")
+    return (
+      <div className="worker-result-msg" data-testid="worker-result-message">
+        <WorkerResultRow messageId={messageId} text={text} />
+      </div>
+    );
+  return (
+    <div className="confirm-resume-msg">
+      <ConfirmResumeRow text={text} />
+    </div>
+  );
+}
+
+/** 回答期间发的这条刚被机器人读到（DESIGN.md §38.1），几秒后淡出。 */
+function ReadMark({ messageId }: { messageId: string }) {
+  return useReadMark(messageId) ? (
+    <div className="flex justify-end">
+      <span className="queued-read-mark" data-testid="queued-read">{"已读取"}</span>
+    </div>
+  ) : null;
+}
 
 /** One shared empty array, so a screen without a queue does not hand down a new one per render. */
 const EMPTY_QUEUE: readonly QueuedMessage[] = [];
@@ -724,6 +784,17 @@ const TranscriptMessage = memo(function TranscriptMessage({
    * chip split, the end alignment and the bubble are all wrong for it, and each one of them would
    * have to learn about firings separately if this branched any later.
    */
+  if (isUser && serverRowKind(text) !== null) {
+    return (
+      <MessageRow align="start">
+        <MessageContent className="w-full">
+          <Arriving delay={delay}>
+            <ServerRow messageId={messageId ?? ""} text={text} />
+          </Arriving>
+        </MessageContent>
+      </MessageRow>
+    );
+  }
   const firing = isUser ? readFiring(text) : null;
   if (firing !== null) {
     return (
@@ -815,6 +886,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
           </Bubble>
           {/* 链接卡 / 图片一摞（DESIGN.md §31）；开场一句不带。 */}
           {tone === "lead" ? null : <MessageRichPreviews align={align} text={isUser ? said : text} />}
+          {isUser && messageId ? <ReadMark messageId={messageId} /> : null}
           {isUser ? (
             editable && messageId ? (
               <div className="chat-msg-actions" data-align="end">
@@ -1595,7 +1667,7 @@ export function isPersonSentMessage(
   role: "user" | "assistant",
   text: string,
 ): boolean {
-  return role === "user" && readFiring(text) === null;
+  return role === "user" && readFiring(text) === null && serverRowKind(text) === null;
 }
 
 /**
@@ -1709,6 +1781,7 @@ export function ChatTranscript({
   stoppedTurns,
   onRetry,
   topNotice,
+  fallbacks,
 }: ChatTranscriptProps) {
   /*
    * NOT MEMOISED, AND THAT IS DELIBERATE. `useMemo` keyed on `messages` looks obviously right and
@@ -1722,7 +1795,7 @@ export function ChatTranscript({
    */
   const items = groupBrowserSteps(toVisibleChatItems(messages));
   // 一轮收成「开场一句 → 结果」，与机器人聊天同一规则（compactTurns，2026-10-13 第四轮）。
-  const compact = compactTurns(items, busy, stoppedTurns ?? EMPTY_STOPS);
+  const compact = compactTurns(items, busy, stoppedTurns ?? EMPTY_STOPS, fallbacks);
 
   /*
    * ONLY WHILE THERE IS NOTHING ELSE TO LOOK AT. Once a reply starts streaming, or a tool line
@@ -1802,6 +1875,7 @@ export function ChatTranscript({
         <MessageScrollerViewport ref={viewportRef}>
           <MessageScrollerContent
             aria-busy={busy}
+            data-testid="chat-transcript"
             className="mx-auto w-full max-w-2xl px-4 py-6"
             spacerClassName="order-2"
           >
@@ -1871,20 +1945,32 @@ export function ChatTranscript({
                   text={message.text}
                 />
               ))}
+              {/* 回答期间发的、进了服务器收件箱的（DESIGN.md §38.1）：读到之前画在这里，读到后出现在它被读到的位置。 */}
+              <QueuedMessages />
             </div>
             {topNotice ? (
               <div className="chat-top-notice">{topNotice}</div>
             ) : null}
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
-            {items.map((item, index) =>
-              compact.hidden.has(item.id) ? null : compact.stoppedAfter === item.id ? (
-                [renderRow(item, index), (
+            {items.map((item, index) => {
+              if (compact.hidden.has(item.id)) return null;
+              const stoppedHere = compact.stoppedAfter.has(item.id);
+              const fallback = compact.fallbackAfter.get(item.id);
+              if (!stoppedHere && !fallback) return renderRow(item, index);
+              return [
+                renderRow(item, index),
+                stoppedHere ? (
                   <MessageScrollerItem key={`${item.id}:stopped`} messageId={`${item.id}:stopped`}>
                     <div className="chat-stopped-mark" data-testid="turn-stopped">{"◼ 已停止"}</div>
                   </MessageScrollerItem>
-                )]
-              ) : renderRow(item, index),
-            )}
+                ) : null,
+                fallback ? (
+                  <MessageScrollerItem key={`${item.id}:fallback`} messageId={`${item.id}:fallback`}>
+                    <div className="chat-fallback-note" data-testid="turn-fallback">{fallback}</div>
+                  </MessageScrollerItem>
+                ) : null,
+              ];
+            })}
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton className="chat-bottom-pill">
@@ -1924,6 +2010,12 @@ export function ChatTranscript({
                     delay={delays.delayFor(item.id, index, items.length)}
                     name={item.toolCall.function.name}
                     result={item.result}
+                    toolCallId={item.toolCall.id}
+                  />
+                  {/* 确认卡片（DESIGN.md §58）：画在这个工具调用下面；设备改文件时带 diff（§62）。 */}
+                  <ToolCallConfirmCards
+                    answered={item.result !== undefined}
+                    recent={index >= items.length - 8}
                     toolCallId={item.toolCall.id}
                   />
                 </MessageScrollerItem>
@@ -2001,12 +2093,23 @@ export function compactTurns(
   items: readonly TranscriptItem[],
   busy: boolean,
   stopped: ReadonlySet<string>,
-): { tone: Map<string, "lead" | "step" | "final">; hidden: Set<string>; stoppedAfter: string | null } {
+  fallbacks?: ReadonlyMap<string, string>,
+): {
+  tone: Map<string, "lead" | "step" | "final">;
+  hidden: Set<string>;
+  /** 被停掉的轮次：最后一个看得见的行（后面挂「已停止」）。 */
+  stoppedAfter: Set<string>;
+  /** 换了备用模型的轮次：最后一个看得见的行 → 说明（§61）。 */
+  fallbackAfter: Map<string, string>;
+} {
   const tone = new Map<string, "lead" | "step" | "final">();
   const hidden = new Set<string>();
-  let stoppedAfter: string | null = null;
+  const stoppedAfter = new Set<string>();
+  const fallbackAfter = new Map<string, string>();
+  // 一轮的开头：人发的消息，或服务器放进来、接着跑一轮的那几种（定时任务 / 任务结果 / 后来确认，CB-046）。
   const sent = (item: TranscriptItem) =>
-    item.kind === "attachments" || (item.kind === "text" && isPersonSentMessage(item.role, item.text));
+    item.kind === "attachments" ||
+    (item.kind === "text" && (isPersonSentMessage(item.role, item.text) || (item.role === "user" && serverRowKind(item.text) !== null)));
   const turns: { users: TranscriptItem[]; rest: TranscriptItem[] }[] = [{ users: [], rest: [] }];
   for (const item of items) {
     const current = turns[turns.length - 1]!;
@@ -2034,10 +2137,13 @@ export function compactTurns(
     if (final) for (const item of texts) if (tone.get(item.id) === "step") hidden.add(item.id);
     const browsers = turn.rest.filter((item) => item.kind === "browser");
     for (const item of browsers.slice(0, -1)) hidden.add(item.id);
-    if (isStopped) {
-      const visible = [...turn.users, ...turn.rest].filter((item) => !hidden.has(item.id));
-      stoppedAfter = visible[visible.length - 1]?.id ?? null;
+    const visible = [...turn.users, ...turn.rest].filter((item) => !hidden.has(item.id));
+    const last = visible[visible.length - 1]?.id;
+    if (isStopped && last) stoppedAfter.add(last);
+    if (!live && last && fallbacks?.size) {
+      const notice = turn.users.map((user) => fallbacks.get(turnOf(user))).find(Boolean);
+      if (notice) fallbackAfter.set(last, notice);
     }
   });
-  return { tone, hidden, stoppedAfter };
+  return { tone, hidden, stoppedAfter, fallbackAfter };
 }

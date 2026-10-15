@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { contentText, isEditableUserText, lastUserIndex, withEditedText } from "@/lib/copilot/regenerate";
 import { revisionNeedsRebuild } from "@/lib/copilot/use-conversation-sync";
-import { lastAnswerMessageId } from "@/lib/copilot/rich-message-view";
 
 /** 重新生成 / 编辑后重发（DESIGN.md §67，CB-042）的纯函数。 */
 describe("regenerate helpers", () => {
@@ -32,11 +31,5 @@ describe("regenerate helpers", () => {
     expect(revisionNeedsRebuild("0", "1", undefined)).toBe(true);
     expect(revisionNeedsRebuild("0", "1", "1")).toBe(false);
     expect(revisionNeedsRebuild("1", "2", "1")).toBe(true);
-  });
-
-  test("lastAnswerMessageId only inside the last turn", () => {
-    expect(lastAnswerMessageId([{ id: "u", role: "user" }, { id: "a", role: "assistant", content: "hi" }, { id: "t", role: "tool" }])).toBe("a");
-    expect(lastAnswerMessageId([{ id: "a", role: "assistant", content: "hi" }, { id: "u", role: "user" }])).toBeNull();
-    expect(lastAnswerMessageId([{ id: "u", role: "user" }, { id: "a", role: "assistant", content: "" }])).toBeNull();
   });
 });

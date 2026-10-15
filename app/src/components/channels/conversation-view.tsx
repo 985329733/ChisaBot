@@ -44,9 +44,18 @@ export function ConversationView({
   onSubmit,
   onStop,
   voiceCall,
+  fallbacks,
+  queueToServer,
 }: {
   messages: readonly Message[];
   busy?: boolean;
+  /** 换了备用模型的轮次（用户消息 id → 说明），那一轮末尾一行小字（DESIGN.md §61）。 */
+  fallbacks?: ReadonlyMap<string, string>;
+  /**
+   * 回答期间发的纯文字消息进服务器收件箱（DESIGN.md §38.1，CB-046 从 `/bot` 搬来）：正在跑的那一轮下一步就读到，
+   * 不用等它说完。"send" = 那一轮其实已经结束，按原来的本地排队走；带附件 / 技能的仍走本地排队。
+   */
+  queueToServer?: (text: string) => Promise<"queued" | "send" | "failed">;
   /** Shown above the composer. An error, or why this conversation is read-only. */
   notice?: ReactNode;
   /** 显示在会话顶部（第一条消息之上），例如较早的消息读不到时的提示和「重试」。 */
@@ -468,6 +477,7 @@ export function ConversationView({
           queued={queued}
           restoring={restoring}
           topNotice={transcriptNotice}
+          {...(fallbacks ? { fallbacks } : {})}
           {...(stoppedTurns ? { stoppedTurns } : {})}
           {...(stopped ? { stopped, onRetry: retry } : {})}
         />
@@ -490,7 +500,19 @@ export function ConversationView({
           onQueue={
             queueWhileBusy
               ? (draft) => {
-                  submit(draft, true);
+                  const plain =
+                    queueToServer !== undefined &&
+                    draft.attachments.length === 0 &&
+                    draft.commandIds.length === 0 &&
+                    draft.text.trim().length > 0 &&
+                    queuedRef.current.length === 0;
+                  if (!plain) {
+                    submit(draft, true);
+                    return;
+                  }
+                  void queueToServer(draft.text.trim()).then((outcome) => {
+                    if (outcome === "send") submit(draft, true);
+                  });
                 }
               : undefined
           }

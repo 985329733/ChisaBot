@@ -25,7 +25,7 @@ await ctx.addInitScript((lite) => {
   w.__lt = [];
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (w.__sampling) w.__lt.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false }); } catch {}
   w.__findScroller = () => {
-    const list = document.querySelector(".bot-chat-sky .copilotKitMessages");
+    const list = document.querySelector("[data-testid=chat-transcript]");
     let el = list?.parentElement;
     while (el && el !== document.body) {
       const oy = getComputedStyle(el).overflowY;
@@ -41,7 +41,7 @@ await ctx.addInitScript((lite) => {
       if (found && w.__fixed && !w.__fixed.isConnected) { w.__swaps = (w.__swaps || 0) + 1; w.__fixed = found; }
       const s = w.__fixed;
       if (s) {
-        const msgs = document.querySelectorAll(".bot-chat-sky .copilotKitAssistantMessage");
+        const msgs = document.querySelectorAll("[data-testid=chat-transcript] [data-cb-turn]");
         const last = msgs[msgs.length - 1];
         const r = last?.getBoundingClientRect();
         const sr = s.getBoundingClientRect();
@@ -64,14 +64,14 @@ if (Number(process.env.CPU || 1) > 1) { const cdp = await ctx.newCDPSession(page
 
 async function open() {
   await page.goto(`${BASE}/bot?agent=${BOT}`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('textarea[data-testid="copilot-chat-textarea"]', { timeout: 30000 });
+  await page.waitForSelector('[aria-label="消息"]', { timeout: 30000 });
   const tl = Date.now();
-  await page.waitForFunction(() => document.querySelectorAll(".bot-chat-sky [data-message-id]").length > 0, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelectorAll("[data-testid=chat-transcript] [data-message-id]").length > 0, null, { timeout: 30000 }).catch(() => {});
   log("LOAD", JSON.stringify({ msToFirstMessages: Date.now() - tl, nodes: await page.evaluate(() => document.querySelectorAll("*").length) }));
   await page.waitForTimeout(5000);
 }
 async function send(text) {
-  const ta = page.locator('textarea[data-testid="copilot-chat-textarea"]').first();
+  const ta = page.locator('[aria-label="消息"]').first();
   await ta.click();
   await ta.fill(text);
   await page.keyboard.press("Enter");
@@ -95,7 +95,7 @@ if (PHASE === "seed") {
     await waitIdle(30000);
     if (i % 5 === 0) log("seeded", i);
   }
-  const count = await page.locator(".bot-chat-sky [data-message-id]").count();
+  const count = await page.locator("[data-testid=chat-transcript] [data-message-id]").count();
   log("rendered message nodes", count);
   await ctx.storageState({ path: "/out/state.json" });
 }

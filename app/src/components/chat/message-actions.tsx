@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMessageActions } from "@/lib/copilot/regenerate";
 
 /**
- * 消息下面的「重新生成」「编辑」和原地编辑框（DESIGN.md §67，CB-042）。频道聊天和 `/bot` 共用。
+ * 消息下面的「重新生成」「编辑」和原地编辑框（DESIGN.md §67，CB-042）。频道聊天用。
  *
  * 样式跟「复制」一样是消息下面的淡色小胶囊（`.chat-msg-action`，悬停 / 聚焦才显，触屏常显），
  * 异步的那个走按钮状态机：重新生成 → 圈「生成中…」→ 成功时这条回答本来就被换掉了；失败 ✕ + toast 原因。

@@ -28,10 +28,10 @@ page.on("pageerror", (e) => errors.push(String(e)));
 let failures = 0;
 const check = (ok, what) => { log(ok ? "PASS" : "FAIL", what); if (!ok) failures++; };
 const shot = async (name) => { await page.screenshot({ path: `/out/${TAG}-${name}.png` }); log("shot", name); };
-const ta = () => page.locator('textarea[data-testid="copilot-chat-textarea"]').first();
+const ta = () => page.locator('[aria-label="消息"]').first();
 
 await page.goto(`${BASE}/bot?agent=${BOT}`, { waitUntil: "domcontentloaded" });
-await page.waitForSelector('textarea[data-testid="copilot-chat-textarea"]', { timeout: 40000 });
+await page.waitForSelector('[aria-label="消息"]', { timeout: 40000 });
 await page.waitForTimeout(1500);
 const send = async (text) => { await ta().fill(text); await page.keyboard.press("Enter"); };
 
@@ -62,17 +62,17 @@ if (SCENARIO === "steer") {
     await page.waitForSelector('[data-testid="queued-read"]', { timeout: 15000 });
     check((await page.locator('[data-testid="queued-messages"] .queued-msg').count()) === 0, "queued bubble gone once read");
     await shot("read");
-    await page.waitForSelector('[data-testid="copilot-send-button"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="composer-send"]', { timeout: 30000 });
     await page.waitForTimeout(1200);
-    const transcript = await page.locator(".bot-chat-sky .copilotKitMessages").innerText();
+    const transcript = await page.locator("[data-testid=chat-transcript]").innerText();
     check(transcript.includes("已按补充调整：只看 2026 年的"), "the reply answered the queued message");
     check((transcript.match(/只看 2026 年的/g) || []).length === 2, "the queued message appears once in the transcript (plus once quoted in the reply)");
     await shot("end");
     // reload: order survives
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.waitForSelector('textarea[data-testid="copilot-chat-textarea"]', { timeout: 40000 });
+    await page.waitForSelector('[aria-label="消息"]', { timeout: 40000 });
     await page.waitForTimeout(2500);
-    const after = await page.locator(".bot-chat-sky .copilotKitMessages").innerText();
+    const after = await page.locator("[data-testid=chat-transcript]").innerText();
     check(after.indexOf("只看 2026 年的") < after.indexOf("已按补充调整"), "after reload the queued message sits before the answer");
     await shot("reloaded");
   }
@@ -89,7 +89,7 @@ if (SCENARIO === "worker") {
   await card.scrollIntoViewIfNeeded();
   await shot("running");
   // chat stays free while it runs
-  check(await page.locator('[data-testid="copilot-send-button"]').isVisible(), "main conversation is free while the worker runs");
+  check(await page.locator('[data-testid="composer-send"]').isVisible(), "main conversation is free while the worker runs");
   await page.locator('[data-testid="worker-steer"]').click();
   await page.locator(".worker-steer-input").fill("结果里写上日期");
   await shot("steer-input");
@@ -100,8 +100,8 @@ if (SCENARIO === "worker") {
   await page.waitForTimeout(400);
   check((await card.innerText()).includes("后台结果"), "collapsed one-line result");
   await page.waitForSelector('[data-testid="worker-result"]', { timeout: 20000 });
-  await page.waitForFunction(() => document.querySelector(".bot-chat-sky .copilotKitMessages")?.textContent?.includes("后台任务做完了"), null, { timeout: 20000 });
-  const text = await page.locator(".bot-chat-sky .copilotKitMessages").innerText();
+  await page.waitForFunction(() => document.querySelector("[data-testid=chat-transcript]")?.textContent?.includes("后台任务做完了"), null, { timeout: 20000 });
+  const text = await page.locator("[data-testid=chat-transcript]").innerText();
   check(text.includes("后台任务做完了"), "main bot summarised the result without a reload");
   check(text.includes("日期"), "steer message reached the worker");
   await page.waitForTimeout(800);

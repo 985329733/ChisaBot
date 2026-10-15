@@ -18,7 +18,7 @@ import { canTween, easeOut, formatLike, parseNumeric, safeHttp } from "./rich-ut
  * 富组件的运行环境（DESIGN.md §32）：一张界面画在哪里（对话 / 右栏面板），点了以后做什么。
  *
  * 对话里：ask = 以用户身份发一句话（ConversationProvider），refresh 没有。
- * 面板里：ask = 发到当前机器人的对话（bot.tsx 监听 chisabot-ask），refresh = 立即刷新这张面板。
+ * 面板里：ask = 发到当前机器人的对话（频道聊天 channel-chat.tsx 监听 chisabot-ask），refresh = 立即刷新这张面板。
  * 链接一律新标签页（rel=noopener noreferrer），只放行 http(s)。
  */
 export type RichActions = {
