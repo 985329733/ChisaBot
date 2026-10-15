@@ -59,3 +59,20 @@ describe("summarizeDoneWork（DESIGN.md §70.2）", () => {
     expect(summarizeDoneWork([])).toBeNull();
   });
 });
+
+describe("只读工具的说法（CB-022，DESIGN.md §70.3）", () => {
+  const call = (name: string, args: Record<string, unknown> = {}) => ({ name, arguments: JSON.stringify(args), done: true });
+  test("读类工具有中文说法，不露工具名", () => {
+    expect(summarizeWork([call("memory_search", { query: "妈妈生日" })])?.current).toBe("正在翻记忆「妈妈生日」");
+    expect(summarizeWork([call("github_list_issues", { repo: "ChisaAlter/ChisaBot" })])?.current).toBe("正在看 ChisaAlter/ChisaBot 的 Issue");
+    expect(summarizeWork([call("github_get_issue", { repo: "a/b", number: 12 })])?.current).toBe("正在读 a/b#12");
+    expect(summarizeWork([call("page_list")])?.current).toBe("正在看你的页面");
+    expect(summarizeWork([call("schedule_list")])?.current).toBe("正在看定时任务");
+    expect(summarizeWork([call("panel_list")])?.current).toBe("正在看面板");
+    expect(summarizeWork([call("memory_save", { text: "x" })])?.current).toBe("正在记下来");
+  });
+  test("收成的一行把读类步骤列出来（去掉「正在」）", () => {
+    const done = summarizeDoneWork([call("memory_search", { query: "护照" }), call("schedule_list")]);
+    expect(done).toEqual({ label: "做了 2 步", steps: ["翻记忆「护照」", "看定时任务"] });
+  });
+});
