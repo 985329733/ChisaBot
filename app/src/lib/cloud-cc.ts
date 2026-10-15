@@ -14,6 +14,7 @@ import type {
   CcWorkspaceView,
   ClaudeAuth,
   CloudWorkspaceView,
+  CcSyncView,
 } from "../../../shared/cloud-cc";
 import { client } from "@/lib/client";
 
@@ -32,6 +33,15 @@ export const ccKeys = {
   push: (id: string) => ["claude-code", "push", id] as const,
   rules: ["cloud-workspace", "rules"] as const,
 };
+
+export function ccSyncQueryOptions(workspaceId: string, enabled = true) {
+  return queryOptions({
+    queryKey: ["claude-code", "sync", workspaceId] as const,
+    queryFn: () => ccApi.syncView(workspaceId),
+    enabled,
+    refetchInterval: 5000,
+  });
+}
 
 export function cloudWorkspaceQueryOptions() {
   return queryOptions({
@@ -162,6 +172,9 @@ export const ccApi = {
     client(`/api/claude-code/sessions/${encodeURIComponent(id)}/push`, { method: "POST", body, fallback: "推送失败" }).then(
       (r) => r.json() as Promise<{ ok: boolean; error?: string; prUrl?: string; prNumber?: number | null; message: CcMessage }>,
     ),
+  syncView: (workspaceId: string) => client(`/api/claude-code/workspaces/${encodeURIComponent(workspaceId)}/sync`, { fallback: "读不到同步状态" }).then((r) => r.json() as Promise<CcSyncView>),
+  forceReclaim: (workspaceId: string) =>
+    client(`/api/claude-code/workspaces/${encodeURIComponent(workspaceId)}/sync/force-reclaim`, { method: "POST", fallback: "强制收回失败" }).then((r) => r.json() as Promise<CcSyncView>),
   decide: (approvalId: string, decision: "approve" | "deny", always = false) =>
     client(`/api/claude-code/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: { decision, always }, fallback: "操作失败" }),
 };

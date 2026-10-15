@@ -125,7 +125,40 @@ function createGitWorkspaces({ root, log = () => {} }) {
     return { branch, head: sha, sizeBytes: bytes };
   }
 
-  /** 会话的工作树：第一次用时从工作目录当前的提交切出分支 cc/…。 */
+  function baseFile(workspaceId, branch) {
+    return path.join(workDir(workspaceId), ".git", "chisabot-base", String(branch).replace(/[^A-Za-z0-9._-]/g, "_"));
+  }
+
+  /**
+   * 工作目录现在的样子拍成一个提交（P4，电脑同步）：临时 index，`commit-tree`，**不动** work/ 的 HEAD、分支和 index。
+   * 电脑开着同步时 work/ 里常有没提交的改动（电脑上刚改的），会话要从「电脑上现在的样子」开始。
+   */
+  async function snapshotWork(workspaceId) {
+    const work = workDir(workspaceId);
+    const parent = await head(work);
+    const idx = path.join(os.tmpdir(), `chisabot-snapidx-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    try {
+      const env = { ...gitEnv(), GIT_INDEX_FILE: idx };
+      if (parent) await run(["read-tree", "HEAD"], { cwd: work, env });
+      await run(["add", "-A", "."], { cwd: work, env });
+      const tree = (await run(["write-tree"], { cwd: work, env })).stdout.trim();
+      if (!tree) throw new Error("给工作目录拍快照失败");
+      const ident = gitEnv({ GIT_AUTHOR_NAME: "ChisaBot", GIT_AUTHOR_EMAIL: "chisabot@localhost", GIT_COMMITTER_NAME: "ChisaBot", GIT_COMMITTER_EMAIL: "chisabot@localhost" });
+      const r = await run(["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", "ChisaBot：工作目录快照（会话开始时）"], { cwd: work, env: ident });
+      const sha = r.stdout.trim();
+      if (r.code !== 0 || !sha) throw new Error(`给工作目录拍快照失败：${scrub(r.stderr).slice(-200)}`);
+      return sha;
+    } finally {
+      fs.rmSync(idx, { force: true });
+    }
+  }
+
+  async function isDirty(cwd) {
+    const r = await run(["status", "--porcelain"], { cwd });
+    return r.code === 0 && !!r.stdout.trim();
+  }
+
+  /** 会话的工作树：第一次用时从工作目录当前的提交切出分支 cc/…（work/ 有没提交的改动 / 还没有提交时，从快照切）。 */
   async function ensureTree(workspaceId, sessionId, branch) {
     const tree = treeDir(workspaceId, sessionId);
     if (fs.existsSync(path.join(tree, ".git"))) return tree;
@@ -137,7 +170,13 @@ function createGitWorkspaces({ root, log = () => {} }) {
     fs.rmSync(tree, { recursive: true, force: true });
     await run(["worktree", "prune"], { cwd: work });
     const exists = (await run(["rev-parse", "--verify", "-q", `refs/heads/${branch}`], { cwd: work })).code === 0;
-    const r = await run(["worktree", "add", ...(exists ? [] : ["-b", branch]), tree, ...(exists ? [branch] : ["HEAD"])], { cwd: work });
+    let start = "HEAD";
+    if (!exists && (!(await head(work)) || (await isDirty(work)))) {
+      start = await snapshotWork(workspaceId);
+      fs.mkdirSync(path.dirname(baseFile(workspaceId, branch)), { recursive: true });
+      fs.writeFileSync(baseFile(workspaceId, branch), `${start}\n`);
+    }
+    const r = await run(["worktree", "add", ...(exists ? [] : ["-b", branch]), tree, ...(exists ? [branch] : [start])], { cwd: work });
     if (r.code !== 0) throw new Error(`建会话工作树失败：${scrub(r.stderr).slice(-300)}`);
     return tree;
   }
@@ -163,7 +202,12 @@ function createGitWorkspaces({ root, log = () => {} }) {
       });
   }
 
-  /** 合入工作目录（§3.4 第 3 条）：会话分支合进 work/ 当前分支；有冲突就放弃合并，work/ 保持原样。 */
+  /**
+   * 合入工作目录（§3.4 第 3 条）：会话分支合进 work/ 当前分支；有冲突就放弃合并，work/ 保持原样。
+   * 「放进工作目录」模式（mode=apply：电脑文件夹工作区，或者 work/ 有电脑同步来的没提交改动）：只把会话的改动
+   * （快照 / 分叉点 → 会话分支）写进 work/ 的文件，不提交、不动 HEAD——电脑上自己决定怎么提交。先 `apply --check`，
+   * 有一处对不上就一个文件都不写。
+   */
   async function merge(args) {
     const tree = treeDir(args.workspaceId, args.sessionId);
     const work = workDir(args.workspaceId);
@@ -171,10 +215,10 @@ function createGitWorkspaces({ root, log = () => {} }) {
     const branch = await currentBranch(tree);
     if (!branch || !BRANCH.test(branch)) throw new Error("会话目录不在 cc/ 分支上（可能被切走了），先让 Claude 切回来");
     const committed = await commitPending(tree, String(args.message || `ChisaBot 会话「${branch}」的改动`).slice(0, 200));
-    const target = await currentBranch(work);
-    if (!target) throw new Error("工作目录不在任何分支上");
+    const target = (await currentBranch(work)) || "";
     const dirty = await run(["status", "--porcelain", "--untracked-files=no"], { cwd: work });
-    if (dirty.stdout.trim()) throw new Error("工作目录有没提交的改动，先处理掉再合入");
+    const apply = args.mode === "apply" || !target || !!dirty.stdout.trim() || fs.existsSync(baseFile(args.workspaceId, branch));
+    if (apply) return await applyInto(args.workspaceId, branch, target, committed);
     const commits = await ahead(work, target, branch);
     if (!commits.length) return { result: "up_to_date", branch, target, head: await head(work), commits: [], committed };
     const before = await head(work);
@@ -188,6 +232,79 @@ function createGitWorkspaces({ root, log = () => {} }) {
       return { result: "conflict", branch, target, head: before, files, commits, committed };
     }
     return { result: ff ? "fast_forward" : "merged", branch, target, head: await head(work), commits, committed };
+  }
+
+  async function applyInto(workspaceId, branch, target, committed) {
+    const work = workDir(workspaceId);
+    let base = "";
+    try {
+      base = fs.readFileSync(baseFile(workspaceId, branch), "utf8").trim();
+    } catch {}
+    if (!base) base = (await run(["merge-base", "HEAD", branch], { cwd: work })).stdout.trim();
+    if (!base) throw new Error("找不到会话的起点，没法放进工作目录");
+    const commits = await ahead(work, base, branch);
+    const names = await run(["diff", "--name-only", "--no-renames", base, branch], { cwd: work });
+    const files = names.stdout.split("\n").filter(Boolean).slice(0, 100);
+    if (!files.length) return { result: "up_to_date", branch, target, head: await head(work), commits, committed, files: [] };
+    const patchFile = path.join(os.tmpdir(), `chisabot-apply-${process.pid}-${Date.now()}.patch`);
+    try {
+      const p = await run(["diff", "--binary", "--no-renames", "--no-color", base, branch], { cwd: work });
+      fs.writeFileSync(patchFile, p.stdout);
+      const check = await run(["apply", "--check", "--whitespace=nowarn", patchFile], { cwd: work });
+      if (check.code !== 0) {
+        const bad = [...new Set([...check.stderr.matchAll(/(?:patch failed|error): ([^:\n]+?)(?::\d+)?(?::|$)/gm)].map((m) => m[1].trim()))].filter((f) => files.includes(f));
+        return { result: "conflict", branch, target, head: await head(work), files: bad.length ? bad : files, commits, committed, applied: false };
+      }
+      const r = await run(["apply", "--whitespace=nowarn", patchFile], { cwd: work });
+      if (r.code !== 0) throw new Error(`放进工作目录失败：${scrub(r.stderr).slice(-300)}`);
+      // 下次合入从这里接着算（同一个会话再合一次只放新的改动）
+      fs.mkdirSync(path.dirname(baseFile(workspaceId, branch)), { recursive: true });
+      fs.writeFileSync(baseFile(workspaceId, branch), `${(await run(["rev-parse", branch], { cwd: work })).stdout.trim()}\n`);
+      return { result: "applied", branch, target, head: await head(work), files, commits, committed };
+    } finally {
+      fs.rmSync(patchFile, { force: true });
+    }
+  }
+
+  /** 电脑同步的 Git（§4.5）：云端 work/ 的分支 / HEAD。 */
+  async function gitInfo(workspaceId) {
+    const work = workDir(workspaceId);
+    if (!fs.existsSync(path.join(work, ".git"))) return { repo: false, branch: null, head: null };
+    return { repo: true, branch: await currentBranch(work), head: await head(work) };
+  }
+
+  /**
+   * 电脑推上来的提交（refs/remotes/pc/<分支>）接到云端 work/：云端是它的祖先（或还没有提交）→ 快进（update-ref +
+   * reset --mixed，工作区文件不动，文件本来就由 Mutagen 同步）；一样 → 跳过；电脑落后 → cloud_ahead（电脑去快进）；
+   * 分叉 → diverged（不自动合并，进冲突）。
+   */
+  async function adopt(args) {
+    const work = workDir(args.workspaceId);
+    const branch = String(args.branch || "");
+    const sha = String(args.sha || "");
+    if (!REF.test(branch) || branch.startsWith("cc/") || /\.\.|^\/|\/$/.test(branch)) throw new Error("分支名不对");
+    if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("提交号不对");
+    if (!fs.existsSync(path.join(work, ".git"))) throw new Error("云端工作目录还不是 Git 仓库");
+    if ((await run(["cat-file", "-e", `${sha}^{commit}`], { cwd: work })).code !== 0) throw new Error("云端还没有这个提交（先推上来）");
+    const cur = await head(work);
+    const curBranch = await currentBranch(work);
+    const ident = gitEnv({ GIT_COMMITTER_NAME: "ChisaBot", GIT_COMMITTER_EMAIL: "chisabot@localhost" });
+    const point = async () => {
+      await run(["update-ref", `refs/heads/${branch}`, sha], { cwd: work, env: ident });
+      await run(["symbolic-ref", "HEAD", `refs/heads/${branch}`], { cwd: work });
+      await run(["reset", "-q", "--mixed", sha], { cwd: work });
+    };
+    if (!cur) {
+      await point();
+      return { result: "adopted", head: sha, branch };
+    }
+    if (cur === sha && curBranch === branch) return { result: "same", head: sha, branch };
+    if ((await run(["merge-base", "--is-ancestor", cur, sha], { cwd: work })).code === 0) {
+      await point();
+      return { result: "fast_forward", head: sha, branch, from: cur };
+    }
+    if ((await run(["merge-base", "--is-ancestor", sha, cur], { cwd: work })).code === 0) return { result: "cloud_ahead", head: cur, branch: curBranch };
+    return { result: "diverged", head: cur, branch: curBranch };
   }
 
   /** 推送前看一眼：要推的提交、还没提交的文件数、目标分支。 */
@@ -274,7 +391,7 @@ function createGitWorkspaces({ root, log = () => {} }) {
     return { removed: true };
   }
 
-  return { workDir, treeDir, isGitWorkspace, clone, describe, ensureTree, merge, push, pushPreview, baseDiff, remove, dropTree, BRANCH };
+  return { workDir, treeDir, isGitWorkspace, clone, describe, ensureTree, merge, gitInfo, adopt, snapshotWork, push, pushPreview, baseDiff, remove, dropTree, BRANCH };
 }
 
 module.exports = { createGitWorkspaces, scrub, BRANCH };

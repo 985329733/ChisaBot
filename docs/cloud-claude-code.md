@@ -12,7 +12,7 @@
 | P2 | 左栏切换「机器人｜Claude Code」、「草稿」工作区、会话、对话、审批、右栏 / 手机抽屉 | 已上线 |
 | P3 | GitHub 工作区：克隆、每会话 worktree + `cc/…` 分支、合入工作目录、推送并开 PR | 已完成（真实 GitHub 要用户先在 设置 → 账号连接 连 GitHub） |
 | P4a | 电脑文件夹同步·服务器 / 节点 / 同步边车 / 隧道（绑定、租约、一次性隧道票、`cloudnode-sync`、自编译 MIT 版 `mutagen-agent`） | 已完成（Linux 替身 e2e 走通；电脑端随 P4b） |
-| P4b | 电脑文件夹同步·PC 客户端（同步管理、「电脑上的文件夹」新建、同步面板、冲突对话框、交接 ①–⑤）+ PC 新版 | 未开始 |
+| P4b | 电脑文件夹同步·PC 客户端（同步管理、「电脑上的文件夹」新建、同步面板、冲突对话框、交接 ①–⑤、Git 走隧道）+ PC 新版 0.1.11 | 已完成（Linux 电脑替身 e2e 走通；真实 Windows 未验证，见 CB-017） |
 | P5 | ChisaCloudCode 留还是下线（单独决定） | 未开始 |
 
 ## 实现（以代码为准）
@@ -65,6 +65,18 @@
 - **网页（管理员）**：`GET /api/claude-code/workspaces/:id/sync`（状态、绑定的电脑和在线情况、租约、隧道数、`canForceReclaim`）、`POST /api/claude-code/workspaces/:id/sync/force-reclaim`（只在电脑离线时：租约 = 云端、已暂停、公钥删掉、隧道断开）。撤销 / 删除电脑设备时它的绑定全部关掉、公钥删掉、隧道断开、工作区回「已暂停」。
 - **审计**：`chisabot_cc_sync_events`（created / bind / pc_active / syncing / conflict / released / forced / revoked / recover / tunnel_open / tunnel_close{up, down, ms, why}），不记文件内容、公钥以外的密钥和隧道票。
 - **e2e（Linux 替身）**：节点（桥接网，不是 host 网）+ 边车（`--network container:`）+ 电脑替身（`mutagen-linux-amd64` + 系统 OpenSSH + `tunnel.js`，ssh 包装器 `-F` 自己的配置、`HostKeyAlias` + `StrictHostKeyChecking yes`）：第一次同步 22 MB / 315 个文件，电脑改 → 云端几秒内可见，云端改 → 电脑可见，`.env` / `node_modules` 不上云，两边都改同一个文件 → Mutagen 冲突、两份都不被覆盖，交还后拿不到票、再开启恢复同一个 Mutagen 会话，撤销设备 → 公钥删掉 + 状态已暂停，电脑离线时强制收回，主机没有新监听端口，`docker port` 为空，数据库 / 日志里没有隧道票。
+
+**电脑文件夹同步（P4b，实现：PC 客户端）**
+
+- 代码：`pc/src/sync/`——`manager.js`（同步管理：新建 / 开启 / 交还 / 立即同步 / 冲突 / Git / 交接 / 监视）、`mutagen.js`（Mutagen 命令行封装，状态 → 五种状态）、`keys.js`（这台电脑的 ed25519，OpenSSH 私钥格式，只在本机）、`broker.js`（本机中转：只听 127.0.0.1，第一行口令 + 工作区，设备令牌只在主进程里换隧道票、开 WSS）、`tunnel.js`（多了 `--broker` 模式）；Windows 的 ssh 包装器 `pc/sync-shim`（Go，`ssh.exe` 包一层 `-F <ChisaBot 自己的 ssh 配置>` 调系统 OpenSSH，`--chisabot-proxy` 时自己就是 ProxyCommand，连本机中转）。`main.js` 接上设备 WSS 的 `sync_begin / sync_end / sync_cancel`，网页桥 `window.chisabotPC.sync`（`web-preload.js`；路径只能来自主进程弹的选择文件夹对话框）。
+- 分发：`release.yml` 新的 `sync-bin` 任务在 Ubuntu 上编译 `mutagen.exe`（v0.18.1，`-tags mutagencli`，**不加** `mutagensspl`，`legal` 里没有 SSPL）和 `chisabot-ssh.exe`，打进 `pc/src/sync/bin/`（asar 里），客户端第一次用时复制到 `userData\sync\bin` 再运行（内容变了才复制）。`package.json` 的 `build` 没改 → 外壳指纹不变，0.1.10 → 0.1.11 走普通在线更新。需要 Windows 自带的 OpenSSH 客户端（`C:\Windows\System32\OpenSSH\ssh.exe`，Windows 10 1809 起默认装着），没有就在面板里说明。
+- Mutagen：PC 客户端自己起守护进程（`mutagen daemon run`，数据目录 `userData\sync\mutagen`，环境变量里是 ssh 包装器目录和这次启动的中转口令），每个工作区一个会话 `cb-<工作区>`：`two-way-safe`、`--ignore-vcs`、§4.6 的规则、beta 端 `neighboring` 暂存。交还 = flush → Git → pause（不 terminate，留共同基线）→ `/release`；再开启 = resume，两边都改过的文件由 Mutagen 报冲突。
+- 云端那份：「电脑上的文件夹」工作区的 `work/` 是云端自己的 Git 仓库（`ws_init_local` 时 `git init`，配置照 §4.5；`.git` 不走 Mutagen）。会话照 GitHub 工作区的样子在自己的工作树 + `cc/…` 分支上改，**从工作目录快照切出来**（临时 index + `commit-tree`，不动 `work/` 的 HEAD；GitHub 工作区在 `work/` 有电脑同步来的没提交改动时也一样）。「合入工作目录」对这类会话是**放进工作目录**：快照 → 会话分支的 diff 先 `git apply --check`，有一处对不上就一个文件都不写（冲突卡），否则只写文件、不提交，同步回电脑后在电脑上提交。电脑文件夹工作区没有「推送并开 PR」。
+- Git 走隧道（§4.5）：电脑上的文件夹是 Git 仓库时，加一个远端 `chisabot`（`cb-<工作区>:<work 路径>`，走同一个 ssh 包装器 + 隧道，gate 只放行这个工作区的 upload/receive-pack）。HEAD 一样跳过；电脑落后 → 电脑 `reset --mixed` 快进；云端落后 → 电脑推到云端的 `refs/remotes/pc/<分支>`，节点 `ws_git_adopt` 快进（`update-ref` + `reset --mixed`，文件不动）；分叉 → 冲突（「以云端为准」先把电脑上的提交备份到 `chisabot/backup/<时间>`，或「在电脑上合并后再试」）。电脑上没装 git：只同步文件。空文件夹第一次开启 GitHub 工作区：先 `git fetch` 云端历史再让 Mutagen 搬文件。
+- 冲突（图 4 右）：「用云端」= 电脑那份挪进 `userData\sync\backup\…`；「两份都留」= 电脑那份改名 `名.电脑副本.扩展名`；「用电脑」= `/agent/sync/resolve` → 节点 `ws_sync_drop` 把云端那份挪进 `projects/<工作区>/.chisabot/conflict-backup/<时间>/`（只在租约是「冲突」时）。two-way-safe 下「一边删了一边改了」由 Mutagen 保留改了的那份，所以三种选择都不会覆盖任何一份。处理完报「PC 正在使用」。
+- 交接 ①–⑤（§4.3）：服务器 `withHandoff`（`sync.ts`）→ 设备 WSS `sync_begin{handoffId}` → 电脑 resume + flush + Git，暂停，写交接记录 `userData\sync\handoff\<工作区>.json`，`/agent/sync/handoff step=ready`（30 秒没 ready：这次不写，租约回电脑，报错）→ 租约 = `handoff:<号>`，节点只认带这个号的 `ws_merge` → `sync_end{changed}` → 电脑恢复、拉回、删记录、`step=released` → 租约回电脑。电脑在 ③ 之后被关掉：租约留在「交接」，电脑重启拿记录去 `step=recover`：服务器那次写入已经结束 → 恢复；记录对不上 / 读不懂 → 冲突 ·「交接未确认」（不算放行），冲突对话框里「重新对比两边」。交接没收尾时电脑报「PC 正在使用」会被改成冲突。
+- 新接口（设备令牌）：`POST /api/devices/agent/sync/resolve {workspaceId, path, choice}`、`/git {op: info|adopt}`、`/handoff {handoffId, step}`；`/state` 多了 `conflicts[]`（存 `chisabot_cc_sync_conflicts`，网页面板显示「去电脑上处理」）。`GET /api/claude-code/workspaces/:id/sync` 多了 `conflicts`、`handoff`。没有新表、没有新列。
+- 测试：`pc/test/sync-pc.check.js`（密钥格式 / ssh-keygen 认得、本机中转拒绝错口令和别的工作区、状态映射、副本名、快照切会话 + 放进工作目录 + 冲突不写、adopt 快进 / 云端领先 / 分叉、冲突挪备份只在租约冲突时）；电脑替身 `tests/cloud-cc/sync-pc-standin.cjs`（Linux 上同一份 `manager.js` + 同一次编译的 Mutagen + 系统 OpenSSH + Node 跑 tunnel.js，设备 WSS 照常连，交接消息走真实路径）。
 
 **和设计稿的差别**：会话记录存在 `chisabot_cc_messages`，不是机器人聊天线程（ADR-0014 第 4 条）；「草稿」工作区每个会话一个自己的目录（`trees/<会话>`），不共用工作目录；审批卡只在会话里（以及操作记录），P2 还没有手机推送。
 

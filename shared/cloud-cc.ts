@@ -85,6 +85,29 @@ export const SYNC_STATE_ZH: Record<CcSyncState, string> = {
   conflict: "冲突",
 };
 
+/** 工作区的电脑同步面板（GET /api/claude-code/workspaces/:id/sync，网页 / 手机只读 + 电脑离线时强制收回）。 */
+export type CcSyncView = {
+  workspaceId: string;
+  state: CcSyncState;
+  binding: {
+    id: string;
+    enabled: boolean;
+    deviceId: string;
+    deviceName: string;
+    online: boolean;
+    offlineMs: number | null;
+    label: string | null;
+    lastSyncedAt: string | null;
+    detail: string | null;
+    epoch: number;
+  } | null;
+  lease: { holder: string; since: string };
+  tunnels: number;
+  conflicts: string[];
+  handoff: string | null;
+  canForceReclaim: boolean;
+};
+
 export type CcSessionStatus = "idle" | "running" | "waiting" | "error";
 
 export type CcSessionView = {
@@ -127,7 +150,7 @@ export type CcWorkspaceView = {
 export type CcGithubStatus = { connected: boolean; login: string | null; invalid: boolean };
 export type CcGithubRepo = { fullName: string; private: boolean; description: string; defaultBranch: string; updatedAt: string | null };
 
-export type CcGitState = "fast_forward" | "merged" | "up_to_date" | "conflict" | "pr_opened" | "pr_exists" | "push_failed";
+export type CcGitState = "fast_forward" | "merged" | "applied" | "up_to_date" | "conflict" | "pr_opened" | "pr_exists" | "push_failed";
 /** 「推送并开 PR」之前给你看的：要推的提交、还没提交的文件、目标分支。 */
 export type CcPushPreview = {
   repo: string;

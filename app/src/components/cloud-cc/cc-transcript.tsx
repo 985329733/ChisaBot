@@ -168,15 +168,19 @@ export function CcGitCard({ part, sessionId }: { part: Extract<CcPart, { type: "
   if (part.action === "merge") {
     const conflict = part.state === "conflict";
     const title = conflict
-      ? `有冲突，没有合入 ${part.target}`
+      ? `有冲突，没有合入${part.target ? ` ${part.target}` : "工作目录"}`
       : part.state === "up_to_date"
-        ? `${part.target} 已经包含这个会话的改动`
-        : `已合入工作目录 · ${part.target}`;
+        ? `${part.target || "工作目录"} 已经包含这个会话的改动`
+        : part.state === "applied"
+          ? "已放进工作目录（没有提交）"
+          : `已合入工作目录 · ${part.target}`;
     const sub = conflict
       ? `工作目录没有动。${part.files?.length ? `冲突：${part.files.slice(0, 4).join("、")}${part.files.length > 4 ? ` 等 ${part.files.length} 个` : ""}。` : ""}让 Claude 先 rebase 再合入。`
       : part.state === "up_to_date"
         ? "没有新的提交需要合入。"
-        : `${part.state === "fast_forward" ? "快进" : "合并提交"} · ${part.commits ?? 0} 个提交来自 ${part.branch}`;
+        : part.state === "applied"
+          ? `${part.files?.length ?? 0} 个文件的改动来自 ${part.branch}，会同步到电脑上，在电脑上提交。`
+          : `${part.state === "fast_forward" ? "快进" : "合并提交"} · ${part.commits ?? 0} 个提交来自 ${part.branch}`;
     return (
       <section className={cn("cc-git", conflict && "is-conflict")} data-state={part.state} data-testid="cc-git-merge">
         <span aria-hidden className="cc-git-ico">

@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconBrandGithub, IconChevronRight, IconDots, IconFolderPlus, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBrandGithub, IconChevronRight, IconDeviceDesktop, IconDots, IconFolder, IconFolderPlus, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
@@ -9,12 +9,14 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { CcNewWorkspaceDialog } from "./cc-github-dialogs";
+import { CcSyncDialog } from "./cc-sync";
+import { pcSyncBridge } from "@/lib/pc-bridge";
 import { ccApi, ccKeys, ccWorkspacesQueryOptions, cloudWorkspaceQueryOptions } from "@/lib/cloud-cc";
 import { cn } from "@/lib/utils";
 
 const STATUS_ZH: Record<CcSessionStatus, string> = { idle: "", running: "运行中", waiting: "等你批准", error: "出错" };
 
-/** 同步状态小药丸（DESIGN.md §73.5；P4 之前都是「仅云端」）。 */
+/** 同步状态小药丸（DESIGN.md §73.5 / §73.9）。对话头里用可以点的 CcSyncPillButton（cc-sync.tsx）。 */
 export function SyncPill({ state }: { state: CcWorkspaceView["syncState"] }) {
   const tone = state === "pc_active" ? "is-ok" : state === "syncing" ? "is-info" : state === "paused" ? "is-warn" : state === "conflict" ? "is-danger" : "";
   return (
@@ -34,6 +36,7 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
   const workspaces = useQuery(ccWorkspacesQueryOptions(!!status.data?.node));
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
+  const [syncWs, setSyncWs] = useState<CcWorkspaceView | null>(null);
   const params = useParams({ strict: false }) as { sessionId?: string };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -81,7 +84,7 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
               type="button"
             >
               <IconChevronRight className="cc-ws-caret size-3.5" />
-              {ws.source === "github" ? <IconBrandGithub aria-hidden className="size-3.5 flex-none opacity-60" /> : null}
+              {ws.source === "github" ? <IconBrandGithub aria-hidden className="size-3.5 flex-none opacity-60" /> : ws.source === "local" ? <IconFolder aria-hidden className="size-3.5 flex-none opacity-60" /> : null}
               <span className="cc-ws-name">{ws.name}</span>
               {ws.cloneState === "cloning" ? (
                 <span className="cc-pill is-info" data-testid="cc-ws-cloning">
@@ -100,6 +103,10 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
                   <IconDots className="size-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem data-testid="cc-ws-sync" disabled={ws.cloneState !== "ready"} onClick={() => setSyncWs(ws)}>
+                    <IconDeviceDesktop className="size-4" />
+                    {"电脑同步"}
+                  </DropdownMenuItem>
                   {ws.cloneState === "error" ? (
                     <DropdownMenuItem onClick={() => void wsAction(ws, "retry")}>
                       <IconRefresh className="size-4" />
@@ -163,9 +170,10 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
       <button className="cc-new-ws" data-testid="cc-new-ws" onClick={() => setNewOpen(true)} type="button">
         <IconFolderPlus className="size-4" />
         {"新建工作区"}
-        <span className="cc-new-ws-s">{"从 GitHub"}</span>
+        <span className="cc-new-ws-s">{pcSyncBridge() ? "GitHub · 电脑" : "从 GitHub"}</span>
       </button>
       <CcNewWorkspaceDialog onOpenChange={setNewOpen} open={newOpen} />
+      {syncWs ? <CcSyncDialog onOpenChange={(o) => !o && setSyncWs(null)} open ws={workspaces.data.find((w) => w.id === syncWs.id) ?? syncWs} /> : null}
     </div>
   );
 }

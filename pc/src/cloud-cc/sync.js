@@ -16,6 +16,7 @@ const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { execFileSync } = require("node:child_process");
 
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const KEY = /^(ssh-ed25519|ecdsa-sha2-nistp256) [A-Za-z0-9+/=]{40,800}$/;
@@ -211,8 +212,45 @@ function createSyncNode(options) {
   function initLocal(args) {
     const dir = path.join(wsDir(args.workspaceId), "work");
     fs.mkdirSync(dir, { recursive: true });
+    // 云端这份是 Git 仓库（只在云端，.git 不走 Mutagen）：会话从工作目录快照切出 cc/ 分支、在自己的工作树里改；
+    // 电脑上的文件夹本身是 Git 仓库时，它的提交经隧道推上来（ws_git_adopt）。配置照 §4.5。
+    if (!fs.existsSync(path.join(dir, ".git"))) {
+      const git = (a) => execFileSync("git", a, { cwd: dir, stdio: "ignore", timeout: 30_000, env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1" } });
+      try {
+        git(["init", "-q", "-b", "main"]);
+        for (const [k, v] of [["core.autocrlf", "input"], ["core.filemode", "false"], ["core.symlinks", "false"], ["user.name", "ChisaBot"], ["user.email", "chisabot@localhost"], ["receive.denyCurrentBranch", "refuse"], ["gc.auto", "0"]]) git(["config", k, v]);
+      } catch (e) {
+        log(`ws_init_local: git init 失败 ${e && e.message}`);
+      }
+    }
     setLease({ workspaceId: args.workspaceId, holder: "syncing" });
-    return { path: path.relative(root, dir) };
+    return { path: path.relative(root, dir), git: fs.existsSync(path.join(dir, ".git")) };
+  }
+
+  /**
+   * 冲突「用电脑」（§4.4）：把云端那份挪进 projects/<ws>/.chisabot/conflict-backup/<时间>/（不删），
+   * Mutagen two-way-safe 看到云端删了、电脑改了，就把电脑那份带上来。只在租约是「冲突」时可以做。
+   */
+  function dropForConflict(args) {
+    const lease = readLease(args.workspaceId);
+    if (lease.holder !== "conflict") throw new Error("只有冲突时才能这样处理");
+    const rel = String(args.path || "").replace(/\\/g, "/");
+    if (!rel || rel.startsWith("/") || rel.split("/").some((p) => p === ".." || p === "" || p === ".git") || rel.length > 1000) throw new Error("文件路径不对");
+    const work = path.join(wsDir(args.workspaceId), "work");
+    const src = path.join(work, ...rel.split("/"));
+    if (!src.startsWith(work + path.sep)) throw new Error("文件路径不对");
+    let st;
+    try {
+      st = fs.lstatSync(src);
+    } catch {
+      return { dropped: false, missing: true };
+    }
+    if (st.isDirectory()) throw new Error("只能处理文件");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const dest = path.join(wsDir(args.workspaceId), ".chisabot", "conflict-backup", stamp, ...rel.split("/"));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.renameSync(src, dest);
+    return { dropped: true, backup: path.relative(wsDir(args.workspaceId), dest) };
   }
 
   /** 暂停时清单（§4.4）：work/ 下每个同步的文件的大小和 sha256。 */
@@ -245,7 +283,7 @@ function createSyncNode(options) {
   }
 
   const HANDLED = new Set(["sync_tunnel_open", "sync_tunnel_close"]);
-  const RPC = new Set(["sync_keys_set", "sync_host_key", "sync_lease", "sync_lease_get", "ws_init_local", "ws_manifest"]);
+  const RPC = new Set(["sync_keys_set", "sync_host_key", "sync_lease", "sync_lease_get", "ws_init_local", "ws_manifest", "ws_sync_drop"]);
 
   return {
     handles: (type) => HANDLED.has(type),
@@ -277,6 +315,8 @@ function createSyncNode(options) {
           return initLocal(args);
         case "ws_manifest":
           return manifest(args);
+        case "ws_sync_drop":
+          return dropForConflict(args);
         default:
           throw new Error(`不认识的操作 ${op}`);
       }

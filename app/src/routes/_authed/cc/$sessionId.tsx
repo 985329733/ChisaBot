@@ -19,7 +19,7 @@ import { CC_EFFORT_ZH, CC_EFFORTS, CC_MODELS, type CcMessage } from "../../../..
 import { CcPushDialog } from "@/components/cloud-cc/cc-github-dialogs";
 import { CcRightContent, type RightTab } from "@/components/cloud-cc/cc-right-panel";
 import { CcMessageView } from "@/components/cloud-cc/cc-transcript";
-import { SyncPill } from "@/components/cloud-cc/cc-tree";
+import { CcSyncPillButton } from "@/components/cloud-cc/cc-sync";
 import { PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
@@ -128,7 +128,9 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
 
   const stop = useAsyncAction(() => ccApi.stop(sessionId), { errorToast: (e) => `停止失败：${e.message}` });
   // GitHub 工作区（P3，DESIGN.md §73.7）：合入工作目录 / 推送并开 PR
-  const isGit = ws?.source === "github";
+  // 电脑文件夹工作区（P4b）也能合入工作目录（放进工作目录、不提交，同步回电脑）；推送只给 GitHub 工作区
+  const isGit = ws?.source === "github" || (ws?.source === "local" && !!ws.isGit);
+  const canPush = ws?.source === "github";
   const [pushOpen, setPushOpen] = useState(false);
   const merge = useAsyncAction(
     async () => {
@@ -188,7 +190,7 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
         <div className="cc-head-pills">
           <span className="cc-pill is-info">{`${ws?.name ?? "工作区"} · ${session.branch ?? "自己的目录"}`}</span>
           {!phone ? <span className="cc-pill" data-testid="cc-resume-pill">{session.resumable ? `接着上次 · ${session.turns} 轮` : "新的 Claude 会话"}</span> : null}
-          {ws && !phone ? <SyncPill state={ws.syncState} /> : null}
+          {ws ? <CcSyncPillButton ws={ws} /> : null}
           {session.prUrl ? (
             <a className="cc-pill is-ok" data-testid="cc-pr-pill" href={session.prUrl} rel="noreferrer noopener" target="_blank">
               <IconGitPullRequest className="size-3.5" />
@@ -212,10 +214,12 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
               <IconGitMerge className="size-4" />
               {"合入工作目录"}
             </Button>
-            <Button data-testid="cc-push" disabled={running} onClick={() => setPushOpen(true)} size="sm">
-              <IconGitPullRequest className="size-4" />
-              {"推送并开 PR"}
-            </Button>
+            {canPush ? (
+              <Button data-testid="cc-push" disabled={running} onClick={() => setPushOpen(true)} size="sm">
+                <IconGitPullRequest className="size-4" />
+                {"推送并开 PR"}
+              </Button>
+            ) : null}
           </>
         ) : null}
         <DropdownMenu>
@@ -229,10 +233,12 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
                   <IconGitMerge className="size-4" />
                   {"合入工作目录"}
                 </DropdownMenuItem>
-                <DropdownMenuItem data-testid="cc-menu-push" disabled={running} onClick={() => setPushOpen(true)}>
-                  <IconGitPullRequest className="size-4" />
-                  {"推送并开 PR"}
-                </DropdownMenuItem>
+                {canPush ? (
+                  <DropdownMenuItem data-testid="cc-menu-push" disabled={running} onClick={() => setPushOpen(true)}>
+                    <IconGitPullRequest className="size-4" />
+                    {"推送并开 PR"}
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuSeparator />
               </>
             ) : null}

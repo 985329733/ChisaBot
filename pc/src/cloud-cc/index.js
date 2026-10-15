@@ -713,6 +713,13 @@ function createCloudCc(options) {
         // 第二道闸（服务器的租约为准）：电脑正在用 work/ 时不写，交接中要带对得上的交接号
         syncNode.assertCloudMayWrite(args.workspaceId, args.handoffId);
         return await gitWs.merge(args);
+      // ---- 电脑同步的 Git（P4b，§4.5） ----
+      case "ws_git_info":
+        wsDir(args.workspaceId);
+        return await gitWs.gitInfo(args.workspaceId);
+      case "ws_git_adopt":
+        wsDir(args.workspaceId);
+        return await gitWs.adopt(args);
       case "ws_push_preview":
         treeDir(args.workspaceId, args.sessionId);
         return await gitWs.pushPreview(args);
