@@ -2106,8 +2106,18 @@ try {
   localAgents = undefined;
 }
 /** 群聊（频道）的对话不给委派：交回结果要走频道的记录，这一版只做机器人私聊。 */
-const isChannelThread = async (threadId: string) =>
-  (await database.$client.unsafe("SELECT 1 FROM intelligence_channel_mappings WHERE thread_id = $1 LIMIT 1", [threadId])).length > 0;
+/**
+ * 群聊（一个频道里不止一个机器人）的对话：不给委派、定时任务、本地 agent。
+ * CB-046（DESIGN.md §68）起和一个机器人的频道聊天是唯一的聊天入口，所以只排除多机器人的频道；
+ * 以前这里排除所有频道对话，频道聊天里就没有后台任务和定时任务。
+ */
+const isGroupChannelThread = async (threadId: string) =>
+  (
+    await database.$client.unsafe(
+      "SELECT 1 FROM intelligence_channel_mappings m JOIN channel_agents a ON a.channel_id = m.channel_id WHERE m.thread_id = $1 GROUP BY m.channel_id HAVING count(*) > 1 LIMIT 1",
+      [threadId],
+    )
+  ).length > 0;
 
 const routineRunner = createRoutineRunner({
   routineStore,
@@ -2556,7 +2566,7 @@ const actorAgentResolver = createActorAgentResolver({
         !props?.chisabotWorker &&
         input.threadId &&
         !input.threadId.startsWith("worker-") &&
-        !(await isChannelThread(input.threadId).catch(() => true));
+        !(await isGroupChannelThread(input.threadId).catch(() => true));
       const delegated = delegating
         ? [
             ...coordinated,
@@ -2574,7 +2584,7 @@ const actorAgentResolver = createActorAgentResolver({
         !props?.chisabotWorker &&
         !input.threadId.startsWith("worker-") &&
         (!initiator || initiator.kind === "person" || Boolean(imOf) || firing || Boolean(props?.chisabotWorkerDelivery)) &&
-        !(await isChannelThread(input.threadId).catch(() => true));
+        !(await isGroupChannelThread(input.threadId).catch(() => true));
       const tools = scheduling
         ? [
             ...delegated,
