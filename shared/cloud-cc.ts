@@ -100,7 +100,14 @@ export type CcSessionView = {
   lastTurnAt: string | null;
   createdAt: string;
   lastError: string | null;
+  /** 「推送并开 PR」开出来的 PR（P3）。 */
+  prUrl: string | null;
+  prNumber: number | null;
+  mergedAt: string | null;
 };
+
+/** GitHub 工作区的克隆状态（P3）：新建后先「克隆中」，成功「就绪」，失败「出错」（可以重试或删除）。 */
+export type CcCloneState = "cloning" | "ready" | "error";
 
 export type CcWorkspaceView = {
   id: string;
@@ -110,7 +117,27 @@ export type CcWorkspaceView = {
   repoFullName: string | null;
   isGit: boolean;
   syncState: CcSyncState;
+  cloneState: CcCloneState;
+  cloneError: string | null;
+  /** PR 的目标分支 = 新建时选的分支（默认是仓库的默认分支）。 */
+  defaultBranch: string | null;
   sessions: CcSessionView[];
+};
+
+export type CcGithubStatus = { connected: boolean; login: string | null; invalid: boolean };
+export type CcGithubRepo = { fullName: string; private: boolean; description: string; defaultBranch: string; updatedAt: string | null };
+
+export type CcGitState = "fast_forward" | "merged" | "up_to_date" | "conflict" | "pr_opened" | "pr_exists" | "push_failed";
+/** 「推送并开 PR」之前给你看的：要推的提交、还没提交的文件、目标分支。 */
+export type CcPushPreview = {
+  repo: string;
+  branch: string | null;
+  base: string;
+  commits: { sha: string; subject: string }[];
+  uncommitted: number;
+  started: boolean;
+  title: string;
+  prUrl: string | null;
 };
 
 export type CcToolStatus = "running" | "done" | "error" | "denied";
@@ -132,7 +159,19 @@ export type CcPart =
     }
   | { type: "changes"; turnId: string; files: CcChangedFile[] }
   | { type: "error"; text: string }
-  | { type: "notice"; text: string };
+  | { type: "notice"; text: string }
+  | {
+      type: "git";
+      action: "merge" | "push";
+      state: CcGitState;
+      branch: string;
+      target: string;
+      files?: string[];
+      commits?: number;
+      prUrl?: string | null;
+      prNumber?: number | null;
+      text?: string | null;
+    };
 
 export type CcChangedFile = { path: string; add: number | null; del: number | null; status: string };
 

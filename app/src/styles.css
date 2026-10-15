@@ -6968,6 +6968,142 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .cc-drawer-handle i { width: 40px; height: 5px; border-radius: 999px; background: var(--ink-4); opacity: .6; }
 .cc-drawer-body { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
 .cc-drawer[data-state="half"] .cc-drawer-body { max-height: calc(88dvh - 42dvh - 40px); }
+/* 云端 Claude Code P3：GitHub 工作区（DESIGN.md §73.7） */
+.cc-ws { position: relative; }
+.cc-ws:has(> .cc-ws-more) > .cc-ws-head { padding-right: 36px; }
+.cc-ws-more { position: absolute; top: 4px; right: 4px; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1); }
+.cc-ws-more:hover { background: var(--glass-hover); color: var(--ink-1); }
+.cc-ws-err { display: flex; align-items: flex-start; gap: 6px; margin: 2px 8px 6px 28px; padding: 7px 9px; border-radius: 10px; font-size: 12px; line-height: 1.5; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent); }
+.cc-ws-err svg { margin-top: 2px; }
+.cc-ws-err span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cc-ws-retry { flex: none; font-weight: 600; color: var(--accent-blue); }
+.cc-new-ws { display: flex; align-items: center; gap: 8px; width: calc(100% - 8px); min-height: 40px; margin: 10px 4px 0; padding: 0 12px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--accent-blue) 40%, var(--line)); color: var(--accent-blue); font-size: 13.5px; font-weight: 500; text-align: left; transition: background var(--dur-1), border-color var(--dur-1); }
+.cc-new-ws:hover { background: color-mix(in srgb, var(--accent-blue) 7%, transparent); border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }
+.cc-new-ws-s { margin-left: auto; font-size: 11.5px; font-weight: 400; color: var(--ink-4); }
+.cc-tree.is-page .cc-new-ws { width: 100%; margin: 0; min-height: 48px; background: var(--glass-1); }
+.cc-dlg .sg-segmented-item { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.cc-dlg .sg-segmented-item:disabled { opacity: .5; cursor: not-allowed; }
+.cc-src-seg { width: 100%; display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 14px; }
+.cc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin-top: 12px; }
+.cc-field-l { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+.cc-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cc-search { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); }
+.cc-search:focus-within { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 14%, transparent); }
+.cc-search input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: 0; font-size: 14px; color: var(--ink-1); }
+.cc-repo-list { display: flex; flex-direction: column; gap: 4px; max-height: 232px; margin-top: 8px; overflow: auto; overscroll-behavior: contain; }
+.cc-repo { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-1); text-align: left; transition: background var(--dur-1), border-color var(--dur-1); }
+.cc-repo:hover { background: var(--glass-hover); }
+.cc-repo[aria-selected="true"] { border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent); background: color-mix(in srgb, var(--accent-blue) 10%, var(--glass-2)); }
+.cc-repo-n { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-code); font-size: 13px; font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.cc-repo-d { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-repo-skel { height: 120px; border-radius: 12px; background: var(--glass-hover); animation: cc-pulse 1.6s ease-in-out infinite; }
+.cc-gh-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 12px 6px; text-align: center; }
+.cc-gh-empty-t { font-size: 15px; font-weight: 600; color: var(--ink-1); }
+.cc-gh-empty-s { max-width: 400px; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+.cc-form-err { margin-top: 12px; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); overflow-wrap: anywhere; }
+.cc-push-route { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); font-size: 13px; color: var(--ink-1); }
+.cc-push-repo { font-weight: 600; }
+.cc-push-br { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--ink-3); }
+.cc-push-br code, .cc-git-s code { font-family: var(--font-code); font-size: 12px; color: var(--ink-1); overflow-wrap: anywhere; }
+.cc-push-note { margin-top: 8px; font-size: 12.5px; color: var(--ink-3); }
+.cc-push-note a { color: var(--accent-blue); }
+.cc-push-commits { display: flex; flex-direction: column; gap: 2px; max-height: 168px; margin-top: 10px; overflow: auto; }
+.cc-push-commit { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 12.5px; color: var(--ink-2); }
+.cc-push-commit code { flex: none; font-family: var(--font-code); font-size: 12px; color: var(--ink-3); }
+.cc-push-commit span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-push-commit.is-pending { color: var(--warn); }
+.cc-check { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+.cc-check input { width: 16px; height: 16px; accent-color: var(--accent-blue); }
+.cc-msg-system:has(.cc-git) { justify-content: flex-start; }
+.cc-git { display: flex; align-items: flex-start; gap: 10px; width: min(100%, 560px); padding: 12px 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--success) 26%, var(--stroke)); background: color-mix(in srgb, var(--success) 6%, var(--glass-1)); box-shadow: var(--shadow-1); animation: cc-in var(--dur-2, 200ms) var(--ease-out, ease) both; }
+.cc-git.is-pr { border-color: color-mix(in srgb, var(--accent-blue) 28%, var(--stroke)); background: color-mix(in srgb, var(--accent-blue) 6%, var(--glass-1)); }
+.cc-git.is-conflict { border-color: color-mix(in srgb, var(--warn) 34%, var(--stroke)); background: color-mix(in srgb, var(--warn) 7%, var(--glass-1)); }
+.cc-git-ico { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 999px; color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.cc-git.is-pr .cc-git-ico { color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 14%, transparent); }
+.cc-git.is-conflict .cc-git-ico { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.cc-git-main { flex: 1; min-width: 0; }
+.cc-git-t { font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--ink-1); }
+.cc-git-s { margin-top: 2px; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); overflow-wrap: anywhere; }
+.cc-git-s.is-err { color: var(--danger); }
+.cc-git-actions { display: flex; gap: 8px; margin-top: 10px; }
+.cc-git-open { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 30px; padding: 0 12px; align-self: center; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--accent-blue); border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent); background: var(--glass-2); transition: background var(--dur-1); }
+.cc-git-open:hover { background: color-mix(in srgb, var(--accent-blue) 10%, var(--glass-2)); }
+@keyframes cc-in { from { opacity: 0; transform: translateY(4px); } }
+.cc-subseg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass-2); }
+.cc-subseg button { height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1); }
+.cc-subseg button[aria-checked="true"] { background: var(--glass-3, var(--glass-1)); color: var(--ink-1); font-weight: 500; box-shadow: var(--shadow-1); }
+.cc-rp-note { font-size: 12px; color: var(--ink-3); }
+.cc-head-actions [data-slot="button"] { gap: 6px; }
+a.cc-pill { text-decoration: none; }
+@media (prefers-reduced-motion: reduce) { .cc-git { animation: none; } }
+/* 云端 Claude Code P3：GitHub 工作区（DESIGN.md §73.7） */
+.cc-ws { position: relative; }
+.cc-ws:has(> .cc-ws-more) > .cc-ws-head { padding-right: 36px; }
+.cc-ws-more { position: absolute; top: 4px; right: 4px; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1); }
+.cc-ws-more:hover { background: var(--glass-hover); color: var(--ink-1); }
+.cc-ws-err { display: flex; align-items: flex-start; gap: 6px; margin: 2px 8px 6px 28px; padding: 7px 9px; border-radius: 10px; font-size: 12px; line-height: 1.5; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent); }
+.cc-ws-err svg { margin-top: 2px; }
+.cc-ws-err span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cc-ws-retry { flex: none; font-weight: 600; color: var(--accent-blue); }
+.cc-new-ws { display: flex; align-items: center; gap: 8px; width: calc(100% - 8px); min-height: 40px; margin: 10px 4px 0; padding: 0 12px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--accent-blue) 40%, var(--line)); color: var(--accent-blue); font-size: 13.5px; font-weight: 500; text-align: left; transition: background var(--dur-1), border-color var(--dur-1); }
+.cc-new-ws:hover { background: color-mix(in srgb, var(--accent-blue) 7%, transparent); border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }
+.cc-new-ws-s { margin-left: auto; font-size: 11.5px; font-weight: 400; color: var(--ink-4); }
+.cc-tree.is-page .cc-new-ws { width: 100%; margin: 0; min-height: 48px; background: var(--glass-1); }
+.cc-dlg .sg-segmented-item { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.cc-dlg .sg-segmented-item:disabled { opacity: .5; cursor: not-allowed; }
+.cc-src-seg { width: 100%; display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 14px; }
+.cc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin-top: 12px; }
+.cc-field-l { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+.cc-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cc-search { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); }
+.cc-search:focus-within { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 14%, transparent); }
+.cc-search input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: 0; font-size: 14px; color: var(--ink-1); }
+.cc-repo-list { display: flex; flex-direction: column; gap: 4px; max-height: 232px; margin-top: 8px; overflow: auto; overscroll-behavior: contain; }
+.cc-repo { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-1); text-align: left; transition: background var(--dur-1), border-color var(--dur-1); }
+.cc-repo:hover { background: var(--glass-hover); }
+.cc-repo[aria-selected="true"] { border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent); background: color-mix(in srgb, var(--accent-blue) 10%, var(--glass-2)); }
+.cc-repo-n { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-code); font-size: 13px; font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.cc-repo-d { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-repo-skel { height: 120px; border-radius: 12px; background: var(--glass-hover); animation: cc-pulse 1.6s ease-in-out infinite; }
+.cc-gh-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 12px 6px; text-align: center; }
+.cc-gh-empty-t { font-size: 15px; font-weight: 600; color: var(--ink-1); }
+.cc-gh-empty-s { max-width: 400px; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+.cc-form-err { margin-top: 12px; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); overflow-wrap: anywhere; }
+.cc-push-route { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); font-size: 13px; color: var(--ink-1); }
+.cc-push-repo { font-weight: 600; }
+.cc-push-br { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--ink-3); }
+.cc-push-br code, .cc-git-s code { font-family: var(--font-code); font-size: 12px; color: var(--ink-1); overflow-wrap: anywhere; }
+.cc-push-note { margin-top: 8px; font-size: 12.5px; color: var(--ink-3); }
+.cc-push-note a { color: var(--accent-blue); }
+.cc-push-commits { display: flex; flex-direction: column; gap: 2px; max-height: 168px; margin-top: 10px; overflow: auto; }
+.cc-push-commit { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 12.5px; color: var(--ink-2); }
+.cc-push-commit code { flex: none; font-family: var(--font-code); font-size: 12px; color: var(--ink-3); }
+.cc-push-commit span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-push-commit.is-pending { color: var(--warn); }
+.cc-check { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+.cc-check input { width: 16px; height: 16px; accent-color: var(--accent-blue); }
+.cc-msg-system:has(.cc-git) { justify-content: flex-start; }
+.cc-git { display: flex; align-items: flex-start; gap: 10px; width: min(100%, 560px); padding: 12px 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--success) 26%, var(--stroke)); background: color-mix(in srgb, var(--success) 6%, var(--glass-1)); box-shadow: var(--shadow-1); animation: cc-in var(--dur-2, 200ms) var(--ease-out, ease) both; }
+.cc-git.is-pr { border-color: color-mix(in srgb, var(--accent-blue) 28%, var(--stroke)); background: color-mix(in srgb, var(--accent-blue) 6%, var(--glass-1)); }
+.cc-git.is-conflict { border-color: color-mix(in srgb, var(--warn) 34%, var(--stroke)); background: color-mix(in srgb, var(--warn) 7%, var(--glass-1)); }
+.cc-git-ico { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 999px; color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.cc-git.is-pr .cc-git-ico { color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 14%, transparent); }
+.cc-git.is-conflict .cc-git-ico { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.cc-git-main { flex: 1; min-width: 0; }
+.cc-git-t { font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--ink-1); }
+.cc-git-s { margin-top: 2px; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); overflow-wrap: anywhere; }
+.cc-git-s.is-err { color: var(--danger); }
+.cc-git-actions { display: flex; gap: 8px; margin-top: 10px; }
+.cc-git-open { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 30px; padding: 0 12px; align-self: center; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--accent-blue); border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent); background: var(--glass-2); transition: background var(--dur-1); }
+.cc-git-open:hover { background: color-mix(in srgb, var(--accent-blue) 10%, var(--glass-2)); }
+@keyframes cc-in { from { opacity: 0; transform: translateY(4px); } }
+.cc-subseg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass-2); }
+.cc-subseg button { height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1); }
+.cc-subseg button[aria-checked="true"] { background: var(--glass-3, var(--glass-1)); color: var(--ink-1); font-weight: 500; box-shadow: var(--shadow-1); }
+.cc-rp-note { font-size: 12px; color: var(--ink-3); }
+.cc-head-actions [data-slot="button"] { gap: 6px; }
+a.cc-pill { text-decoration: none; }
+@media (prefers-reduced-motion: reduce) { .cc-git { animation: none; } }
 @keyframes cc-spin { to { transform: rotate(360deg); } }
 @keyframes cc-pulse { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .cc-msg { animation: none; } .cc-drawer, .cc-right, .cc-ws-fold { transition-duration: 0ms; } .cc-tool-ic.is-spin, .cc-sess-dot { animation: none; } }

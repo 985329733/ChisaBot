@@ -3,6 +3,8 @@ import {
   IconArrowUp,
   IconChevronLeft,
   IconDots,
+  IconGitMerge,
+  IconGitPullRequest,
   IconLayoutSidebarRightCollapse,
   IconLayoutSidebarRightExpand,
   IconPencil,
@@ -14,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CC_EFFORT_ZH, CC_EFFORTS, CC_MODELS, type CcMessage } from "../../../../../shared/cloud-cc";
+import { CcPushDialog } from "@/components/cloud-cc/cc-github-dialogs";
 import { CcRightContent, type RightTab } from "@/components/cloud-cc/cc-right-panel";
 import { CcMessageView } from "@/components/cloud-cc/cc-transcript";
 import { SyncPill } from "@/components/cloud-cc/cc-tree";
@@ -124,6 +127,23 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
   );
 
   const stop = useAsyncAction(() => ccApi.stop(sessionId), { errorToast: (e) => `停止失败：${e.message}` });
+  // GitHub 工作区（P3，DESIGN.md §73.7）：合入工作目录 / 推送并开 PR
+  const isGit = ws?.source === "github";
+  const [pushOpen, setPushOpen] = useState(false);
+  const merge = useAsyncAction(
+    async () => {
+      const r = await ccApi.merge(sessionId).catch((e: Error) => {
+        toast.error(`合入失败：${e.message}`);
+        throw e;
+      });
+      await queryClient.invalidateQueries({ queryKey: ccKeys.workspaces });
+      void queryClient.invalidateQueries({ queryKey: ["claude-code", "files", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["claude-code", "diff", sessionId] });
+      // 有冲突：按钮变 ✕，对话里出冲突卡（工作目录没有动）
+      if (r.result === "conflict") throw new Error("有冲突");
+    },
+    { errorToast: false },
+  );
   const menu = async (action: "new" | "undo" | "rename" | "archive") => {
     try {
       if (action === "new") {
@@ -169,14 +189,53 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
           <span className="cc-pill is-info">{`${ws?.name ?? "工作区"} · ${session.branch ?? "自己的目录"}`}</span>
           {!phone ? <span className="cc-pill" data-testid="cc-resume-pill">{session.resumable ? `接着上次 · ${session.turns} 轮` : "新的 Claude 会话"}</span> : null}
           {ws && !phone ? <SyncPill state={ws.syncState} /> : null}
+          {session.prUrl ? (
+            <a className="cc-pill is-ok" data-testid="cc-pr-pill" href={session.prUrl} rel="noreferrer noopener" target="_blank">
+              <IconGitPullRequest className="size-3.5" />
+              {session.prNumber ? `PR #${session.prNumber}` : "PR"}
+            </a>
+          ) : null}
         </div>
       </div>
       <div className="cc-head-actions">
+        {isGit && !phone ? (
+          <>
+            <Button
+              data-testid="cc-merge"
+              disabled={running}
+              feedback={{ pending: "合入中…", success: "已合入", error: "没合入" }}
+              onClick={() => void merge.run()}
+              size="sm"
+              state={merge.state}
+              variant="outline"
+            >
+              <IconGitMerge className="size-4" />
+              {"合入工作目录"}
+            </Button>
+            <Button data-testid="cc-push" disabled={running} onClick={() => setPushOpen(true)} size="sm">
+              <IconGitPullRequest className="size-4" />
+              {"推送并开 PR"}
+            </Button>
+          </>
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger render={<button aria-label="更多" className="cc-icon-btn is-lg" data-testid="cc-menu" type="button" />}>
             <IconDots className="size-5" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="min-w-60">
+            {isGit && phone ? (
+              <>
+                <DropdownMenuItem data-testid="cc-menu-merge" disabled={running} onClick={() => void merge.run()}>
+                  <IconGitMerge className="size-4" />
+                  {"合入工作目录"}
+                </DropdownMenuItem>
+                <DropdownMenuItem data-testid="cc-menu-push" disabled={running} onClick={() => setPushOpen(true)}>
+                  <IconGitPullRequest className="size-4" />
+                  {"推送并开 PR"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             <DropdownMenuItem data-testid="cc-menu-new" disabled={running} onClick={() => void menu("new")}>
               <IconRefreshDot className="size-4" />
               {"新的 Claude 会话（清掉上下文）"}
@@ -213,24 +272,25 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
     <div className={cn("cc-session", !phone && rightOpen && "is-right-open", phone && "is-phone")} data-testid="cc-session">
       <div className="cc-chat">
         {header}
-        <Transcript messages={stream.messages} onOpenDiff={openDiff} statusText={stream.statusText} />
+        <Transcript messages={stream.messages} onOpenDiff={openDiff} sessionId={sessionId} statusText={stream.statusText} />
         <Composer onStop={() => void stop.run()} phone={phone} running={running} session={session} sessionId={sessionId} stopState={stop.state} />
       </div>
       {phone ? (
         <Drawer state={drawer} onState={setDrawer}>
-          <CcRightContent enabled={drawer !== "closed"} onTab={setTab} sessionId={sessionId} tab={tab} turnId={turnId} />
+          <CcRightContent base={isGit ? (ws?.defaultBranch ?? "main") : null} enabled={drawer !== "closed"} onTab={setTab} sessionId={sessionId} tab={tab} turnId={turnId} />
         </Drawer>
       ) : (
         <aside aria-hidden={!rightOpen} className="cc-right glass-card" data-testid="cc-right" inert={!rightOpen}>
-          <CcRightContent enabled={rightOpen} onTab={setTab} sessionId={sessionId} tab={tab} turnId={turnId} />
+          <CcRightContent base={isGit ? (ws?.defaultBranch ?? "main") : null} enabled={rightOpen} onTab={setTab} sessionId={sessionId} tab={tab} turnId={turnId} />
         </aside>
       )}
+      {isGit ? <CcPushDialog onOpenChange={setPushOpen} open={pushOpen} sessionId={sessionId} /> : null}
     </div>
   );
 }
 
 /** 消息流：贴着底部；你往上翻了就不再自动往下拉（§35 的原则，不跳版）。 */
-function Transcript({ messages, statusText, onOpenDiff }: { messages: CcMessage[]; statusText: string | null; onOpenDiff: (turnId: string) => void }) {
+function Transcript({ messages, statusText, onOpenDiff, sessionId }: { messages: CcMessage[]; statusText: string | null; onOpenDiff: (turnId: string) => void; sessionId: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useLayoutEffect(() => {
@@ -254,7 +314,7 @@ function Transcript({ messages, statusText, onOpenDiff }: { messages: CcMessage[
             <div className="cc-first-s">{"比如「写一个 Python 脚本，把 CSV 转成 JSON」。只读操作和会话目录里的改动直接做；运行命令前会先问你。"}</div>
           </div>
         ) : (
-          messages.map((m, i) => <CcMessageView key={m.id} message={m} onOpenDiff={onOpenDiff} statusText={i === messages.length - 1 ? statusText : null} />)
+          messages.map((m, i) => <CcMessageView key={m.id} message={m} onOpenDiff={onOpenDiff} sessionId={sessionId} statusText={i === messages.length - 1 ? statusText : null} />)
         )}
       </div>
     </div>

@@ -1,6 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type {
+  CcGithubRepo,
+  CcGithubStatus,
+  CcGitState,
+  CcPushPreview,
   CcLoginStart,
   CcMessage,
   CcSessionStatus,
@@ -14,13 +18,18 @@ import type {
 import { client } from "@/lib/client";
 
 /** 云端 Claude Code（docs/cloud-claude-code.md，DESIGN.md §73）。 */
+/** 右栏看哪一份：会话目录，或 GitHub 工作区的工作目录 work/（P3）。 */
+export type CcRef = "session" | "work";
 export const ccKeys = {
   status: ["cloud-workspace"] as const,
   workspaces: ["claude-code", "workspaces"] as const,
   session: (id: string) => ["claude-code", "session", id] as const,
-  files: (id: string, path: string) => ["claude-code", "files", id, path] as const,
-  file: (id: string, path: string) => ["claude-code", "file", id, path] as const,
-  diff: (id: string, turn: string | null) => ["claude-code", "diff", id, turn ?? "last"] as const,
+  files: (id: string, path: string, ref: CcRef = "session") => ["claude-code", "files", id, path, ref] as const,
+  file: (id: string, path: string, ref: CcRef = "session") => ["claude-code", "file", id, path, ref] as const,
+  diff: (id: string, turn: string | null, mode: "turn" | "base" = "turn") => ["claude-code", "diff", id, mode === "base" ? "base" : (turn ?? "last")] as const,
+  github: ["claude-code", "github"] as const,
+  repos: ["claude-code", "github", "repos"] as const,
+  push: (id: string) => ["claude-code", "push", id] as const,
   rules: ["cloud-workspace", "rules"] as const,
 };
 
@@ -38,7 +47,12 @@ export function ccWorkspacesQueryOptions(enabled = true) {
     queryKey: ccKeys.workspaces,
     queryFn: ({ signal }): Promise<CcWorkspaceView[]> => client("/api/claude-code/workspaces", "workspaces", { fallback: "读不到工作区", signal }),
     enabled,
-    refetchInterval: (query) => ((query.state.data ?? []).some((w) => w.sessions.some((s) => s.status === "running" || s.status === "waiting")) ? 3000 : 12_000),
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((w) => w.cloneState === "cloning")
+        ? 2000
+        : (query.state.data ?? []).some((w) => w.sessions.some((s) => s.status === "running" || s.status === "waiting"))
+          ? 3000
+          : 12_000,
     refetchOnWindowFocus: "always",
   });
 }
@@ -53,35 +67,70 @@ export function ccSessionQueryOptions(id: string) {
   });
 }
 
-export function ccFilesQueryOptions(id: string, path: string, enabled: boolean) {
+export function ccFilesQueryOptions(id: string, path: string, enabled: boolean, ref: CcRef = "session") {
   return queryOptions({
-    queryKey: ccKeys.files(id, path),
+    queryKey: ccKeys.files(id, path, ref),
     queryFn: ({ signal }) =>
-      client(`/api/claude-code/sessions/${encodeURIComponent(id)}/files?path=${encodeURIComponent(path)}`, { fallback: "读不到目录", signal }).then(
+      client(`/api/claude-code/sessions/${encodeURIComponent(id)}/files?path=${encodeURIComponent(path)}${ref === "work" ? "&ref=work" : ""}`, { fallback: "读不到目录", signal }).then(
         (r) => r.json() as Promise<{ path: string; entries: CcTreeEntry[] }>,
       ),
     enabled,
   });
 }
 
-export function ccFileQueryOptions(id: string, path: string, enabled: boolean) {
+export function ccFileQueryOptions(id: string, path: string, enabled: boolean, ref: CcRef = "session") {
   return queryOptions({
-    queryKey: ccKeys.file(id, path),
+    queryKey: ccKeys.file(id, path, ref),
     queryFn: ({ signal }) =>
-      client(`/api/claude-code/sessions/${encodeURIComponent(id)}/file?path=${encodeURIComponent(path)}`, { fallback: "读不到文件", signal }).then(
+      client(`/api/claude-code/sessions/${encodeURIComponent(id)}/file?path=${encodeURIComponent(path)}${ref === "work" ? "&ref=work" : ""}`, { fallback: "读不到文件", signal }).then(
         (r) => r.json() as Promise<{ path: string; size: number; binary?: boolean; tooLarge?: boolean; text: string | null }>,
       ),
     enabled,
   });
 }
 
-export type CcDiff = { turnId: string | null; files: { path: string; add: number | null; del: number | null; status: string }[]; patch: string };
-export function ccDiffQueryOptions(id: string, turn: string | null, enabled: boolean) {
+export type CcDiff = {
+  turnId?: string | null;
+  files: { path: string; add: number | null; del: number | null; status: string }[];
+  patch: string;
+  /** mode=base 时：目标分支、会话是否已经开始（有工作树）、比目标分支多几个提交。 */
+  base?: string;
+  started?: boolean;
+  commits?: number;
+};
+export function ccDiffQueryOptions(id: string, turn: string | null, enabled: boolean, mode: "turn" | "base" = "turn") {
   return queryOptions({
-    queryKey: ccKeys.diff(id, turn),
+    queryKey: ccKeys.diff(id, turn, mode),
     queryFn: ({ signal }) =>
-      client(`/api/claude-code/sessions/${encodeURIComponent(id)}/diff${turn ? `?turn=${encodeURIComponent(turn)}` : ""}`, { fallback: "读不到改动", signal }).then((r) => r.json() as Promise<CcDiff>),
+      client(`/api/claude-code/sessions/${encodeURIComponent(id)}/diff${mode === "base" ? "?mode=base" : turn ? `?turn=${encodeURIComponent(turn)}` : ""}`, { fallback: "读不到改动", signal }).then(
+        (r) => r.json() as Promise<CcDiff>,
+      ),
     enabled,
+  });
+}
+
+export function ccGithubQueryOptions(enabled = true) {
+  return queryOptions({
+    queryKey: ccKeys.github,
+    queryFn: ({ signal }) => client("/api/claude-code/github", { fallback: "读不到 GitHub 连接", signal }).then((r) => r.json() as Promise<CcGithubStatus>),
+    enabled,
+    staleTime: 10_000,
+  });
+}
+export function ccReposQueryOptions(enabled: boolean) {
+  return queryOptions({
+    queryKey: ccKeys.repos,
+    queryFn: ({ signal }): Promise<CcGithubRepo[]> => client("/api/claude-code/github/repos", "repos", { fallback: "读不到仓库列表", signal }),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+export function ccPushPreviewQueryOptions(id: string, enabled: boolean) {
+  return queryOptions({
+    queryKey: ccKeys.push(id),
+    queryFn: ({ signal }) => client(`/api/claude-code/sessions/${encodeURIComponent(id)}/push`, { fallback: "读不到要推送的内容", signal }).then((r) => r.json() as Promise<CcPushPreview>),
+    enabled,
+    staleTime: 0,
   });
 }
 
@@ -103,6 +152,16 @@ export const ccApi = {
   stop: (id: string) => client(`/api/claude-code/sessions/${encodeURIComponent(id)}/stop`, { method: "POST", fallback: "停止失败" }),
   newClaudeSession: (id: string) => client(`/api/claude-code/sessions/${encodeURIComponent(id)}/new-claude-session`, { method: "POST", fallback: "操作失败" }),
   undoTurn: (id: string) => client(`/api/claude-code/sessions/${encodeURIComponent(id)}/undo-turn`, { method: "POST", fallback: "撤销失败" }),
+  createWorkspace: (body: { repo: string; branch?: string | null; name?: string | null }) =>
+    client<CcWorkspaceView>("/api/claude-code/workspaces", "workspace", { method: "POST", body: { source: "github", ...body }, fallback: "新建工作区失败" }),
+  retryClone: (id: string) => client<CcWorkspaceView>(`/api/claude-code/workspaces/${encodeURIComponent(id)}/retry`, "workspace", { method: "POST", fallback: "重试失败" }),
+  deleteWorkspace: (id: string) => client(`/api/claude-code/workspaces/${encodeURIComponent(id)}`, { method: "DELETE", fallback: "删除失败" }),
+  merge: (id: string) =>
+    client(`/api/claude-code/sessions/${encodeURIComponent(id)}/merge`, { method: "POST", fallback: "合入失败" }).then((r) => r.json() as Promise<{ result: CcGitState; message: CcMessage }>),
+  push: (id: string, body: { title: string; body?: string; draft?: boolean }) =>
+    client(`/api/claude-code/sessions/${encodeURIComponent(id)}/push`, { method: "POST", body, fallback: "推送失败" }).then(
+      (r) => r.json() as Promise<{ ok: boolean; error?: string; prUrl?: string; prNumber?: number | null; message: CcMessage }>,
+    ),
   decide: (approvalId: string, decision: "approve" | "deny", always = false) =>
     client(`/api/claude-code/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: { decision, always }, fallback: "操作失败" }),
 };

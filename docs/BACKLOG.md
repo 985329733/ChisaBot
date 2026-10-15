@@ -1031,9 +1031,12 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: github` `P1`
 
 #### 验收标准
-- [ ] 新建 → 从 GitHub：按钮「克隆中… → 已创建 ✓」；节点磁盘上没有 GitHub 令牌
-- [ ] 每个会话一个 worktree + `cc/…` 分支；合入工作目录（冲突时不动 `work/`）；推送并开 PR 要审批，出 PR 链接卡
-- [ ] 右栏「相对 main」「工作目录」两个视图
+- [x] 新建 → 从 GitHub：按钮「克隆中… → 已创建 ✓」；节点磁盘上没有 GitHub 令牌
+- [x] 每个会话一个 worktree + `cc/…` 分支；合入工作目录（冲突时不动 `work/`）；推送并开 PR 要审批，出 PR 链接卡
+- [x] 右栏「相对 main」「工作目录」两个视图
+- [ ] 用真实 GitHub 走一遍（需要用户先在 设置 → 账号连接 连 GitHub；上线后检查）
+
+实现见 DESIGN.md §73.7、`docs/cloud-claude-code.md`「GitHub 工作区（P3，实现）」。预览里对着模拟 GitHub（`tests/cloud-cc/mock-github.cjs`）e2e 通过。
 
 ## CB-064
 

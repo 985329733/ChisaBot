@@ -2092,7 +2092,15 @@ try {
  */
 let cloudCc: CloudCcService | undefined;
 try {
-  cloudCc = createCloudCcService({ database, hub: deviceHub, deviceStore, next: localAgents?.extension ?? null, vault });
+  cloudCc = createCloudCcService({
+    database,
+    hub: deviceHub,
+    deviceStore,
+    next: localAgents?.extension ?? null,
+    github,
+    vault,
+    ...(process.env.CHISABOT_GITHUB_GIT_BASE ? { gitBase: process.env.CHISABOT_GITHUB_GIT_BASE } : {}),
+  });
   await cloudCc.ensure();
   const interrupted = await cloudCc.recover();
   if (interrupted) console.log(JSON.stringify({ type: "cloud-cc-turns-interrupted-by-restart", count: interrupted }));
