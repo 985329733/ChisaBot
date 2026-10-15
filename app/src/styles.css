@@ -2147,6 +2147,8 @@ body::before {
   opacity: 0;
   transition: opacity 0.15s ease;
 }
+/* 在回答时：按钮留着位置但看不见（§68.4，不让每条消息在发送那一刻矮一截）。 */
+.chat-msg-action[data-held] { visibility: hidden; }
 [data-slot="message-scroller-item"]:hover .chat-msg-actions,
 .chat-msg-actions:focus-within { opacity: 1; }
 @media (hover: none) { .chat-msg-actions { opacity: 1; } }

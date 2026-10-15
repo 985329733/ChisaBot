@@ -1794,8 +1794,20 @@ export function ChatTranscript({
    * which is where the 25x came from. This runs per render and is not worth guarding.
    */
   const items = groupBrowserSteps(toVisibleChatItems(messages));
+  /*
+   * 「最后一轮还在跑」只从列表真的变了算起（§68.4）。按下发送的那一刻 busy 先变 true，人发的那条要再过
+   * 几十毫秒才进列表；这几十毫秒里如果把「最后一轮」（上一轮，早就答完了）当成正在跑，它的结果气泡会变回
+   * 开场一句、丢掉下面那行按钮，整页矮一截、往下一跳。所以：空闲时记下列表的样子，busy 之后列表没变就还算答完。
+   * 重新生成 / 编辑重发会先截断列表，长度变了，照样算正在跑。
+   */
+  const settledRef = useRef<{ length: number; last: string | null } | null>(null);
+  const shape = { length: items.length, last: items.at(-1)?.id ?? null };
+  if (!busy) settledRef.current = shape;
+  const settled = settledRef.current;
+  const live =
+    busy && !(settled !== null && settled.length === shape.length && settled.last === shape.last);
   // 一轮收成「开场一句 → 结果」，与机器人聊天同一规则（compactTurns，2026-10-13 第四轮）。
-  const compact = compactTurns(items, busy, stoppedTurns ?? EMPTY_STOPS, fallbacks);
+  const compact = compactTurns(items, live, stoppedTurns ?? EMPTY_STOPS, fallbacks);
 
   /*
    * ONLY WHILE THERE IS NOTHING ELSE TO LOOK AT. Once a reply starts streaming, or a tool line
@@ -1843,7 +1855,8 @@ export function ChatTranscript({
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
   const anchorRows = anchorRowIds(items);
   // 重新生成挂在最后一轮最后一段看得见的回答下面；回答进行中谁都不挂（DESIGN.md §67）。
-  const regenerateId = busy ? null : lastAnswerId(items, compact.hidden);
+  // 在回答时按钮自己占位不显示（message-actions.tsx 的 held），所以这里只在新一轮真的开始后才不挂。
+  const regenerateId = live ? null : lastAnswerId(items, compact.hidden);
 
   /*
    * One decider per mounted transcript, so opening a different channel starts the cascade over and
@@ -2036,7 +2049,7 @@ export function ChatTranscript({
                     canRegenerate={item.id === regenerateId}
                     commandNames={commandNames}
                     delay={delays.delayFor(item.id, index, items.length)}
-                    editable={!busy && isPersonSentMessage(item.role, item.text) && isEditableUserText(item.text)}
+                    editable={isPersonSentMessage(item.role, item.text) && isEditableUserText(item.text)}
                     messageId={item.id}
                     role={item.role}
                     text={item.text}
