@@ -246,6 +246,36 @@ describe("json-render catalog (render_ui)", () => {
     }
   });
 
+  test("Products: a product grid validates, its non-https images are stripped, and the prompt says when to use it", () => {
+    const result = inspectRenderUiSpec(
+      JSON.stringify({
+        root: "p",
+        elements: {
+          p: {
+            type: "Products",
+            props: {
+              items: [
+                { name: "索尼 WH-1000XM6", price: "¥2,999", note: "降噪最强", badge: "首选", url: "https://www.sony.com.cn/", image: "http://insecure.test/a.jpg", source: "官网" },
+                { name: "Bose QC Ultra", price: "¥2,499", url: "https://www.bose.cn/" },
+              ],
+            },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const items = (result.spec.elements.p as { props: { items: { image?: unknown; name: string }[] } }).props.items;
+      expect(items).toHaveLength(2);
+      expect(items[0]?.image).toBeNull();
+      expect(items[1]?.name).toBe("Bose QC Ultra");
+    }
+    const prompt = renderUiPrompt();
+    expect(prompt).toContain("- Products:");
+    expect(prompt).toContain("推荐 / 比较商品");
+  });
+
   test("the prompt lists the icon names and the component-choice rule", () => {
     const prompt = renderUiPrompt();
     expect(prompt).toContain("Chart");

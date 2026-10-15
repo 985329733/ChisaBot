@@ -423,6 +423,27 @@ export const jsonRenderCatalog = defineCatalog(schema, {
       slots: ["default"],
       description: "标签页 / 分段切换：一次显示一个子元素（children 与 tabs 一一对应）。用来在同一块地方切换「今天 / 本周」「价格 / 成交量」。",
     },
+    Products: {
+      props: z.object({
+        items: z
+          .array(
+            z.object({
+              name: z.string().describe("商品 / 地点名，短"),
+              price: z.string().nullish().describe("现价，带货币，如「¥1,899」「约 ¥1,500 起」；没查到就不写"),
+              note: z.string().nullish().describe("一句卖点 / 理由，≤ 20 字"),
+              badge: z.string().nullish().describe("可选角标：首选 / 最划算 / 降噪最强"),
+              url: z.string().nullish().describe("商品自己的页面（官网 / 店铺页）http(s)；没有 image 时用这个网页上的图"),
+              image: z.string().nullish().describe("商品图 https，只用工具结果里真实出现过的地址；不写就从 url 那个网页取图"),
+              source: z.string().nullish().describe("价格来源站点，如「京东」「官网」"),
+            }),
+          )
+          .min(1)
+          .max(8),
+        columns: z.number().int().min(2).max(4).nullish().describe("列数，默认 3（2 个商品时 2）；窄屏 2 列"),
+      }),
+      slots: [],
+      description: "带图的商品 / 地点卡片网格：每张 = 图 + 名字 + 价格 + 一句卖点 + 角标，整张点开商品页。图由服务器从 image 或商品页转存，不直连第三方。推荐商品、比价、餐厅 / 酒店 / 景点推荐用它。",
+    },
     Carousel: {
       props: z.object({ itemWidth: z.enum(["sm", "md", "lg"]).nullish().describe("每一项宽度，默认 md") }),
       slots: ["default"],
@@ -543,6 +564,7 @@ const CUSTOM_RULES = [
   "只展示你真实拥有的信息（来自对话、工具结果或你确定的知识），绝不编造数据、链接或图片；没有数据就不要画这一块。图片 / 头像 / 缩略图只用工具结果里真实出现过的 https 地址。",
   "最外层通常是一个 Card（可带 icon）；多个 Metric 放进 Grid；按钮组放进 horizontal Stack。保持简洁，一般不超过 30 个元素。",
   "选对组件，让界面一眼能看懂：有一串按时间的数 → Chart（大）或 Metric 的 spark / Sparkline（小）；占比 → Ring；有上下限的单值 → Gauge；每天 / 每小时的记录 → HeatStrip；有网址的条目 → List 每行带 href（有配图就带 image）或 Link；一个主角 → Hero；目标时间 → Countdown（会自己走）；时区 → Clock；状态 → Status / Badge dot；涨跌 → Delta 或 Metric 的 delta + trend；规格参数 → KeyValue；事件经过 → Timeline；同一处要切换的两三组内容 → Tabs；一排卡片 → Carousel；次要细节 → Accordion。",
+  "推荐 / 比较商品（耳机、手机、家电…）或地点（餐厅、酒店、景点）时用 Products：先搜索查到现价和每个商品自己的页面（官网 / 店铺页），每项写 name、price、note、url（有真实商品图地址就写 image）；不要用纯文字 List。价格没查到就不写 price，不要编。",
   "能点就让它能点：新闻、仓库、文章、商品这类有网址的行 / 卡片都写 href（新标签页打开，自动显示 ↗）；想让用户追问的写 ask；IP、命令、地址写 copy。",
   "颜色有含义才用：tone 只能写 default / accent（品牌蓝）/ info / success（好、涨）/ warn / danger（坏、跌），只给涨跌、好坏、预警、品牌重点；一张界面里有颜色的地方不超过 3–4 处。",
   `icon 只能写这些名字（Tabler 图标）：${ICON_NAMES.join(" ")}。`,
@@ -842,6 +864,11 @@ export function sanitizeRenderUiSpec(spec: Spec | null): RenderUiSanitized | nul
         props[name] = null;
         skipped.push(`${key}.${name}（图片地址不是 https，已去掉）`);
       }
+    }
+    if (type === "Products" && Array.isArray(props.items)) {
+      props.items = (props.items as Record<string, unknown>[]).map((item) =>
+        item && typeof item === "object" && item.image && !isHttps(item.image) ? { ...item, image: null } : item,
+      );
     }
     if (type === "List" && Array.isArray(props.items)) {
       props.items = (props.items as Record<string, unknown>[]).map((item) =>

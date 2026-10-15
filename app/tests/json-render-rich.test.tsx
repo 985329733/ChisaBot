@@ -168,6 +168,39 @@ describe("rich components render", () => {
     expect(container.querySelector(".jr-list-go")).not.toBeNull();
   });
 
+  test("Products draws a grid of clickable cards with a fixed photo slot (§72)", async () => {
+    const { container } = await draw({
+      root: "p",
+      elements: {
+        p: {
+          type: "Products",
+          props: {
+            items: [
+              { name: "索尼 WH-1000XM6", price: "¥2,999", note: "降噪最强", badge: "首选", url: "https://www.sony.com.cn/headphones", source: "官网" },
+              { name: "Bose QC Ultra", price: "¥2,499", url: "https://www.bose.cn/qc" },
+              { name: "没有链接的那款" },
+            ],
+          },
+          children: [],
+        },
+      },
+    });
+    const cards = container.querySelectorAll(".jr-product");
+    expect(cards.length).toBe(3);
+    expect(container.querySelector<HTMLElement>(".jr-products")?.style.getPropertyValue("--jr-cols")).toBe("3");
+    expect(container.querySelectorAll(".jr-product-media").length).toBe(3);
+    expect(container.querySelector(".jr-product-badge")?.textContent).toBe("首选");
+    expect(container.textContent).toContain("¥2,999");
+    expect(container.textContent).toContain("官网");
+    expect(container.textContent).toContain("bose.cn");
+    const link = container.querySelector<HTMLAnchorElement>("a.jr-product-a");
+    expect(link?.getAttribute("target")).toBe("_blank");
+    expect(link?.getAttribute("href")).toBe("https://www.sony.com.cn/headphones");
+    // the card without a url is not a link, and never shows a broken image
+    expect(container.querySelectorAll("a.jr-product-a").length).toBe(2);
+    expect(container.querySelector('img[src=""]')).toBeNull();
+  });
+
   test("tabs switch panes and accordions open", async () => {
     const { container, getByText } = await draw({
       root: "r",

@@ -118,6 +118,20 @@ function previewQuery(url: string) {
 }
 
 /**
+ * 一张第三方图片 / 一个网页的预览图，经服务器转存后的本站地址（商品网格用，DESIGN.md §72）：
+ * 有图片地址先用图片地址（服务器下载、认成图片后存起来），否则用网页的 og:image；都没有返回 null。
+ * 走同一个 `/api/link-preview`（只连公网、按人限速、缓存 24 小时），浏览器不直接去第三方拉图。
+ */
+export function usePreviewImage(image: string | null, page: string | null): { src: string | null; loading: boolean } {
+  const first = useQuery({ ...previewQuery(image ?? ""), enabled: Boolean(image) }, previewClient);
+  const needPage = Boolean(page) && (!image || first.isError || (first.isSuccess && !first.data?.image));
+  const second = useQuery({ ...previewQuery(page ?? ""), enabled: needPage }, previewClient);
+  const src = (first.data?.image ?? null) || (needPage ? (second.data?.image ?? null) : null);
+  const loading = (Boolean(image) && first.isLoading) || (needPage && second.isLoading);
+  return { src, loading };
+}
+
+/**
  * 文字停下 `ms` 毫秒后才返回它（流式回复时不追着半截文字跑）。
  *
  * 刚挂载时当作已经写完（历史消息、重放的记录立刻出卡）；之后每变一次都要再停 `ms` 才算写完。
