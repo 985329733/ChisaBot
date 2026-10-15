@@ -971,7 +971,7 @@ function CopyMessage({ text, extra, lead }: { text: string; extra?: React.ReactN
   });
   const label = { idle: "复制", pending: "复制", success: "已复制", error: "复制失败" }[copy.state];
   return (
-    <div className="chat-msg-actions">
+    <div className={lead ? "chat-msg-actions has-work" : "chat-msg-actions"}>
       {lead}
       <button
         aria-label={copy.state === "idle" ? "复制回答" : label}

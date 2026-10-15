@@ -6659,12 +6659,12 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .chat-work-step { position: relative; display: inline-flex; min-width: 0; overflow: hidden; }
 .chat-work-step-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-work-meta { flex-shrink: 0; color: var(--ink-4); font-size: 12px; font-variant-numeric: tabular-nums; }
-/* §70.2 干活卡收成的一行：在结果下面那一排里一直看得见，其余按钮仍悬停才出现 */
-.chat-msg-actions:has(.chat-work-done) { opacity: 1; }
-.chat-msg-actions:has(.chat-work-done) > :not(.chat-work-done) { opacity: 0; transition: opacity 0.15s ease; }
-[data-slot="message-scroller-item"]:hover .chat-msg-actions > *,
-.chat-msg-actions:has(.chat-work-done):focus-within > * { opacity: 1; }
-@media (hover: none) { .chat-msg-actions:has(.chat-work-done) > :not(.chat-work-done) { opacity: 1; } }
+/* §70.2 干活卡收成的一行：在结果下面那一排里一直看得见，其余按钮仍悬停才出现（类名而不是 :has()，不拖慢输入时的样式计算） */
+.chat-msg-actions.has-work { opacity: 1; }
+.chat-msg-actions.has-work > :not(.chat-work-done) { opacity: 0; transition: opacity 0.15s ease; }
+[data-slot="message-scroller-item"]:hover .chat-msg-actions.has-work > *,
+.chat-msg-actions.has-work:focus-within > * { opacity: 1; }
+@media (hover: none) { .chat-msg-actions.has-work > :not(.chat-work-done) { opacity: 1; } }
 .chat-work-done { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .chat-work-done-chevron { transition: transform 0.18s ease; }
 .chat-work-done-chevron[data-open] { transform: rotate(180deg); }
