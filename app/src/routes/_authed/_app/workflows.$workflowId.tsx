@@ -1,3 +1,4 @@
+import { requireExtra } from "@/lib/deployment/extras";
 import { IconCopy, IconDownload, IconLock, IconPlayerPlayFilled, IconPlus } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -25,6 +26,8 @@ import {
 } from "@/lib/workflows";
 
 export const Route = createFileRoute("/_authed/_app/workflows/$workflowId")({
+  // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 workflows 才能进。
+  beforeLoad: requireExtra("workflows"),
   component: WorkflowEditPage,
 });
 

@@ -199,7 +199,8 @@ function RouteComponent() {
       ) : accounts.length === 0 ? (
         <PageSection>
           <PageEmpty>
-            {"现在没有别的应用可连。管理员在「插件」里加上需要你本人授权的应用（比如 Google Drive、Notion）后，会出现在这里。"}
+            {/* 插件与 MCP 默认隐藏（DESIGN.md §74），不再指向「插件」页。 */}
+            {"现在没有别的应用可连。"}
           </PageEmpty>
         </PageSection>
       ) : (

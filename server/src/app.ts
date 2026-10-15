@@ -408,6 +408,8 @@ export function createApp(
       generativeUi: config.generativeUi,
       // 设置 → 管理 →「账号」入口（CB-040）；默认隐藏，CHISABOT_ACCOUNTS_UI=1 打开。
       accountsUi: config.accountsUi === true,
+      // 功能精简（DESIGN.md §74）：默认隐藏的功能里，这台部署用 CHISABOT_EXTRAS 重新打开的。
+      extras: [...(config.extras ?? [])],
       // Whether to offer help self-hosting OpenBot. A fork running it for its own people turns it off,
       // and a deployment that pays for Intelligence never sees it. See self-host-banner.ts.
       selfHostBanner: selfHostBanner

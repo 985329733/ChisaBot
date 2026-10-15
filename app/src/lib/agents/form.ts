@@ -51,20 +51,41 @@ export const emptyAgentForm: AgentFormValues = {
   authValue: "",
 };
 
+/** 新建时没写「它做什么」的机器人，左栏副标题写这个。 */
+export const DEFAULT_BOT_TITLE = "私人助手";
+
+const BASELINE = "默认用简体中文，回答清晰、简洁、准确；不确定的事先说明，需要时用工具查证。";
+
 /**
- * 新建机器人时职责、提示词可以不填（成熟度扫查 F1：新用户卡在「请填写角色说明」）。
- * 输入框保持空白、不放模板（§46）；只在提交时补一句最基本的说明，之后可在资料页改。
+ * 从「它做什么」取一个短职责（左栏副标题）：第一句、去掉开头的「你是 / 你负责 / 负责 / 帮我」，最多 18 个字。
+ * 例：「你是我的英语老师，帮我纠正语法」→「我的英语老师」；「帮我记账」→「记账」。
+ */
+export function titleFromPurpose(purpose: string): string {
+  const first = purpose.trim().split(/[。！？!?\n；;，,.]/)[0]?.trim() ?? "";
+  const bare = first.replace(/^(你是|你负责|你要|负责|帮我|请)\s*/, "").trim();
+  if (!bare) return DEFAULT_BOT_TITLE;
+  return bare.length > 18 ? `${bare.slice(0, 17)}…` : bare;
+}
+
+/**
+ * 新建机器人（DESIGN.md §74.2，2026-10-16 功能精简）：表单只有「名称」和可不填的「它做什么」。
+ * - 职责（副标题）从「它做什么」的第一句取，没写就是「私人助手」；
+ * - 提示词：写了「你是…」开头的整段话，原样用；只写了一句要做的事，前面补「你是「名称」。」、后面补一句基本要求；
+ *   什么都没写，就是「你是「名称」。」+ 基本要求。之后都能在机器人资料里改。
+ * 输入框保持空白、不放模板（§46）。
  */
 export function withCreateDefaults(values: AgentFormValues): AgentFormValues {
   const name = values.name.trim();
-  const title = values.title.trim();
-  return {
-    ...values,
-    title: title || "私人助手",
-    roleDescription:
-      values.roleDescription.trim() ||
-      `你是「${name}」${title ? `，负责：${title}` : ""}。默认用简体中文，回答清晰、简洁、准确；不确定的事先说明，需要时用工具查证。`,
-  };
+  const purpose = values.roleDescription.trim();
+  const title = values.title.trim() || (purpose ? titleFromPurpose(purpose) : DEFAULT_BOT_TITLE);
+  let roleDescription: string;
+  if (!purpose) roleDescription = `你是「${name}」。${BASELINE}`;
+  else if (/^你是/.test(purpose)) roleDescription = purpose;
+  else {
+    const wrapped = `你是「${name}」。${purpose}${/[。！？.!?]$/.test(purpose) ? "" : "。"}\n${BASELINE}`;
+    roleDescription = wrapped.length <= 1000 ? wrapped : purpose;
+  }
+  return { ...values, title, roleDescription };
 }
 
 /** Convert form values to API input; omit an empty key so editing preserves the current credential. */

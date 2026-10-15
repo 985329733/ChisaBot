@@ -73,6 +73,7 @@
 | [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` |
 | [CB-065](#cb-065) | 云端 Claude Code P5：ChisaCloudCode 留还是下线 | 设备核心 Devices core | `type: chore` · `area: infra` · `P2` · `status: needs-user` |
 | [CB-066](#cb-066) | 在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: needs-user` |
+| [CB-067](#cb-067) | 新版本前功能精简：隐藏用不到的功能、新建机器人两格 | 精简 Slim | `type: chore` · `area: web` · `P1` |
 
 ## CB-001
 
@@ -1068,6 +1069,20 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 「Claude 上游代理」：http / https / socks5 + 用户名密码，测试连接（出口 IP、claude.ai、api.anthropic.com），清除回到默认出口；只有 Claude 域名走它；加密存储、界面打码
 - [x] claude.ai 的 Cloudflare 人机验证：云端浏览器用普通 Chrome UA + 关 AutomationControlled（#158），生产上直接到 Claude 登录页
 - [ ] 生产上用户自己完成一次真实登录（需要用户的 Claude 账号）
+
+## CB-067
+
+**新版本前功能精简：隐藏用不到的功能、新建机器人两格**  
+里程碑：精简 Slim · 标签：`type: chore` `area: web` `P1`
+
+用户 2026-10-16 01:21：「遍历审查chisabot的全部功能…没有必要的进行隐藏或者删除。马上准备推出发布给用户新版本了」；01:22「比如新建机器人的流程，一直不太好使。。」。DESIGN.md §74。
+
+#### 验收标准
+- [x] 全部功能过一遍，出审查表（保留 / 隐藏 / 删除 / 需用户决定 + 理由 + 风险），放 PR 描述
+- [x] 工作流、插件与 MCP、权限规则、UI 组件目录默认隐藏（`CHISABOT_EXTRAS` 可恢复）；工作流不再给机器人工具；不删表、不删数据
+- [x] 新建机器人只剩「名称 + 它做什么」，预览上 1280 亮 / 390 暗从 ＋ 到第一句回复走通
+- [x] 删掉用不到的「对话里建机器人」前端工具
+- [ ] 「需用户决定」的几项等用户回话
 
 ## CB-065
 

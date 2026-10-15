@@ -1398,13 +1398,16 @@ const loadToolsForActor =
       ? livePanelService.tools(actorId, botId, initiator.kind === "routine" && initiator.id.startsWith("lp_") ? { refreshOf: initiator.id } : {})
       : []),
     // 工作流（docs/workflows.md）：在聊天和长期任务里运行工作流；工作流自己的步骤拿不到。
-    ...workflowChatTools({
-      store: workflowStore,
-      engine: workflowEngineRef,
-      ownerUserId: actorId,
-      botId,
-      initiator,
-    }),
+    // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 workflows 才给机器人这两个工具。
+    ...(config.extras?.includes("workflows")
+      ? workflowChatTools({
+          store: workflowStore,
+          engine: workflowEngineRef,
+          ownerUserId: actorId,
+          botId,
+          initiator,
+        })
+      : []),
   ], { ownerUserId: actorId, agentId: botId, initiator });
   };
 

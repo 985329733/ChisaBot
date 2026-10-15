@@ -34,6 +34,7 @@ import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
  * - 个人：通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 生图与识图 · 密钥 · 审批偏好 · 设备 · IM 接入（后续功能页也放这里）；
  * - 管理（仅管理员）：账号（CB-040 朋友账号；默认隐藏，/api/capabilities 的 accountsUi 打开才显示）· 模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
  * - 高级（默认折叠）：工作流 · 插件与 MCP。
+ * 功能精简（2026-10-16，§74）：工作流、插件与 MCP、权限规则默认不显示（CHISABOT_EXTRAS 打开），所以「高级」组默认整组不显示。
  * 管理员三组都能折叠（CB-058，DESIGN.md §71.7）：没记过开关时只展开当前页所在的组，1280×800 也不用滚；手机抽屉照常全列。
  * 技能管理并入 设置 → 技能（管理员在页内进入），UI 组件不再出现在导航里。路由都还在，旧地址会重定向。
  * 左栏底部「返回聊天」是从设置回到对话的路（顶栏不再有分段导航）。
@@ -138,6 +139,13 @@ const ADMIN: RailGroup[] = [
   },
 ];
 
+/** 默认隐藏的入口 → 打开它的 CHISABOT_EXTRAS 名字（DESIGN.md §74）。 */
+const EXTRA_ROUTES: Record<string, string> = {
+  "/workflows": "workflows",
+  "/admin/plugins": "plugins",
+  "/admin/boundaries": "boundaries",
+};
+
 /** 管理员看到三组时，个人 / 管理也能折叠（只在桌面左栏）。普通账号只有「个人」一组，不折叠。 */
 const PERSONAL_FOLDABLE: RailGroup[] = PERSONAL.map((group) => ({
   ...group,
@@ -148,9 +156,17 @@ export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { data: user } = useQuery(currentUserQueryOptions());
   const { data: capabilities } = useQuery(deploymentCapabilitiesQueryOptions());
   // 多用户以后再做（2026-10-15）：「账号」入口默认隐藏，部署设 CHISABOT_ACCOUNTS_UI=1 才出现。
-  const admin = capabilities?.accountsUi
-    ? ADMIN
-    : ADMIN.map((group) => ({ ...group, items: group.items.filter((item) => item.linkOptions?.to !== "/admin/accounts") }));
+  // 功能精简（2026-10-16，DESIGN.md §74）：工作流、插件与 MCP、权限规则默认隐藏，CHISABOT_EXTRAS 打开才出现；
+  // 一组里一项都不剩（「高级」）就整组不显示。
+  const extras = capabilities?.extras ?? [];
+  const shown = (to: string | undefined) => {
+    if (to === "/admin/accounts") return capabilities?.accountsUi === true;
+    const extra = EXTRA_ROUTES[to ?? ""];
+    return extra === undefined || extras.includes(extra);
+  };
+  const admin = ADMIN.map((group) => ({ ...group, items: group.items.filter((item) => shown(item.linkOptions?.to)) })).filter(
+    (group) => group.items.length > 0,
+  );
   return (
     <SectionRail
       ariaLabel={"设置分区"}

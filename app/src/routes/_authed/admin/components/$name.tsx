@@ -1,3 +1,4 @@
+import { requireExtra } from "@/lib/deployment/extras";
 import { RouteSkeleton } from "@/components/startup-status";
 import {
   IconAlertTriangle,
@@ -74,6 +75,8 @@ const BACK = {
 } as const;
 
 export const Route = createFileRoute("/_authed/admin/components/$name")({
+  // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 components 才能进。
+  beforeLoad: requireExtra("components"),
   component: RouteComponent,
 });
 

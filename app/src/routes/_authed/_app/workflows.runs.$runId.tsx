@@ -1,3 +1,4 @@
+import { requireExtra } from "@/lib/deployment/extras";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -47,6 +48,8 @@ import { cn } from "@/lib/utils";
 import { durationText, tokensText, workflowKeys, workflowRunQueryOptions, workflowsApi } from "@/lib/workflows";
 
 export const Route = createFileRoute("/_authed/_app/workflows/runs/$runId")({
+  // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 workflows 才能进。
+  beforeLoad: requireExtra("workflows"),
   component: RunPage,
 });
 

@@ -1,3 +1,4 @@
+import { requireExtra } from "@/lib/deployment/extras";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AdminComponentPreview } from "@/components/component-preview";
@@ -18,6 +19,8 @@ import { cn } from "@/lib/utils";
  * tile can hold.
  */
 export const Route = createFileRoute("/_authed/admin/components/")({
+  // 功能精简（DESIGN.md §74）：默认隐藏，CHISABOT_EXTRAS 含 components 才能进。
+  beforeLoad: requireExtra("components"),
   component: RouteComponent,
 });
 

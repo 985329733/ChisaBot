@@ -28,7 +28,7 @@ import { Route as HomeRoute } from "@/routes/_authed/_app/index";
  * nothing" and told somebody who may own twenty coworkers that they own none.
  *
  * THE HARNESS IS THIS REPOSITORY'S. `GlobalRegistrator` in `beforeAll`/`afterAll`, `cleanup` in
- * `afterEach`, and queries off `render()`'s own return, matching `proposed-bot-card.test.tsx` for
+ * `afterEach`, and queries off `render()`'s own return, matching the other dialog tests for
  * the reason recorded there: bun walks every file into one process, and a document another file
  * tore down mid-run fails invisibly.
  *
