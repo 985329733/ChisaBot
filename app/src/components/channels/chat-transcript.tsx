@@ -55,6 +55,7 @@ import { readResponsibilityTurn } from "@/lib/channels/responsibility-turn";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
+import { BotBubbles } from "@/components/chat/bot-bubbles";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
 import { isEditableUserText } from "@/lib/copilot/regenerate";
@@ -830,6 +831,17 @@ const TranscriptMessage = memo(function TranscriptMessage({
             inside it — a fenced code block, a table — should span the transcript rather than
             shrink to its own text. A person's bubble keeps fitting what they said.
           */}
+          {/*
+            机器人的回复按段画成几个短气泡（DESIGN.md §69 BotBubbles）：短段落贴着文字宽度，表格 / 代码 /
+            清单 / 草稿整列宽。下面这个 Bubble 现在只画人的消息。
+          */}
+          {!isUser ? (
+            <BotBubbles
+              components={richMarkdownComponents}
+              text={text}
+              tone={tone === "lead" ? "lead" : "final"}
+            />
+          ) : (
           <Bubble
             data-cb-turn={isUser ? undefined : tone}
             align={align}
@@ -882,6 +894,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
               )}
             </BubbleContent>
           </Bubble>
+          )}
           {/* 链接卡 / 图片一摞（DESIGN.md §31）；开场一句不带。 */}
           {tone === "lead" ? null : <MessageRichPreviews align={align} text={isUser ? said : text} />}
           {isUser && messageId ? <ReadMark messageId={messageId} /> : null}

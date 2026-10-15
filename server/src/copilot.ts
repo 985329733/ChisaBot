@@ -12,7 +12,11 @@ import { createCopilotHonoHandler } from "@copilotkit/runtime/v2/hono";
 import type { Observable } from "rxjs";
 import { defer, finalize, from, fromEvent, switchMap, takeUntil } from "rxjs";
 import { z } from "zod";
-import { PROVENANCE_GUIDANCE, WORK_STYLE_GUIDANCE } from "../../shared/bot-prompt";
+import {
+  botIdentityGuidance,
+  PROVENANCE_GUIDANCE,
+  WORK_STYLE_GUIDANCE,
+} from "../../shared/bot-prompt";
 import { LIVE_PANEL_GUIDANCE } from "./live-panels/service";
 import { WEB_GUIDANCE } from "./web/tools";
 import {
@@ -536,6 +540,8 @@ export function builtInAgentConfiguration(
       UNTRUSTED_GUIDANCE,
       // 说话方式：开工一句话、不念工具、结果先行、必要时卡片、一个下一步（向 Hark 看齐）。
       WORK_STYLE_GUIDANCE,
+      // 机器人的名字（不然它会自称模型名，DESIGN.md §69）。
+      botIdentityGuidance(agent.name),
       ...(tools.some((tool) => tool.name === "web_search") ? [WEB_GUIDANCE] : []),
       ...(tools.some((tool) => tool.name === "panel_create") ? [LIVE_PANEL_GUIDANCE] : []),
       ...(grantedToolGuidance(tools, connectedVendors)
