@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 商品 / 地点推荐用带图的卡片网格（CB-050）：机器人推荐、比较商品（或餐厅、酒店、景点）时先查现价和商品页，再画成一排卡片——图、名字、价格、一句卖点、角标、来源站点，整张点开商品页。图由服务器从商品图地址或商品页的 og:image 转存（和链接卡同一套检查与缓存），浏览器不直连第三方；图位固定，图晚到不改高度，取不到图时是名字首字的色块。面板里也能用（算一个大块，最多 4 个）。很长的对话打开时，历史晚到补在上面时画面保持在底部（CB-047）。干活卡不再显示「正在使用 skill_load」这类工具名。只改网页和提示词。见 DESIGN.md §72。
 - 设置左栏在笔记本上不用滚（CB-058）：个人 / 管理 / 高级三组都能收起，默认只展开当前页所在的那组（在管理页就展开「管理」），点开过的会记住；屏幕矮（≤ 820px）时行高收紧一点。1280×800 / 1366×768 上展开的那组一眼看全。手机抽屉不变。只改网页。见 DESIGN.md §71.7。
 - 管理页说中文（CB-056 / CB-057）：插件目录的说明（Parallel Search、Google Drive、Notion、事件触发）、权限规则三条快捷规则的说明、活动记录的表头 / 筛选 / 事件名 / 结果都改成中文（原始事件类型悬停可见）；手机上活动记录一条一张小卡，不再截掉右边几列。只改网页。见 DESIGN.md §71.6。
 - 瘦身 P4c-1：上游 Routines 并入定时任务——机器人的 `create_routine` 等四个工具、`/api/routines`、`/internal/routines/run` 和容器里每分钟的 routines 扫描、`server/scripts/fire-routines.ts`、`deploy/openbot-zh-routines.*` 都删掉，`WORKER_SHARED_SECRET` / `CHISABOT_ROUTINES_WORKER` 不再读（`.env` 里留着也无害）。定时只剩 设置 → 定时任务（§55），`/routines` 照旧跳过去。机器人资料「动态」和重置 / 删除机器人的提示改读定时任务（重置会取消这个机器人为你设的任务）。生产没有 routines 数据；表不动，回滚镜像即可。见 `docs/slimming.md`。

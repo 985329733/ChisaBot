@@ -50,7 +50,8 @@ function ProductPhoto({ name, image, url }: { name: string; image: string | null
 export function Products({ items, columns }: { items: readonly ProductItem[] | null | undefined; columns?: number | null }) {
   const list = Array.isArray(items) ? items.filter((item) => item && typeof item.name === "string") : [];
   if (list.length === 0) return null;
-  const cols = Math.min(4, Math.max(2, columns ?? (list.length === 2 || list.length === 4 ? 2 : 3)));
+  // 2 / 3 个时一排放完（不留空位）；4 个两排两列；更多时 3 列（模型写的 columns 只在 5 个以上时听，避免 3 个排成 2 列留个洞）。
+  const cols = list.length <= 3 ? Math.max(2, list.length) : list.length === 4 ? 2 : Math.min(4, Math.max(2, columns ?? 3));
   return (
     <div className="jr-products jr-el" data-testid="jr-products" style={{ "--jr-cols": String(cols) } as CSSProperties}>
       {list.map((item, index) => {
