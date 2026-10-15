@@ -12,7 +12,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execFileSync } = require("node:child_process");
 
 const CANDIDATES = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"];
 
@@ -20,6 +20,28 @@ function findChromium() {
   const env = process.env.CHISABOT_CHROMIUM;
   if (env && fs.existsSync(env)) return env;
   return CANDIDATES.find((p) => fs.existsSync(p)) || null;
+}
+
+let uaCache;
+/**
+ * 无头 Chromium 默认的 UA 里有「HeadlessChrome」，claude.ai 前面的 Cloudflare 看到它就一直卡在「Verify you are human」
+ * （点了也过不去；2026-10-15 在 FRA 节点出口实测）。换成同版本普通 Chrome 的 UA（只写主版本号，和 Chrome 自己的精简 UA 一样），
+ * 再关掉 AutomationControlled，Cloudflare 直接放行到登录页。
+ */
+function desktopUserAgent(exe) {
+  if (uaCache !== undefined) return uaCache;
+  uaCache = null;
+  try {
+    const v = execFileSync(exe, ["--version"], { timeout: 8000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const major = (v.match(/(\d+)\.\d+\.\d+/) || [])[1];
+    if (major) uaCache = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
+  } catch {}
+  return uaCache;
+}
+
+/** 浏览器自己报的 UA 去掉 Headless 字样（拿不到版本号时的兜底）。 */
+function unheadless(ua) {
+  return String(ua || "").replace(/HeadlessChrome/g, "Chrome");
 }
 
 /** 授权回调地址 → 要喂给 `claude auth login` 的「code#state」；不是回调就返回 null。 */
@@ -61,8 +83,11 @@ function createRemoteBrowser(o) {
   const height = Math.max(400, Math.min(1000, Math.round(o.height || 720)));
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "chisabot-login-browser-"));
   fs.chmodSync(profile, 0o700);
+  const userAgent = desktopUserAgent(exe);
   const args = [
     "--headless=new",
+    "--disable-blink-features=AutomationControlled",
+    ...(userAgent ? [`--user-agent=${userAgent}`] : []),
     "--no-sandbox", // 容器本身就是沙箱（非 root、cap_drop ALL、只读根文件系统）；容器里起不了 Chromium 自己的沙箱
     "--disable-gpu",
     "--disable-dev-shm-usage",
@@ -221,6 +246,10 @@ function createRemoteBrowser(o) {
     const { sessionId } = await cdp("Target.attachToTarget", { targetId, flatten: true });
     await cdp("Page.enable", {}, sessionId);
     await cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: !!o.mobile }, sessionId).catch(() => {});
+    if (!userAgent) {
+      const v = await cdp("Browser.getVersion").catch(() => null);
+      if (v && /Headless/.test(v.userAgent || "")) await cdp("Network.setUserAgentOverride", { userAgent: unheadless(v.userAgent), acceptLanguage: "zh-CN,zh;q=0.9,en;q=0.8" }, sessionId).catch(() => {});
+    }
     const entry = { targetId, sessionId };
     stack.push(entry);
     if (switchTo) await focus(entry);
@@ -368,4 +397,4 @@ function createRemoteBrowser(o) {
   };
 }
 
-module.exports = { createRemoteBrowser, findChromium, codeFromCallback };
+module.exports = { createRemoteBrowser, findChromium, codeFromCallback, desktopUserAgent, unheadless };

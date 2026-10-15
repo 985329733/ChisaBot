@@ -9,7 +9,7 @@ const { spawn } = require("node:child_process");
 
 process.env.CHISABOT_CLAUDE_HOSTS_EXTRA = "127.0.0.1";
 const { createForwarder, maskProxy, parseProxy, isClaudeHost } = require("../src/cloud-cc/proxy");
-const { codeFromCallback } = require("../src/cloud-cc/browser");
+const { codeFromCallback, unheadless } = require("../src/cloud-cc/browser");
 
 const MOCK = path.resolve(__dirname, "../../tests/cloud-cc/mock-claude-auth.cjs");
 const PORT = 21000 + Math.floor(Math.random() * 1000);
@@ -56,6 +56,7 @@ test("地址解析和打码", () => {
 
 test("回调地址 → code#state", () => {
   assert.equal(codeFromCallback("https://platform.claude.com/oauth/code/callback?code=abc&state=xyz"), "abc#xyz");
+  assert.equal(unheadless("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"), "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36");
   assert.equal(codeFromCallback("https://console.anthropic.com/oauth/code/callback?code=abc"), "abc");
   assert.equal(codeFromCallback("https://claude.ai/oauth/authorize?code=true&state=1"), null);
 });
