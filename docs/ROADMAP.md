@@ -27,6 +27,7 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | [CB-003](BACKLOG.md#cb-003) | 成熟度扫查（设备流程优先 → 新朋友视角） | 成熟度 | `fix/maturity-*`（批 2 #122 已合并） |
 | [CB-011](BACKLOG.md#cb-011) | 瘦身 P4b：不再构造上游服务端模块（分 P4b-1…） | 精简 | `chore/slim-p4b-*` |
 | [CB-012](BACKLOG.md#cb-012) | 项目维护与文档系统（本页） | 成熟度 | `chore/pm-system` |
+| [CB-046](BACKLOG.md#cb-046) | 两套聊天收成一套（`/bot` → 频道聊天）；第 2 步删语音 | 成熟度 | `chore/chat-unify-1`、`chore/chat-unify-2` |
 
 ## 接下来
 

@@ -21,7 +21,7 @@
 
 - `app/src/lib/chat/smooth-reveal.ts`（纯函数）：每帧按积压量放字——速度 = 积压 / 180ms（指数追赶），最少 40 字/秒；硬上限：收到的字最多 400ms 内显示。切口不落在 Markdown 记号中间（`- `、`1. `、`## `、`**`、` ``` ` 和后面第一个字一起放出），不拆 emoji 代理对。新内容不是旧内容的延续就整段显示。
 - `app/src/lib/chat/use-smooth-text.ts`：requestAnimationFrame 驱动，只在有积压时跑；挂载时已有的内容（历史消息）直接显示；标签页在后台或系统「减少动态效果」时立刻整段显示；超过 6000 字时最多 30 帧/秒重画。
-- `app/src/components/chat/smooth-markdown.tsx`：`SmoothStreamdown`（频道聊天、群聊、工作流步骤输出）和 `SmoothMarkdownRenderer`（机器人聊天 CopilotChat 的 `assistantMessage.markdownRenderer` 槽位，在 `lib/copilot/reasoning-zh.tsx` 的 `ZH_MESSAGE_VIEW` 里）。Streamdown 仍负责把未闭合的 `**` / ` ``` ` 先补上。复制按钮读消息原文，不受影响。
+- `app/src/components/chat/smooth-markdown.tsx`：`SmoothStreamdown`（频道聊天、群聊、工作流步骤输出）。机器人聊天只有频道聊天一套（CB-046，DESIGN.md §68，ADR-0013），以前给 `/bot`（CopilotChat）用的 `SmoothMarkdownRenderer` / `reasoning-zh.tsx` 已删。Streamdown 仍负责把未闭合的 `**` / ` ``` ` 先补上。复制按钮读消息原文，不受影响。
 - 「开场一句 → 结果」的收起规则（DESIGN.md §27）照旧：它读的是 DOM 里的文字，最多晚 400ms 看到。
 - 服务器给 `/api/copilotkit/*` 的 SSE 响应加 `X-Accel-Buffering: no` 和 `Cache-Control: no-cache, no-transform`（`server/src/app.ts` `markEventStreamUnbuffered`）。自带网关本来就不缓冲、不压缩 SSE（`deploy/public/nginx.conf`：`gzip_types` 不含 `text/event-stream`，`proxy_buffering off`）；这两个头是给自己部署、前面再套一层 nginx / CDN 的人用的。
 
@@ -38,3 +38,9 @@ curl -N -s -X POST -H 'content-type: application/json' -H 'accept: text/event-st
 
 - nginx：`proxy_buffering off;`，`gzip_types` 里不要有 `text/event-stream`（或尊重 `X-Accel-Buffering`）。
 - 其他代理 / CDN：关闭对 `text/event-stream` 的压缩和缓冲。
+
+## 只有一套聊天（CB-046，2026-10-15）
+
+机器人聊天的界面只有频道聊天（`components/channels/channel-chat.tsx` + `chat-transcript.tsx`）。`/bot?agent=&thread=` 只做跳转
+（`POST /api/channels/open-thread`，DESIGN.md §68）。流式、刷新续写（§64）、跨设备（§42 / §64）、回答期间插话（§38.1，服务器收件箱 +
+`useThreadInbox(..., { pullServerTurns: false })`）、确认卡片、服务器行（定时任务 / 后台任务 / 本地 agent / 确认后接着做）都在这一套里。

@@ -807,8 +807,12 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 
 #### 验收标准
 
-- [ ] 定下一条主路径（ADR），另一条只做跳转；现有会话不丢
-- [ ] 所有 e2e 走用户真实点击的路径
+- [x] 定下一条主路径（ADR），另一条只做跳转；现有会话不丢 —— ADR-0013：频道聊天是唯一界面，`/bot` 经 `POST /api/channels/open-thread` 跳转（同一个 thread id，不复制消息），DESIGN.md §68
+- [x] `/bot` 独有的功能搬进频道聊天（确认卡片、服务器行、备用模型小字、回答期间插话、`chisabot-ask`、历史对话、上传进工作区）；频道对话也有委派 / 定时任务 / 本地 agent（只排除多机器人群聊）
+- [x] 所有 e2e 走用户真实点击的路径（聊天滚动、并发 e2e 改成频道选择器）
+- [ ] 第 2 步（`chore/chat-unify-2`）：删掉语音（`/api/voice`、服务器 voice、shared voice-session、前端语音组件）
+
+> 进行中：worker cb-unify，PR 1 `chore/chat-unify-1`。
 
 ## 已完成
 
