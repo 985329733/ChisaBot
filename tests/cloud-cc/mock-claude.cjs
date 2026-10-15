@@ -54,7 +54,11 @@ async function main() {
     }
     if (argv[1] === "login") {
       console.log("Opening browser to sign in…");
-      console.log(`If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&client_id=mock&state=${crypto.randomBytes(6).toString("hex")}`);
+      // CHISABOT_MOCK_AUTH_BASE：e2e 里指向模拟授权页（tests/cloud-cc/mock-claude-auth.cjs）；STRICT=1 时只认「mc-<state>#<state>」
+      const state = crypto.randomBytes(6).toString("hex");
+      const authBase = process.env.CHISABOT_MOCK_AUTH_BASE || "https://claude.com/cai";
+      const redirect = process.env.CHISABOT_MOCK_AUTH_BASE ? `${authBase}/oauth/code/callback` : "https://platform.claude.com/oauth/code/callback";
+      console.log(`If the browser didn't open, visit: ${authBase}/oauth/authorize?code=true&client_id=mock&redirect_uri=${encodeURIComponent(redirect)}&state=${state}`);
       process.stdout.write("Paste code here if prompted > ");
       const line = await new Promise((resolve) => {
         let buf = "";
@@ -70,7 +74,7 @@ async function main() {
         await sleep(600_000);
         return 1;
       }
-      if (!line || line === "bad") {
+      if (!line || line === "bad" || (process.env.CHISABOT_MOCK_AUTH_STRICT === "1" && line !== `mc-${state}#${state}`)) {
         console.log("\nOAuth error: Invalid code. Please make sure the full code was copied");
         return 1;
       }

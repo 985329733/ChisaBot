@@ -6782,6 +6782,38 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 @media (prefers-reduced-motion: reduce) { .cc-step { animation: none; } }
 .cc-account-row > .min-w-0 { flex: 1 1 220px; }
 .cc-account-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+/* 在云端完成登录 + Claude 上游代理（DESIGN.md §73.8） */
+.cc-rb-body { padding: 12px; }
+.cc-rb { display: flex; flex-direction: column; gap: 8px; min-width: 0; animation: list-enter var(--dur-2) ease-out both; }
+.cc-rb-bar { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 4px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); }
+.cc-rb-bar .cc-icon-btn:disabled { opacity: .4; }
+.cc-rb-url { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--glass-1); font-family: var(--font-code); font-size: 12px; color: var(--ink-2); }
+.cc-rb-url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-rb-time { flex: none; padding: 0 6px; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cc-rb-screen { position: relative; width: 100%; max-width: 1000px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1px solid var(--stroke); background: #fff; box-shadow: var(--shadow-1); min-height: 240px; }
+.dark .cc-rb-screen { background: rgb(20, 27, 40); }
+.cc-rb-img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-select: none; touch-action: none; cursor: default; outline: 0; transition: box-shadow var(--dur-1); }
+.cc-rb-img.is-focused { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-blue) 55%, transparent); }
+.cc-rb-wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; font-size: 13.5px; color: var(--ink-3); text-align: center; background: var(--glass-1); }
+.cc-rb-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--ink-1); background: color-mix(in srgb, var(--glass-1) 82%, transparent); backdrop-filter: blur(6px); animation: list-enter var(--dur-2) ease-out both; }
+.cc-rb-keys { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none; pointer-events: none; font-size: 16px; }
+.cc-rb-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cc-rb-hint { font-size: 12.5px; color: var(--ink-3); }
+.cc-rb-actions { margin-left: auto; display: inline-flex; gap: 8px; }
+.cc-rb-tip { font-size: 12px; color: var(--ink-4); }
+.cc-rb.is-phone .cc-rb-screen { border-radius: 10px; }
+.cc-proxy-body { display: flex; flex-direction: column; gap: 14px; }
+.cc-proxy-now { display: flex; align-items: center; gap: 14px; }
+.cc-proxy-now .cc-account-t { font-family: var(--font-code); font-size: 14px; }
+.cc-proxy-form { display: flex; flex-wrap: wrap; gap: 10px; }
+.cc-proxy-form input { flex: 1 1 280px; min-width: 0; font-family: var(--font-code); }
+.cc-proxy-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); font-size: 13px; animation: list-enter var(--dur-2) ease-out both; }
+.cc-proxy-ip { font-weight: 600; font-family: var(--font-code); color: var(--ink-1); }
+.cc-proxy-chk { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-1); }
+.cc-proxy-chk.is-ok svg { color: var(--success); }
+.cc-proxy-chk.is-bad svg { color: var(--danger); }
+.cc-proxy-chk-s { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .cc-rb, .cc-rb-cover, .cc-proxy-result { animation: none; } }
 @media (max-width: 640px) { .cc-account-actions { flex-basis: 100%; margin-left: 54px; } }
 /* Claude Code 视图（§73.2–§73.6） */
 .cc-mode-switch { display: flex; width: 100%; flex: none; }
@@ -6938,3 +6970,4 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 @keyframes cc-spin { to { transform: rotate(360deg); } }
 @keyframes cc-pulse { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .cc-msg { animation: none; } .cc-drawer, .cc-right, .cc-ws-fold { transition-duration: 0ms; } .cc-tool-ic.is-spin, .cc-sess-dot { animation: none; } }
+.cc-rb-foot .cc-pill { max-width: 100%; height: auto; min-height: 24px; padding-block: 3px; white-space: normal; line-height: 1.4; }

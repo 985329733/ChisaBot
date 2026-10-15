@@ -23,7 +23,56 @@ export type CloudWorkspaceView = {
   claude: ClaudeAuth;
   running: number;
   maxConcurrent: number;
+  /** 节点镜像里有浏览器：可以「在云端完成登录」。 */
+  browserLogin: boolean;
+  /** 「Claude 上游代理」：只给打码后的地址。 */
+  proxy: { configured: boolean; masked: string | null };
 };
+
+/** 「在云端完成登录」的画面流（GET /api/cloud-workspace/claude/login/browser/:id/stream）。 */
+export type CcBrowserOp =
+  | { op: "frame"; data: string; w: number; h: number }
+  | { op: "state"; url?: string; captured?: boolean; popup?: boolean; closed?: boolean; reason?: string; egress?: { browser: string | null; node: string | null; match: boolean; viaProxy: boolean } }
+  | { op: "done"; ok: boolean; error: string | null; claude: ClaudeAuth };
+
+/** 网页 → 远程浏览器的输入（坐标是远程画面的像素）。 */
+export type CcBrowserInput =
+  | { t: "mouse"; type: "mousePressed" | "mouseReleased" | "mouseMoved"; x: number; y: number; buttons?: number; clickCount?: number }
+  | { t: "wheel"; x: number; y: number; dx: number; dy: number }
+  | { t: "text"; text: string }
+  | { t: "key"; key: string; shift?: boolean; ctrl?: boolean; alt?: boolean; meta?: boolean }
+  | { t: "nav"; action: "back" | "reload" };
+
+export type CcProxyTest = {
+  ok: boolean;
+  ip: string | null;
+  claudeAi: { ok: boolean; status?: number; error?: string } | null;
+  anthropicApi: { ok: boolean; status?: number; error?: string } | null;
+  ms: number | null;
+  error: string | null;
+};
+
+/** 「Claude 上游代理」地址：http / https / socks5(h)://[用户名[:密码]@]主机:端口。不对返回 null。 */
+export function parseProxyUrl(text: string) {
+  let u: URL;
+  try {
+    u = new URL(String(text ?? "").trim());
+  } catch {
+    return null;
+  }
+  const protocol = u.protocol.replace(/:$/, "").toLowerCase();
+  if (!["http", "https", "socks5", "socks5h"].includes(protocol)) return null;
+  if (!u.hostname || u.pathname.replace(/\/+$/, "") || u.search || u.hash) return null;
+  const port = Number(u.port || (protocol === "http" ? 80 : protocol === "https" ? 443 : 1080));
+  if (!port || port > 65535) return null;
+  return { protocol: protocol === "socks5h" ? "socks5" : protocol, host: u.hostname, port, username: decodeURIComponent(u.username), hasPassword: !!u.password };
+}
+/** 打码：密码换成 ••••。 */
+export function maskProxyUrl(text: string) {
+  const p = parseProxyUrl(text);
+  if (!p) return null;
+  return `${p.protocol}://${p.username ? `${encodeURIComponent(p.username)}${p.hasPassword ? ":••••" : ""}@` : ""}${p.host}:${p.port}`;
+}
 
 export type CcLoginStart = { id: string; url: string; expiresAt: string };
 

@@ -4,6 +4,8 @@ FROM node:22-bookworm-slim
 ARG CLAUDE_CODE_VERSION=2.1.165
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ripgrep procps ca-certificates curl tini python3 \
+    # 「在云端完成登录」的无头浏览器（和 Claude Code 同一个出口）+ 中文字体
+    chromium fonts-noto-cjk \
  && rm -rf /var/lib/apt/lists/* \
  && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force \
@@ -19,6 +21,7 @@ ENV HOME=/home/agent \
     CHISABOT_CC_ROOT=/workspace \
     CHISABOT_NODE_DIR=/home/agent/.chisabot-node \
     DISABLE_AUTOUPDATER=1 \
+    CHISABOT_CHROMIUM=/usr/bin/chromium \
     LANG=C.UTF-8
 USER agent
 WORKDIR /workspace

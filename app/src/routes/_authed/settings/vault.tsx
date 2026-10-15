@@ -78,8 +78,8 @@ function VaultPage() {
                 <div className="im-row" key={secret.id}>
                   <button
                     className="im-row-main"
-                    onClick={() => (secret.managedBy ? void navigate({ to: "/settings/connected-accounts" }) : setDialog({ open: true, secret }))}
-                    title={secret.managedBy ? "在 账号连接 → GitHub 里管理" : undefined}
+                    onClick={() => (secret.managedBy ? void navigate({ to: secret.managedBy === "claude-proxy" ? "/settings/cloud-workspace" : "/settings/connected-accounts" }) : setDialog({ open: true, secret }))}
+                    title={secret.managedBy === "claude-proxy" ? "在 云端工作区 → Claude 上游代理 里管理" : secret.managedBy ? "在 账号连接 → GitHub 里管理" : undefined}
                     type="button"
                   >
                     <ListRow
@@ -94,7 +94,7 @@ function VaultPage() {
                             <span className="skill-slug">{`{{secret:${secret.name}}}`}</span>
                             {secret.hint ? <span className="device-cap-chip">{`末四位 ${secret.hint}`}</span> : null}
                           </span>
-                          <span className="mem-by">{`${secret.managedBy ? "由 账号连接 → GitHub 管理 · " : ""}可用于 ${secret.domains.join("、")} · ${secret.lastUsedAt ? `${agoText(secret.lastUsedAt)}用过` : "还没用过"}`}</span>
+                          <span className="mem-by">{`${secret.managedBy === "claude-proxy" ? "由 云端工作区 → Claude 上游代理 管理 · " : secret.managedBy ? "由 账号连接 → GitHub 管理 · " : ""}可用于 ${secret.domains.join("、")} · ${secret.lastUsedAt ? `${agoText(secret.lastUsedAt)}用过` : "还没用过"}`}</span>
                         </>
                       }
                       title={secret.label}

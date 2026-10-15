@@ -11,11 +11,14 @@
  *   cc_turn { sessionId, turnId, workspaceId, prompt, claudeSessionId, resume, model, effort, rules }
  *   cc_stop { sessionId }
  *   cc_approval_result { approvalId, decision: "approve" | "deny", always }
+ *   cc_browser_input { loginId, events }       云端登录浏览器的点击 / 键盘（不记录）
+ *   「在云端完成登录」「Claude 上游代理」走 cc_rpc：browser_start / browser_stop / proxy_set / proxy_test / egress
  * 节点 → 服务器
  *   cc_info { version, claudeVersion, root }
  *   cc_event { sessionId, turnId, seq, event }  （event 见 stream.js，另加 status / approval / approval_done）
  *   cc_done { sessionId, turnId, ok, stopped, error, claudeSessionId, costUsd, turns, changes }
  *   cc_approval_request { sessionId, turnId, approvalId, tool, summary, input, rule }
+ *   cc_browser_frame { loginId, data, w, h } / cc_browser_state { loginId, url, egress, closed… } / cc_browser_done { loginId, ok, error, …登录状态 }
  *
  * 授权码、令牌：只经过登录进程的标准输入，不写日志、不回传。
  */
@@ -27,8 +30,11 @@ const crypto = require("node:crypto");
 const { spawn, execFile } = require("node:child_process");
 const { parseLine, slimInput } = require("./stream");
 const { decide } = require("./policy");
+const { createForwarder, parseProxy, maskProxy, scrubProxy, httpsGet, traceIp, testRoute } = require("./proxy");
+const { createRemoteBrowser, findChromium } = require("./browser");
 
-const HANDLED = new Set(["cc_probe", "cc_rpc", "cc_turn", "cc_stop", "cc_approval_result"]);
+const HANDLED = new Set(["cc_probe", "cc_rpc", "cc_turn", "cc_stop", "cc_approval_result", "cc_browser_input"]);
+const TRACE_URL = process.env.CHISABOT_EGRESS_TRACE_URL || "https://claude.ai/cdn-cgi/trace";
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const APPROVAL_MS = 125_000;
 const LOGIN_MS = 10 * 60_000;
@@ -76,7 +82,9 @@ function lines(onLine) {
 
 /** 登录输出里的授权地址。 */
 function findUrl(text) {
-  const m = /(https:\/\/[^\s"'<>]+oauth[^\s"'<>]*)/i.exec(text) || /visit:\s*(https:\/\/\S+)/i.exec(text);
+  // 只认 https；CHISABOT_CC_ALLOW_HTTP_AUTH=1 只给 e2e 的模拟授权页用
+  const scheme = process.env.CHISABOT_CC_ALLOW_HTTP_AUTH === "1" ? "https?" : "https";
+  const m = new RegExp(`(${scheme}:\\/\\/[^\\s"'<>]+oauth[^\\s"'<>]*)`, "i").exec(text) || new RegExp(`visit:\\s*(${scheme}:\\/\\/\\S+)`, "i").exec(text);
   return m ? m[1] : null;
 }
 
@@ -106,6 +114,15 @@ function createCloudCc(options) {
   let login = null; // { id, child, output, timer, done }
   let hookServer = null;
   let sockPath = null;
+  // 「Claude 上游代理」：本机转发器（只听容器的 127.0.0.1），上游地址只在内存里
+  const forwarder = createForwarder({ log });
+  let remote = null; // { loginId, browser }
+  /** 设了上游代理时给 claude 进程的环境变量（指向本机转发器，里面没有密码）。 */
+  function proxyEnv() {
+    if (!forwarder.upstream() || !forwarder.port) return {};
+    const url = `http://127.0.0.1:${forwarder.port}`;
+    return { HTTPS_PROXY: url, HTTP_PROXY: url, https_proxy: url, http_proxy: url, NO_PROXY: "localhost,127.0.0.1", no_proxy: "localhost,127.0.0.1" };
+  }
 
   function out(message) {
     if (options.send(message)) return;
@@ -311,6 +328,7 @@ function createCloudCc(options) {
         DISABLE_AUTOUPDATER: "1",
         CHISABOT_CC_SOCK: sock,
         CHISABOT_CC_TURN: turnId,
+        ...proxyEnv(),
         ...(process.env.CHISABOT_CC_EXTRA_ENV ? JSON.parse(process.env.CHISABOT_CC_EXTRA_ENV) : {}),
       };
       const exit = await new Promise((resolve) => {
@@ -419,11 +437,12 @@ function createCloudCc(options) {
 
   // ---------- 登录 ----------
   async function authStatus() {
-    const r = await run(claude, ["auth", "status", "--json"], { timeout: 20_000, env: { ...process.env, TERM: "dumb" } });
+    const r = await run(claude, ["auth", "status", "--json"], { timeout: 20_000, env: { ...process.env, TERM: "dumb", ...proxyEnv() } });
     if (r.error && r.error.code === "ENOENT") return { loggedIn: false, error: "云端节点上没有找到 claude 命令" };
     return parseStatus(r.stdout);
   }
   function endLogin(reason) {
+    if (remote && login && remote.loginId === login.id) void remote.browser.stop(reason);
     if (!login) return;
     clearTimeout(login.timer);
     killTree(login.child);
@@ -436,7 +455,7 @@ function createCloudCc(options) {
     return new Promise((resolve, reject) => {
       let child;
       try {
-        child = spawn(claude, ["auth", "login", "--claudeai"], { env: { ...process.env, TERM: "dumb", BROWSER: "/bin/false" }, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+        child = spawn(claude, ["auth", "login", "--claudeai"], { env: { ...process.env, TERM: "dumb", BROWSER: "/bin/false", ...proxyEnv() }, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       } catch (error) {
         reject(error);
         return;
@@ -566,6 +585,52 @@ function createCloudCc(options) {
     return { turnId: t.turnId, restored: true };
   }
 
+  // ---------- 在云端完成登录（远程浏览器） ----------
+  async function browserStart(args) {
+    const id = String(args.id || "");
+    if (!login || login.id !== id || !login.url) throw new Error("登录流程已经过期，请重新开始");
+    if (remote) await remote.browser.stop("新的登录");
+    if (forwarder.upstream()) await forwarder.start();
+    const loginId = id;
+    let done = false;
+    const sendRaw = (m) => options.send(m); // 画面不进 outbox：断线就丢
+    const browser = createRemoteBrowser({
+      width: args.width,
+      height: args.height,
+      mobile: !!args.mobile,
+      proxyPort: forwarder.upstream() ? forwarder.port : null,
+      log,
+      onFrame: (f) => sendRaw({ type: "cc_browser_frame", loginId, ...f }),
+      onState: (st) => sendRaw({ type: "cc_browser_state", loginId, ...st }),
+      onCode: (code) => {
+        // 授权码直接交给等着的 `claude auth login`，不经过服务器、不写日志
+        void loginCode({ id: loginId, code })
+          .catch((e) => ({ ok: false, error: String(e.message || e).slice(0, 200) }))
+          .then((result) => {
+            done = true;
+            out({ type: "cc_browser_done", loginId, ...result });
+            void browser.stop("登录结束");
+          });
+      },
+      onExit: (reason) => {
+        if (remote && remote.browser === browser) remote = null;
+        if (!done) sendRaw({ type: "cc_browser_state", loginId, closed: true, reason });
+        log(`云端登录浏览器已关闭（${reason}），配置目录已删除`);
+      },
+    });
+    remote = { loginId, browser };
+    await browser.start(login.url);
+    // 出口 IP：浏览器和 Claude Code 各看一次 claude.ai 的 /cdn-cgi/trace（应该一样）
+    void (async () => {
+      const [b, n] = await Promise.all([
+        browser.readPage(TRACE_URL).then(traceIp, () => null),
+        httpsGet(TRACE_URL, forwarder.upstream()).then((r) => traceIp(r.body), () => null),
+      ]);
+      if (!browser.closed) sendRaw({ type: "cc_browser_state", loginId, egress: { browser: b, node: n, match: !!b && b === n, viaProxy: !!forwarder.upstream() } });
+    })();
+    return { started: true, width: browser.size.width, height: browser.size.height };
+  }
+
   async function rpc(op, args) {
     switch (op) {
       case "status":
@@ -579,7 +644,7 @@ function createCloudCc(options) {
         return { cancelled: true };
       case "logout": {
         endLogin("退出");
-        await run(claude, ["auth", "logout"], { timeout: 20_000 });
+        await run(claude, ["auth", "logout"], { timeout: 20_000, env: { ...process.env, ...proxyEnv() } });
         return await authStatus();
       }
       case "session_init":
@@ -595,6 +660,29 @@ function createCloudCc(options) {
         return await undo(args);
       case "running":
         return { sessions: [...bySession.keys()] };
+      case "browser_start":
+        return await browserStart(args);
+      case "browser_stop":
+        if (remote && (!args.id || remote.loginId === args.id)) await remote.browser.stop("取消");
+        return { stopped: true };
+      case "proxy_set": {
+        const url = args.url ? String(args.url) : null;
+        if (url && !parseProxy(url)) throw new Error("代理地址不对");
+        forwarder.setUpstream(url);
+        if (url) await forwarder.start();
+        // 正在跑的那一轮不打断：它新建的连接马上按新设置走，下一轮的 claude 进程从头用新设置
+        return { active: !!url, masked: url ? maskProxy(url) : null, running: [...bySession.keys()].length };
+      }
+      case "proxy_test": {
+        const url = args.url === undefined ? null : args.url ? String(args.url) : null;
+        const p = url ? parseProxy(url) : forwarder.upstream();
+        if (url && !p) return { ok: false, error: "代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@" };
+        try {
+          return await testRoute(url || (p ? `${p.protocol}://${p.username ? `${encodeURIComponent(p.username)}:${encodeURIComponent(p.password)}@` : ""}${p.host.includes(":") ? `[${p.host}]` : p.host}:${p.port}` : null));
+        } catch (e) {
+          return { ok: false, error: scrubProxy(e.message, p) };
+        }
+      }
       default:
         throw new Error(`不认识的操作 ${op}`);
     }
@@ -602,7 +690,7 @@ function createCloudCc(options) {
 
   async function info() {
     const v = await run(claude, ["--version"], { timeout: 15_000 });
-    out({ type: "cc_info", root, claudeVersion: v.code === 0 ? v.stdout.trim().split("\n")[0].slice(0, 120) : null, running: [...bySession.keys()] });
+    out({ type: "cc_info", root, claudeVersion: v.code === 0 ? v.stdout.trim().split("\n")[0].slice(0, 120) : null, running: [...bySession.keys()], browser: !!findChromium(), proxy: !!forwarder.upstream() });
   }
 
   return {
@@ -626,6 +714,9 @@ function createCloudCc(options) {
         case "cc_stop":
           stopSession(message.sessionId);
           break;
+        case "cc_browser_input":
+          if (remote && remote.loginId === String(message.loginId || "")) void remote.browser.input(message.events);
+          break;
         case "cc_approval_result": {
           const a = approvals.get(String(message.approvalId || ""));
           if (a) {
@@ -643,11 +734,13 @@ function createCloudCc(options) {
       void info();
     },
     stopAll() {
+      if (remote) void remote.browser.stop("紧急停止");
       for (const sessionId of [...bySession.keys()]) stopSession(sessionId);
       endLogin("紧急停止");
     },
     close() {
       this.stopAll();
+      forwarder.close();
       if (hookServer) hookServer.close();
       if (sockPath) {
         try {

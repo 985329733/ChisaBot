@@ -1,8 +1,11 @@
-import { IconKey, IconCloudComputing, IconExternalLink, IconRefresh, IconShieldCheck, IconTrash } from "@tabler/icons-react";
+import { IconKey, IconCloudComputing, IconExternalLink, IconRefresh, IconShieldCheck, IconTrash, IconWorldWww, IconPlugConnected, IconCircleCheck, IconCircleX } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import type { CcLoginStart } from "../../../../../shared/cloud-cc";
+import type { CcLoginStart, CcProxyTest } from "../../../../../shared/cloud-cc";
+import { CloudLoginBrowser } from "@/components/cloud-cc/cloud-login-browser";
+import { useOptionalSidebar } from "@/components/ui/sidebar";
+import { toast } from "@/components/ui/toast";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
@@ -50,6 +53,7 @@ function CloudWorkspacePage() {
       ) : (
         <>
           <ClaudeAccount />
+          <ProxySection />
           <RulesSection />
           <ActivitySection />
           <p className="cc-foot-note">
@@ -72,6 +76,9 @@ function ClaudeAccount() {
   const claude = status.data?.claude;
   const online = !!status.data?.node?.online;
   const [login, setLogin] = useState<CcLoginStart | null>(null);
+  const [cloud, setCloud] = useState(false);
+  const browserLogin = !!status.data?.browserLogin;
+  const phone = !!useOptionalSidebar()?.isMobile;
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -134,7 +141,23 @@ function ClaudeAccount() {
   return (
     <PageSection description="用你的 Claude 订阅登录云端工作区里的 Claude Code。凭据只存在云端工作区的容器里，ChisaBot 的数据库和日志里都没有。" title="Claude 账号">
       <Card className="cc-account" data-testid="cc-account">
-        {claude?.loggedIn && !login ? (
+        {cloud ? (
+          <CardBody className="cc-rb-body">
+            <CloudLoginBrowser
+              onCancel={(err) => {
+                setCloud(false);
+                if (err) setError(err);
+              }}
+              onDone={() => {
+                setCloud(false);
+                setError(null);
+                void refresh();
+                toast.success("已在云端登录 Claude");
+              }}
+              phone={phone}
+            />
+          </CardBody>
+        ) : claude?.loggedIn && !login ? (
           <CardBody className="cc-account-row">
             <span className="cc-account-ic is-ok">
               <IconShieldCheck className="size-5" />
@@ -155,7 +178,7 @@ function ClaudeAccount() {
           </CardBody>
         ) : login ? (
           <CardBody className="cc-steps" data-testid="cc-login-steps">
-            <Step n={1} title="打开 Claude 授权页">
+            <Step n={1} sub={browserLogin ? "备用方式：授权页会在你自己的浏览器里打开（用你电脑的 IP）。想全程在云端，用「在云端完成登录」。" : undefined} title="打开 Claude 授权页">
               <div className="cc-step-actions">
                 <Button render={<a href={login.url} rel="noreferrer noopener" target="_blank" />} size="sm">
                   {"打开 Claude 授权页"}
@@ -196,12 +219,36 @@ function ClaudeAccount() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="cc-account-t">{online ? "还没有登录 Claude" : "云端工作区不在线"}</div>
-              <div className="cc-account-s">{online ? "Claude Pro / Max 订阅都可以。三步：打开授权页 → 复制授权码 → 粘回来。" : "节点上线后才能登录。"}</div>
+              <div className="cc-account-s">
+                {!online
+                  ? "节点上线后才能登录。"
+                  : browserLogin
+                    ? "Claude Pro / Max 订阅都可以。浏览器在云端打开，你在这里登录、授权，整个过程不经过你的电脑，和 Claude Code 用同一个出口。"
+                    : "Claude Pro / Max 订阅都可以。三步：打开授权页 → 复制授权码 → 粘回来。（更新云端节点后可以在云端完成登录。）"}
+              </div>
             </div>
             <span className="cc-account-actions">
-            <Button data-testid="cc-login-start" disabled={!online} feedback={{ pending: "打开中…", success: "已打开", error: "没有打开" }} onClick={() => void start.run()} state={start.state}>
-              {"用 Claude 订阅登录"}
-            </Button>
+              {browserLogin ? (
+                <>
+                  <Button
+                    data-testid="cc-login-cloud"
+                    disabled={!online}
+                    onClick={() => {
+                      setError(null);
+                      setCloud(true);
+                    }}
+                  >
+                    {"在云端完成登录"}
+                  </Button>
+                  <Button data-testid="cc-login-start" disabled={!online} feedback={{ pending: "打开中…", success: "已打开", error: "没有打开" }} onClick={() => void start.run()} size="sm" state={start.state} variant="ghost">
+                    {"粘贴授权码（备用）"}
+                  </Button>
+                </>
+              ) : (
+                <Button data-testid="cc-login-start" disabled={!online} feedback={{ pending: "打开中…", success: "已打开", error: "没有打开" }} onClick={() => void start.run()} state={start.state}>
+                  {"用 Claude 订阅登录"}
+                </Button>
+              )}
             </span>
           </CardBody>
         )}
@@ -210,6 +257,113 @@ function ClaudeAccount() {
             {error}
           </div>
         ) : null}
+      </Card>
+    </PageSection>
+  );
+}
+
+/**
+ * 「Claude 上游代理」（DESIGN.md §73.8）：你自己的代理 / 静态住宅 IP。设了以后，云端节点里 Claude Code 的所有请求（含登录、换令牌）
+ * 和「在云端完成登录」的浏览器访问 Claude 的域名时都走它；GitHub、npm 这些不走。地址存在保险箱里，这里只显示打码后的。
+ */
+function ProxySection() {
+  const queryClient = useQueryClient();
+  const status = useQuery(cloudWorkspaceQueryOptions());
+  const proxy = status.data?.proxy;
+  const online = !!status.data?.node?.online;
+  const [value, setValue] = useState("");
+  const [result, setResult] = useState<CcProxyTest | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ccKeys.status });
+  const test = useAsyncAction(
+    async () => {
+      setError(null);
+      setResult(null);
+      const r = await client("/api/cloud-workspace/claude/proxy/test", { method: "POST", body: value.trim() ? { url: value.trim() } : {}, fallback: "测试失败" }).then((x) => x.json() as Promise<CcProxyTest>);
+      setResult(r);
+      if (!r.ok) throw new Error(r.error ?? "连不上 Claude");
+    },
+    { errorToast: false },
+  );
+  const save = useAsyncAction(
+    async () => {
+      setError(null);
+      const r = await client("/api/cloud-workspace/claude/proxy", { method: "PUT", body: { url: value.trim() }, fallback: "保存失败" })
+        .then((x) => x.json() as Promise<{ masked: string | null; applied: boolean; running: number }>)
+        .catch((e: Error) => {
+          setError(e.message);
+          throw e;
+        });
+      setValue("");
+      await refresh();
+      if (r.running) toast.info(`正在跑的 ${r.running} 个会话不会被打断：这一轮里新的连接马上走新代理，下一轮整轮都用它。`);
+      else if (!r.applied) toast.info("已保存。云端工作区现在不在线，上线后自动用上。");
+    },
+    { errorToast: false },
+  );
+  const clear = useAsyncAction(async () => {
+    await client("/api/cloud-workspace/claude/proxy", { method: "DELETE", fallback: "清除失败" });
+    setResult(null);
+    await refresh();
+  });
+  const askClear = async () => {
+    const ok = await confirmDialog({ title: "清除 Claude 上游代理？", description: "之后 Claude Code 和云端登录浏览器直接走机房的默认出口。正在跑的这一轮不会被打断。", confirmLabel: "清除", destructive: true });
+    if (ok) void clear.run();
+  };
+  const row = (label: string, r: CcProxyTest["claudeAi"]) => (
+    <span className={cn("cc-proxy-chk", r?.ok ? "is-ok" : "is-bad")}>
+      {r?.ok ? <IconCircleCheck className="size-4" /> : <IconCircleX className="size-4" />}
+      {label}
+      <span className="cc-proxy-chk-s">{r?.ok ? (r.status ? `HTTP ${r.status}` : "通") : (r?.error ?? "不通")}</span>
+    </span>
+  );
+  return (
+    <PageSection description="用你自己的代理或静态住宅 IP 访问 Claude。设了以后，云端 Claude Code（包括登录、续期）和「在云端完成登录」的浏览器访问 Claude 时都走它，登录和日常使用是同一个 IP；GitHub、npm 等其他网站不走。地址加密存在保险箱里。" title="Claude 上游代理">
+      <Card data-testid="cc-proxy">
+        <CardBody className="cc-proxy-body">
+          <div className="cc-proxy-now">
+            <span className={cn("cc-account-ic", proxy?.configured && "is-ok")}>
+              {proxy?.configured ? <IconPlugConnected className="size-5" /> : <IconWorldWww className="size-5" />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="cc-account-t" data-testid="cc-proxy-current">{proxy?.configured ? proxy.masked : "没有设置 · 走机房默认出口"}</div>
+              <div className="cc-account-s">{proxy?.configured ? "Claude Code 和云端登录浏览器访问 Claude 时走这个代理。" : "支持 http://、https://、socks5://，可以带 用户名:密码@。"}</div>
+            </div>
+            {proxy?.configured ? (
+              <Button data-testid="cc-proxy-clear" disabled={!online} feedback={{ pending: "清除中…", success: "已清除", error: "没清除" }} onClick={() => void askClear()} size="sm" state={clear.state} variant="ghost">
+                {"清除"}
+              </Button>
+            ) : null}
+          </div>
+          <form
+            className="cc-proxy-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (value.trim()) void save.run();
+            }}
+          >
+            <Input autoComplete="off" data-testid="cc-proxy-input" onChange={(e) => setValue(e.target.value)} placeholder={proxy?.configured ? "填新的地址来替换" : "socks5://用户名:密码@1.2.3.4:1080"} spellCheck={false} type="text" value={value} />
+            <Button data-testid="cc-proxy-test" disabled={!online} feedback={{ pending: "测试中…", success: "连接正常", error: "连不上" }} onClick={() => void test.run()} state={test.state} type="button" variant="outline">
+              {value.trim() ? "测试连接" : proxy?.configured ? "测试当前代理" : "测试默认出口"}
+            </Button>
+            <Button data-testid="cc-proxy-save" disabled={!value.trim() || !online} feedback="save" state={save.state} type="submit">
+              {"保存"}
+            </Button>
+          </form>
+          {result ? (
+            <div className="cc-proxy-result" data-testid="cc-proxy-result">
+              <span className="cc-proxy-ip">{result.ip ? `出口 IP ${result.ip}` : "拿不到出口 IP"}</span>
+              {row("claude.ai", result.claudeAi)}
+              {row("api.anthropic.com", result.anthropicApi)}
+              {result.ms ? <span className="cc-proxy-chk-s">{`${(result.ms / 1000).toFixed(1)} 秒`}</span> : null}
+            </div>
+          ) : null}
+          {error ? (
+            <div className="cc-account-err" role="alert">
+              {error}
+            </div>
+          ) : null}
+        </CardBody>
       </Card>
     </PageSection>
   );
@@ -275,6 +429,10 @@ const EVENT_ZH: Record<string, string> = {
   claude_login_succeeded: "Claude 登录成功",
   claude_login_failed: "Claude 登录没有成功",
   claude_logout: "退出 Claude",
+  claude_login_browser_started: "在云端打开登录浏览器",
+  claude_login_browser_egress: "登录浏览器出口",
+  claude_proxy_set: "设置 Claude 上游代理",
+  claude_proxy_cleared: "清除 Claude 上游代理",
   session_created: "新会话",
   turn_started: "开始一轮",
   turn_done: "一轮结束",
@@ -319,6 +477,9 @@ function describe(e: Event) {
   if (typeof d.summary === "string") return d.summary.slice(0, 80);
   if (typeof d.reason === "string") return d.reason.slice(0, 80);
   if (typeof d.title === "string") return d.title;
+  if (e.kind === "claude_login_browser_egress") return `浏览器 ${d.browser ?? "?"} · Claude Code ${d.node ?? "?"}${d.match ? " · 一致" : ""}${d.viaProxy ? " · 经上游代理" : ""}`;
+  if (typeof d.proxy === "string") return d.proxy;
+  if (d.via === "cloud_browser") return "在云端完成";
   return "";
 }
 
