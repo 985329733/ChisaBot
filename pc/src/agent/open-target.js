@@ -37,6 +37,8 @@ function classifyOpenTarget(raw) {
   if (!looksLikePath) return { error: "「打开」不再启动程序：只能打开网址，或允许的文件夹里的文件 / 文件夹（给出路径）。要运行程序请用命令行能力。" };
   const ext = /\.([^.\\/]+)$/.exec(base.replace(/[. ]+$/, ""))?.[1]?.toLowerCase();
   if (ext && EXECUTABLE_EXT.has(ext)) return { error: `不打开 .${ext} 文件：打开它等于运行程序。要运行请用命令行能力。` };
+  // 没有扩展名的只当文件夹，并且要以 / 或 \ 结尾（Windows 会给没扩展名的路径按 PATHEXT 补成 .exe 去运行）。
+  if (!ext && !/[\\/]$/.test(target) && target !== "." && target !== "~") return { error: "没有扩展名的路径只当文件夹打开，请以 / 或 \\ 结尾（例如 D:\\报告\\）；文件请写全文件名和扩展名。" };
   return { kind: "path", path: target };
 }
 

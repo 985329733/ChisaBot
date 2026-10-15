@@ -386,5 +386,7 @@ export function checkOpenTarget(raw: unknown): string | null {
   if (!looksLikePath) return "「打开」不再启动程序：只能打开网址，或允许的文件夹里的文件 / 文件夹（给出路径）。要运行程序请用命令行能力。";
   const ext = /\.([^.\\/]+)$/.exec(base.replace(/[. ]+$/, ""))?.[1]?.toLowerCase();
   if (ext && OPEN_EXECUTABLE_EXT.has(ext)) return `不打开 .${ext} 文件：打开它等于运行程序。要运行请用命令行能力。`;
+  // 没有扩展名的只当文件夹，并且要以 / 或 \ 结尾：Windows 打开「C:\…\calc」这类没扩展名的路径时会按 PATHEXT 补成 calc.exe 去运行（旧版 PC 客户端）。
+  if (!ext && !/[\\/]$/.test(target) && target !== "." && target !== "~") return "没有扩展名的路径只当文件夹打开，请以 / 或 \\ 结尾（例如 D:\\报告\\）；文件请写全文件名和扩展名。";
   return null;
 }

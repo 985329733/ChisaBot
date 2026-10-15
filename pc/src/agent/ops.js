@@ -437,9 +437,11 @@ function createOps(options = {}) {
     }
     if (!stat.isFile() && !stat.isDirectory()) throw new OpError("只能打开文件或文件夹。");
     // 再按解析后的真实路径查一次类型（符号链接 / 快捷方式指向可执行文件）。
-    const real = await fsp.realpath(file).catch(() => file);
-    const again = classifyOpenTarget(real);
-    if (again.error) throw new OpError(again.error);
+    if (stat.isFile()) {
+      const real = await fsp.realpath(file).catch(() => file);
+      const again = classifyOpenTarget(real);
+      if (again.error) throw new OpError(again.error);
+    }
     if (stat.isFile() && platform !== "win32" && stat.mode & 0o111) throw new OpError("这是可执行文件，打开它等于运行程序。要运行请用命令行能力。");
     if (hooks.openPath) {
       const error = await hooks.openPath(file);

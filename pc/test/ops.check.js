@@ -100,14 +100,14 @@ test("open (CB-030): no programs, no args, no executables, files only inside roo
   await assert.rejects(ops.run("open", { target: "\\\\evil\\share\\a.pdf" }, ctx), /网络路径/);
   await assert.rejects(ops.run("open", { target: path.join(tmp, "secret.txt") }, ctx), /允许的文件夹|不在/);
   await assert.rejects(ops.run("open", { target: "missing.pdf" }, ctx), /找不到/);
-  fs.writeFileSync(path.join(root, "run-me"), "#!/bin/sh\necho hi\n", { mode: 0o755 });
-  if (process.platform !== "win32") await assert.rejects(ops.run("open", { target: "./run-me" }, ctx), /可执行/);
+  fs.writeFileSync(path.join(root, "run-me.txt"), "#!/bin/sh\necho hi\n", { mode: 0o755 });
+  if (process.platform !== "win32") await assert.rejects(ops.run("open", { target: "./run-me.txt" }, ctx), /可执行/);
   fs.symlinkSync("/bin/sh", path.join(root, "doc.pdf"));
   await assert.rejects(ops.run("open", { target: "doc.pdf" }, ctx));
   const opened = [];
   const hooked = createOps({ clientVersion: "test", hooks: { openPath: async (p) => { opened.push(p); return ""; }, openExternal: async (u) => { opened.push(u); } } });
   assert.equal((await hooked.run("open", { target: "a.txt" }, ctx)).via, "default-app");
-  assert.equal((await hooked.run("open", { target: "./sub" }, ctx)).via, "default-app");
+  assert.equal((await hooked.run("open", { target: "./sub/" }, ctx)).via, "default-app");
   assert.equal((await hooked.run("open", { target: "https://example.com/x" }, ctx)).via, "browser");
   assert.deepEqual(opened, [path.join(root, "a.txt"), path.join(root, "sub"), "https://example.com/x"]);
 });

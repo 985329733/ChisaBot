@@ -146,7 +146,7 @@ const schemas = {
   }),
   open: z.object({
     deviceId,
-    target: z.string().min(1).max(2000).describe("http/https 网址，或允许的文件夹里的文件 / 文件夹路径，例如 https://example.com、D:\\报告\\周报.pdf"),
+    target: z.string().min(1).max(2000).describe("http/https 网址，或允许的文件夹里的文件 / 文件夹路径，例如 https://example.com、D:\\报告\\周报.pdf；文件夹以 \\ 或 / 结尾，例如 D:\\报告\\"),
   }),
   clipboard: z.object({
     deviceId,
