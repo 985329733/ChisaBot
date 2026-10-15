@@ -948,7 +948,10 @@ function WorkDone({ label, open, onToggle, turnKey }: { label: string; open: boo
       onClick={onToggle}
       type="button"
     >
-      <span>{seconds ? `${label} · ${seconds} 秒` : label}</span>
+      <span className="chat-work-done-label">
+        {label}
+        {seconds ? <span className="chat-work-done-secs">{` · ${seconds} 秒`}</span> : null}
+      </span>
       <IconChevronDown aria-hidden="true" className="chat-work-done-chevron size-3.5" data-open={open || undefined} />
     </button>
   );

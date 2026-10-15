@@ -6665,7 +6665,13 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 [data-slot="message-scroller-item"]:hover .chat-msg-actions.has-work > *,
 .chat-msg-actions.has-work:focus-within > * { opacity: 1; }
 @media (hover: none) { .chat-msg-actions.has-work > :not(.chat-work-done) { opacity: 1; } }
-.chat-work-done { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.chat-work-done { color: var(--ink-3); font-variant-numeric: tabular-nums; min-width: 0; flex-shrink: 1; }
+.chat-msg-actions.has-work { flex-wrap: nowrap; }
+.chat-msg-actions.has-work > * { white-space: nowrap; flex-shrink: 0; }
+.chat-msg-actions.has-work > .chat-work-done { flex-shrink: 1; }
+.chat-work-done-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 窄屏一排放不下：用时让位（次数和步骤还在） */
+@media (max-width: 560px) { .chat-work-done-secs { display: none; } }
 .chat-work-done-chevron { transition: transform 0.18s ease; }
 .chat-work-done-chevron[data-open] { transform: rotate(180deg); }
 .chat-work-steps { margin: 4px 0 0 9px; padding: 6px 0 6px 14px; border-left: 2px solid color-mix(in srgb, var(--accent-blue) 35%, transparent); list-style: none; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); max-width: min(100%, 520px); }
