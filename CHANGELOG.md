@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 在云端完成 Claude 登录 + Claude 上游代理（CB-066）：设置 → 云端工作区 多了「在云端完成登录」——云端节点容器里的无头浏览器打开 Claude 授权页，画面嵌在设置页里，你在里面登录、授权，节点自动拿到授权码完成登录；你的浏览器不访问 claude.com，登录和 Claude Code 用同一个出口（卡片上显示两边看到的 IP）。原来的粘贴授权码保留为备用。新增「Claude 上游代理」（http / https / socks5，可带用户名密码，测试连接显示出口 IP 和 claude.ai / api.anthropic.com 是否通）：只有 Claude 的域名走它，地址加密存在保险箱（保留名 `claude-proxy`）。需要重建云端节点镜像（`deploy/cloud-node` 现在装 Chromium）；旧镜像只显示粘贴授权码。见 DESIGN.md §73.8。
 - 切暗色 / 亮色不再卡（CB-024）：天空背景只在「背景随时间变化」开关、拖预览时间时才淡变；切主题和每分钟的天色变化一帧换好。以前天空淡变 1.6 秒，期间所有毛玻璃逐帧重新模糊（切一次约 1.9 秒光栅化），现在约 0.2 秒，0.5 秒内画面停稳。外观不变。只改网页。见 DESIGN.md §7.4。
 - 云端 Claude Code 标签页（CB-062，P2）：管理员的左栏最上面多了「机器人｜Claude Code」切换（记住选择）。Claude Code 那边是工作区 → 会话（先只有内置「草稿」），会话页是和 Claude Code 的对话：流式回答、接着上次（`--resume`）、「新的 Claude 会话」清上下文、停止、回答中再发一条排队、刷新后接着看；`npm test` 这类命令弹审批卡（允许 / 本会话总是允许 / 拒绝，2 分钟没人处理按拒绝），`git push` 一律拒绝；右栏看这一轮的改动 diff 和会话目录的只读文件，手机上是底部抽屉。只在部署了云端工作区节点、登录了 Claude 时可用。`deploy/cloud-node` 多了可选的 `CLOUDNODE_DNS`（主机上只劫持 Claude 域名的 DNS，`firewall.sh` 同时放行）。见 DESIGN.md §73.2–§73.6。
 - 云端工作区 + Claude 登录（CB-061，P1）：新的手工部署容器 `deploy/cloud-node/`（Claude Code CLI + chisabot-node，非 root、根文件系统只读、没有 docker.sock、不发布端口，`firewall.sh` 只放公网），配对后在 设置 → 管理 → **云端工作区** 用自己的 Claude 订阅登录（打开授权页 → 粘授权码），授权码只经过节点上的登录进程，不进数据库和日志；云端工作区不能开完全访问。服务器新增 `/api/cloud-workspace/*`、`/api/claude-code/*` 和表 `chisabot_cloud_workspaces`、`chisabot_cc_*`（开机建表，回滚镜像即可）。没部署节点时什么都不变。见 `docs/cloud-claude-code.md`、ADR-0014、DESIGN.md §73.1。

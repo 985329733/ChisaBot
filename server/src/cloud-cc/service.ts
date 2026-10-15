@@ -4,6 +4,10 @@ import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import {
   type CcApprovalState,
+  type CcBrowserOp,
+  type CcProxyTest,
+  maskProxyUrl,
+  parseProxyUrl,
   type CcChangedFile,
   type CcMessage,
   type CcPart,
@@ -20,6 +24,7 @@ import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
 import type { DeviceHub, DeviceHubExtension } from "../devices/hub";
 import type { DeviceRecord, DeviceStore } from "../devices/store";
+import type { Vault } from "../vault/service";
 
 /**
  * 云端 Claude Code（docs/cloud-claude-code.md，ADR-0014，DESIGN.md §73）。
@@ -30,6 +35,9 @@ import type { DeviceRecord, DeviceStore } from "../devices/store";
  * - 会话：一个会话 = 一个 Claude 会话（--session-id / --resume）+ 一个持久目录。每一轮 cc_turn 发给节点，cc_event 拼成
  *   会话记录（chisabot_cc_messages），并通过 /sessions/:id/stream 推给网页（刷新 / 换设备先给快照再接着推）。
  * - 审批：节点的 PreToolUse 钩子问不准的，回 cc_approval_request；这里在会话里画审批卡，你点了再回 cc_approval_result。
+ * - 在云端完成登录：节点容器里的无头 Chromium 打开授权页，画面（CDP screencast）经设备 WSS → 这里 → 设置页（SSE）；
+ *   点击 / 键盘反过来走。授权页跳到回调地址时节点自己拿到授权码交给 `claude auth login`，授权码不经过这里。
+ * - Claude 上游代理：地址存在保险箱保留名 `claude-proxy`（加密），节点连上 / 改设置时下发给节点（只在节点内存里）。
  * - 只有管理员能用（朋友账号看不到）。
  */
 
@@ -137,7 +145,12 @@ export type CloudCcServiceOptions = {
   deviceStore: Pick<DeviceStore, "get">;
   /** 下一个扩展（本地 agent）：cc_* 以外的消息、hello、gate 都交给它。 */
   next?: DeviceHubExtension | null;
+  /** 保险箱：「Claude 上游代理」的地址（保留名 claude-proxy）。 */
+  vault?: Pick<Vault, "internal"> | null;
 };
+
+export const PROXY_SECRET = "claude-proxy";
+const PROXY_DOMAINS = ["claude.ai", "anthropic.com", "claude.com"];
 
 export type CloudCcService = ReturnType<typeof createCloudCcService>;
 
@@ -149,6 +162,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   const live = new Map<string, LiveTurn>(); // sessionId -> 当前一轮
   const subscribers = new Map<string, Set<Subscriber>>(); // sessionId -> 网页
   const logins = new Map<string, { deviceId: string; ownerUserId: string; expiresAt: number }>();
+  const browserSubs = new Map<string, Set<(op: CcBrowserOp) => void>>(); // loginId -> 设置页
+  const lastFrame = new Map<string, CcBrowserOp>(); // 新打开的画面先给最后一帧
+  const vault = options.vault ?? null;
 
   async function ensure() {
     await sql.unsafe(`
@@ -300,7 +316,11 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   }
 
   async function register(record: DeviceRecord, info: Json) {
-    const clean = { claudeVersion: typeof info.claudeVersion === "string" ? info.claudeVersion.slice(0, 120) : null, root: typeof info.root === "string" ? info.root.slice(0, 200) : null };
+    const clean = {
+      claudeVersion: typeof info.claudeVersion === "string" ? info.claudeVersion.slice(0, 120) : null,
+      root: typeof info.root === "string" ? info.root.slice(0, 200) : null,
+      browser: info.browser === true,
+    };
     await sql.unsafe(
       `INSERT INTO chisabot_cloud_workspaces (device_id, owner_user_id, info) VALUES ($1, $2, $3::text::jsonb)
        ON CONFLICT (device_id) DO UPDATE SET info = EXCLUDED.info, owner_user_id = EXCLUDED.owner_user_id, updated_at = now()`,
@@ -309,10 +329,13 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     const fresh = !nodes.has(record.id);
     nodes.add(record.id);
     if (fresh) await audit(record.ownerUserId, null, "node_registered", { deviceId: record.id, name: record.name });
-    // 登录状态顺手查一次（不阻塞）
-    void rpc<ClaudeAuth>(record.id, "status", {}, 25_000)
-      .then((auth) => saveAuth(record.id, auth))
-      .catch(() => {});
+    // 上游代理先下发（节点重启后内存里没有），再顺手查一次登录状态（不阻塞）
+    void (async () => {
+      const proxy = await proxyValue(record.ownerUserId).catch(() => null);
+      if (proxy || info.proxy === true) await rpc(record.id, "proxy_set", { url: proxy }, 15_000).catch(() => {});
+      const auth = await rpc<ClaudeAuth>(record.id, "status", {}, 25_000);
+      await saveAuth(record.id, auth);
+    })().catch(() => {});
     // 节点重启后：服务器以为还在跑、节点那边已经没有的轮次，如实结束。
     const running = Array.isArray(info.running) ? new Set(info.running as string[]) : new Set<string>();
     for (const turn of live.values()) if (turn.deviceId === record.id && !running.has(turn.sessionId) && Date.now() - turn.startedAt > 10_000) void finish(turn, { ok: false, error: "云端节点重启了，这一轮中断。可以再发一次。" });
@@ -333,6 +356,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       if (!type.startsWith("cc_")) return options.next?.onMessage?.(record, message);
       if (type === "cc_info") return register(record, message);
       if (!nodes.has(record.id)) return;
+      if (type === "cc_browser_frame" || type === "cc_browser_state" || type === "cc_browser_done") return onBrowser(record, message);
       if (type === "cc_rpc_result") {
         const pending = rpcs.get(String(message.id));
         if (!pending || pending.deviceId !== record.id) return;
@@ -801,13 +825,111 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     return { session, ws };
   }
 
+  // ── 在云端完成登录（远程浏览器） ───────────────────────────────────────
+
+  function browserBroadcast(loginId: string, op: CcBrowserOp) {
+    if (op.op === "frame") lastFrame.set(loginId, op);
+    for (const fn of browserSubs.get(loginId) ?? []) {
+      try {
+        fn(op);
+      } catch {}
+    }
+  }
+
+  async function onBrowser(record: DeviceRecord, message: Json) {
+    const loginId = String(message.loginId ?? "");
+    const login = logins.get(loginId);
+    if (!login || login.deviceId !== record.id) return;
+    if (message.type === "cc_browser_frame") {
+      if (typeof message.data !== "string" || message.data.length > 2_500_000) return;
+      browserBroadcast(loginId, { op: "frame", data: message.data, w: Number(message.w) || 0, h: Number(message.h) || 0 });
+      return;
+    }
+    if (message.type === "cc_browser_state") {
+      const egress = message.egress as { browser?: unknown; node?: unknown; match?: unknown; viaProxy?: unknown } | undefined;
+      browserBroadcast(loginId, {
+        op: "state",
+        ...(typeof message.url === "string" ? { url: message.url.slice(0, 300) } : {}),
+        ...(message.captured ? { captured: true } : {}),
+        ...(typeof message.popup === "boolean" ? { popup: message.popup } : {}),
+        ...(message.closed ? { closed: true, reason: String(message.reason ?? "").slice(0, 100) } : {}),
+        ...(egress
+          ? { egress: { browser: typeof egress.browser === "string" ? egress.browser.slice(0, 64) : null, node: typeof egress.node === "string" ? egress.node.slice(0, 64) : null, match: egress.match === true, viaProxy: egress.viaProxy === true } }
+          : {}),
+      });
+      if (egress) await audit(login.ownerUserId, null, "claude_login_browser_egress", { browser: egress.browser ?? null, node: egress.node ?? null, match: egress.match === true, viaProxy: egress.viaProxy === true });
+      return;
+    }
+    // cc_browser_done：节点已经把授权码交给 claude 了，这里只记结果
+    logins.delete(loginId);
+    const auth = await saveAuth(record.id, message);
+    const ok = !!message.ok && auth.loggedIn;
+    await audit(login.ownerUserId, null, ok ? "claude_login_succeeded" : "claude_login_failed", { via: "cloud_browser", reason: ok ? null : String(message.error ?? "").slice(0, 200) });
+    browserBroadcast(loginId, { op: "done", ok, error: ok ? null : String(message.error ?? "登录没有成功").slice(0, 300), claude: auth });
+    setTimeout(() => lastFrame.delete(loginId), 5000);
+  }
+
+  async function browserLoginStart(ownerUserId: string, view: { width?: number; height?: number; mobile?: boolean }) {
+    const node = await onlineNode(ownerUserId);
+    if (!(node.info as { browser?: boolean } | null)?.browser) throw new CcError("云端节点的镜像里还没有浏览器：更新云端节点后才能在云端完成登录。可以先用「粘贴授权码」。", 409);
+    const start = await loginStart(ownerUserId);
+    try {
+      const r = await rpc<{ width: number; height: number }>(node.device_id, "browser_start", { id: start.id, width: view.width, height: view.height, mobile: !!view.mobile }, 45_000);
+      await audit(ownerUserId, null, "claude_login_browser_started");
+      return { id: start.id, expiresAt: start.expiresAt, width: r.width, height: r.height };
+    } catch (error) {
+      await loginCancel(ownerUserId, start.id).catch(() => {});
+      throw error;
+    }
+  }
+
+  // ── Claude 上游代理 ─────────────────────────────────────────────────
+
+  async function proxyValue(ownerUserId: string): Promise<string | null> {
+    if (!vault) return null;
+    const secret = await vault.internal.reveal(ownerUserId, PROXY_SECRET).catch(() => null);
+    return secret?.value ?? null;
+  }
+
+  async function proxyView(ownerUserId: string) {
+    const value = await proxyValue(ownerUserId);
+    return { configured: !!value, masked: value ? maskProxyUrl(value) : null };
+  }
+
+  async function setProxy(ownerUserId: string, url: string | null) {
+    if (!vault) throw new CcError("保险箱不可用。", 503);
+    if (url) {
+      if (!parseProxyUrl(url)) throw new CcError("代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@。");
+      await vault.internal.save(ownerUserId, { name: PROXY_SECRET, label: "Claude 上游代理", domains: PROXY_DOMAINS, value: url.trim() });
+    } else await vault.internal.remove(ownerUserId, PROXY_SECRET);
+    const node = await nodeFor(ownerUserId);
+    let applied = false;
+    let running = 0;
+    if (node && hub.isOnline(node.device_id)) {
+      const r = await rpc<{ running?: number }>(node.device_id, "proxy_set", { url: url ? url.trim() : null }, 15_000).catch(() => null);
+      applied = !!r;
+      running = Number(r?.running ?? 0);
+    }
+    await audit(ownerUserId, null, url ? "claude_proxy_set" : "claude_proxy_cleared", url ? { proxy: maskProxyUrl(url) } : null);
+    return { ...(await proxyView(ownerUserId)), applied, running };
+  }
+
+  async function testProxy(ownerUserId: string, url: string | null | undefined): Promise<CcProxyTest> {
+    const node = await onlineNode(ownerUserId);
+    if (url && !parseProxyUrl(url)) throw new CcError("代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@。");
+    // url 没给：测已保存的（没保存就是机房默认出口）
+    const target = url ? url.trim() : await proxyValue(ownerUserId);
+    const r = await rpc<CcProxyTest>(node.device_id, "proxy_test", { url: target ?? null }, 45_000);
+    return { ok: !!r.ok, ip: r.ip ?? null, claudeAi: r.claudeAi ?? null, anthropicApi: r.anthropicApi ?? null, ms: r.ms ?? null, error: r.error ?? null };
+  }
+
   // ── 云端工作区 / Claude 登录 ──────────────────────────────────────────
 
   async function status(ownerUserId: string): Promise<CloudWorkspaceView> {
     const row = await nodeFor(ownerUserId);
-    if (!row) return { node: null, claude: EMPTY_AUTH, running: 0, maxConcurrent: MAX_CONCURRENT };
+    if (!row) return { node: null, claude: EMPTY_AUTH, running: 0, maxConcurrent: MAX_CONCURRENT, browserLogin: false, proxy: { configured: false, masked: null } };
     const device = await deviceStore.get(row.device_id).catch(() => null);
-    const info = (row.info ?? {}) as { claudeVersion?: string | null };
+    const info = (row.info ?? {}) as { claudeVersion?: string | null; browser?: boolean };
     return {
       node: device
         ? { deviceId: device.id, name: device.name, online: hub.isOnline(device.id), claudeVersion: info.claudeVersion ?? null, lastSeenAt: device.lastSeenAt }
@@ -815,6 +937,8 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       claude: row.claude_auth ?? EMPTY_AUTH,
       running: [...live.values()].filter((t) => t.ownerUserId === ownerUserId).length,
       maxConcurrent: MAX_CONCURRENT,
+      browserLogin: info.browser === true,
+      proxy: await proxyView(ownerUserId),
     };
   }
 
@@ -822,7 +946,8 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     const node = await onlineNode(ownerUserId);
     const id = randomUUID();
     const result = await rpc<{ url?: string; expiresInMs?: number }>(node.device_id, "login_start", { id }, RPC_MS);
-    if (!result.url || !/^https:\/\//.test(result.url)) throw new CcError("没有拿到 Claude 授权地址。", 503);
+    const scheme = process.env.CHISABOT_CC_ALLOW_HTTP_AUTH === "1" ? /^https?:\/\// : /^https:\/\//; // http 只给 e2e 的模拟授权页
+    if (!result.url || !scheme.test(result.url)) throw new CcError("没有拿到 Claude 授权地址。", 503);
     const expiresAt = Date.now() + (result.expiresInMs ?? 600_000);
     for (const [key, value] of logins) if (value.ownerUserId === ownerUserId) logins.delete(key);
     logins.set(id, { deviceId: node.device_id, ownerUserId, expiresAt });
@@ -847,7 +972,12 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   async function loginCancel(ownerUserId: string, id: string) {
     const login = logins.get(id);
     logins.delete(id);
-    if (login && login.ownerUserId === ownerUserId && hub.isOnline(login.deviceId)) await rpc(login.deviceId, "login_cancel", {}, 15_000).catch(() => {});
+    if (login && login.ownerUserId === ownerUserId && hub.isOnline(login.deviceId)) {
+      await rpc(login.deviceId, "browser_stop", { id }, 15_000).catch(() => {});
+      await rpc(login.deviceId, "login_cancel", {}, 15_000).catch(() => {});
+    }
+    browserBroadcast(id, { op: "state", closed: true, reason: "取消" });
+    lastFrame.delete(id);
     return { cancelled: true };
   }
 
@@ -880,6 +1010,10 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   });
   const approvalBody = z.object({ decision: z.enum(["approve", "deny"]), always: z.boolean().optional() });
   const codeBody = z.object({ code: z.string().trim().min(1, "粘贴授权码。").max(4000) });
+  const browserBody = z.object({ width: z.number().int().min(320).max(1280).optional(), height: z.number().int().min(400).max(1000).optional(), mobile: z.boolean().optional() });
+  const inputBody = z.object({ events: z.array(z.record(z.string(), z.unknown())).max(200) });
+  const proxyBody = z.object({ url: z.string().trim().min(1, "填代理地址。").max(500) });
+  const proxyTestBody = z.object({ url: z.string().trim().max(500).nullable().optional() });
 
   function guard(requireUser: MiddlewareHandler<{ Variables: AppVariables }>) {
     const app = new Hono<{ Variables: AppVariables }>();
@@ -906,6 +1040,62 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       return c.json(await loginCode(c.var.actor.id, c.req.param("id"), code));
     });
     app.delete("/claude/login/:id", async (c) => c.json(await loginCancel(c.var.actor.id, c.req.param("id"))));
+    app.post("/claude/login/browser", async (c) => c.json(await browserLoginStart(c.var.actor.id, browserBody.parse(await c.req.json().catch(() => ({}))))));
+    app.post("/claude/login/browser/:id/input", async (c) => {
+      const id = c.req.param("id");
+      const login = logins.get(id);
+      if (!login || login.ownerUserId !== c.var.actor.id) return c.json({ error: "登录流程已经结束。" }, 409);
+      const { events } = inputBody.parse(await c.req.json().catch(() => ({})));
+      hub.sendRaw(login.deviceId, { type: "cc_browser_input", loginId: id, events });
+      return c.json({ ok: true });
+    });
+    app.get("/claude/login/browser/:id/stream", async (c) => {
+      const id = c.req.param("id");
+      const login = logins.get(id);
+      if (!login || login.ownerUserId !== c.var.actor.id) return c.json({ error: "登录流程已经结束。" }, 409);
+      const encoder = new TextEncoder();
+      let cleanup = () => {};
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const write = (op: CcBrowserOp | { op: "ping" }) => {
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(op)}\n\n`));
+            } catch {
+              cleanup();
+            }
+          };
+          const first = lastFrame.get(id);
+          if (first) write(first);
+          let set = browserSubs.get(id);
+          if (!set) {
+            set = new Set();
+            browserSubs.set(id, set);
+          }
+          set.add(write);
+          const ping = setInterval(() => write({ op: "ping" }), 20_000);
+          unref(ping);
+          cleanup = () => {
+            clearInterval(ping);
+            set!.delete(write);
+            if (!set!.size) browserSubs.delete(id);
+          };
+          c.req.raw.signal.addEventListener("abort", () => {
+            cleanup();
+            try {
+              controller.close();
+            } catch {}
+          });
+        },
+        cancel() {
+          cleanup();
+        },
+      });
+      return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no", connection: "keep-alive" } });
+    });
+    app.get("/claude/proxy", async (c) => c.json(await proxyView(c.var.actor.id)));
+    app.put("/claude/proxy", async (c) => c.json(await setProxy(c.var.actor.id, proxyBody.parse(await c.req.json().catch(() => ({}))).url)));
+    app.delete("/claude/proxy", async (c) => c.json(await setProxy(c.var.actor.id, null)));
+    app.post("/claude/proxy/test", async (c) => c.json(await testProxy(c.var.actor.id, proxyTestBody.parse(await c.req.json().catch(() => ({}))).url)));
     app.post("/claude/logout", async (c) => c.json(await logout(c.var.actor.id)));
     app.post("/claude/check", async (c) => c.json(await check(c.var.actor.id)));
     app.get("/permission-rules", async (c) => {

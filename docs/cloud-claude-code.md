@@ -36,6 +36,13 @@
 
 **表**（开机 `CREATE TABLE IF NOT EXISTS`，回滚安全）：`chisabot_cloud_workspaces`、`chisabot_cc_workspaces`、`chisabot_cc_sessions`、`chisabot_cc_messages`（会话记录，parts 是 JSON：文字 / 工具 / 审批 / 改动 / 出错 / 提示）、`chisabot_cc_permission_rules`、`chisabot_cc_events`（操作记录，不含授权码、令牌、对话内容）。P3 / P4 的表（同步绑定、租约、冲突）到时候再建。
 
+**在云端完成登录 / Claude 上游代理（实现，用户 2026-10-15 20:36 / 20:37 的要求，先于 P3 上线）**
+
+- 远程浏览器：`pc/src/cloud-cc/browser.js`。节点容器里的 Chromium（`chromium` + `fonts-noto-cjk` 装进镜像），`--headless=new --no-sandbox --remote-debugging-pipe`，配置目录 `/tmp/chisabot-login-browser-*`（700），结束 / 取消 / 紧急停止时关进程、删目录。画面：CDP `Page.startScreencast`（JPEG，最多 ~8 帧 / 秒，只发最新一帧）→ `cc_browser_frame` → 服务器 `GET /api/cloud-workspace/claude/login/browser/:id/stream`（SSE）；输入：`POST …/input {events}` → `cc_browser_input` → `Input.dispatchMouseEvent / insertText / dispatchKeyEvent`。弹窗（Google 登录等）自动切过去，关掉切回来。主框架跳到 `…/oauth/code/callback?code=…&state=…` 时节点拿「code#state」直接写进等着的 `claude auth login`，然后发 `cc_browser_done`（只有登录结果）。地址栏只回传 origin + path。
+- 出口：浏览器开一个临时标签页读 `https://claude.ai/cdn-cgi/trace`，节点进程用同样的路由（有上游就经上游）也读一次，两边的 `ip=` 放进 `cc_browser_state.egress` 和操作记录。
+- 接口：`POST /api/cloud-workspace/claude/login/browser {width,height,mobile}`（先 `login_start` 再 `browser_start`）、`GET …/browser/:id/stream`、`POST …/browser/:id/input`、取消仍是 `DELETE /claude/login/:id`（同时 `browser_stop`）。`GET /api/cloud-workspace` 多了 `browserLogin`（节点 `cc_info.browser`）和 `proxy {configured, masked}`。
+- 上游代理：`pc/src/cloud-cc/proxy.js`。服务器 `GET|PUT|DELETE /api/cloud-workspace/claude/proxy`、`POST …/proxy/test {url?}`；地址存保险箱保留名 `claude-proxy`（加密，保险箱页面只读，指回这里），节点连上时和每次修改时 `proxy_set` 下发。节点里一个只听 127.0.0.1 的转发器按主机分流：`anthropic.com` / `claude.ai` / `claude.com`（及子域）走上游（http / https CONNECT + Basic，socks5 + 用户名密码、远端解析），其他直连。Claude Code 的每一轮、`claude auth login/status/logout` 设 `HTTPS_PROXY=http://127.0.0.1:<端口>`（环境变量里没有密码），登录浏览器 `--proxy-server` 指向同一个转发器。改设置不杀正在跑的一轮。服务器自己没有直连 Anthropic 的调用。测试：`pc/test/cloud-cc-proxy.check.js`（http 带认证 / socks5 带认证 / 分流 / 打码 / 回调识别）；预览 e2e 用 `tests/cloud-cc/mock-claude-auth.cjs`（模拟授权页 + 测试上游代理，记录经过它的主机）。
+
 **和设计稿的差别**：会话记录存在 `chisabot_cc_messages`，不是机器人聊天线程（ADR-0014 第 4 条）；「草稿」工作区每个会话一个自己的目录（`trees/<会话>`），不共用工作目录；审批卡只在会话里（以及操作记录），P2 还没有手机推送。
 
 > 下文的「ChisaCloudCode」（简称 CCC）是作者的另一个项目（Windows 桌面端 + 服务器工作区），电脑同步的交接逻辑来自它的桌面端代码。

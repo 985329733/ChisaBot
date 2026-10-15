@@ -18,6 +18,7 @@ Claude Code 标签页就在它里面写代码（设计见 [docs/cloud-claude-cod
 ```sh
 # 1. 镜像（Claude Code 版本固定，升级时改 CLAUDE_CODE_VERSION 重新构建）
 docker build -t chisabot-cloudnode:2.1.165 --build-arg CLAUDE_CODE_VERSION=2.1.165 deploy/cloud-node
+#    （镜像里带 Chromium + 中文字体，给「在云端完成登录」用；/tmp tmpfs 512 MB 够用）
 
 # 2. 网桥（可以复用一个空闲的），再加防火墙
 docker network create chisabot-cloudnode-net        # 记下网段：docker network inspect chisabot-cloudnode-net
@@ -34,8 +35,26 @@ CHISABOT_SERVER=https://你的域名:8443 CHISABOT_PAIR_CODE=cbp_xxx \
 
 ## 登录 Claude
 
-ChisaBot 网页：设置 → 云端工作区 →「用 Claude 订阅登录」→ 打开授权页 → 用你的 Claude 账号授权 → 复制授权码粘回来 →「完成登录」。
-授权码只经过节点上 `claude auth login` 进程的标准输入，不进 ChisaBot 的数据库和日志。
+ChisaBot 网页：设置 → 云端工作区 →「**在云端完成登录**」：镜像里的无头 Chromium（和 Claude Code 同一个容器，所以同一个出口 IP、同一套防火墙）
+打开 Claude 授权页，画面嵌在设置页里；你在里面登录、点「授权」，节点读到回调地址里的授权码，直接交给 `claude auth login`，不用复制粘贴。
+浏览器用 `--remote-debugging-pipe` 控制（不开端口），`--no-sandbox`（容器本身就是沙箱：非 root、cap_drop ALL、只读根文件系统），配置目录在
+`/tmp` 里，登录结束 / 取消就删掉。卡片底部显示浏览器和 Claude Code 各自看到的出口 IP（claude.ai 的 `/cdn-cgi/trace`），应该一样。
+
+备用：「粘贴授权码」——授权页在你自己的浏览器里打开（用你电脑的 IP），复制授权码粘回来。
+
+授权码、密码只经过节点进程，不进 ChisaBot 的数据库和日志。旧镜像（没有 Chromium）只显示粘贴授权码这一种。
+
+## Claude 上游代理（可选）
+
+设置 → 云端工作区 →「Claude 上游代理」：填 `http://`、`https://` 或 `socks5://[用户名:密码@]主机:端口`（自己的代理 / 静态住宅 IP），
+「测试连接」显示出口 IP 和 claude.ai / api.anthropic.com 通不通。地址加密存在保险箱（保留名 `claude-proxy`），只在节点进程内存里。
+
+- 节点进程里有一个只听容器 127.0.0.1 的转发器：Claude 的域名（`anthropic.com`、`claude.ai`、`claude.com` 及子域）走上游代理，
+  其他域名（GitHub、npm…）照旧直连。Claude Code（`HTTPS_PROXY`，包括登录、换令牌）和云端登录浏览器（`--proxy-server`）都连这个转发器，
+  所以登录和日常使用是同一个 IP。socks5 由代理解析域名。
+- 防火墙不用改：代理在公网上就能连（`firewall.sh` 只丢私有网段和主机）。代理在内网 / 本机时要自己在 DOCKER-USER 里给它开一条 RETURN。
+- 改了以后正在跑的那一轮不打断：它新建的连接马上按新设置走，下一轮整轮都用新设置。
+- 服务器自己不直接连 Anthropic（模型走 Magpie，不受这个设置影响）。
 
 ## 验收（部署后）
 

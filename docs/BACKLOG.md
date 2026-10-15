@@ -72,6 +72,7 @@
 | [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` |
 | [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` |
 | [CB-065](#cb-065) | 云端 Claude Code P5：ChisaCloudCode 留还是下线 | 设备核心 Devices core | `type: chore` · `area: infra` · `P2` · `status: needs-user` |
+| [CB-066](#cb-066) | 在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` |
 
 ## CB-001
 
@@ -1035,6 +1036,19 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [ ] `chisabot-sync`（从 ChisaCloudCode 桌面端 Go 代码移入，逐文件确认来源）+ 自编译 MIT 版 Mutagen 0.18.1（不加 `--sspl`）
 - [ ] 同步边车 sshd 只听 127.0.0.1:2222，主机没有新端口；隧道走网关 + 一次性票
 - [ ] 五种状态、交接 ①–⑤、冲突三选项，没有一次静默覆盖；先只做 Windows；发 PC 新版
+
+## CB-066
+
+**在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理**  
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: infra` `P1`
+
+用户 2026-10-15 20:36 / 20:37：登录要整个在云端完成（你的浏览器不碰 claude.com），登录和 Claude Code 同一个出口；可以设自己的代理 / 静态住宅 IP。
+
+#### 验收标准
+- [x] 设置 → 云端工作区「在云端完成登录」：节点容器里的浏览器画面嵌在设置页，可以点、打字、粘贴；回调时自动拿授权码完成登录；粘贴流程保留为备用
+- [x] 浏览器和 Claude Code 的出口 IP 显示出来并一致；密码 / 授权码不进日志和数据库；结束后关浏览器、删配置目录
+- [x] 「Claude 上游代理」：http / https / socks5 + 用户名密码，测试连接（出口 IP、claude.ai、api.anthropic.com），清除回到默认出口；只有 Claude 域名走它；加密存储、界面打码
+- [ ] 生产上用户自己完成一次真实登录（需要用户的 Claude 账号）
 
 ## CB-065
 
