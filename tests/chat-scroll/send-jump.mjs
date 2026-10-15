@@ -124,7 +124,8 @@ page.on("pageerror", (e) => log("pageerror", String(e).slice(0, 200)));
 page.on("console", (m) => { if (m.type() === "error") log("console", m.text().slice(0, 200)); });
 if (Number(process.env.CPU || 1) > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU) }); }
 
-await page.goto(`${BASE}/bot?agent=${BOT}${THREAD ? `&thread=${encodeURIComponent(THREAD)}` : ""}`, { waitUntil: "domcontentloaded" });
+// CHANNEL=<频道 id> 直接打开那个频道（不走 /bot 跳转，用来和没有跳转的旧版本对比）。
+await page.goto(process.env.CHANNEL ? `${BASE}/channel/${process.env.CHANNEL}` : `${BASE}/bot?agent=${BOT}${THREAD ? `&thread=${encodeURIComponent(THREAD)}` : ""}`, { waitUntil: "domcontentloaded" });
 await page.waitForSelector('[aria-label="消息"]', { timeout: 40000 });
 await page.waitForFunction(() => document.querySelectorAll("[data-testid=chat-transcript] [data-message-id]").length > 0, null, { timeout: 40000 }).catch(() => log("no messages rendered"));
 await page.waitForTimeout(Number(process.env.WAIT || 6000));
