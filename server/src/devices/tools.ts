@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CAPABILITY_INFO,
   capabilityFor,
+  checkOpenTarget,
   type DeviceOperation,
   GIT_SUBCOMMANDS,
 } from "../../../shared/devices";
@@ -145,8 +146,7 @@ const schemas = {
   }),
   open: z.object({
     deviceId,
-    target: z.string().min(1).max(2000).describe("网址（http/https）、文件路径或程序名，例如 notepad、https://example.com"),
-    args: z.array(z.string().max(500)).max(20).optional().describe("启动程序时的参数"),
+    target: z.string().min(1).max(2000).describe("http/https 网址，或允许的文件夹里的文件 / 文件夹路径，例如 https://example.com、D:\\报告\\周报.pdf"),
   }),
   clipboard: z.object({
     deviceId,
@@ -705,11 +705,15 @@ export function deviceTools(options: {
     tools.push({
       name: "device_open",
       ref: "devices/open",
-      description: "在用户电脑上用默认浏览器打开网址，或打开文件 / 启动程序。",
+      description:
+        "在用户电脑上用默认浏览器打开 http/https 网址，或用默认程序打开允许的文件夹里的文件 / 文件夹。不能启动程序、不能带参数、不打开 .exe / .bat / .ps1 / .lnk 这类可执行文件和脚本（要运行程序用 device_run_shell，走命令行的审批）。",
       parameters: schemas.open,
       execute: async (input) => {
         const args = schemas.open.parse(input ?? {});
-        return run("open", args.deviceId, { target: args.target, args: args.args ?? [] }, `打开：${clip(args.target, 200)}`, 60_000);
+        // CB-030：只做安全的打开，发给设备前先拦（旧版 PC 客户端还接受程序名和参数，靠这里挡住）。
+        const refused = checkOpenTarget(args.target);
+        if (refused) return `${REFUSAL_MARKER} ${refused}`;
+        return run("open", args.deviceId, { target: args.target.trim() }, `打开：${clip(args.target, 200)}`, 60_000);
       },
     });
 

@@ -575,6 +575,8 @@ function startAgent() {
       clipboardRead: async () => clipboard.readText(),
       clipboardWrite: async (text) => clipboard.writeText(text),
       openExternal: (url) => shell.openExternal(url),
+      // 「打开」文件 / 文件夹（CB-030）：ops.js 已检查过类型和允许的文件夹；返回错误文字，成功为空。
+      openPath: (file) => shell.openPath(file),
     },
   });
   // 本地 agent（Claude Code / Codex / 内置循环…，docs/local-agents.md）：和节点共用这条连接。

@@ -632,11 +632,13 @@ delegate_task 的工具参数还在流式输出时（默认模型约 6–8 秒�
 
 #### 验收标准
 
-- [ ] open 只能打开 URL / 文件 / 文件夹，不能带任意参数执行
+- [x] open 只能打开 URL / 文件 / 文件夹，不能带任意参数执行（2026-10-15，fix/safe-open）
 - [x] 或者把它归为危险能力并本机确认
 - [x] 测试覆盖绕过用例
 
 > 完成（2026-10-15，feat/devices-1，0.1.8）：「打开」标为高风险，PC 开着「高风险操作始终在本机确认」时也会本机再问一次（`pc/test/code-ops.check.js` 覆盖带参数启动程序的用例）。仍可以带参数启动程序——这是这项能力的用途，按命令行同级对待。
+>
+> 收紧（2026-10-15，fix/safe-open）：「打开」只做安全的打开——http/https 网址，或允许的文件夹里已存在的文件 / 文件夹；不启动程序、不带参数、不打开可执行文件 / 脚本 / 快捷方式、别的协议和网络路径。服务器 `checkOpenTarget`（shared/devices.ts，测试 `server/tests/device-open-target.test.ts`）在发给设备前先拦，所以**已装的旧版 PC 也受保护**；PC 端 `pc/src/agent/open-target.js` + `ops.js open()` 同一套规则再拦一次、并要求在允许的文件夹里（`pc/test/ops.check.js`），随下一个 PC 版本发布。
 
 #### 相关
 

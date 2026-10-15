@@ -8,7 +8,7 @@
 | 端 | 是什么 | 能做什么 |
 | --- | --- | --- |
 | **服务器** | 现有 ChisaBot（`openbot-zh` 容器，公网 `https://<你的域名>:8443`，前面是 nginx 登录网关） | 机器人运行处；设备登记表、WebSocket 中转、审批、审计都在这里 |
-| **PC（Windows）** | `ChisaBot PC` Electron 客户端 | ① 聊天窗口直接载入该服务器的网页；② 节点：执行机器人发来的操作（PowerShell、文件、截图、鼠标键盘、打开应用/网址、剪贴板） |
+| **PC（Windows）** | `ChisaBot PC` Electron 客户端 | ① 聊天窗口直接载入该服务器的网页；② 节点：执行机器人发来的操作（PowerShell、文件、截图、鼠标键盘、打开网址 / 文件、剪贴板） |
 | **手机** | 现有网页（已适配 390px） | 聊天；在 设置 → 设备 管理所有 PC：开关能力、审批、紧急停止、撤销、看记录 |
 
 「从任何一端管理其他端」：设备配置只存服务器一份。网页/手机改 → 服务器写库 → 推送给 PC；PC 改 → 发 `set_config` → 服务器写库 → 网页 5 秒内刷新。PC 客户端里的聊天窗口就是网页本身，所以在 PC 上也能管理其他 PC 和服务器（管理后台）。
@@ -53,7 +53,7 @@ PC → 服务器：`hello{clientVersion,platform,osVersion,hostname,arch}`、`re
 | `files_write` 写入文件 | 覆盖前备份为 `*.chisabot-bak`，可追加 | 询问 | 高 |
 | `screenshot` 截图 | Electron `desktopCapturer` 主屏，物理分辨率截取后缩放到 ≤1600 宽；无 Electron 时 PowerShell `CopyFromScreen` 兜底 | 询问 | 中 |
 | `input` 鼠标键盘 | `SetCursorPos` / `mouse_event`（DPI aware，物理像素坐标）、`SendKeys` 输入文字和按键 | 询问 | 高 |
-| `open` 打开应用 / 网址 | http/https 用默认浏览器；其它用 `Start-Process`；拒绝 `javascript:` `file:` `data:` | 询问 | 高（能带参数启动任意程序，0.1.8 起本机确认，CB-030） |
+| `open` 打开网址 / 文件 | 只做安全的打开（CB-030，2026-10-15）：http/https 网址用默认浏览器；允许的文件夹里**已存在**的文件 / 文件夹用默认程序（Electron `shell.openPath`，无界面节点 Windows `Invoke-Item -LiteralPath`、Linux `xdg-open`、macOS `open --`）。不启动程序（光写 `notepad` 不行）、不带参数、不打开可执行文件和脚本（.exe .bat .cmd .ps1 .vbs .js .msi .lnk .scr .hta .jar .reg .url .sh .app .desktop … 以及 Linux / macOS 上有执行位的文件，按解析符号链接后的真实路径再查一次）、不打开别的协议（`file:` `javascript:` `ms-settings:` …）和网络路径（`\\服务器\共享`）。服务器 `checkOpenTarget`（shared/devices.ts）发出前先拦，PC `open-target.js` 同一套规则再拦一次。要运行程序用命令行能力 | 询问 | 高（仍按高风险，本机确认） |
 | `clipboard` 剪贴板 | 读 / 写文字 | 询问 | 中 |
 
 **默认「询问」（2026-10-14，0.1.7）**：新登记的电脑七项能力都是「询问」——机器人直接调用，PC 弹窗和网页 / 手机的「等待你审批」卡片谁先点算谁，2 分钟无人处理按拒绝；高风险项（命令行、写文件、鼠标键盘）在「允许」时也照样本机确认。以前默认全部「关闭」，用户不进权限页手动打开就什么都做不了。旧设备迁移：服务器启动时（`deviceStore.adoptAskDefaults`，幂等，`CHISABOT_DEVICE_ASK_DEFAULTS=0` 关掉）把能力仍是出厂「全部关闭」、并且审计里没有 `config_changed` / `kill_switch_*`（= 没人改过）的电脑改成「询问」，写审计 `defaults_ask`。默认文件夹：PC 0.1.7 的 `hello.suggestedRoots`（桌面、文档、下载），服务器只在文件夹列表为空且没人改过时采用（审计 `defaults_roots`）。手机绑定的设备仍是「关闭」（不是节点）。

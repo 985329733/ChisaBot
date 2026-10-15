@@ -10,6 +10,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { createCodeOps } = require("./code-ops");
+const { classifyOpenTarget } = require("./open-target");
 
 const OUTPUT_CAP = 64 * 1024;
 const LIST_CAP = 500;
@@ -410,27 +411,56 @@ function createOps(options = {}) {
     throw new OpError("这台电脑上没有可用的鼠标键盘控制方式。");
   }
 
-  async function open(args) {
-    const target = String(args.target || "").trim();
-    if (!target) throw new OpError("没有要打开的目标。");
-    const isUrl = /^https?:\/\//i.test(target);
-    if (/^(javascript|file|data|vbscript):/i.test(target)) throw new OpError("不允许打开这种地址。");
-    if (isUrl && hooks.openExternal) {
-      await hooks.openExternal(target);
-      return { opened: target, via: "browser" };
+  /** 安全打开（CB-030）：网址 → 默认浏览器；允许的文件夹里已存在的文件 / 文件夹 → 默认程序。不启动程序、不带参数。 */
+  async function open(args, ctx = {}) {
+    const picked = classifyOpenTarget(args.target);
+    if (picked.error) throw new OpError(picked.error);
+    if (Array.isArray(args.args) && args.args.length) throw new OpError("「打开」不带参数：只能打开网址或文件 / 文件夹。");
+    if (picked.kind === "url") {
+      if (hooks.openExternal) {
+        await hooks.openExternal(picked.url);
+        return { opened: picked.url, via: "browser" };
+      }
+      if (platform === "win32") {
+        const result = await runPowerShell(`Start-Process -FilePath '${picked.url.replace(/'/g, "''")}'`, { timeoutMs: 20_000 });
+        if (result.exitCode !== 0) throw new OpError(`打开失败：${result.stderr.slice(0, 300)}`);
+        return { opened: picked.url, via: "Start-Process" };
+      }
+      return spawnOpener(picked.url);
+    }
+    const file = await resolvePath(picked.path, ctx);
+    let stat;
+    try {
+      stat = await fsp.stat(file);
+    } catch {
+      throw new OpError(`找不到：${file}`);
+    }
+    if (!stat.isFile() && !stat.isDirectory()) throw new OpError("只能打开文件或文件夹。");
+    // 再按解析后的真实路径查一次类型（符号链接 / 快捷方式指向可执行文件）。
+    const real = await fsp.realpath(file).catch(() => file);
+    const again = classifyOpenTarget(real);
+    if (again.error) throw new OpError(again.error);
+    if (stat.isFile() && platform !== "win32" && stat.mode & 0o111) throw new OpError("这是可执行文件，打开它等于运行程序。要运行请用命令行能力。");
+    if (hooks.openPath) {
+      const error = await hooks.openPath(file);
+      if (error) throw new OpError(`打开失败：${String(error).slice(0, 300)}`);
+      return { opened: file, via: "default-app" };
     }
     if (platform === "win32") {
-      const quoted = (s) => `'${String(s).replace(/'/g, "''")}'`;
-      const argList = Array.isArray(args.args) && args.args.length ? ` -ArgumentList @(${args.args.map(quoted).join(",")})` : "";
-      const result = await runPowerShell(`Start-Process -FilePath ${quoted(target)}${argList}`, { timeoutMs: 20_000 });
+      const result = await runPowerShell(`Invoke-Item -LiteralPath '${file.replace(/'/g, "''")}'`, { timeoutMs: 20_000 });
       if (result.exitCode !== 0) throw new OpError(`打开失败：${result.stderr.slice(0, 300)}`);
-      return { opened: target, via: "Start-Process" };
+      return { opened: file, via: "Invoke-Item" };
     }
-    const opener = which("xdg-open");
-    if (!opener) throw new OpError("这台电脑上没有 xdg-open。");
-    const child = spawn(opener, [target], { detached: true, stdio: "ignore" });
+    return spawnOpener(file);
+  }
+
+  function spawnOpener(target) {
+    const opener = platform === "darwin" ? which("open") : which("xdg-open");
+    if (!opener) throw new OpError(platform === "darwin" ? "这台电脑上没有 open 命令。" : "这台电脑上没有 xdg-open。");
+    const child = spawn(opener, platform === "darwin" ? ["--", target] : [target], { detached: true, stdio: "ignore" });
+    child.on("error", () => {});
     child.unref();
-    return { opened: target, via: "xdg-open" };
+    return { opened: target, via: platform === "darwin" ? "open" : "xdg-open" };
   }
 
   async function clipboardRead() {

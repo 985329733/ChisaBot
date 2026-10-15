@@ -51,8 +51,8 @@ export const CAPABILITY_INFO: Record<
     dangerous: true,
   },
   open: {
-    label: "打开应用 / 网址",
-    description: "用默认浏览器打开网址，或启动应用程序（可以带参数启动任意程序，和命令行一样危险）。",
+    label: "打开网址 / 文件",
+    description: "用默认浏览器打开 http/https 网址，或用默认程序打开允许的文件夹里的文件 / 文件夹。不启动程序、不带参数、不打开可执行文件和脚本。",
     dangerous: true,
   },
   clipboard: {
@@ -205,7 +205,7 @@ export const OPERATION_LABEL: Record<DeviceOperation, string> = {
   write_file: "写入文件",
   screenshot: "截图",
   input: "鼠标键盘",
-  open: "打开应用 / 网址",
+  open: "打开网址 / 文件",
   clipboard_read: "读取剪贴板",
   clipboard_write: "写入剪贴板",
   search: "搜索文件",
@@ -350,3 +350,41 @@ export type ServerToDevice =
   | { type: "cancel"; id: string }
   | { type: "revoked" }
   | { type: "ping" };
+
+/** 打开就等于运行的文件类型（CB-030）。和 pc/src/agent/open-target.js 的 EXECUTABLE_EXT 一致。 */
+export const OPEN_EXECUTABLE_EXT: ReadonlySet<string> = new Set(
+  (
+    "exe com bat cmd ps1 psm1 psd1 ps1xml vbs vbe js jse wsf wsh wsc msi msp mst scr pif lnk cpl hta jar reg inf " +
+    "application appref-ms gadget msc url scf iqy settingcontent-ms library-ms search-ms appx appxbundle msix msixbundle " +
+    "sh bash zsh fish csh ksh command tool app desktop run bin appimage py pyw pyc pl rb php deb rpm dmg pkg mpkg action workflow"
+  ).split(" "),
+);
+
+/**
+ * 「打开」只做安全的打开（CB-030，docs/pc-node.md §5）：http/https 网址，或文件 / 文件夹的路径。
+ * 不启动程序（光写程序名不行）、不打开可执行文件和脚本、不打开别的协议和网络路径。返回 null = 可以，否则是中文原因。
+ * 服务器在发给设备之前先查一次；PC 客户端（open-target.js）用同一套规则再查一次，并要求文件在允许的文件夹里且存在。
+ */
+export function checkOpenTarget(raw: unknown): string | null {
+  const target = typeof raw === "string" ? raw.trim() : "";
+  if (!target) return "没有要打开的目标。";
+  if (/[\u0000-\u001f\u007f]/.test(target)) return "目标里有控制字符，不能打开。";
+  if (/^https?:\/\//i.test(target)) {
+    try {
+      const url = new URL(target);
+      return url.protocol === "http:" || url.protocol === "https:" ? null : "只能打开 http / https 网址。";
+    } catch {
+      return "网址格式不对。";
+    }
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^[a-z]:[\\/]/i.test(target)) return "不允许打开这种地址：只能打开 http / https 网址或文件 / 文件夹。";
+  if (/^(\\\\|\/\/)/.test(target)) return "不打开网络路径（\\\\服务器\\共享）。";
+  if (target.startsWith("-")) return "目标不能以 - 开头。";
+  const base = target.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  const looksLikePath =
+    /^([a-z]:[\\/]|[\\/]|~)/i.test(target) || /[\\/]/.test(target) || /\.[^.\\/]+$/.test(base) || target === "." || target === "~";
+  if (!looksLikePath) return "「打开」不再启动程序：只能打开网址，或允许的文件夹里的文件 / 文件夹（给出路径）。要运行程序请用命令行能力。";
+  const ext = /\.([^.\\/]+)$/.exec(base.replace(/[. ]+$/, ""))?.[1]?.toLowerCase();
+  if (ext && OPEN_EXECUTABLE_EXT.has(ext)) return `不打开 .${ext} 文件：打开它等于运行程序。要运行请用命令行能力。`;
+  return null;
+}
