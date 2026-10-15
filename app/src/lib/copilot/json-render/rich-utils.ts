@@ -303,3 +303,13 @@ export function gaugeTone(value: number, warnAt: number | null | undefined, dang
   if (warnAt !== null && warnAt !== undefined && value >= warnAt) return "warn";
   return fallback;
 }
+
+/**
+ * 「当前降水 0 mm · 风速 5.4 km/h」拆成几项（DESIGN.md §77.3）：每项不拆开换行，只在「·」处换。
+ * 只有一项时返回 null（照常排）。
+ */
+export function splitDotted(text: string): string[] | null {
+  if (!text.includes("·")) return null;
+  const parts = text.split(/\s*·\s*/u).filter((part) => part.length > 0);
+  return parts.length > 1 ? parts : null;
+}

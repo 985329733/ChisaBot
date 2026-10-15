@@ -1,7 +1,20 @@
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
-import { summarizeDoneWork, summarizeWork, type WorkCall, workStepLines } from "@/lib/chat/work-steps";
+import { currentWorkStep, summarizeDoneWork, summarizeWork, type WorkCall, workStepLines } from "@/lib/chat/work-steps";
+
+/** 干活卡把当前这一步广播出去，右栏正在搭建的面板写「正在搜索「…」」（DESIGN.md §77.1）。 */
+export const WORK_STEP_EVENT = "chisabot-work-step";
+export type WorkStepDetail = { name: string; label: string } | null;
+let lastStep: WorkStepDetail = null;
+/** 最近广播的一步（卡片晚于广播挂上时先用它）。 */
+export function lastWorkStep(): WorkStepDetail {
+  return lastStep;
+}
+function announceStep(detail: WorkStepDetail) {
+  lastStep = detail;
+  window.dispatchEvent(new CustomEvent<WorkStepDetail>(WORK_STEP_EVENT, { detail }));
+}
 
 /**
  * 干活卡（DESIGN.md §70 / §75，Hark 的「实时工作卡片」）。
@@ -48,6 +61,17 @@ export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; 
   useEffect(() => {
     if (!live) setDoneSeconds(workSeconds(turnKey));
   }, [live, turnKey]);
+  const step = live ? currentWorkStep(calls) : null;
+  const stepKey = step ? `${step.name}\n${step.label}` : "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: stepKey carries step.
+  useEffect(() => {
+    if (!live) return;
+    announceStep(step);
+  }, [live, stepKey]);
+  useEffect(() => {
+    if (!live) return;
+    return () => announceStep(null);
+  }, [live]);
   const reduce = useReducedMotion();
   const summary = live ? summarizeWork(calls) : null;
   const done = live ? null : summarizeDoneWork(calls);

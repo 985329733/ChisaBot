@@ -32,7 +32,7 @@ import {
 } from "./rich";
 import { ActionArea, useLiveValue, useRichActions } from "./rich-context";
 import { Products } from "./products";
-import { safeHttp, safeHttps, trendOfText } from "./rich-utils";
+import { safeHttp, safeHttps, splitDotted, trendOfText } from "./rich-utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,23 @@ import { cn } from "@/lib/utils";
 
 const text = (value: unknown) =>
   value === null || value === undefined ? "" : String(value);
+
+/** 一行带「·」的说明：每项不拆开，只在「·」处换行（DESIGN.md §77.3）。 */
+function DottedText({ text: value }: { text: string }) {
+  const parts = splitDotted(value);
+  if (!parts) return <>{value}</>;
+  return (
+    <>
+      {parts.map((part, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed string.
+        <span key={index}>
+          {index > 0 ? " · " : ""}
+          <span className="jr-text-seg">{part}</span>
+        </span>
+      ))}
+    </>
+  );
+}
 
 const BUTTON_VARIANT = {
   primary: "default",
@@ -261,7 +278,7 @@ export const { registry: jsonRenderRegistry } = defineRegistry(jsonRenderCatalog
           props.weight && props.weight !== "normal" && `is-${props.weight}`,
         )}
       >
-        {props.text}
+        <DottedText text={text(props.text)} />
       </p>
     ),
     Metric: ({ props }) => {
