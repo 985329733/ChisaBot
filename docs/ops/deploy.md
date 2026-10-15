@@ -56,7 +56,7 @@ sh /opt/openbot-zh/rollback-to-auto-<时间>-<提交>.sh
 | 部分 | 怎么更新 |
 |---|---|
 | 公网网关 nginx（`deploy/public/nginx.conf`） | 改模板 → 拷到网关目录 → `nginx -t` → reload；先留备份 |
-| 登录服务（`deploy/public/auth/server.ts`、`auth-web/`） | 拷文件 → 重启 `openbot-web-auth`；会话库原地加列，已有登录不受影响。签名身份（[accounts.md](../accounts.md)；朋友账号已去掉）：顺序是 ① 登录服务 + `config.json` 的 `identitySecret` + nginx 新模板 ② 应用 `.env` 加同值 `CHISABOT_GATEWAY_SECRET` ③ 部署应用；回滚网关时先把 `.env` 里这一行去掉并重建应用容器 |
+| 登录服务（`deploy/public/auth/server.ts`、`auth-web/`） | 拷文件 → 重启 `openbot-web-auth`；会话库原地加列，已有登录不受影响。多账号（[accounts.md](../accounts.md)）：顺序是 ① 登录服务 + `config.json` 的 `identitySecret` + nginx 新模板 ② 应用 `.env` 加同值 `CHISABOT_GATEWAY_SECRET` ③ 部署应用；回滚网关时先把 `.env` 里这一行去掉并重建应用容器 |
 | 更新器自己（`deploy/updater/`） | 每次成功更新后自升级；老部署跑一次 `sh deploy/install-updater.sh` |
 | PC / Android 客户端 | 发版流程：[releasing.md](../releasing.md)、[online-update.md](../online-update.md) §2 |
 | Magpie 模型网关 | 独立 compose，手动 |

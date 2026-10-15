@@ -71,6 +71,30 @@
               <span class="submit-spinner" aria-hidden="true"></span>
             </button>
           </form>
+          <form id="invite-form" hidden autocomplete="on">
+            <div class="field" id="invite-username-field">
+              <label for="invite-username">账号名</label>
+              <input id="invite-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="以后用它登录，2–32 个字符">
+            </div>
+            <div class="field" id="invite-name-field">
+              <label for="invite-name">怎么称呼你</label>
+              <input id="invite-name" name="displayName" type="text" autocomplete="nickname" maxlength="32" placeholder="可选，机器人会这样叫你">
+            </div>
+            <div class="field">
+              <label for="invite-password">密码</label>
+              <input id="invite-password" name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="1024" placeholder="至少 8 位">
+            </div>
+            <div class="field">
+              <label for="invite-confirm">再输一次密码</label>
+              <input id="invite-confirm" name="confirm" type="password" autocomplete="new-password" required minlength="8" maxlength="1024">
+            </div>
+            <p id="invite-error" class="login-error" role="alert" aria-live="polite"></p>
+            <button id="invite-submit" class="login-submit" type="submit">
+              <span id="invite-label">创建账号并登录</span>
+              <svg class="submit-arrow" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="submit-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
           <noscript><p class="noscript-message">请启用浏览器的 JavaScript 后登录。</p></noscript>
           <p class="login-note">使用 ChisaBot 客户端（PC / Android）时，在客户端的登录页填写这个服务器地址即可。</p>
         </div>

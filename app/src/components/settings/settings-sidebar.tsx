@@ -15,6 +15,7 @@ import {
   IconRoute,
   IconShieldCheck,
   IconSparkles,
+  IconUsers,
   IconWorld,
   IconWorldWww,
 } from "@tabler/icons-react";
@@ -29,7 +30,7 @@ import { currentUserQueryOptions } from "@/lib/auth/queries";
  *
  * 导航收敛（2026-10-14，DESIGN.md §57）后分三组：
  * - 个人：通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 生图与识图 · 密钥 · 审批偏好 · 设备 · IM 接入（后续功能页也放这里）；
- * - 管理（仅管理员）：模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
+ * - 管理（仅管理员）：账号（CB-040 朋友账号）· 模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
  * - 高级（默认折叠）：工作流 · 插件与 MCP。
  * 技能管理并入 设置 → 技能（管理员在页内进入），UI 组件不再出现在导航里。路由都还在，旧地址会重定向。
  * 左栏底部「返回聊天」是从设置回到对话的路（顶栏不再有分段导航）。
@@ -114,6 +115,7 @@ const ADMIN: RailGroup[] = [
   {
     label: "管理",
     items: [
+      { title: "账号", sub: "邀请朋友、停用、重置密码", icon: IconUsers, linkOptions: { to: "/admin/accounts" } },
       { title: "模型", sub: "接口、默认模型、模型密钥", icon: IconBrain, linkOptions: { to: "/admin/models" } },
       { title: "云端浏览器", sub: "机器人的浏览器与登录状态", icon: IconWorld, linkOptions: { to: "/admin/computers" } },
       { title: "权限规则", sub: "机器人永远不能做的事", icon: IconShieldCheck, linkOptions: { to: "/admin/boundaries" } },
