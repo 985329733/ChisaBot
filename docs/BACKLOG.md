@@ -69,10 +69,10 @@
 | [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示（完成） | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
 | [CB-061](#cb-061) | 云端 Claude Code P1：云端工作区节点 + 网页登录 Claude | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: needs-user` |
 | [CB-062](#cb-062) | 云端 Claude Code P2：左栏切换、会话、对话、审批、右栏 / 手机抽屉 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: chat` · `P1` |
-| [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` |
+| [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` · `status: needs-user` |
 | [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` |
 | [CB-065](#cb-065) | 云端 Claude Code P5：ChisaCloudCode 留还是下线 | 设备核心 Devices core | `type: chore` · `area: infra` · `P2` · `status: needs-user` |
-| [CB-066](#cb-066) | 在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` |
+| [CB-066](#cb-066) | 在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: needs-user` |
 
 ## CB-001
 
@@ -546,6 +546,10 @@ delegate_task 的工具参数还在流式输出时（默认模型约 6–8 秒�
 #### 相关
 
 - DESIGN.md §35、§41
+
+#### 记录
+
+- 2026-10-16 试过给消息行加 `content-visibility: auto`（分支 perf/cb-025-cv，未合并）：首屏中位数 1456ms → 1463ms 没有下降，chat-scroll 回归还多出跳版 → 放弃这条路，下次看渲染本身（分批挂载 / 先渲染最后一屏）。
 
 ## CB-026
 
@@ -1036,7 +1040,7 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [x] 右栏「相对 main」「工作目录」两个视图
 - [ ] 用真实 GitHub 走一遍（需要用户先在 设置 → 账号连接 连 GitHub；上线后检查）
 
-实现见 DESIGN.md §73.7、`docs/cloud-claude-code.md`「GitHub 工作区（P3，实现）」。预览里对着模拟 GitHub（`tests/cloud-cc/mock-github.cjs`）e2e 通过。
+实现见 DESIGN.md §73.7、`docs/cloud-claude-code.md`「GitHub 工作区（P3，实现）」。预览里对着模拟 GitHub（`tests/cloud-cc/mock-github.cjs`）e2e 通过。#151 已上线（2026-10-15），生产只读检查通过；只差用户连 GitHub 后的真实一遍。
 
 ## CB-064
 
@@ -1049,6 +1053,8 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [x] PC 客户端（P4b）：「电脑上的文件夹」新建、同步面板、冲突对话框三选项、交接 ①–⑤、Git 走隧道；网页 / 手机状态药丸 + 强制收回；先只做 Windows；发 PC 新版（0.1.11）
 - [ ] 在真实 Windows 上走一遍（电脑替身 e2e 用的是 Linux 上同一份同步管理代码 + 同一次编译的 Mutagen；Windows 专有的 ssh 包装器 / OpenSSH ProxyCommand 只有单元测试，归 CB-017）
 
+P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布。
+
 ## CB-066
 
 **在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理**  
@@ -1060,6 +1066,7 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [x] 设置 → 云端工作区「在云端完成登录」：节点容器里的浏览器画面嵌在设置页，可以点、打字、粘贴；回调时自动拿授权码完成登录；粘贴流程保留为备用
 - [x] 浏览器和 Claude Code 的出口 IP 显示出来并一致；密码 / 授权码不进日志和数据库；结束后关浏览器、删配置目录
 - [x] 「Claude 上游代理」：http / https / socks5 + 用户名密码，测试连接（出口 IP、claude.ai、api.anthropic.com），清除回到默认出口；只有 Claude 域名走它；加密存储、界面打码
+- [x] claude.ai 的 Cloudflare 人机验证：云端浏览器用普通 Chrome UA + 关 AutomationControlled（#158），生产上直接到 Claude 登录页
 - [ ] 生产上用户自己完成一次真实登录（需要用户的 Claude 账号）
 
 ## CB-065
