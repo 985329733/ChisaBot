@@ -37,6 +37,7 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
+import { pluginSummary, pluginTitle } from "@/lib/plugins/catalogue-zh";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { grantRoster } from "@/lib/agents/grant-roster";
@@ -299,7 +300,7 @@ function RouteComponent() {
   }));
 
   const auth = connectionKindFor(server, entry?.auth);
-  const title = entry?.title ?? server?.title ?? key;
+  const title = pluginTitle(key, entry?.title ?? server?.title ?? key);
 
   /* Bound once because the brokered row below is told it twice — once inside the whole
      disconnected sentence and once on its own — and two copies of it would drift. */
@@ -459,7 +460,7 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={{ label: "插件", linkProps: { to: "/admin/plugins" } }}
-      description={entry?.summary ?? server?.summary}
+      description={pluginSummary(key, entry?.summary ?? server?.summary)}
       title={title}
     >
       {error ? (

@@ -959,7 +959,7 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 `/admin/plugins` 插件目录的说明（Parallel Search、Google Drive、Notion、Routines…「Files in the Drive of whoever is asking」）；`/admin/boundaries` 三条快捷规则的说明（「Also stops the Bot pressing Enter…」）；`/admin/audit` 事件类型 `computer.policy_loaded`、`bot.created`，筛选「Boundary at start-up」。只有管理员看得到，但管理员就是用户本人。
 
 #### 验收标准
-- [ ] 三处都是中文；事件类型显示中文名，原始类型放悬停 / 详情
+- [x] 三处都是中文；事件类型显示中文名，原始类型放悬停 / 详情（DESIGN.md §71.6）
 
 ## CB-057
 
@@ -967,7 +967,7 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 里程碑：成熟度 Maturity · 标签：`type: bug` `area: settings` `area: pwa` `P2`
 
 #### 验收标准
-- [ ] 窄屏改成一行一条（时间 · 什么 · 谁），或表格横向滚动有提示
+- [x] 窄屏改成一条一张小卡（时间 · 操作 / 对象 / 机器人 · 谁发起 / 结果）（DESIGN.md §71.6）
 
 ## CB-058
 

@@ -6692,3 +6692,15 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .chat-work-steps { margin: 4px 0 0 9px; padding: 6px 0 6px 14px; border-left: 2px solid color-mix(in srgb, var(--accent-blue) 35%, transparent); list-style: none; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); max-width: min(100%, 520px); }
 .chat-work-steps li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .chat-work-done-chevron { transition: none; } }
+
+/* 活动记录：窄屏一条记录一张小卡（时间 · 操作 / 对象 / 机器人 · 谁发起 / 结果），不再横向截掉列（CB-057，DESIGN.md §71.6） */
+@media (max-width: 640px) {
+  .audit-table thead { display: none; }
+  .audit-table tr { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; padding: 10px 12px; }
+  .audit-table td { padding: 0 !important; min-width: 0; overflow-wrap: anywhere; }
+  .audit-table td:nth-child(1) { font-size: 12px; }
+  .audit-table td:nth-child(3), .audit-table td:nth-child(6) { grid-column: 1 / -1; margin-top: 4px; }
+  .audit-table td:nth-child(4), .audit-table td:nth-child(5) { margin-top: 4px; font-size: 12px; }
+  .audit-table td:nth-child(4)::before { content: "机器人 "; color: var(--ink-4); }
+  .audit-table td:nth-child(6) .w-\[22rem\] { width: auto; }
+}
