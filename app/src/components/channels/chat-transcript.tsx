@@ -56,8 +56,8 @@ import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
-import { WorkCard } from "@/components/chat/work-card";
-import type { WorkCall } from "@/lib/chat/work-steps";
+import { WorkCard, workSeconds } from "@/components/chat/work-card";
+import { summarizeDoneWork, type WorkCall } from "@/lib/chat/work-steps";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
 import { isEditableUserText } from "@/lib/copilot/regenerate";
@@ -752,6 +752,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
   role,
   text,
   tone,
+  work,
 }: {
   /** 这是最后一轮的回答：下面带「重新生成」（DESIGN.md §67）。 */
   canRegenerate?: boolean;
@@ -764,8 +765,11 @@ const TranscriptMessage = memo(function TranscriptMessage({
   text: string;
   /** compactTurns：开场一句 / 过程话 / 结果。过程话画成一行淡色小字，开场和过程都没有复制。 */
   tone?: "lead" | "step" | "final" | undefined;
+  /** 这一轮调过工具：结果下面那一排带「搜索 2 次 · 看了 3 个网页 · 12 秒 ⌄」，点开是每一步（§70.2）。 */
+  work?: { label: string; steps: string; key: string } | undefined;
 }) {
   const [editing, setEditing] = useState(false);
+  const [workOpen, setWorkOpen] = useState(false);
   const isUser = role === "user";
   if (!isUser && tone === "step") {
     return (
@@ -913,7 +917,14 @@ const TranscriptMessage = memo(function TranscriptMessage({
               </div>
             ) : null
           ) : (
-            <CopyMessage text={text} extra={canRegenerate ? <RegenerateAction /> : null} />
+            <>
+              <CopyMessage
+                text={text}
+                lead={work ? <WorkDone label={work.label} onToggle={() => setWorkOpen((open) => !open)} open={workOpen} turnKey={work.key} /> : null}
+                extra={canRegenerate ? <RegenerateAction /> : null}
+              />
+              {work && workOpen ? <WorkSteps steps={work.steps} /> : null}
+            </>
           )}
         </Arriving>
       </MessageContent>
@@ -921,14 +932,47 @@ const TranscriptMessage = memo(function TranscriptMessage({
   );
 });
 
+/**
+ * 干活卡收成的一行（DESIGN.md §70.2）：在结果下面那一排（复制 / 重新生成的同一行，一直看得见），
+ * 「搜索 2 次 · 看了 3 个网页 · 12 秒 ⌄」。放在这一排而不是结果上面：这一排在回答结束那一刻本来就出现，
+ * 多一个按钮不多一行，所以结束时画面不跳（§35 / §68.4）。点开在下面列出每一步（用户自己点的才长高）。
+ */
+function WorkDone({ label, open, onToggle, turnKey }: { label: string; open: boolean; onToggle: () => void; turnKey: string }) {
+  // 用时只在这台页面看着它干完时知道（workSeconds 第一次调用记下结束时间）；从历史打开的不写。
+  const [seconds] = useState(() => workSeconds(turnKey));
+  return (
+    <button
+      aria-expanded={open}
+      className="chat-msg-action chat-work-done"
+      data-testid="chat-work-done"
+      onClick={onToggle}
+      type="button"
+    >
+      <span>{seconds ? `${label} · ${seconds} 秒` : label}</span>
+      <IconChevronDown aria-hidden="true" className="chat-work-done-chevron size-3.5" data-open={open || undefined} />
+    </button>
+  );
+}
+
+function WorkSteps({ steps }: { steps: string }) {
+  return (
+    <ol className="chat-work-steps" data-testid="chat-work-steps">
+      {steps.split("\n").filter(Boolean).map((step, index) => (
+        <li key={`${index}:${step}`}>{step}</li>
+      ))}
+    </ol>
+  );
+}
+
 /** A quiet copy action under a Bot's answer; shows on hover, always reachable by keyboard. */
-function CopyMessage({ text, extra }: { text: string; extra?: React.ReactNode }) {
+function CopyMessage({ text, extra, lead }: { text: string; extra?: React.ReactNode; lead?: React.ReactNode }) {
   const copy = useAsyncAction(() => writeClipboard(text), {
     errorToast: "复制失败，请手动选择文本复制。",
   });
   const label = { idle: "复制", pending: "复制", success: "已复制", error: "复制失败" }[copy.state];
   return (
     <div className="chat-msg-actions">
+      {lead}
       <button
         aria-label={copy.state === "idle" ? "复制回答" : label}
         className="chat-msg-action"
@@ -2088,6 +2132,7 @@ export function ChatTranscript({
                     role={item.role}
                     text={item.text}
                     tone={compact.tone.get(item.id)}
+                    work={showToolActivity ? undefined : compact.work.get(item.id)}
                   />
                 </MessageScrollerItem>
               ) : item.kind === "attachments" ? (
@@ -2148,11 +2193,14 @@ export function compactTurns(
   stoppedAfter: Set<string>;
   /** 换了备用模型的轮次：最后一个看得见的行 → 说明（§61）。 */
   fallbackAfter: Map<string, string>;
+  /** 调过工具、已经有结果的轮次：结果那一条 → 收成的一行（§70.2）；key = 这一轮开头那条消息（干活卡记用时用的同一个）。 */
+  work: Map<string, { label: string; steps: string; key: string }>;
 } {
   const tone = new Map<string, "lead" | "step" | "final">();
   const hidden = new Set<string>();
   const stoppedAfter = new Set<string>();
   const fallbackAfter = new Map<string, string>();
+  const work = new Map<string, { label: string; steps: string; key: string }>();
   // 一轮的开头：人发的消息，或服务器放进来、接着跑一轮的那几种（定时任务 / 任务结果 / 后来确认，CB-046）。
   const sent = (item: TranscriptItem) =>
     item.kind === "attachments" ||
@@ -2182,6 +2230,16 @@ export function compactTurns(
       } else tone.set(item.id, i === 0 ? "lead" : "step");
     });
     if (final) for (const item of texts) if (tone.get(item.id) === "step") hidden.add(item.id);
+    if (final) {
+      const calls: WorkCall[] = [];
+      for (const item of turn.rest) {
+        const tools = item.kind === "tool" ? [item] : item.kind === "browser" ? item.steps : [];
+        for (const tool of tools) calls.push({ name: tool.toolCall.function.name, arguments: tool.toolCall.function.arguments, done: tool.result !== undefined });
+      }
+      const done = summarizeDoneWork(calls);
+      const key = turn.users[turn.users.length - 1]?.id;
+      if (done && key) work.set(final, { label: done.label, steps: done.steps.join("\n"), key });
+    }
     const browsers = turn.rest.filter((item) => item.kind === "browser");
     for (const item of browsers.slice(0, -1)) hidden.add(item.id);
     const visible = [...turn.users, ...turn.rest].filter((item) => !hidden.has(item.id));
@@ -2192,5 +2250,5 @@ export function compactTurns(
       if (notice) fallbackAfter.set(last, notice);
     }
   });
-  return { tone, hidden, stoppedAfter, fallbackAfter };
+  return { tone, hidden, stoppedAfter, fallbackAfter, work };
 }

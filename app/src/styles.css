@@ -6659,3 +6659,15 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .chat-work-step { position: relative; display: inline-flex; min-width: 0; overflow: hidden; }
 .chat-work-step-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-work-meta { flex-shrink: 0; color: var(--ink-4); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* §70.2 干活卡收成的一行：在结果下面那一排里一直看得见，其余按钮仍悬停才出现 */
+.chat-msg-actions:has(.chat-work-done) { opacity: 1; }
+.chat-msg-actions:has(.chat-work-done) > :not(.chat-work-done) { opacity: 0; transition: opacity 0.15s ease; }
+[data-slot="message-scroller-item"]:hover .chat-msg-actions > *,
+.chat-msg-actions:has(.chat-work-done):focus-within > * { opacity: 1; }
+@media (hover: none) { .chat-msg-actions:has(.chat-work-done) > :not(.chat-work-done) { opacity: 1; } }
+.chat-work-done { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.chat-work-done-chevron { transition: transform 0.18s ease; }
+.chat-work-done-chevron[data-open] { transform: rotate(180deg); }
+.chat-work-steps { margin: 4px 0 0 9px; padding: 6px 0 6px 14px; border-left: 2px solid color-mix(in srgb, var(--accent-blue) 35%, transparent); list-style: none; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); max-width: min(100%, 520px); }
+.chat-work-steps li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .chat-work-done-chevron { transition: none; } }
