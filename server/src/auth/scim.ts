@@ -21,7 +21,6 @@ import { eq } from "drizzle-orm";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import type { Database } from "../db/client";
 import { revokedAccess, userRoles, users } from "../db/schema";
-import { enterpriseControls } from "../admin/controls";
 import { roleForEmail } from "./roles";
 
 export const SCIM_REVOKED_BY_PREFIX = "scim:";
@@ -77,7 +76,6 @@ export async function reconcileDirectoryState(
       .returning({ email: revokedAccess.email });
     setTimeout(() => {
       void (async () => {
-        await enterpriseControls()?.offboard(state.userId, by);
         if (deps.auditStore && inserted.length > 0) {
           await recordAuditEvent(deps.auditStore, {
             eventType: "person.deprovisioned",

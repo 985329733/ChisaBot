@@ -54,41 +54,6 @@ function appWith(opts: {
   return { app, calls };
 }
 
-/**
- * `GET /api/admin/people` capped `limit` strictly but passed `search` straight to a `%...% ILIKE`
- * full scan. A multi-megabyte search is a cheap denial of service; over 200 characters is now a
- * 400 before the store is touched.
- */
-describe("GET /api/admin/people search", () => {
-  test("refuses an oversized search with 400 and never reaches the store", async () => {
-    const { app, calls } = appWith({});
-    const response = await app.request(
-      `http://openbot.test/api/admin/people?search=${"x".repeat(201)}`,
-      { method: "GET" },
-    );
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: "A search of at most 200 characters is required.",
-    });
-    expect(calls.people).toEqual([]);
-  });
-
-  test("passes a normal search to the store", async () => {
-    const { app, calls } = appWith({});
-    const response = await app.request(
-      "http://openbot.test/api/admin/people?search=ada",
-      { method: "GET" },
-    );
-    expect(response.status).toBe(200);
-    expect(calls.people).toHaveLength(1);
-  });
-});
-
-/**
- * `credentialInput` accepted empty `provider`/`keyId` strings and any non-array object as
- * `metadata`, so `{"provider":"","keyId":""}` reached the vault as a junk row (or a unique
- * violation 500) and `{"metadata":{"__proto__":{...}}}` passed the shape check.
- */
 describe("POST /api/admin/credentials input", () => {
   const good = {
     kind: "mcp",

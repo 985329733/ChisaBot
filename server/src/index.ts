@@ -21,14 +21,6 @@ import { buildResponsibilityTurn } from "../../shared/responsibility-turn";
 import { workOwner } from "../../shared/work-owner";
 import { createActivityStore } from "./activity/activity";
 import {
-  auditRoutineStore,
-  enterpriseControls,
-  guardDeliveryStore,
-  guardHostAccess,
-  headlessTurnRefusal,
-  installEnterpriseControls,
-} from "./admin/controls";
-import {
   CoworkerUnavailableError,
   createActorAgentResolver,
 } from "./agents/agent-resolver";
@@ -145,7 +137,11 @@ import {
 } from "./computer/headless-tools";
 import { createPageFrameStore } from "./computer/page-frames";
 import { startPolicyListener } from "./computer/policy-listener";
-import { withPolicyPushOnWake } from "./computer/policy-network";
+import {
+  NO_NETWORK_POLICY,
+  startEgressPolicyPush,
+  withPolicyPushOnWake,
+} from "./computer/policy-network";
 import {
   createPolicyStore,
   DEFAULT_ACTION_POLICY,
@@ -185,11 +181,7 @@ import {
 } from "./db/schema";
 import { createDeliveryStore } from "./delivery/store";
 import type { DeliveryScope } from "./delivery/types";
-import { DeliveryRefusedError } from "./delivery/types";
-import {
-  createHostAccessBroker,
-  HostAccessRefusedError,
-} from "./host-access/broker";
+import { createHostAccessBroker } from "./host-access/broker";
 import { HOST_UNAVAILABLE_HINT, hostAccessTools } from "./host-access/tools";
 import { createDeviceHub } from "./devices/hub";
 import { createDeviceRoutes } from "./devices/routes";
@@ -274,6 +266,7 @@ import { createWorkflowRoutes } from "./workflows/routes";
 import { createWorkflowStore } from "./workflows/store";
 import { workflowChatTools } from "./workflows/tools";
 import { createRoutineRunner } from "./routines/runner";
+import { auditRoutineStore } from "./routines/audit-store";
 import { createRoutineStore } from "./routines/store";
 import { createModelCompleter } from "./routing/model";
 import {
@@ -508,7 +501,7 @@ const auth: AuthService | undefined = config.organizationAuthUrl
 // computer refuses every connection until one arrives (see `withPolicyPushOnWake`).
 const computerProvider = config.computer
   ? withPolicyPushOnWake(createComputerProvider(config.computer), {
-      policyForBot: (botId) => enterpriseControls()?.policyForBot(botId),
+      policyForBot: async () => NO_NETWORK_POLICY,
       ...(config.computer.token ? { token: config.computer.token } : {}),
     })
   : undefined;
@@ -785,12 +778,6 @@ const signInService = computerGateway
   ? createSignInService({
       store: createPasswordStore(database),
       gateway: computerGateway,
-      // The admin switch, read at call time; installed further down, and absent in scripts.
-      passwordManagerEnabled: async (ownerUserId) =>
-        (await enterpriseControls()?.capabilityFor(
-          ownerUserId,
-          "passwordManager",
-        )) ?? true,
       encryptionKey: config.keyEncryptionKey,
       auditStore: bootAuditStore,
       notify: createSignInNotifier({
@@ -2344,11 +2331,7 @@ const panelTaskCapability: PanelCapability = {
 const panels = createPanelServices({
   database,
   permissions: async (ctx) => {
-    const controls = enterpriseControls();
-    if (!controls) throw new PanelError("panel_policy_unavailable", 503);
     const actor = await actorFor(ctx.actorId);
-    if (!(await controls.capabilityFor(actor.id, "useBots")))
-      throw new PanelError("panel_permission_refused", 403);
     const profile = await agentProfileStore.get(actor, ctx.botId);
     if (!profile) throw new PanelError("panel_bot_unavailable", 404);
     return {
@@ -2908,13 +2891,6 @@ const approvalSweep = repeatAfterEach(async () => {
         })
         .parse(item.payload);
       const resumeDependencies: ApprovalResumeDependencies = {
-        // Asked before the action runs: with Use Bots off, or the Bot's model off the allowlist,
-        // nothing is carried out and the refusal is final rather than retried.
-        refusal: (action) =>
-          headlessTurnRefusal({
-            ownerUserId: action.actorId,
-            agentId: action.botId,
-          }),
         validate: (action) =>
           approvalService.validateReentry(action, () =>
             executeApprovedAction(action),
@@ -3541,39 +3517,14 @@ repeatAfterEach(async () => {
   }
 }, 10_000);
 
-/*
- * Enterprise controls (server/src/admin): capability switches, SSO-required, SCIM offboarding,
- * computer termination, network policy push, Action Recording, the model allowlist and the
- * OpenTelemetry/SIEM export of the audit trail. Installed before the app so the computer boundary,
- * the HTTP gate and the guarded stores below all see it from the first request.
- */
-await installEnterpriseControls({
-  database,
-  databaseUrl: config.databaseUrl,
-  auditStore: bootAuditStore,
-  ...(computerProvider ? { provider: computerProvider } : {}),
-  ...(config.computer?.token ? { computerToken: config.computer.token } : {}),
-  builtInModel: async () => {
-    const { model } = await resolveRuntimeConnection();
-    return `${model.provider}/${model.defaultModel}`;
-  },
-  builtInModelForAgent: async (agentId) => {
-    const { model } = await resolveRuntimeConnectionForAgent(agentId);
-    return `${model.provider}/${model.defaultModel}`;
-  },
-  people: peopleStore,
-  initialAdminEmails: config.auth?.initialAdminEmails ?? [],
-});
-guardDeliveryStore(
-  deliveryStore,
-  bootAuditStore,
-  (message) => new DeliveryRefusedError(message),
-);
-guardHostAccess(
-  hostAccessBroker,
-  (message) => new HostAccessRefusedError(message),
-);
+// Every routine change goes on the audit trail, whoever made it (the screen or a Bot's tool).
 auditRoutineStore(routineStore, bootAuditStore);
+// Bot computers refuse egress until a policy arrives; ChisaBot has no network policy screen, so every
+// running computer is kept on "allow all" (the upstream default with no organization row).
+startEgressPolicyPush({
+  ...(computerProvider ? { provider: computerProvider } : {}),
+  ...(config.computer?.token ? { token: config.computer.token } : {}),
+});
 
 // Asked only whether this deployment pays for Intelligence, for the self-host banner. Its own client
 // rather than the runtime's, the same as the thread reader: the constructor opens nothing.

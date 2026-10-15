@@ -343,16 +343,8 @@ export const auditEventTypes = [
   "component.function_called",
   "component.function_refused",
   "component.function_failed",
-  /*
-   * Who may use this deployment, and at what level.
-   *
-   * On the trail rather than only in the table, because the table holds the current answer and this
-   * is the only place that says who changed it and when. "Why does this person have admin" and "who
-   * removed them" are questions a table of current state cannot answer at all.
-   */
-  "person.role_changed",
-  "person.access_revoked",
-  "person.access_restored",
+  // "person.role_changed" / "person.access_revoked" / "person.access_restored" (the upstream People
+  // screen) are no longer written since slimming P6-1; old rows stay readable.
   /*
    * Getting in, and being turned away.
    *
@@ -479,16 +471,10 @@ export const auditEventTypes = [
   "approval.withdrawn",
   "approval.rule_changed",
   "approval.settings_changed",
-  /*
-   * Enterprise controls (server/src/admin). Every switch an administrator flips is on the trail with
-   * who flipped it, because the table only holds the current answer.
-   */
-  "capability.changed",
-  "enterprise.setting_changed",
-  // Turning SSO-required on ended the sessions made before it.
-  "auth.sessions_revoked",
-  "network_policy.changed",
-  "network_policy.removed",
+  // Upstream enterprise controls ("capability.changed", "enterprise.setting_changed", "auth.sessions_revoked",
+  // "network_policy.changed" / "network_policy.removed", "computer.terminated" / "computer.terminated_inactive",
+  // "delivery.linked" / "delivery.unlinked", "model.refused") are no longer written since slimming P6-1;
+  // old rows stay readable.
   /*
    * Somebody named in INITIAL_ADMIN_EMAILS signing in with a social provider while SSO is required.
    * Allowed, so a broken identity provider cannot lock the deployment out, and loud: it is the one
@@ -499,19 +485,11 @@ export const auditEventTypes = [
   "person.provisioned",
   "person.deprovisioned",
   "person.reprovisioned",
-  /* An administrator ending a member's computers, and the sweep that ends unused ones. */
-  "computer.terminated",
-  "computer.terminated_inactive",
-  /* A Bot connected to, or disconnected from, a Slack, Teams or SMS conversation. */
-  "delivery.linked",
-  "delivery.unlinked",
   /* Routines, however they were made: by a person on the screen or by a Bot through its tools. */
   "routine.created",
   "routine.updated",
   "routine.deleted",
   "routine.enabled_changed",
-  /* A run refused because its model is not on the team model allowlist. */
-  "model.refused",
 ] as const;
 
 export type AuditEventType = (typeof auditEventTypes)[number];

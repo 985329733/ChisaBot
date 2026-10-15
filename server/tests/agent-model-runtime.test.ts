@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test";
 import { createActorAgentResolver } from "../src/agents/agent-resolver";
 import { registeredAgentFromRow } from "../src/copilot";
-import { resolveBuiltInModel } from "../src/admin/controls";
-import type { EnterpriseDeps } from "../src/admin/controls";
 import {
   resolveScopedAgentModelConnection,
   resolveScopedModelConnection,
@@ -160,12 +158,11 @@ test("policy and execution retain one BOT choice while new turns and other BOTs 
         model: { ...connection.model, defaultModel: selections.get(id)! },
       };
     });
-  const deps = {
-    builtInModelForAgent: async (id: string) => {
-      const { model } = await resolveFor(id);
-      return `${model.provider}/${model.defaultModel}`;
-    },
-  } as unknown as EnterpriseDeps;
+  const resolveBuiltInModel = async (_: unknown, id: string) => {
+    const { model } = await resolveFor(id);
+    return `${model.provider}/${model.defaultModel}`;
+  };
+  const deps = undefined;
   const resolver = createActorAgentResolver({
     loadAgents: async () => [
       builtIn("first", selections.get("first")!)!,
