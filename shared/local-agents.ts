@@ -230,7 +230,7 @@ export function profileAllows(
     case "open": {
       const target = pathOf("target") ?? "";
       if (/^https?:\/\//i.test(target)) return { inside: true, reason: null };
-      return { inside: false, reason: "工作区档位只直接打开网址，启动程序要批准" };
+      return { inside: false, reason: "工作区档位只直接打开网址，打开文件要批准" };
     }
     case "clipboard_write":
       return { inside: true, reason: null };

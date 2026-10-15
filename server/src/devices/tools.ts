@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CAPABILITY_INFO,
   capabilityFor,
+  checkOpenTarget,
   type DeviceOperation,
   GIT_SUBCOMMANDS,
 } from "../../../shared/devices";
@@ -145,8 +146,7 @@ const schemas = {
   }),
   open: z.object({
     deviceId,
-    target: z.string().min(1).max(2000).describe("网址（http/https）、文件路径或程序名，例如 notepad、https://example.com"),
-    args: z.array(z.string().max(500)).max(20).optional().describe("启动程序时的参数"),
+    target: z.string().min(1).max(2000).describe("http/https 网址，或允许的文件夹里的文件 / 文件夹路径，例如 https://example.com、D:\\报告\\周报.pdf；文件夹以 \\ 或 / 结尾，例如 D:\\报告\\"),
   }),
   clipboard: z.object({
     deviceId,
@@ -268,7 +268,7 @@ export function deviceGuidance(
     lines.push(
       "When the person asks whether you can see, reach or use their computer, the answer is yes for the online one(s): say so plainly and use the device_* tools (device_* acts on THEIR computer; computer_* acts on your cloud browser). Never claim you only have an isolated browser.",
       "Capabilities marked 每次需用户批准 (the default for a newly linked computer) work right away: just call the device_* tool; ChisaBot shows the person an approval prompt on that computer and on the web/phone, and the call returns once they approve (or is refused if they deny or nobody answers within 2 minutes). Say in one short line that they will see a prompt to approve; do not ask for permission in chat first. File tools only reach the computer's 允许的文件夹 (listed by device_list as allowedRoots); outside them use device_run_shell if it is available.",
-      "A capability that is off was switched off by the person (命令行、读取文件、写入文件、截图、鼠标键盘、打开应用 / 网址、剪贴板). If a request needs one that is off, say which one and tell them they can set it to 询问 in 设置 → 设备 → the computer → 权限, then try again; do not pretend to have done it.",
+      "A capability that is off was switched off by the person (命令行、读取文件、写入文件、截图、鼠标键盘、打开网址 / 文件、剪贴板). If a request needs one that is off, say which one and tell them they can set it to 询问 in 设置 → 设备 → the computer → 权限, then try again; do not pretend to have done it.",
       "完全访问 (full access) can only be turned on by the person in 设置 → 设备 → the computer → 权限; you cannot turn it on. If a task genuinely needs it (whole-disk access, admin rights, unattended long jobs) say so once and let them decide.",
       "Coding / changing files on their device (also servers running chisabot-node): work like a careful engineer. 1) Find: device_search (pattern + glob) and device_list_files. 2) Read only what you need: device_read_file with startLine/endLine (numbered lines; never dump whole large files into the chat). 3) Change: device_edit_file with exact oldText/newText (copy the text from what you read, without the line-number prefix; add surrounding lines until it is unique), or device_apply_patch for multi-file changes; device_write_file only for new files or full rewrites. 4) Verify: run the tests / build with device_run_shell (cwd = the project; background: true + device_shell_output for anything longer than a minute, e.g. dev servers, big builds). 5) Report: a short summary plus the diffs the tools returned (only the relevant hunks), test results, and git status if it is a repo; commit with device_git only when the person asked or clearly expects it, and push only when asked (push always needs their approval). Use a session name (e.g. session: \"main\") when later commands depend on cd / env from earlier ones.",
     );
@@ -705,11 +705,15 @@ export function deviceTools(options: {
     tools.push({
       name: "device_open",
       ref: "devices/open",
-      description: "在用户电脑上用默认浏览器打开网址，或打开文件 / 启动程序。",
+      description:
+        "在用户电脑上用默认浏览器打开 http/https 网址，或用默认程序打开允许的文件夹里的文件 / 文件夹。不能启动程序、不能带参数、不打开 .exe / .bat / .ps1 / .lnk 这类可执行文件和脚本（要运行程序用 device_run_shell，走命令行的审批）。",
       parameters: schemas.open,
       execute: async (input) => {
         const args = schemas.open.parse(input ?? {});
-        return run("open", args.deviceId, { target: args.target, args: args.args ?? [] }, `打开：${clip(args.target, 200)}`, 60_000);
+        // CB-030：只做安全的打开，发给设备前先拦（旧版 PC 客户端还接受程序名和参数，靠这里挡住）。
+        const refused = checkOpenTarget(args.target);
+        if (refused) return `${REFUSAL_MARKER} ${refused}`;
+        return run("open", args.deviceId, { target: args.target.trim() }, `打开：${clip(args.target, 200)}`, 60_000);
       },
     });
 
