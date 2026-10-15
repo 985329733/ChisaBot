@@ -81,6 +81,20 @@ describe("page cards", () => {
     expect(compact.hidden.has("p2")).toBe(true);
   });
 
+  test("an update whose page id hasn't streamed yet doesn't flash a second skeleton under the card", () => {
+    const items = [
+      user("u1", "改一下"),
+      ({ kind: "tool", id: "p1", toolCall: { id: "p1", type: "function", function: { name: "page_create", arguments: "{}" } }, result: made("pg_aaa111", 1) }) as Item,
+      ({ kind: "tool", id: "p2", toolCall: { id: "p2", type: "function", function: { name: "page_update", arguments: '{"page":"pg_aa' } } }) as Item,
+    ];
+    const compact = compactTurns(items, true, new Set());
+    expect(compact.hidden.has("p1")).toBe(false);
+    expect(compact.hidden.has("p2")).toBe(true);
+    // 一轮里第一次就是改别的轮的页面：照常出骨架
+    const fresh = compactTurns([user("u1", "改一下"), ({ kind: "tool", id: "p9", toolCall: { id: "p9", type: "function", function: { name: "page_update", arguments: '{"pa' } } }) as Item], true, new Set());
+    expect(fresh.hidden.has("p9")).toBe(false);
+  });
+
   test("two different pages keep a card each; another turn's card for the same page stays", () => {
     const items = [
       user("u1", "做两个页面"),

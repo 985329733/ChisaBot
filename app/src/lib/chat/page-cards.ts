@@ -29,6 +29,14 @@ export function supersededPageCalls(calls: readonly PageCall[]): Set<string> {
     byPage.set(key, list);
   }
   const hidden = new Set<string>();
+  // 改 / 发布还在流参数、还认不出是哪个页面（参数里 page 没写完，或写的是 slug / 链接），而这一轮前面已经有页面卡：
+  // 几乎总是在改刚才那页，先不出骨架，免得旧卡下面闪一张「正在做」（结果一到按页面归组）。
+  let seenPage = false;
+  for (const call of calls) {
+    if (!PAGE_CARD_TOOLS.has(call.name)) continue;
+    if (pageKeyOf(call)) seenPage = true;
+    else if (seenPage && call.name !== "page_create" && call.result === undefined) hidden.add(call.id);
+  }
   for (const list of byPage.values()) {
     if (list.length < 2) continue;
     const keep = list.findLast((call) => call.result !== undefined) ?? list[list.length - 1]!;
