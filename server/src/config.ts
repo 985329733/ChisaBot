@@ -7,7 +7,6 @@ import {
   type TranscriptionConfig,
   transcriptionConfig,
 } from "./dictation/config";
-import { type VoiceConfig, voiceConfig } from "./voice/config";
 
 export type RuntimeCapabilities =
   | {
@@ -151,7 +150,6 @@ export type HandoffCaps = {
 export type DeploymentConfig = {
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
-  voice?: VoiceConfig;
   /** The port the API listens on. Named `PORT` or `SERVER_PORT`; see `serverPort`. */
   port: number;
   databaseUrl: string;
@@ -1226,7 +1224,6 @@ export function loadConfig(
   return {
     port: serverPort(environment),
     transcription: transcriptionConfig(environment),
-    voice: voiceConfig(environment),
     databaseUrl: required(environment, "DATABASE_URL"),
     keyEncryptionKey: keyEncryptionKey(environment),
     ...(managedAgent ? { managedAgent } : {}),

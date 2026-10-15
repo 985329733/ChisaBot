@@ -50,7 +50,6 @@ describe("runtime capabilities", () => {
       // Default-on: a fresh clone is somebody evaluating the template.
       selfHostBanner: true,
       transcription: false,
-      voice: false,
       // Names only. The sign-in screen reads this to know which buttons to draw.
       authProviders: ["google"],
     });
@@ -73,7 +72,6 @@ describe("runtime capabilities", () => {
       "accountsUi",
       "selfHostBanner",
       "transcription",
-      "voice",
       "authProviders",
     ]);
     // The provider list is names, never the clients and secrets behind them.

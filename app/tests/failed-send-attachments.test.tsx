@@ -140,8 +140,6 @@ beforeAll(() => {
       }
       if (url.pathname === "/api/agents")
         return NativeResponse.json({ agents: [] });
-      if (url.pathname === "/api/voice/sessions")
-        return NativeResponse.json({ sessions: [], nextCursor: null });
       if (url.pathname === "/api/plugins/for/failed-send-bot")
         return NativeResponse.json({ skills: [], tools: [] });
       if (url.pathname.endsWith("/info"))

@@ -117,9 +117,6 @@ import {
 } from "./user-instructions";
 import type { UserPreferencesStore } from "./user-preferences";
 import { userPreferencesRoutes } from "./user-preferences-routes";
-import { createVoiceProvider } from "./voice/provider";
-import { createVoiceRoutes } from "./voice/routes";
-import type { VoiceSessionServices } from "./voice/session-routes";
 
 /**
  * How much of a multipart body is boundary, headers and other fields rather than file.
@@ -341,7 +338,8 @@ export function createApp(
   /** Native model OAuth stays server-side; callers hold only a separate local bearer. */
   modelProviderProxy?: ModelProviderProxy,
   userPreferences?: UserPreferencesStore,
-  voiceSessions?: VoiceSessionServices,
+  /** Was voice sessions (removed in CB-046 step 2). Kept as a slot so positional callers do not shift. */
+  _removedVoiceSessions?: undefined,
   /** Was Automatic Learning (removed in slimming P4b-3). Kept as a slot so positional callers do not shift. */
   _removedLearning?: undefined,
   coworker?: {
@@ -434,7 +432,6 @@ export function createApp(
         ? await selfHostBanner.shown()
         : config.selfHostBanner,
       transcription: Boolean(config.transcription),
-      voice: Boolean(config.voice),
       /*
        * Which identity providers this deployment can sign somebody in with.
        *
@@ -483,16 +480,6 @@ export function createApp(
       config.transcription
         ? createTranscriptionProvider(config.transcription)
         : undefined,
-    ),
-  );
-  app.route(
-    "/api/voice",
-    createVoiceRoutes(
-      requireUser,
-      config.voice ? createVoiceProvider(config.voice) : undefined,
-      channelStore,
-      agentProfileStore,
-      voiceSessions,
     ),
   );
 

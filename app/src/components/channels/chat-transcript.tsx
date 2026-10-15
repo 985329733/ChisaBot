@@ -76,7 +76,6 @@ import {
   toolResultFailed,
 } from "@/lib/plugins/tool-result";
 import { cn } from "@/lib/utils";
-import { VOICE_CHAT_ACTIVITY, type VoiceChatEntry } from "@/lib/voice/archive";
 import {
   BrowserActivity,
   groupBrowserSteps,
@@ -99,7 +98,6 @@ import { WORKER_RESULT_MARKER } from "@/lib/copilot/workers";
 import { SCHEDULE_MARKER } from "../../../../shared/schedules";
 import { LOCAL_AGENT_RESULT_MARKER } from "../../../../shared/local-agents";
 import { ToolLine } from "./tool-line";
-import { VoiceChatCard } from "./voice-chat-card";
 
 type ChatTranscriptProps = {
   busy?: boolean;
@@ -1513,12 +1511,7 @@ const TranscriptActivity = memo(function TranscriptActivity({
   message: ActivityMessage;
 }) {
   const { renderActivityMessage } = useRenderActivityMessage();
-  const drawn =
-    message.activityType === VOICE_CHAT_ACTIVITY ? (
-      <VoiceChatCard call={message.content.call as VoiceChatEntry} />
-    ) : (
-      renderActivityMessage(message)
-    );
+  const drawn = renderActivityMessage(message);
   if (!drawn) return null;
 
   return (
