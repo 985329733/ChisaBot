@@ -45,6 +45,8 @@ describe("runtime capabilities", () => {
       // Default-on. The browser reads this to decide whether to offer the tool that generates an
       // interface, so it has to be here and not only in the runtime.
       generativeUi: true,
+      // 设置 → 管理 →「账号」入口：默认隐藏（CHISABOT_ACCOUNTS_UI）。
+      accountsUi: false,
       // Default-on: a fresh clone is somebody evaluating the template.
       selfHostBanner: true,
       transcription: false,
@@ -68,6 +70,7 @@ describe("runtime capabilities", () => {
       "mode",
       "durableHistory",
       "generativeUi",
+      "accountsUi",
       "selfHostBanner",
       "transcription",
       "voice",
