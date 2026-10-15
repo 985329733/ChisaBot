@@ -22,6 +22,8 @@ docker build -t chisabot-cloudnode:2.1.165 --build-arg CLAUDE_CODE_VERSION=2.1.1
 # 2. 网桥（可以复用一个空闲的），再加防火墙
 docker network create chisabot-cloudnode-net        # 记下网段：docker network inspect chisabot-cloudnode-net
 sudo sh deploy/cloud-node/firewall.sh 172.29.0.0/16
+# 主机上有只劫持 Claude 域名的 DNS（例如 sing-box TUN 的 fake-ip DNS）时：两处都设 CLOUDNODE_DNS
+#   sudo CLOUDNODE_DNS=10.233.233.2 sh deploy/cloud-node/firewall.sh 172.29.0.0/16   （compose 也带上 CLOUDNODE_DNS=10.233.233.2）
 
 # 3. 安装码：ChisaBot 网页 设置 → 设备 → 添加设备 → 服务器，复制 cbp_ 开头的安装码（一次性）
 CHISABOT_SERVER=https://你的域名:8443 CHISABOT_PAIR_CODE=cbp_xxx \

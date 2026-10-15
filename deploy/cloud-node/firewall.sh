@@ -4,7 +4,8 @@
 #   sudo sh firewall.sh 172.29.0.0/16 remove 去掉
 # DOCKER-USER：丢弃这个网段发往 10/8、172.16/12、192.168/16、100.64/10、169.254/16（其他容器、内网、云厂商元数据）的转发；
 # INPUT：丢弃这个网段发往主机本身的流量（主机上的任何端口都连不上，包括 ChisaBot 自己的 127.0.0.1 端口）。
-# DNS 例外：允许发往 1.1.1.1 的 53（容器用公共 DNS）。重启后要重新运行（或放进开机脚本）。
+# DNS 例外：CLOUDNODE_DNS=<地址> 时放行发往这个地址的 53（例如主机上 sing-box TUN 的 DNS，让 Claude 的域名拿到 fake-ip、
+# 走指定出口；compose 里同时设 CLOUDNODE_DNS）。重启后要重新运行（或放进开机单元）。
 set -eu
 NET="${1:?用法：firewall.sh <网段> [remove]}"
 ACTION="${2:-add}"
@@ -24,5 +25,11 @@ done
 rule filter DOCKER-USER -s "$NET" -d "$NET" -m comment --comment chisabot-cloudnode -j DROP
 # 已建立的回包放行（DOCKER-USER 最前面）
 rule filter DOCKER-USER -s "$NET" -m conntrack --ctstate RELATED,ESTABLISHED -m comment --comment chisabot-cloudnode -j RETURN
+# DNS 例外（插在最前面，先于上面的丢弃规则）
+if [ -n "${CLOUDNODE_DNS:-}" ]; then
+  for P in udp tcp; do
+    rule filter DOCKER-USER -s "$NET" -d "$CLOUDNODE_DNS" -p "$P" --dport 53 -m comment --comment chisabot-cloudnode -j RETURN
+  done
+fi
 rule filter INPUT -s "$NET" -m comment --comment chisabot-cloudnode -j DROP
 echo "firewall $ACTION done for $NET"

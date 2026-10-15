@@ -67,7 +67,7 @@
 | [CB-056](#cb-056) | 管理页英文：插件目录说明、权限规则快捷规则说明、活动记录事件类型（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
 | [CB-057](#cb-057) | 活动记录表格在 390 宽被截掉右边几列（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `area: pwa` · `P2` |
 | [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示（完成） | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
-| [CB-061](#cb-061) | 云端 Claude Code P1：云端工作区节点 + 网页登录 Claude | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: in-progress` |
+| [CB-061](#cb-061) | 云端 Claude Code P1：云端工作区节点 + 网页登录 Claude | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: needs-user` |
 | [CB-062](#cb-062) | 云端 Claude Code P2：左栏切换、会话、对话、审批、右栏 / 手机抽屉 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: chat` · `P1` |
 | [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` |
 | [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` |
@@ -990,7 +990,7 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 ## CB-061
 
 **云端 Claude Code P1：云端工作区节点 + 网页登录 Claude**  
-里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: infra` `P1` `status: in-progress`
+里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: infra` `P1` `status: needs-user`
 
 #### 背景
 用户 2026-10-15：在 ChisaBot 云端集成 Claude Code（设计 docs/cloud-claude-code.md、ADR-0014）。
@@ -1008,11 +1008,11 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 里程碑：设备核心 Devices core · 标签：`type: feat` `area: agents` `area: chat` `P1`
 
 #### 验收标准
-- [ ] 左栏切换「机器人｜Claude Code」（记住选择）；工作区 → 会话树，先只有内置「草稿」
-- [ ] 同一个会话两轮共享上下文（`--resume`）；「新 Claude 会话」清掉上下文；停止 1 秒内生效；回答中再发一条排队
-- [ ] `npm test` 出审批卡，允许后执行、拒绝后 Claude 换办法；「本会话总是允许」；`git push` 被拒并提示「推送并开 PR」
-- [ ] 刷新 / 换设备后接着看正在写的回答
-- [ ] 右栏「这一轮」diff + 只读文件，可收起；390 宽底部抽屉能拉起能收；亮 / 暗截图
+- [x] 左栏切换「机器人｜Claude Code」（记住选择）；工作区 → 会话树，先只有内置「草稿」
+- [x] 同一个会话两轮共享上下文（`--resume`）；「新 Claude 会话」清掉上下文；停止 1 秒内生效；回答中再发一条排队
+- [x] `npm test` 出审批卡，允许后执行、拒绝后 Claude 换办法；「本会话总是允许」；`git push` 被拒并提示「推送并开 PR」
+- [x] 刷新 / 换设备后接着看正在写的回答
+- [x] 右栏「这一轮」diff + 只读文件，可收起；390 宽底部抽屉能拉起能收；亮 / 暗截图
 
 ## CB-063
 
