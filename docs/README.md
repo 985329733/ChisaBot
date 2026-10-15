@@ -25,7 +25,7 @@ ChisaBot 是中文自托管 AI 助手平台，提供网页登录、本地会话�
 |---|---|---|
 | 模型 | [模型配置与切换](models.md) · [Magpie 深度集成](magpie.md) | §15 |
 | 聊天 | [流式回复](streaming.md) · [聊天文件与图片生成](chat-files.md) | §24–§27、§30–§32、§35、§38、§42、§48、§56 |
-| 设备 / PC / 手机 | [PC 节点与扫码绑定](pc-node.md) · [本地 agent 与权限档位](local-agents.md) · [手机网页版与 PWA](pwa.md) | §16、§33、§36、§40、§45、§62、§64、§66 |
+| 设备 / PC / 手机 | [PC 节点与扫码绑定](pc-node.md) · [本地 agent 与权限档位](local-agents.md) · [云端 Claude Code](cloud-claude-code.md) · [手机网页版与 PWA](pwa.md) | §16、§33、§36、§40、§45、§62、§64、§66 |
 | 记忆 | [长期记忆](memory.md) | §50 |
 | 技能 | [技能](skills.md) | §51 |
 | 保险箱 | [密钥保险箱](vault.md) | §52 |
