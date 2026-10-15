@@ -48,8 +48,15 @@ export function WorkerCard({ workerId, pendingTitle }: { workerId?: string; pend
           <span className="worker-icon is-running">
             <IconLoader2 className="size-4" />
           </span>
-          <span className="worker-title">{pendingTitle || "后台任务"}</span>
-          <span className="worker-chip">{"正在交给后台…"}</span>
+          {pendingTitle ? (
+            <>
+              <span className="worker-title">{pendingTitle}</span>
+              <span className="worker-chip">{"正在交给后台…"}</span>
+            </>
+          ) : (
+            // CB-023：还不知道是什么任务时不写笼统的「后台任务」，只一行进度（同一高度，名字到了原地换字）。
+            <span className="worker-title is-arranging">{"正在安排后台任务…"}</span>
+          )}
         </div>
       </div>
     );

@@ -5787,6 +5787,7 @@ html[data-desktop] .glass-topbar { padding-right: calc(46px * 3 + 12px); }
 .worker-line-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
 .worker-line:hover .worker-line-text { color: var(--ink-1); }
 .worker-card.is-pending .worker-chip { color: var(--ink-3); }
+.worker-title.is-arranging { font-weight: 500; color: var(--ink-3); }
 /* 窄（卡片 < 360px，PC 小窗 / 手机）：按钮只留图标，标题让位。 */
 @container (max-width: 360px) {
   .worker-btn-label { display: none; }
