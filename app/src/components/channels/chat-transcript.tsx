@@ -56,6 +56,8 @@ import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
+import { WorkCard } from "@/components/chat/work-card";
+import type { WorkCall } from "@/lib/chat/work-steps";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
 import { isEditableUserText } from "@/lib/copilot/regenerate";
@@ -1843,6 +1845,31 @@ export function ChatTranscript({
       (!showToolActivity &&
         (lastItem?.kind === "tool" || lastItem?.kind === "browser")));
 
+  // 这一轮（最后一条人发的消息之后）调过的工具，给干活卡用（DESIGN.md §70）。每次渲染重算（items 每次都是新数组，见 toVisibleChatItems）。
+  const liveWork = (() => {
+    if (!busy) return null;
+    let start = -1;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]!;
+      if (item.kind === "attachments" || (item.kind === "text" && isPersonSentMessage(item.role, item.text))) {
+        start = i;
+        break;
+      }
+    }
+    const calls: WorkCall[] = [];
+    for (const item of items.slice(start + 1)) {
+      const tools = item.kind === "tool" ? [item] : item.kind === "browser" ? item.steps : [];
+      for (const tool of tools) {
+        calls.push({
+          name: tool.toolCall.function.name,
+          arguments: tool.toolCall.function.arguments,
+          done: tool.result !== undefined,
+        });
+      }
+    }
+    return calls.length > 0 ? { calls, key: items[start]?.id ?? "turn" } : null;
+  })();
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const newestUserMessageId =
     items.findLast(
@@ -1950,7 +1977,8 @@ export function ChatTranscript({
               {stopped ? (
                 <Stopped onRetry={onRetry} reason={stopped} />
               ) : waitingOnFirstToken ? (
-                <Thinking />
+                // 这一轮已经在调工具：换成干活卡（当前步骤 · 第几步 · 用时，DESIGN.md §70），同一位置、同样一行高。
+                liveWork ? <WorkCard calls={liveWork.calls} turnKey={liveWork.key} /> : <Thinking />
               ) : null}
               {queued.map((message) => (
                 <Queued

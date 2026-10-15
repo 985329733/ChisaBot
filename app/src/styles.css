@@ -6654,3 +6654,8 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 }
 .chat-draft-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .chat-draft-body { padding: 12px 16px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; color: var(--ink-1); }
+/* §70 干活卡：沿用「思考中」胶囊，多一行当前步骤 + 第几步 · 用时 */
+.chat-work-card { max-width: min(100%, 520px); }
+.chat-work-step { position: relative; display: inline-flex; min-width: 0; overflow: hidden; }
+.chat-work-step-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-work-meta { flex-shrink: 0; color: var(--ink-4); font-size: 12px; font-variant-numeric: tabular-nums; }
