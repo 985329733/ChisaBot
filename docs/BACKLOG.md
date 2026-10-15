@@ -812,9 +812,9 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 - [x] `/bot` 独有的功能搬进频道聊天（确认卡片、服务器行、备用模型小字、回答期间插话、`chisabot-ask`、历史对话、上传进工作区）；频道对话也有委派 / 定时任务 / 本地 agent（只排除多机器人群聊）
 - [x] 所有 e2e 走用户真实点击的路径（聊天滚动、并发 e2e 改成频道选择器）
 - [x] 频道聊天发送那一刻整页往下跳（滚动回归第一次在频道上跑就红，main 同样）—— DESIGN.md §68.4
-- [ ] 第 2 步（`chore/chat-unify-2`）：删掉语音（`/api/voice`、服务器 voice、shared voice-session、前端语音组件）
+- [x] 第 2 步（`chore/chat-unify-2`）：删掉语音（`/api/voice`、服务器 voice、shared voice-session、前端语音组件）—— DESIGN.md §68.7，`voice_sessions` 表保留
 
-> 进行中：worker cb-unify，PR 1 `chore/chat-unify-1`。
+> PR 1 #136（2026-10-15 上线），PR 2 `chore/chat-unify-2`（语音）。
 
 ## CB-047
 

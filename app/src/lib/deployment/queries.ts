@@ -30,7 +30,6 @@ export type DeploymentCapabilities = {
   /** 设置 → 管理 →「账号」入口（朋友账号，CB-040）。默认隐藏：多用户以后再做（2026-10-15）。 */
   accountsUi?: boolean;
   transcription?: boolean;
-  voice?: boolean;
 };
 
 export const deploymentKeys = {
@@ -72,7 +71,6 @@ export function deploymentCapabilitiesQueryOptions() {
         selfHostBanner?: boolean;
         accountsUi?: boolean;
         transcription?: boolean;
-        voice?: boolean;
       };
 
       return {
@@ -87,7 +85,6 @@ export function deploymentCapabilitiesQueryOptions() {
         selfHostBanner: body.selfHostBanner === true,
         accountsUi: body.accountsUi === true,
         transcription: body.transcription === true,
-        voice: body.voice === true,
       };
     },
   });

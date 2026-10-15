@@ -74,7 +74,7 @@ P1 已经隐藏 / 重定向的上游页面，这一步把代码删掉（约 1.2 
 
 - ~~**企业控制闸门**~~ → P6-1 已删（见下）。
 - ~~**SSO / SCIM 插件与 `/api/auth/*` 里的身份提供者分支**~~ → P6-2 已删（见下）。
-- **语音**（`/api/voice`、`voice/`、网页 `voice-call-widget` 与 `lib/voice`）：生产没配置语音（没有任何 VOICE 变量），依赖 `ask_agent`；但前端和 `channel-chat.tsx` / `chat-transcript.tsx` 缠在一起（约 40 处），而这两个文件正被聊天同步（cb-qa）改，等它合并后单独一个 PR 删。
+- **语音**（`/api/voice`、`voice/`、网页 `voice-call-widget` 与 `lib/voice`）：2026-10-15 在 CB-046 第 2 步删掉（DESIGN.md §68.7）；`voice_sessions` 表留着，等 P5 一起决定。
 - ~~**`worker/`**~~ → P6-3 已删（完整构建）。
 
 ## P6 多用户之后的服务端收尾（2026-10-15）

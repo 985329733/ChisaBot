@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 删掉实时语音通话（CB-046 第 2 步）：输入框的波形按钮、悬浮通话窗、「语音聊天」卡片和服务端 `/api/voice/*` 都去掉，`VOICE_*` 环境变量不再读，`/api/capabilities` 不再返回 `voice`。本部署从没配过语音，界面不变；语音听写（`TRANSCRIPTION_*`）不受影响。`voice_sessions` 表不动（旧数据留着），回滚镜像即可。见 DESIGN.md §68.7。
 - 只有一套聊天（CB-046）：机器人聊天只剩左栏点机器人进的频道聊天。旧地址 `/bot?agent=…(&thread=…)`、定时任务通知的「查看」、设置 → 定时任务的「打开对话」都直接打开那段对话的频道聊天（旧对话第一次打开时给它建一个频道，同一条对话、不复制消息）。原来只有旧聊天页才有的都搬过来了：确认卡片、定时任务 / 后台任务 / 本地 agent 的结果行、「确认后接着做」、备用模型小字、回答期间发消息（已排队 → 已读取）、右栏面板「问一句」、机器人「⋯」菜单里的「历史对话」。频道聊天里机器人现在也能委派后台任务、设定时任务、交给本地 agent（以前频道对话被当成群聊，没有这些工具；多机器人群聊仍然没有）。频道聊天上传的文件也存进机器人工作区 `uploads/`，机器人改图、找最近的文件都能用。旧聊天页的代码删掉（约 2,000 行）。没有表结构变化，回滚镜像即可。见 DESIGN.md §68、ADR-0013。
 - 瘦身 P6-4（依赖变动，部署走完整构建）：去掉上游桌面端留下的服务端部分——Better Auth `electron` 插件与 `/api/auth/desktop`（依赖 `@better-auth/electron`）、组织登录（`OPENBOT_ORGANIZATION_AUTH_URL`，现在设了服务器会拒绝启动）、原生文件夹代理 `/api/host-access/*` 与 `host_*` 工具（管理 → 云端浏览器 里的「文件夹」区块随之去掉）。`.env.example` 不再列 OpenTag / Twilio / Expo 变量（P4b-2 起就不读了）。ChisaBot 的电脑访问一直走 设置 → 设备（PC 节点），行为不变。见 `docs/slimming.md`。
 - 瘦身 P6-3（依赖变动，部署走完整构建）：删掉 `worker/`（上游 Intelligence 工作进程，生产 `local` 模式从不运行）、`scripts/setup-learning.ts` / `scripts/self-hosted-learning.ts` 与 `docs/automatic-learning.md`；依赖去掉 `@better-auth/sso`、`@better-auth/scim`、`@better-auth/expo`（原生 Expo 客户端早已删除，`EXPO_PROJECT_ID` 不再读）和 4 个 `@opentelemetry/*`（审计 OTel 导出 P6-1 已删）。`bun.lock` 重新生成。行为不变。见 `docs/slimming.md`。

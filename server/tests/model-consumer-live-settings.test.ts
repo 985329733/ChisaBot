@@ -1,15 +1,10 @@
 import { expect, test } from "bun:test";
 import type { RuntimeModelConnection } from "../src/copilot";
 import { createChannelTitler } from "../src/channels/titler";
-import { createVoiceSummarizer } from "../src/voice/summary";
 
-const transcript = [
-  { id: "t", role: "user", text: "Schedule the launch." },
-] as const;
-
-test.each(["title", "voice"] as const)(
+test.each(["title"] as const)(
   "%s uses a complete new model connection on each call, with exact custom endpoint paths",
-  async (kind) => {
+  async (_kind) => {
     const requests: {
       path: string;
       key: string | null;
@@ -50,26 +45,13 @@ test.each(["title", "voice"] as const)(
     const resolveApiKey = async () => {
       throw new Error("legacy key must not be read");
     };
-    const call =
-      kind === "title"
-        ? (() => {
-            const title = createChannelTitler({
-              model: "stale-model",
-              resolveApiKey,
-              resolveConnection,
-              environment: { OPENAI_BASE_URL: "http://stale.invalid/v1" },
-            });
-            return () => title("Launch discussion");
-          })()
-        : (() => {
-            const summarize = createVoiceSummarizer({
-              model: { provider: "openai", defaultModel: "stale-model" },
-              resolveApiKey,
-              resolveConnection,
-              environment: { OPENAI_BASE_URL: "http://stale.invalid/v1" },
-            });
-            return () => summarize(transcript);
-          })();
+    const title = createChannelTitler({
+      model: "stale-model",
+      resolveApiKey,
+      resolveConnection,
+      environment: { OPENAI_BASE_URL: "http://stale.invalid/v1" },
+    });
+    const call = () => title("Launch discussion");
     try {
       expect(await call()).toBe("Launch schedule");
       connection = {
@@ -105,9 +87,9 @@ test.each(["title", "voice"] as const)(
   },
 );
 
-test.each(["title", "voice"] as const)(
+test.each(["title"] as const)(
   "%s honors a live plan snapshot without reading an API credential",
-  async (kind) => {
+  async (_kind) => {
     const requests: { threadId: string; runId: string; tools: unknown[] }[] =
       [];
     const server = Bun.serve({
@@ -169,14 +151,8 @@ test.each(["title", "voice"] as const)(
       resolveConnection: async () => connection,
     };
     try {
-      const call =
-        kind === "title"
-          ? () => createChannelTitler({ model: "stale", ...common })("Launch")
-          : () =>
-              createVoiceSummarizer({
-                model: { provider: "openai", defaultModel: "stale" },
-                ...common,
-              })(transcript);
+      const call = () =>
+        createChannelTitler({ model: "stale", ...common })("Launch");
       expect(await call()).toBe("Launch schedule");
       expect(await call()).toBe("Launch schedule");
       expect(requests).toHaveLength(2);
@@ -188,9 +164,9 @@ test.each(["title", "voice"] as const)(
   },
 );
 
-test.each(["title", "voice"] as const)(
+test.each(["title"] as const)(
   "%s errors disclose only HTTP status, never upstream response bodies",
-  async (kind) => {
+  async (_kind) => {
     const secret = "synthetic-private-upstream-content";
     const server = Bun.serve({
       hostname: "127.0.0.1",
@@ -211,11 +187,8 @@ test.each(["title", "voice"] as const)(
       environment: { OPENAI_BASE_URL: `${server.url.origin}/v1` },
     };
     try {
-      const error = await (kind === "title"
-        ? createChannelTitler({ model: "stale", ...common })("Launch")
-        : createVoiceSummarizer({ model: connection.model, ...common })(
-            transcript,
-          )
+      const error = await createChannelTitler({ model: "stale", ...common })(
+        "Launch",
       ).then(
         () => "unexpected success",
         (cause: Error) => cause.message,
