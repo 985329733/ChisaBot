@@ -21,6 +21,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { pluginSummary, pluginTitle } from "@/lib/plugins/catalogue-zh";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -154,7 +155,7 @@ function RouteComponent() {
                           <Mark className="size-4" />
                         </RowMark>
                         <ItemContent>
-                          <ItemTitle>{server.title}</ItemTitle>
+                          <ItemTitle>{pluginTitle(server.id, server.title)}</ItemTitle>
                           {/*
                            * The vendor's last failure takes the description's place when there is
                            * one. A server with no tools and no explanation reads as a server that
@@ -165,7 +166,7 @@ function RouteComponent() {
                               server.lastError ? "text-destructive" : undefined
                             }
                           >
-                            {server.lastError ?? server.summary}
+                            {server.lastError ?? pluginSummary(server.id, server.summary)}
                           </ItemDescription>
                         </ItemContent>
                         <ItemActions>
@@ -215,8 +216,8 @@ function RouteComponent() {
                           <Mark className="size-4" />
                         </RowMark>
                         <ItemContent>
-                          <ItemTitle>{entry.title}</ItemTitle>
-                          <ItemDescription>{entry.summary}</ItemDescription>
+                          <ItemTitle>{pluginTitle(entry.key, entry.title)}</ItemTitle>
+                          <ItemDescription>{pluginSummary(entry.key, entry.summary)}</ItemDescription>
                         </ItemContent>
                         <ItemActions>
                           <span className="text-muted-foreground text-xs">

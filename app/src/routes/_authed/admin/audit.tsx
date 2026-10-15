@@ -48,14 +48,14 @@ type AuditEvent = {
  */
 const FILTERS = [
   { label: "全部", search: "" },
-  { label: "计算机操作", search: "?eventType=computer.action_allowed" },
+  { label: "电脑操作", search: "?eventType=computer.action_allowed" },
   { label: "已阻止", search: eventTypeFilter(REFUSED_EVENT_TYPES) },
   {
     label: "未发生",
     search: eventTypeFilter(DID_NOT_HAPPEN_EVENT_TYPES),
   },
   {
-    label: "无人观看",
+    label: "后台发起",
     search: "?initiatorKind=routine,handoff,responsibility,memory",
   },
 ] as const;
@@ -103,21 +103,21 @@ function AuditPage() {
 
         {events.isPending ? <PageSkeleton /> : events.isError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            {"审计轨迹无法加载。"}
+            {"活动记录暂时读不到，刷新一下再试。"}
           </p>
         ) : rows.length === 0 ? (
-          <PageEmpty>{"暂无符合此过滤器的事件。"}</PageEmpty>
+          <PageEmpty>{"这一类还没有记录。"}</PageEmpty>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
-            <table className="w-full text-left text-sm">
+            <table className="audit-table w-full text-left text-sm">
               <thead className="text-muted-foreground text-xs uppercase">
                 <tr className="border-border border-b">
-                  <th className="px-4 py-2 font-medium">{"何时"}</th>
-                  <th className="px-4 py-2 font-medium">{"什么"}</th>
-                  <th className="px-4 py-2 font-medium">{"开"}</th>
+                  <th className="px-4 py-2 font-medium">{"时间"}</th>
+                  <th className="px-4 py-2 font-medium">{"操作"}</th>
+                  <th className="px-4 py-2 font-medium">{"对象"}</th>
                   <th className="px-4 py-2 font-medium">{"机器人"}</th>
-                  <th className="px-4 py-2 font-medium">{"由...启动"}</th>
-                  <th className="px-4 py-2 font-medium">{"决策"}</th>
+                  <th className="px-4 py-2 font-medium">{"谁发起"}</th>
+                  <th className="px-4 py-2 font-medium">{"结果"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,10 +211,10 @@ function Row({
   const routed =
     event.eventType === "channel.routed"
       ? payload.viaMention === true
-        ? "The person chose this coworker"
+        ? "你点名了这个机器人"
         : payload.fallback === true
-          ? "Sent to the default coworker"
-          : "Sent to the coworker it is for"
+          ? "交给默认机器人"
+          : "交给对应的机器人"
       : null;
   // Allowed by policy but not carried out. A stalled turn belongs in the same family: the Bot was
   // asked and the answer never arrived. Colour is how this table is read, and a row left in the
@@ -229,9 +229,12 @@ function Row({
       </td>
       <td className="px-4 py-2 font-medium">
         {/* Strip the internal computer tool namespace for display. */}
-        {typeof payload.action === "string"
-          ? payload.action.replace("computer_", "")
-          : event.eventType}
+        {typeof payload.action === "string" ? (
+          payload.action.replace("computer_", "")
+        ) : (
+          // 事件类型显示中文名，原始类型放悬停（CB-056，DESIGN.md §71.6）。
+          <span title={event.eventType}>{eventLabel(event.eventType)}</span>
+        )}
       </td>
       <td className="px-4 py-2">
         {/*
@@ -252,7 +255,7 @@ function Row({
           <span className="font-mono text-xs">
             {typeof payload.offered === "number" &&
             typeof payload.granted === "number"
-              ? `${payload.offered} 个 ${payload.granted} 工具`
+              ? `提供 ${payload.offered} / ${payload.granted} 个工具`
               : "-"}
           </span>
         ) : /* Named targets and file paths are the audit subject before page elements. */
@@ -395,7 +398,7 @@ function Row({
         decision.allowed === false &&
         decision.carriedOut ? (
           <div className="text-xs text-muted-foreground">
-            dry-run: recorded, not enforced
+            试运行：只记录，没有拦
           </div>
         ) : null}
       </td>
@@ -416,11 +419,11 @@ function Row({
  * and one whose selector could not be reached, and only the last is a fault.
  */
 const DISCOVERY_REASONS: Record<string, string> = {
-  "under-floor": "Few enough tools to offer them all",
-  "nothing-declared": "No skill declares any of these tools",
-  unavailable: "Could not choose, so all were offered",
-  "nothing-chosen": "No skill applied, so all were offered",
-  selected: "Chosen by skill",
+  "under-floor": "工具不多，全部提供",
+  "nothing-declared": "没有技能声明这些工具",
+  unavailable: "没法挑选，全部提供",
+  "nothing-chosen": "没有对得上的技能，全部提供",
+  selected: "按技能挑选",
 };
 
 const NAMED_TARGETS = new Set([
@@ -432,46 +435,90 @@ const NAMED_TARGETS = new Set([
 ]);
 
 const DECISIONS: Record<string, string> = {
-  "bot.declined": "The Bot declined",
+  "bot.declined": "机器人拒绝了",
   // Not a refusal, so not the refusal colour: nothing was blocked. The Bot was asked and never
   // answered, which is the same complaint as an action that was allowed and then did not happen.
-  "agent.stream_stalled": "The Bot stopped responding",
-  "computer.policy_loaded": "Boundary at start-up",
-  "computer.isolation_loaded": "Isolation at start-up",
-  "computer.control_taken": "A person took the wheel",
-  "computer.control_released": "The wheel was handed back",
-  "computer.help_requested": "The Bot asked for help",
-  "computer.secret_requested": "The Bot asked for a secret",
-  "computer.secret_supplied": "A person supplied a secret",
-  "computer.reset": "The computer was reset",
-  "computer.updated": "The computer was updated",
-  "computer.stopped": "A person pressed stop",
+  "agent.stream_stalled": "机器人没有回应",
+  "computer.policy_loaded": "启动时载入权限规则",
+  "computer.isolation_loaded": "启动时载入隔离设置",
+  "computer.control_taken": "你接管了电脑",
+  "computer.control_released": "交还给机器人",
+  "computer.help_requested": "机器人请你帮忙",
+  "computer.secret_requested": "机器人要一个密钥",
+  "computer.secret_supplied": "你提供了密钥",
+  "computer.reset": "电脑已重置",
+  "computer.updated": "电脑已更新",
+  "computer.stopped": "你按了停止",
 
   "component.granted": "已授予此机器人",
   "component.revoked": "已从此机器人收回",
   "component.published": "已发布，所有机器人均可使用",
   "component.unpublished": "未发布，任何机器人都不能使用",
   "component.draft_saved": "草稿已保存，尚未发布",
-  "component.refused": "Refused",
+  "component.refused": "已拒绝",
   "component.function_granted": "可读取",
   "component.function_revoked": "不再可读取",
-  "component.function_called": "Read real data",
-  "component.function_refused": "Refused",
+  "component.function_called": "读取了真实数据",
+  "component.function_refused": "已拒绝",
   // A function failure is execution failure, not a policy refusal.
   "component.function_failed": "无法读取",
 
   // Not a call and not a decision: the tools this run was allowed to see. Worded so nobody reads it
   // as permission, which it is not — everything named was already granted.
-  "mcp.tools_discovered": "Tools offered for one run",
-  "mcp.call_succeeded": "Called on this Bot's behalf",
-  "mcp.call_rejected": "Blocked",
+  "mcp.tools_discovered": "这一轮可用的工具",
+  "mcp.call_succeeded": "代机器人调用",
+  "mcp.call_rejected": "已阻止",
   "mcp.call_failed": "服务器没有响应",
-  // Not "Blocked": nothing about the Bot was judged, because nothing proved which Bot it was.
-  "mcp.callback_refused": "Could not prove which Bot it was",
+  // Not "已阻止": nothing about the Bot was judged, because nothing proved which Bot it was.
+  "mcp.callback_refused": "无法确认是哪个机器人",
 
   "configuration.changed": "配置已更改",
   "credential.created": "凭据已保存",
 };
+
+/** 「操作」列：事件类型的中文名。没收录的按「对象 + 动作」拼，再不行显示原始类型。 */
+const EVENT_LABELS: Record<string, string> = {
+  "computer.action_allowed": "电脑操作",
+  "computer.action_failed": "电脑操作失败",
+  "computer.action_refused": "电脑操作被拦",
+  "computer.policy_loaded": "载入权限规则",
+  "computer.isolation_loaded": "载入隔离设置",
+  "computer.control_taken": "接管电脑",
+  "computer.control_released": "交还电脑",
+  "computer.help_requested": "请求帮忙",
+  "computer.reset": "重置电脑",
+  "bot.created": "新建机器人",
+  "bot.deleted": "删除机器人",
+  "bot.updated": "修改机器人",
+  "bot.reset": "重置机器人",
+  "bot.declined": "机器人拒绝",
+  "bot.follow_up_scheduled": "安排跟进",
+  "configuration.changed": "修改设置",
+  "mcp.tools_discovered": "准备工具",
+  "panel.action": "面板操作",
+  "channel.routed": "分配对话",
+  "channel.deleted": "删除对话",
+  "component.published": "发布组件",
+  "workflow.run_started": "工作流开始",
+  "workflow.run_finished": "工作流结束",
+  "workflow.approval_decided": "工作流审批",
+  "agent.stream_stalled": "回答中断",
+};
+const EVENT_NOUNS: Record<string, string> = {
+  bot: "机器人", agent: "机器人", computer: "电脑", configuration: "设置", channel: "对话", component: "组件", credential: "凭据",
+  skill: "技能", mcp: "工具", panel: "面板", workflow: "工作流", routines: "定时任务", session: "登录", memory: "记忆",
+};
+const EVENT_VERBS: Record<string, string> = {
+  created: "新建", deleted: "删除", updated: "修改", changed: "修改", reset: "重置", published: "发布", unpublished: "取消发布",
+  granted: "授予", revoked: "收回", refused: "被拒绝", failed: "失败", started: "开始", finished: "结束",
+};
+function eventLabel(type: string): string {
+  if (EVENT_LABELS[type]) return EVENT_LABELS[type];
+  const [noun, verb] = type.split(".");
+  const n = EVENT_NOUNS[noun ?? ""];
+  const v = EVENT_VERBS[(verb ?? "").split("_").pop() ?? ""];
+  return n && v ? `${v}${n}` : type;
+}
 
 function hostOf(url: string): string {
   try {

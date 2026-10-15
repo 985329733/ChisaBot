@@ -31,17 +31,17 @@ const PRESETS: { label: string; rule: string; cost?: string }[] = [
     // flag that presses it once the text is in, and a rule naming only `computer_key` left that door
     // open.
     rule: '(intent == "activate" && contains(element.name, "submit")) || ((tool.name == "computer_key" || tool.name == "computer_type") && key == "Enter")',
-    cost: "Also stops the Bot pressing Enter for anything else, because a form submits from Enter in any of its fields.",
+    cost: "代价：机器人在任何输入框里按回车也会被拦，因为表单在任一字段按回车都会提交。",
   },
   {
     label: "从未在密码字段中输入",
     rule: 'intent == "type" && contains(element.name, "password")',
-    cost: "A password box the page labels something else is not covered, the rule matches the label.",
+    cost: "注意：只认标签里带 password 的输入框，网页起了别的名字的密码框拦不住。",
   },
   {
     label: "远离社交媒体",
     rule: 'intent == "navigate" && (contains(page.host, "facebook.com") || contains(page.host, "x.com"))',
-    cost: "Only the two hosts named. A link that redirects there from somewhere else is allowed.",
+    cost: "注意：只拦这两个网址；从别处跳转过去的链接不拦。",
   },
 ];
 
