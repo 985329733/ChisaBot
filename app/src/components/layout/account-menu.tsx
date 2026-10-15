@@ -28,6 +28,7 @@ import { toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { approvalInboxOptions } from "@/lib/approvals";
+import { recentConfirmationsQueryOptions } from "@/lib/confirmations";
 import { signOutMutationOptions } from "@/lib/auth/mutations";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { PROTO_PREVIEW } from "@/lib/proto-preview";
@@ -65,9 +66,12 @@ export function AccountMenu({
   const router = useRouter();
   const sidebar = useOptionalSidebar();
   const signOut = useMutation(signOutMutationOptions(queryClient));
+  // 「待处理」的数 = 聊天里没点的确认卡片（§58）+ 交给你的操作 + 在等你回答的问题（DESIGN.md §71.1）。
+  const confirms = useQuery(recentConfirmationsQueryOptions());
   const pending =
     (approvals.data?.requests.filter((r) => r.status === "pending").length ?? 0) +
-    (approvals.data?.questions.length ?? 0);
+    (approvals.data?.questions.length ?? 0) +
+    (confirms.data?.filter((r) => r.status === "pending").length ?? 0);
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);

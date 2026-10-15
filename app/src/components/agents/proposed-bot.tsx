@@ -95,7 +95,7 @@ export function ProposedBotCard({
   if (!respond) {
     return (
       <GalleryFrame title={titleFor(args.name, clashes)}>
-        <p className="text-muted-foreground text-sm">{"正在编写AI同事…"}</p>
+        <p className="text-muted-foreground text-sm">{"正在编写机器人…"}</p>
       </GalleryFrame>
     );
   }
@@ -271,7 +271,7 @@ function Unwritable({
   return (
     <GalleryFrame
       action={<Badge tone="neutral">{"未创建"}</Badge>}
-      title={"创建AI同事"}
+      title={"创建机器人"}
     >
       <p className="text-sm">
         {"同事无法按原样创建，因此未要求您做任何事。它正在重新起草。"}

@@ -9,9 +9,9 @@ import {
   type ConfirmCategory,
   type ConfirmMode,
   type ConfirmPrefView,
-  type ConfirmRequestView,
 } from "../../../../../shared/confirmations";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
+import { ConfirmRow } from "@/components/approvals/confirm-row";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -26,7 +26,6 @@ import {
   addConfirmRule,
   confirmKeys,
   confirmPrefsQueryOptions,
-  decideConfirmation,
   deleteConfirmRule,
   recentConfirmationsQueryOptions,
   setConfirmPref,
@@ -46,13 +45,6 @@ const ICON: Record<ConfirmCategory, typeof IconSend2> = {
 
 const CATEGORY_ITEMS = Object.fromEntries(CONFIRM_CATEGORIES.map((c) => [c, CONFIRM_CATEGORY_INFO[c].label])) as Record<ConfirmCategory, string>;
 const MODE_ITEMS = CONFIRM_MODE_LABEL;
-const STATUS_TEXT: Record<ConfirmRequestView["status"], string> = {
-  pending: "等你确认",
-  approved: "已确认",
-  denied: "已取消",
-  expired: "已过期",
-  cancelled: "已停止",
-};
 
 /**
  * 设置 → 审批偏好（DESIGN.md §58）：哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
@@ -164,7 +156,7 @@ function ApprovalPrefsPage() {
             ) : (recent.data ?? []).length ? (
               <Card className="mem-card">
                 {(recent.data ?? []).map((request) => (
-                  <RecentRow botName={botName.get(request.agentId) ?? "机器人"} key={request.id} onDecided={refresh} request={request} />
+                  <ConfirmRow botName={botName.get(request.agentId) ?? "机器人"} key={request.id} onDecided={refresh} request={request} />
                 ))}
               </Card>
             ) : (
@@ -327,48 +319,5 @@ function RuleForm({ onAdded }: { onAdded: () => Promise<unknown> }) {
             : "不填「涉及」= 整一类都按这条来（等于改上面这一类的偏好）。"}
       </span>
     </form>
-  );
-}
-
-function RecentRow({ request, botName, onDecided }: { request: ConfirmRequestView; botName: string; onDecided: () => Promise<unknown> }) {
-  const Icon = ICON[request.category];
-  const approve = useAsyncAction(async () => {
-    await decideConfirmation(request.id, "approve");
-    await onDecided();
-  }, { errorToast: (error) => error.message });
-  const deny = useAsyncAction(async () => {
-    await decideConfirmation(request.id, "deny");
-    await onDecided();
-  }, { errorToast: (error) => error.message });
-  return (
-    <div className="im-row ap-row" data-testid="confirm-recent">
-      <div className="im-row-main">
-        <ListRow
-          icon={
-            <span className="ap-ico" data-category={request.category}>
-              <Icon className="size-5" />
-            </span>
-          }
-          sub={
-            <span className="mem-by">{`${botName} · ${CONFIRM_CATEGORY_INFO[request.category].label}${request.target ? ` · ${request.target}` : ""} · ${agoText(request.createdAt)}`}</span>
-          }
-          title={request.title}
-        />
-      </div>
-      {request.status === "pending" ? (
-        <div className="flex flex-none gap-2">
-          <Button feedback={{ pending: "确认中…", success: "已确认", error: "确认失败" }} onClick={() => void approve.run()} size="sm" state={approve.state}>
-            {"确认"}
-          </Button>
-          <Button feedback="cancel" onClick={() => void deny.run()} size="sm" state={deny.state} variant="outline">
-            {"取消"}
-          </Button>
-        </div>
-      ) : (
-        <span className="ap-status" data-status={request.status}>
-          {STATUS_TEXT[request.status]}
-        </span>
-      )}
-    </div>
   );
 }

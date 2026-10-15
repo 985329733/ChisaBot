@@ -4,7 +4,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { ErrorCard } from "@/components/ui/skyglass";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { AgentProfile } from "@/components/agents/agent-profile";
@@ -151,9 +153,18 @@ function ChannelBody({
   if (isPending) return null;
   if (hasError || !channel) {
     return (
-      <p className="p-8 text-sm text-destructive" role="alert">
-        {"无法加载此会话。"}
-      </p>
+      // 旧链接 / 删掉的对话：一张错误卡和出路（DESIGN.md §71.3），不是左上角一行红字。
+      <div className="mx-auto w-full max-w-[520px] p-6 pt-16">
+        <ErrorCard
+          action={
+            <Button className="mt-2" nativeButton={false} render={<Link to="/" />} size="sm" variant="outline">
+              {"回到聊天"}
+            </Button>
+          }
+          description={"可能已经删掉了，或者这个链接不是你账号里的对话。"}
+          title={"找不到这段对话"}
+        />
+      </div>
     );
   }
 

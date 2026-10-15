@@ -64,7 +64,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-8 text-sm text-destructive" role="alert">
-        {"无法加载此AI同事。"}
+        {"无法加载这个机器人。"}
       </p>
     );
   }
@@ -116,7 +116,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
           onClick={() => setManaging(true)}
           variant="outline"
         >
-          {"管理AI同事"}
+          {"管理机器人"}
         </Button>
       </div>
 

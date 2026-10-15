@@ -90,7 +90,7 @@ export function BotTools() {
   useFrontendTool({
     name: "read_bot",
     description:
-      "一个现有的 AI 同事，包含其运行的常驻指令。当有人要求一个像现有 AI 同事时使用此选项——切勿改写未阅读过的角色描述。",
+      "一个现有的 机器人，包含其运行的常驻指令。当有人要求一个像现有 机器人时使用此选项——切勿改写未阅读过的角色描述。",
     parameters: z.object({
       name: z.string().describe("The coworker's name, as list_bots spells it."),
     }),
@@ -101,7 +101,7 @@ export function BotTools() {
   useFrontendTool({
     name: "list_bot_skills",
     description:
-      "可以按 slug 放在新AI同事上的技能。放在AI同事上的技能是卡片授予的唯一能力：技能是指令，因此命名未授予的工具的技能只会加载空内容。",
+      "可以按 slug 放在新机器人上的技能。放在机器人上的技能是卡片授予的唯一能力：技能是指令，因此命名未授予的工具的技能只会加载空内容。",
     parameters: z.object({}),
     available: authoring,
     handler: async () => answerListBotSkills(queryClient),
@@ -198,7 +198,7 @@ export function BotTools() {
   useHumanInTheLoop({
     name: "save_bot",
     description:
-      "将一个完成的 AI 同事放在要创建的人面前。他们看到它的名字、它的工作、它的全部站立指令和它将持有的技能，除非他们按下按钮，否则什么都不会被写入。在他们同意 AI 同事将被告诉做什么之后，在最后一次调用它——不要检查你的草稿。",
+      "将一个完成的 机器人放在要创建的人面前。他们看到它的名字、它的工作、它的全部站立指令和它将持有的技能，除非他们按下按钮，否则什么都不会被写入。在他们同意 机器人将被告诉做什么之后，在最后一次调用它——不要检查你的草稿。",
     parameters: proposedBotSchema,
     available: authoring,
     render: Card,

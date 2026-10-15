@@ -105,7 +105,7 @@ export function deleteAgentMutationOptions(queryClient: QueryClient) {
 /**
  * After a Bot is deleted, every cached trace of it goes, without a reload.
  *
- * Drops it from every roster list at once so the sidebar, the AI 同事 list and the 至： picker stop
+ * Drops it from every roster list at once so the sidebar, the 机器人 list and the 至： picker stop
  * showing it this frame, throws away every query keyed by its id (its profile, panels, lifecycle,
  * reset plan), then refetches the rest: conversations it was in, the main-Bot preference the server
  * cleared, attention badges.

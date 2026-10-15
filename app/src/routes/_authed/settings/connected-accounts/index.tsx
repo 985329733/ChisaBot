@@ -193,13 +193,13 @@ function RouteComponent() {
         connections.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
           {
-            "您的已连接账号无法加载，因此这里什么都没有列出，而是一个可能错误的列表。请刷新页面，如果仍然存在，请告诉管理员。"
+            "连接列表暂时读不到，刷新一下再试。"
           }
         </p>
       ) : accounts.length === 0 ? (
         <PageSection>
           <PageEmpty>
-            {"尚未连接。管理员启用读取为询问者的连接器后，这些才会出现。"}
+            {"现在没有别的应用可连。管理员在「插件」里加上需要你本人授权的应用（比如 Google Drive、Notion）后，会出现在这里。"}
           </PageEmpty>
         </PageSection>
       ) : (

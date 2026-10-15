@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { BotProfilePage } from "@/components/bot-profile/profile";
 import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
+import { ErrorCard } from "@/components/ui/skyglass";
 import { agentQueryOptions } from "@/lib/agents/queries";
 
 export const Route = createFileRoute("/_authed/_app/bots/$agentId")({
@@ -18,9 +20,18 @@ function BotProfileRoute() {
       {agent.isPending ? (
         <PageSkeleton />
       ) : (
-        <p className="mt-6 text-destructive text-sm" role="alert">
-          {"找不到这个机器人，或者你没有权限查看。"}
-        </p>
+        // 找不到 / 读不到都给一张错误卡和出路（DESIGN.md §71.3），不是一行红字。
+        <ErrorCard
+          action={
+            <Button className="mt-2" nativeButton={false} render={<Link to="/bots" />} size="sm" variant="outline">
+              {"看我的机器人"}
+            </Button>
+          }
+          className="mt-6"
+          description={"可能已经删掉了，或者不是你账号里的机器人。"}
+          detail={agent.error?.message}
+          title={"找不到这个机器人"}
+        />
       )}
     </PageShell>
   );

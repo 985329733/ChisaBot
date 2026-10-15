@@ -245,13 +245,15 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description={"这不是你自己连接的服务。"}
-        title={entry?.title ?? key}
+        description={entry ? "这项服务由管理员统一连接，你这里不用做什么。" : undefined}
+        title={entry?.title ?? (key === "github" ? "GitHub" : "找不到这项连接")}
       >
         <PageEmpty>
           {entry
-            ? "机器人使用部署持有的凭据到达此，适用于所有人。"
-            : "此部署没有名为该名称的连接器。"}
+            ? "机器人用部署统一保存的凭据使用它，所有人都一样。"
+            : key === "github"
+              ? "GitHub 在「账号连接」页最上面连接（用一个 GitHub 访问令牌）。"
+              : "这个链接里的服务不存在，可能已经移除了。回到「账号连接」看看能连接哪些服务。"}
         </PageEmpty>
       </PageShell>
     );
