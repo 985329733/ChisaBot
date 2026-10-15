@@ -42,6 +42,7 @@ import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/sk
 import { Route as AuthedAdminSystemUpdateRouteImport } from './routes/_authed/admin/system-update'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSettingsApprovalsRouteImport } from './routes/_authed/settings/approvals'
+import { Route as AuthedSettingsCloudWorkspaceRouteImport } from './routes/_authed/settings/cloud-workspace'
 import { Route as AuthedSettingsComponentsGalleryRouteImport } from './routes/_authed/settings/components-gallery'
 import { Route as AuthedSettingsImRouteImport } from './routes/_authed/settings/im'
 import { Route as AuthedSettingsMediaRouteImport } from './routes/_authed/settings/media'
@@ -241,6 +242,12 @@ const AuthedSettingsApprovalsRoute = AuthedSettingsApprovalsRouteImport.update({
   path: '/approvals',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsCloudWorkspaceRoute =
+  AuthedSettingsCloudWorkspaceRouteImport.update({
+    id: '/cloud-workspace',
+    path: '/cloud-workspace',
+    getParentRoute: () => AuthedSettingsRouteRoute,
+  } as any)
 const AuthedSettingsComponentsGalleryRoute =
   AuthedSettingsComponentsGalleryRouteImport.update({
     id: '/components-gallery',
@@ -451,6 +458,7 @@ export interface FileRoutesByFullPath {
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/admin/system-update': typeof AuthedAdminSystemUpdateRoute
   '/settings/approvals': typeof AuthedSettingsApprovalsRoute
+  '/settings/cloud-workspace': typeof AuthedSettingsCloudWorkspaceRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
   '/settings/im': typeof AuthedSettingsImRoute
   '/settings/media': typeof AuthedSettingsMediaRoute
@@ -515,6 +523,7 @@ export interface FileRoutesByTo {
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/admin/system-update': typeof AuthedAdminSystemUpdateRoute
   '/settings/approvals': typeof AuthedSettingsApprovalsRoute
+  '/settings/cloud-workspace': typeof AuthedSettingsCloudWorkspaceRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
   '/settings/im': typeof AuthedSettingsImRoute
   '/settings/media': typeof AuthedSettingsMediaRoute
@@ -583,6 +592,7 @@ export interface FileRoutesById {
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
   '/_authed/admin/system-update': typeof AuthedAdminSystemUpdateRoute
   '/_authed/settings/approvals': typeof AuthedSettingsApprovalsRoute
+  '/_authed/settings/cloud-workspace': typeof AuthedSettingsCloudWorkspaceRoute
   '/_authed/settings/components-gallery': typeof AuthedSettingsComponentsGalleryRoute
   '/_authed/settings/im': typeof AuthedSettingsImRoute
   '/_authed/settings/media': typeof AuthedSettingsMediaRoute
@@ -652,6 +662,7 @@ export interface FileRouteTypes {
     | '/admin/skills'
     | '/admin/system-update'
     | '/settings/approvals'
+    | '/settings/cloud-workspace'
     | '/settings/components-gallery'
     | '/settings/im'
     | '/settings/media'
@@ -716,6 +727,7 @@ export interface FileRouteTypes {
     | '/admin/skills'
     | '/admin/system-update'
     | '/settings/approvals'
+    | '/settings/cloud-workspace'
     | '/settings/components-gallery'
     | '/settings/im'
     | '/settings/media'
@@ -783,6 +795,7 @@ export interface FileRouteTypes {
     | '/_authed/admin/skills'
     | '/_authed/admin/system-update'
     | '/_authed/settings/approvals'
+    | '/_authed/settings/cloud-workspace'
     | '/_authed/settings/components-gallery'
     | '/_authed/settings/im'
     | '/_authed/settings/media'
@@ -1057,6 +1070,13 @@ declare module '@tanstack/react-router' {
       path: '/approvals'
       fullPath: '/settings/approvals'
       preLoaderRoute: typeof AuthedSettingsApprovalsRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
+    '/_authed/settings/cloud-workspace': {
+      id: '/_authed/settings/cloud-workspace'
+      path: '/cloud-workspace'
+      fullPath: '/settings/cloud-workspace'
+      preLoaderRoute: typeof AuthedSettingsCloudWorkspaceRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
     '/_authed/settings/components-gallery': {
@@ -1354,6 +1374,7 @@ const AuthedAdminRouteRouteWithChildren =
 
 interface AuthedSettingsRouteRouteChildren {
   AuthedSettingsApprovalsRoute: typeof AuthedSettingsApprovalsRoute
+  AuthedSettingsCloudWorkspaceRoute: typeof AuthedSettingsCloudWorkspaceRoute
   AuthedSettingsComponentsGalleryRoute: typeof AuthedSettingsComponentsGalleryRoute
   AuthedSettingsImRoute: typeof AuthedSettingsImRoute
   AuthedSettingsMediaRoute: typeof AuthedSettingsMediaRoute
@@ -1372,6 +1393,7 @@ interface AuthedSettingsRouteRouteChildren {
 
 const AuthedSettingsRouteRouteChildren: AuthedSettingsRouteRouteChildren = {
   AuthedSettingsApprovalsRoute: AuthedSettingsApprovalsRoute,
+  AuthedSettingsCloudWorkspaceRoute: AuthedSettingsCloudWorkspaceRoute,
   AuthedSettingsComponentsGalleryRoute: AuthedSettingsComponentsGalleryRoute,
   AuthedSettingsImRoute: AuthedSettingsImRoute,
   AuthedSettingsMediaRoute: AuthedSettingsMediaRoute,

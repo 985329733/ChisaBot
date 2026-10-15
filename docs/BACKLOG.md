@@ -996,10 +996,10 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 用户 2026-10-15：在 ChisaBot 云端集成 Claude Code（设计 docs/cloud-claude-code.md、ADR-0014）。
 
 #### 验收标准
-- [ ] `deploy/cloud-node/`：非 root、cap_drop ALL、根文件系统只读、不挂 docker.sock、不用 host 网络、`--no-full-access`；防火墙丢弃到私有网段和主机
-- [ ] 设备列表里「云端工作区」在线；连其他容器 / 主机端口失败；开不了完全访问
-- [ ] 设置 → 云端工作区：用 Claude 订阅登录（授权页 → 粘授权码）、退出、重新检查；模拟 CLI 走完成功 / 出错 / 过期 / 取消 / 退出
-- [ ] 授权码和令牌不进数据库和日志（grep 检查）
+- [x] `deploy/cloud-node/`：非 root、cap_drop ALL、根文件系统只读、不挂 docker.sock、不用 host 网络、`--no-full-access`；防火墙丢弃到私有网段和主机
+- [x] 设备列表里「云端工作区」在线；连其他容器 / 主机端口失败；开不了完全访问
+- [x] 设置 → 云端工作区：用 Claude 订阅登录（授权页 → 粘授权码）、退出、重新检查；模拟 CLI 走完成功 / 出错 / 过期 / 取消 / 退出
+- [x] 授权码和令牌不进数据库和日志（grep 检查）
 - [ ] 真实登录由用户点一次（needs-user）
 
 ## CB-062

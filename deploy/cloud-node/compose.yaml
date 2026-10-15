@@ -1,0 +1,36 @@
+# 云端工作区节点（docs/cloud-claude-code.md §5.1–§5.2）。手工部署，不归在线更新管。
+#   docker build -t chisabot-cloudnode:2.1.165 deploy/cloud-node
+#   CHISABOT_SERVER=https://你的域名:8443 CHISABOT_PAIR_CODE=cbp_xxx docker compose -f deploy/cloud-node/compose.yaml up -d
+#   sudo sh deploy/cloud-node/firewall.sh <网桥网段>     # 丢弃到私有网段和主机的流量
+# 没有 docker.sock、没有 host 网络、不发布任何端口；只出公网（连 ChisaBot 也走公网地址）。
+name: chisabot-cloudnode
+services:
+  cloudnode:
+    image: chisabot-cloudnode:${CLOUDNODE_TAG:-2.1.165}
+    container_name: chisabot-cloudnode
+    restart: unless-stopped
+    environment:
+      CHISABOT_SERVER: ${CHISABOT_SERVER:?set CHISABOT_SERVER}
+      CHISABOT_PAIR_CODE: ${CHISABOT_PAIR_CODE:-}
+      CHISABOT_NODE_NAME: ${CHISABOT_NODE_NAME:-云端工作区}
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 4g
+    pids_limit: 512
+    volumes:
+      - home:/home/agent
+      - workspace:/workspace
+    networks: [cloudnode]
+    dns: [1.1.1.1]
+networks:
+  cloudnode:
+    external: true
+    name: ${CLOUDNODE_NETWORK:-chisabot-cloudnode-net}
+volumes:
+  home:
+  workspace:

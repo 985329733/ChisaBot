@@ -121,6 +121,8 @@ export function createDeviceRoutes(options: {
   pairing?: PairingStore;
   /** 网页构建目录：服务器节点程序 node-agent/chisabot-node.cjs 在里面。 */
   appDistDir?: string;
+  /** 这台设备不许开完全访问时给出原因（云端工作区节点，docs/cloud-claude-code.md）。 */
+  refuseFullAccess?: (device: DeviceRecord) => string | null;
 }) {
   const { store, hub, requireUser, auditStore, toolsFor } = options;
   const pairing = options.pairing ?? createPairingStore();
@@ -510,6 +512,8 @@ export function createDeviceRoutes(options: {
     if (patch.fullAccessUntil) {
       if (before.ownerUserId !== actor.id) return context.json({ error: "完全访问只能由设备的主人自己打开。" }, 403);
       if (isMobilePlatform(before.platform)) return context.json({ error: "手机不是可操作的设备。" }, 400);
+      const refused = options.refuseFullAccess?.(before);
+      if (refused) return context.json({ error: refused }, 400);
       if (before.paused && patch.paused !== false) return context.json({ error: "这台设备在紧急停止中，先解除紧急停止。" }, 409);
     }
     const after = await store.update(before.id, patch);
