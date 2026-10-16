@@ -50,18 +50,21 @@ async function throttle(ctx, page) {
   if (cpu) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
 }
 
-// 每 40ms 记一次聊天区的 scrollTop / 离底部多远，直到 ms 结束
+// 每一帧画完之后记一次聊天区的 scrollTop / 离底部多远（人看到的那一帧），直到 ms 结束。
+// 在帧与帧之间随手读（setTimeout）会读到「图片刚撑高、还没轮到这一帧的 ResizeObserver 回到底部」的中间状态——
+// 那个状态从来没画到屏幕上，不算跳。所以：requestAnimationFrame 之后再排一个任务，读的是刚画出去的那一帧。
 function watch(page, t0, ms) {
   return page.evaluate(async ([t0, ms]) => {
     const viewport = () => document.querySelector('[data-slot="message-scroller-viewport"]');
     const rows = () => document.querySelectorAll('[data-testid="chat-transcript"] [data-message-id]').length;
+    const afterPaint = () => new Promise((r) => requestAnimationFrame(() => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); }));
     const samples = [];
     const start = performance.now();
     while (performance.now() - start < ms) {
+      await afterPaint();
       const v = viewport();
       const n = rows();
       if (v && n > 0) samples.push([Date.now() - t0, Math.round(v.scrollTop), Math.round(v.scrollHeight - v.scrollTop - v.clientHeight)]);
-      await new Promise((r) => setTimeout(r, 40));
     }
     return samples;
   }, [t0, ms]);

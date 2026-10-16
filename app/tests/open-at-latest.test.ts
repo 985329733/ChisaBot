@@ -36,6 +36,8 @@ describe("打开对话落在最新一条", () => {
     expect(settle).toContain('scrollToEnd({ behavior: "auto" })');
     expect(settle).toContain("requestAnimationFrame");
     for (const event of ['"wheel"', '"touchmove"', '"keydown"']) expect(settle).toContain(event);
+    // 高度变化（图片撑高）在 ResizeObserver 回调里当场回到底部，不等下一帧。
+    expect(settle).toContain("new ResizeObserver(pinNow)");
   });
 
   test("离开对话时记下样子、切回来先画它；左栏的行当对话详情先用", () => {

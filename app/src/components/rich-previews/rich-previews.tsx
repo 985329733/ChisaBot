@@ -170,6 +170,35 @@ function shortUrl(url: string): string {
   }
 }
 
+/**
+ * 看过的图片多大（按地址记，只在这个页面里）。再画同一张图（切回这段对话、虚拟列表重画）时直接把宽高写在
+ * `<img>` 上，浏览器先留出位置，图片加载完不再把下面的消息往下推（DESIGN.md §82）。
+ */
+const imageSizes = new Map<string, { width: number; height: number }>();
+const IMAGE_SIZE_LIMIT = 500;
+
+function rememberImageSize(src: string, img: HTMLImageElement) {
+  if (!(img.naturalWidth > 0 && img.naturalHeight > 0) || imageSizes.has(src)) return;
+  if (imageSizes.size >= IMAGE_SIZE_LIMIT) imageSizes.delete(imageSizes.keys().next().value!);
+  imageSizes.set(src, { width: img.naturalWidth, height: img.naturalHeight });
+}
+
+/**
+ * 记得尺寸就先把框留好：宽度按样式的上限（宽 318、高 300，见 styles.css「图片：单张」）缩，高度跟着宽高比。
+ * `aspect-ratio` 让窄屏上 max-width 把宽度压小时高度一起变小。
+ */
+function reservedImageBox(src: string): CSSProperties | undefined {
+  const size = imageSizes.get(src);
+  if (!size) return undefined;
+  const scale = Math.min(1, 318 / size.width, 300 / size.height);
+  return { width: `${Math.round(size.width * scale)}px`, aspectRatio: `${size.width} / ${size.height}` };
+}
+
+/** 测试用：记住的尺寸。 */
+export function rememberedImageSize(src: string) {
+  return imageSizes.get(src);
+}
+
 function isSquarish(img: HTMLImageElement): boolean {
   return img.naturalHeight > 0 && img.naturalWidth / img.naturalHeight < 1.25;
 }
@@ -355,7 +384,12 @@ export function ImagePile({
             decoding="async"
             loading="lazy"
             onError={() => markBroken(image.src)}
+            onLoad={(event) => rememberImageSize(image.src, event.currentTarget)}
+            ref={(img) => {
+              if (img?.complete) rememberImageSize(image.src, img);
+            }}
             src={image.src}
+            style={reservedImageBox(image.src)}
           />
         </button>
         {open !== null ? (

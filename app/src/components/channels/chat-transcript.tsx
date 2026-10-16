@@ -642,9 +642,21 @@ function SettleAtEnd({
       // 按在滚动条上（视口自己，不是里面的消息）= 要拖着翻。
       if (event.target === element) release();
     };
+    /*
+     * 高度变了（图片加载完撑高、晚到的小行）：ResizeObserver 的回调在布局之后、绘制之前跑，这里当场回到底部，
+     * 这一帧画出来就已经在底部。等到下一帧（requestAnimationFrame）再回去，慢设备上会先画一帧「被顶上去」
+     * ——实测切到带图片的长对话，图片加载那一下离底部 488px 停了一两帧。
+     */
+    const pinNow = () => {
+      if (!active()) return;
+      window.cancelAnimationFrame(frame);
+      element.style.scrollBehavior = "auto";
+      scrollToEnd({ behavior: "auto" });
+      element.style.scrollBehavior = "";
+    };
     const mutations = new MutationObserver(pin);
     mutations.observe(content, { childList: true });
-    const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pin);
+    const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pinNow);
     sizes?.observe(content);
     element.addEventListener("wheel", release, { passive: true });
     element.addEventListener("touchmove", release, { passive: true });
