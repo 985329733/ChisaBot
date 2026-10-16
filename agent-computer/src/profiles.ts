@@ -448,12 +448,13 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
 
 
   /** 恢复保存的标签：第一页用启动时那张空白页，其余新开；最后切到上次的当前标签。 */
-  function restoreTabs(record: LiveBrowser, saved: SavedTabs): void {
+  async function restoreTabs(record: LiveBrowser, saved: SavedTabs): Promise<void> {
     const go = (target: Page, url: string) =>
       void whileNavigating(target, () =>
         target.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 }),
       ).catch(() => undefined);
-    void (async () => {
+    // 在启动里等页面建好（不等加载），这样启动返回时当前标签已经定了，机器人第一下操作不会被后建的标签抢走。
+    await (async () => {
       const opened: Page[] = [];
       const first = record.page;
       if (first.url() === "about:blank" && saved.tabs[0]) {
@@ -708,7 +709,8 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
         // 上次关浏览器时开着的标签（重启、部署、空闲关闭之后）。不等它们加载完。
         if (RESTORE_TABS && !LOCAL_CHROME) {
           const saved = await readSavedTabs(dir);
-          if (saved && saved.tabs.length > 0) restoreTabs(record, saved);
+          if (saved && saved.tabs.length > 0)
+            await within(restoreTabs(record, saved), 10_000, undefined);
         }
         // After the new one is in the map, so the cap counts what is really running and the Bot that
         // just asked is the most recently used and therefore never the one closed.
