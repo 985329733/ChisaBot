@@ -193,7 +193,7 @@ export function AsyncContent({
  * 只包字符串 / 数字；图标和别的元素原样放着（`truncate` 的 span 不能包：裁掉的盒子会把字形裁掉）。
  */
 export function labelText(children: ReactNode): ReactNode {
-  if (typeof children === "string" || typeof children === "number") return <span className="btn-t">{children}</span>;
+  if (typeof children === "string" || typeof children === "number") return <span className="btn-t">{edgePunct(String(children))}</span>;
   const items = Children.toArray(children);
   if (!items.some((child) => typeof child === "string" || typeof child === "number")) return children;
   // 连着的几段文字（「全部 」{n}）合成一个 span：分开包的话按钮的 gap 会插在它们中间。
@@ -202,7 +202,7 @@ export function labelText(children: ReactNode): ReactNode {
   const flush = () => {
     if (!text.length) return;
     const joined = text.join("");
-    out.push(joined.trim() ? <span className="btn-t" key={`t${out.length}`}>{joined}</span> : joined);
+    out.push(joined.trim() ? <span className="btn-t" key={`t${out.length}`}>{edgePunct(joined)}</span> : joined);
     text = [];
   };
   for (const child of items) {
@@ -216,9 +216,30 @@ export function labelText(children: ReactNode): ReactNode {
   return out;
 }
 
+const OPEN_PUNCT = "（「『【〈《〔";
+const CLOSE_PUNCT = "）」』】〉》〕";
+
+/**
+ * §82.7：标签首尾的全角括号 / 引号各包一层 `.t-open` / `.t-close`。字体不带 `halt` 时（<html data-no-halt>，
+ * lib/halt.ts 量出来的）它们收掉空着的那半个字宽，「检查（不生成图片）」的墨迹才居中；带 halt 的字体不变。
+ */
+export function edgePunct(text: string): ReactNode {
+  const head = text.length > 1 && OPEN_PUNCT.includes(text[0]!) ? text[0]! : "";
+  const tail = text.length > 1 && CLOSE_PUNCT.includes(text[text.length - 1]!) ? text[text.length - 1]! : "";
+  if (!head && !tail) return text;
+  const middle = text.slice(head ? 1 : 0, tail ? -1 : undefined);
+  return (
+    <>
+      {head ? <span className="t-open">{head}</span> : null}
+      {middle}
+      {tail ? <span className="t-close">{tail}</span> : null}
+    </>
+  );
+}
+
 /** 胶囊 / 小标签里的文字（不是 `Button` 的那些）用同一层，和按钮一样居中。 */
 export function T({ children }: { children?: ReactNode }) {
-  return <span className="btn-t">{children}</span>;
+  return <span className="btn-t">{typeof children === "string" ? edgePunct(children) : children}</span>;
 }
 
 const IDLE_MUTATION: MutationLike = { status: "idle", submittedAt: 0 };

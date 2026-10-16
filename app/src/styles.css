@@ -7306,3 +7306,64 @@ a.cc-pill { text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .bot-ava-field-btn, .bot-ava-drop, .bot-ava-emoji, .bot-ava-swatch, .bot-ava-zoom-btn { transition: none; }
 }
+
+/* ---------- §82.9 一轮结束时被收起的过程话：收起，不是拔掉 ---------- */
+/* 列表是 `gap-6`（24px）的竖排：收到 0 高还得把它上面那道间距也收掉（margin-top −24px），否则留一道空。
+   动画只在这一页亲眼看着它变成 hidden 时放（chat-transcript.tsx renderFolded）；收完一直是 0 高、看不见、不可点。 */
+[data-slot="message-scroller-item"][data-folded] {
+  display: grid;
+  grid-template-rows: 0fr;
+  grid-auto-rows: 0fr;
+  gap: 0;
+  margin-top: -1.5rem;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: chat-row-fold 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+[data-slot="message-scroller-item"][data-folded] > * { min-height: 0; }
+@keyframes chat-row-fold {
+  from { grid-template-rows: 1fr; grid-auto-rows: 1fr; margin-top: 0; opacity: 1; }
+  to { grid-template-rows: 0fr; grid-auto-rows: 0fr; margin-top: -1.5rem; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="message-scroller-item"][data-folded] { animation-duration: 1ms; }
+}
+
+/* ---------- §82.10 右边缘「面板」把手不压消息 ---------- */
+/* 窄窗口里把手（.rail-tab.is-narrow，30px 宽，悬停 34px）贴在聊天右边缘中间；消息列（max-w-2xl，左右 16px）
+   离右边不够远时，把手压住用户消息下的「编辑」、气泡右沿。把手在的时候，消息列右内边距至少让出把手宽 + 4px：
+   列离右边已经够远（宽屏）时还是 16px，不偏心。手机上把手收窄到 24px，少让一点。 */
+body { --rail-tab-clear: 38px; }
+@media (max-width: 767px) {
+  body { --rail-tab-clear: 30px; }
+  .rail-tab.is-narrow { width: 24px; padding: 10px 0; }
+  .rail-tab.is-narrow:hover { width: 26px; }
+  .rail-tab.is-narrow svg { width: 14px; height: 14px; }
+}
+body:has(.rail-tab.is-narrow) [data-testid="chat-transcript"] {
+  padding-right: max(1rem, calc(var(--rail-tab-clear) - max(0px, (100% - 42rem) / 2)));
+}
+
+/* ---------- §82.6 文泉驿下还偏上的几处：下拉触发、审批小分段、消息「复制」 ---------- */
+/* 下拉触发里只有文字的值 / 占位（「全部」「对外发消息」「＋ 添加备用模型」）：line-clamp 的盒子不能裁（会裁到字形），
+   改成横向 clip、竖向不裁的一行，再裁文字盒，触发器 flex 居中的就是「大写字母顶 → 基线」。带图标的值不动。 */
+/* `.t-line`：同一个办法给「一行、放不下就省略号」的标签用（菜单项文字，account-menu.tsx）。 */
+[data-slot="select-trigger"] > [data-slot="select-value"]:not(:has(*)),
+.t-line {
+  display: block;
+  min-width: 0;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  overflow-x: clip;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-box: trim-both cap alphabetic;
+}
+/* 审批偏好「先问我 / 直接做」：按钮不是 flex 时 `.btn-t` 只是坐在基线上的 inline-block，裁了也不居中。 */
+.ap-seg button { display: inline-flex; align-items: center; justify-content: center; }
+/* 消息下的「复制 / 已复制 / 复制失败」叠在一格里（.btn-labels），每层裁文字盒。 */
+.chat-msg-action .btn-labels > span { text-box: trim-both cap alphabetic; }
+/* §82.7 字体没有 halt（文泉驿正黑…）时，标签首尾的全角括号 / 引号收掉空着的半个字宽（lib/halt.ts 量，button.tsx edgePunct 包）。 */
+html[data-no-halt] .t-close { margin-inline-end: -0.5em; }
+html[data-no-halt] .t-open { margin-inline-start: -0.5em; }

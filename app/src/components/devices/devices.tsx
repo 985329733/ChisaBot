@@ -40,7 +40,7 @@ import {
   OPERATION_LABEL,
 } from "../../../../shared/devices";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import {
@@ -220,18 +220,17 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
               <span className="device-row-facts">{facts}</span>
               <span className="device-row-meta">
                 {device.revoked ? (
-                  <span className="device-cap-chip is-off">{"令牌已作废"}</span>
+                  <span className="device-cap-chip is-off"><T>{"令牌已作废"}</T></span>
                 ) : mobile ? (
-                  <span className="device-cap-chip is-mobile">{"扫码绑定 · 用于登录聊天"}</span>
+                  <span className="device-cap-chip is-mobile"><T>{"扫码绑定 · 用于登录聊天"}</T></span>
                 ) : caps.length ? (
                   caps.map((cap) => (
                     <span className={cn("device-cap-chip", device.capabilities[cap] === "ask" && "is-ask")} key={cap}>
-                      {CAPABILITY_INFO[cap].label}
-                      {device.capabilities[cap] === "ask" ? "·询问" : ""}
+                      <T>{`${CAPABILITY_INFO[cap].label}${device.capabilities[cap] === "ask" ? "·询问" : ""}`}</T>
                     </span>
                   ))
                 ) : (
-                  <span className="device-cap-chip is-off">{"能力全部关闭"}</span>
+                  <span className="device-cap-chip is-off"><T>{"能力全部关闭"}</T></span>
                 )}
                 {device.lastUsedBy ? (
                   <span className="device-row-used">
