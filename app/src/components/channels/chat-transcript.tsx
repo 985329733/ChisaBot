@@ -773,33 +773,28 @@ function SettleAtEnd({
         element.scrollTop = seen.top;
       }
       look();
-      hold();
-    };
-    /*
-     * 钉在底部时把内容的高度先「撑住」（min-height = 现在的高度，§88.1）：最后一行在这一轮结束时变矮（工具行
-     * 127→48px），浏览器在那一帧的布局里就把 scrollTop 夹小、画出来——ResizeObserver 有时晚一帧才到（实测
-     * SCHED：先画出往回 79px 的一帧，下一帧滚动容器自己的留白长回来）。撑住之后变矮的那一截在最下面变成空白，
-     * 屏幕上什么都不动；人往上翻、空白整个在视口下面时再放开。
-     */
-    const natural = () => {
-      const last = content.lastElementChild as HTMLElement | null;
-      if (!last) return content.offsetHeight;
-      const pad = Number.parseFloat(getComputedStyle(content).paddingBottom) || 0;
-      return Math.round(last.getBoundingClientRect().bottom - content.getBoundingClientRect().top + pad);
-    };
-    const hold = () => {
-      if (active() || s.restore || !seen.atBottom) return;
-      content.style.minHeight = `${content.offsetHeight}px`;
-    };
-    const letGo = () => {
-      if (!content.style.minHeight) return;
-      // 放开不能让 scrollTop 被夹：自然高度的底边要在视口底边下面（或者正好）。
-      if (content.getBoundingClientRect().top + natural() >= element.getBoundingClientRect().bottom - 1) content.style.minHeight = "";
     };
     const onScroll = () => {
+      /*
+       * 浏览器自己夹小 scrollTop 的那一下（§88.1）：钉在底部、没人动，内容变矮被夹回去——有时 React 提交里有人量了
+       * 一下布局，夹在 ResizeObserver 之前就发生了，等它来时「上一次的位置」已经是夹过的数。滚动事件在下一次绘制
+       * 之前到：在这里把少掉的高度放到最后一条下面当留白、scrollTop 放回去，画出来的那一帧不动。
+       */
+      const max = element.scrollHeight - element.clientHeight;
+      if (
+        seen.atBottom &&
+        !active() &&
+        !s.restore &&
+        performance.now() - touchedAt > 400 &&
+        element.scrollTop < seen.top - 1 &&
+        element.scrollTop >= max - 1
+      ) {
+        const back = seen.top;
+        setSlack(s.slack + Math.min(back - element.scrollTop, element.clientHeight));
+        element.scrollTop = back;
+        lastHeight = content.offsetHeight;
+      }
       look();
-      if (seen.atBottom) hold();
-      else letGo();
       // 留白整个在视口下面（人往上翻了）：收掉，看得见的东西一点都不动。
       if (s.slack > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - s.slack - 1) {
         setSlack(0);
@@ -820,8 +815,7 @@ function SettleAtEnd({
       if (gap <= 4) {
         const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
         const spacerHeight = spacer && !spacer.hidden ? spacer.offsetHeight : 0;
-        const held = content.style.minHeight ? Math.max(0, content.offsetHeight - natural()) : 0;
-        setThreadUi(scrollKey, { scroll: { atBottom: true, spacer: spacerHeight + s.slack + held, anchor: null, offset: 0, at: Date.now() } });
+        setThreadUi(scrollKey, { scroll: { atBottom: true, spacer: spacerHeight + s.slack, anchor: null, offset: 0, at: Date.now() } });
         return;
       }
       const top = element.getBoundingClientRect().top;
@@ -857,7 +851,6 @@ function SettleAtEnd({
       if (saveTimer !== null) clearTimeout(saveTimer);
       finalWrite.current = null;
       window.cancelAnimationFrame(frame);
-      content.style.minHeight = "";
       mutations.disconnect();
       sizes?.disconnect();
       element.removeEventListener("wheel", release);
