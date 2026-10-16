@@ -64,7 +64,7 @@ export function SectionRail({
   groups: RailGroup[];
   /** The icon button in the footer: the way across to the other area (settings ↔ admin). */
   footerLink?: { label: string; to: string; icon: React.ComponentType<{ className?: string }> };
-  /** 标题下面、列表上面的东西（设置搜索框，DESIGN.md §XX）。只在展开的左栏里画。 */
+  /** 标题下面、列表上面的东西（设置搜索框，DESIGN.md §97）。只在展开的左栏里画。 */
   header?: React.ReactNode;
   /** 给了就替换掉分组列表（设置搜索有结果 / 没结果时）。 */
   body?: React.ReactNode;

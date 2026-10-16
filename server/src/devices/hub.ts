@@ -109,7 +109,7 @@ function errorText(error: unknown) {
 export type DeviceConfirmLink = {
   linkable(): boolean;
   /**
-   * auto = 审批偏好「直接做」；full = 这个机器人开了「完全访问」（输入框权限，§XX：连允许文件夹以外的路径也直接加进去）；ask = 问。
+   * auto = 审批偏好「直接做」；full = 这个机器人开了「完全访问」（输入框权限，§97：连允许文件夹以外的路径也直接加进去）；ask = 问。
    * 只在策略已经是「询问」时调用：关闭的能力、紧急停止、管理员身份运行这些硬限制在这之前就拒绝了，完全访问放不开它们。
    */
   before(input: { ownerUserId: string; botId: string; operation: string; operationLabel: string; summary: string; args: unknown }): Promise<"auto" | "ask" | "full">;

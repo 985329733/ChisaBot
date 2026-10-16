@@ -183,7 +183,7 @@ export function PageSection({
   className?: string;
   description?: React.ReactNode;
   title?: string;
-  /** 页内锚点（设置搜索跳转、「了解更多」，DESIGN.md §XX）。 */
+  /** 页内锚点（设置搜索跳转、「了解更多」，DESIGN.md §97）。 */
   id?: string;
 }) {
   return (

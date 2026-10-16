@@ -14,7 +14,7 @@ function typingIn(target: EventTarget | null) {
   return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
 }
 
-/** 设置搜索的状态（DESIGN.md §XX）：输入、命中、键盘选中的那一条、跳转。Ctrl/⌘ K 或 / 聚焦。 */
+/** 设置搜索的状态（DESIGN.md §97）：输入、命中、键盘选中的那一条、跳转。Ctrl/⌘ K 或 / 聚焦。 */
 export function useSettingsSearch(viewer: SettingsViewer) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);

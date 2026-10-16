@@ -210,7 +210,7 @@ describe("device hub", () => {
     ]);
   });
 
-  test("bot full access (§XX): ask capability runs without a prompt, outside folder is added; off / elevated still refused", async () => {
+  test("bot full access (§97): ask capability runs without a prompt, outside folder is added; off / elevated still refused", async () => {
     const fake = fakeStore(record({ capabilities: { ...defaultCapabilities(), shell: "ask", files_write: "ask", clipboard: "off" }, allowedRoots: ["C:\\Work"] }));
     const decisions: Array<"auto" | "ask" | "full"> = [];
     let mode: "auto" | "ask" | "full" = "full";

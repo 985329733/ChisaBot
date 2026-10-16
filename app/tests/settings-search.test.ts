@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { findEntry, SETTINGS_GROUPS, SETTINGS_PAGES, visibleGroups, visiblePages } from "../src/lib/settings/registry";
 import { hitHash, searchSettings } from "../src/lib/settings/search";
 
-/** 设置登记表 + 设置搜索（DESIGN.md §XX）。 */
+/** 设置登记表 + 设置搜索（DESIGN.md §97）。 */
 const admin = { admin: true, extras: [] as string[], accountsUi: false };
 const user = { admin: false, extras: [] as string[], accountsUi: false };
 

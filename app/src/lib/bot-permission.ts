@@ -3,7 +3,7 @@ import type { BotPermissionMode, BotPermissionView } from "../../../shared/bot-p
 import { client } from "@/lib/client";
 import { confirmDialog } from "@/components/ui/confirm";
 
-/** 机器人权限（输入框「请求批准 / 完全访问」，DESIGN.md §XX）。 */
+/** 机器人权限（输入框「请求批准 / 完全访问」，DESIGN.md §97）。 */
 export const botPermissionKeys = {
   all: ["bot-permission"] as const,
   one: (agentId: string) => ["bot-permission", agentId] as const,

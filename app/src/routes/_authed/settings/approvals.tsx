@@ -48,7 +48,7 @@ const CATEGORY_ITEMS = Object.fromEntries(CONFIRM_CATEGORIES.map((c) => [c, CONF
 const MODE_ITEMS = CONFIRM_MODE_LABEL;
 
 /**
- * 设置 → 机器人 → 权限与审批（DESIGN.md §58 + §XX）：每个机器人的权限（请求批准 / 完全访问）；哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
+ * 设置 → 机器人 → 权限与审批（DESIGN.md §58 + §97）：每个机器人的权限（请求批准 / 完全访问）；哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
  * 机器人每轮都读这里，用户在聊天里说「以后 X 不用问我」时机器人也会写进来。
  */
 function ApprovalPrefsPage() {

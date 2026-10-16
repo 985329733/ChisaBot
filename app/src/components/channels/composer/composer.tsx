@@ -131,7 +131,7 @@ const COMPACT_MAX_HEIGHT_PX = 200;
 export type ComposerProps = {
   className?: string;
   modelControl?: ReactNode;
-  /** 输入框工具栏左侧、「+」后面的控件（机器人权限「请求批准 / 完全访问」，DESIGN.md §XX）。 */
+  /** 输入框工具栏左侧、「+」后面的控件（机器人权限「请求批准 / 完全访问」，DESIGN.md §97）。 */
   leadingControl?: ReactNode;
   /** 输入框工具栏右侧、发送键前的「上下文」读数（DESIGN.md §25）。 */
   contextControl?: ReactNode;

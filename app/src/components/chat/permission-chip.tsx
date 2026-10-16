@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const ICON: Record<BotPermissionMode, typeof IconHandStop> = { ask: IconHandStop, full: IconAlertCircle };
 
 /**
- * 输入框左下角、「+」后面的权限开关（DESIGN.md §XX）：「请求批准」淡色、「完全访问」橙色；
+ * 输入框左下角、「+」后面的权限开关（DESIGN.md §97）：「请求批准」淡色、「完全访问」橙色；
  * 点开是一张小卡片「应如何批准 <机器人> 的操作？」，两档单选，切到完全访问先确认一次。手机上收成一个图标。
  * 档位存在服务器（按机器人），服务器执行时照它放行或出确认卡片——这里只是开关。
  */

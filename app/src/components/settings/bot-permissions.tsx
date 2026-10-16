@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 const ICON: Record<BotPermissionMode, typeof IconHandStop> = { ask: IconHandStop, full: IconAlertCircle };
 
-/** 设置 → 机器人 → 权限与审批 顶部：每个机器人一行「请求批准 / 完全访问」（和聊天输入框里的开关是同一个值，DESIGN.md §XX）。 */
+/** 设置 → 机器人 → 权限与审批 顶部：每个机器人一行「请求批准 / 完全访问」（和聊天输入框里的开关是同一个值，DESIGN.md §97）。 */
 export function BotPermissionsSection() {
   const bots = useQuery(agentListQueryOptions());
   const list = (bots.data ?? []).filter((bot) => !(bot as { deletedAt?: unknown }).deletedAt);

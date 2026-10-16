@@ -218,7 +218,7 @@ export function createConfirmations(database: Database, options: { auditStore?: 
     await sql.unsafe("CREATE INDEX IF NOT EXISTS chisabot_confirm_requests_thread ON chisabot_confirm_requests(owner_user_id, thread_id, created_at)");
     await sql.unsafe("CREATE INDEX IF NOT EXISTS chisabot_confirm_requests_owner ON chisabot_confirm_requests(owner_user_id, created_at)");
     await sql.unsafe("CREATE INDEX IF NOT EXISTS chisabot_confirm_requests_external ON chisabot_confirm_requests(external) WHERE external IS NOT NULL");
-    // 机器人权限（§XX）：每人每个机器人一行，只加表，回滚安全（旧镜像不读它 = 回到审批偏好）。
+    // 机器人权限（§97）：每人每个机器人一行，只加表，回滚安全（旧镜像不读它 = 回到审批偏好）。
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS chisabot_bot_permissions (
       owner_user_id text NOT NULL, agent_id text NOT NULL, mode text NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now(), updated_by text,
@@ -772,7 +772,7 @@ export function createConfirmations(database: Database, options: { auditStore?: 
       return c.json({ error: "审批暂时不可用，请重试。" }, 503);
     });
     app.get("/prefs", async (c) => c.json({ prefs: await prefs(c.var.actor.id), rules: await rules(c.var.actor.id) }));
-    // 机器人权限（输入框的「请求批准 / 完全访问」，§XX）。
+    // 机器人权限（输入框的「请求批准 / 完全访问」，§97）。
     app.get("/bot-permissions", async (c) => c.json({ permissions: await botPermissions(c.var.actor.id) }));
     app.get("/bots/:agentId/permission", async (c) => {
       const agentId = c.req.param("agentId");

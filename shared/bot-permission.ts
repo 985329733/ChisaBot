@@ -1,5 +1,5 @@
 /**
- * 机器人权限：输入框里的「请求批准 / 完全访问」（DESIGN.md §XX）。服务器（server/src/confirmations）和网页共用。
+ * 机器人权限：输入框里的「请求批准 / 完全访问」（DESIGN.md §97）。服务器（server/src/confirmations）和网页共用。
  *
  * 每个机器人一个开关（按「谁的设备 / 谁的审批」分人存，表 chisabot_bot_permissions）：
  * - ask  请求批准：在电脑上运行命令、改写文件、安装软件这类敏感操作，始终先问你（设备能力是「询问」的那些）；

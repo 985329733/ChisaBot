@@ -688,7 +688,7 @@ const retentionSweeps = startRetentionSweeps(
  */
 const confirmations = createConfirmations(database, { auditStore: bootAuditStore });
 await confirmations.ensure();
-// 机器人权限（输入框「请求批准 / 完全访问」，§XX）：看得到这个机器人（自己的或共享给自己的）就能改自己那一份。
+// 机器人权限（输入框「请求批准 / 完全访问」，§97）：看得到这个机器人（自己的或共享给自己的）就能改自己那一份。
 confirmations.setBotAccess(async (actor, agentId) => {
   const profile = await agentProfileStore.get({ id: actor.id, role: actor.role === "admin" ? "admin" : "user" }, agentId);
   return Boolean(profile && profile.deletedAt === null);

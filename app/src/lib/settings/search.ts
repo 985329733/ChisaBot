@@ -1,7 +1,7 @@
 import { groupLabel, type SettingsItem, type SettingsPage, type SettingsViewer, visiblePages } from "./registry";
 
 /**
- * 设置搜索（DESIGN.md §XX）：在登记表里搜页和页里的项。标题、说明、同义词（中文 / 拼音首字母 / 英文）、组名都算。
+ * 设置搜索（DESIGN.md §97）：在登记表里搜页和页里的项。标题、说明、同义词（中文 / 拼音首字母 / 英文）、组名都算。
  * 纯函数，单测直接驱动。
  */
 export type SettingsHit = {

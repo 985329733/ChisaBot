@@ -274,7 +274,7 @@ describe.skipIf(!url)("confirmations service", () => {
     expect(diffRow?.value).toContain("+let i = 0;");
   });
 
-  test("bot permission (§XX): inherit → ask overrides auto pref → full needs acknowledgement, audits, auto-approves device, keeps ask rules", async () => {
+  test("bot permission (§97): inherit → ask overrides auto pref → full needs acknowledgement, audits, auto-approves device, keeps ask rules", async () => {
     const audits: unknown[] = [];
     const audited = createConfirmations(database, { auditStore: { insert: async (event) => void audits.push(event) } });
     let allowed = true;

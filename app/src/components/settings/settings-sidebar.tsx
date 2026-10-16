@@ -11,7 +11,7 @@ import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { type SettingsViewer, visibleGroups } from "@/lib/settings/registry";
 
 /**
- * 「设置」左栏（偏好设置和管理后台共用，DESIGN.md §XX 重新整合）。
+ * 「设置」左栏（偏好设置和管理后台共用，DESIGN.md §97 重新整合）。
  *
  * 导航和设置搜索都从 lib/settings/registry.ts 一张登记表来：
  * 通用 · 机器人（权限与审批、记忆、技能、定时任务、页面）· 电脑与设备（设备、云端工作区、云端浏览器）·
