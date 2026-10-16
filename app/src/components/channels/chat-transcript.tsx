@@ -59,7 +59,7 @@ import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
 import { knownWorkSeconds, WorkRow } from "@/components/chat/work-card";
-import { isQuietWork, isWorkCall, toolResultFailed, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
+import { isQuietWork, isWorkCall, workCallFailed, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
 import { useThreadConfirmations } from "@/lib/confirmations";
 import { useCopilotChatConfiguration } from "@copilotkit/react-core/v2";
 import { supersededPageCalls } from "@/lib/chat/page-cards";
@@ -2694,7 +2694,7 @@ export function compactTurns(
             arguments: tool.toolCall.function.arguments,
             done: tool.result !== undefined,
             id: tool.toolCall.id,
-            failed: tool.result !== undefined && toolResultFailed(tool.result),
+            failed: tool.result !== undefined && workCallFailed(tool.result),
           });
           if (anchor === null && isWorkCall(name)) anchor = item.id;
         }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { compactTurns } from "../src/components/channels/chat-transcript";
 import { isMediaOnly, splitBubbles } from "../src/lib/chat/bubbles";
-import { isQuietWork, QUIET_MAX_SECONDS, toolResultFailed, type WorkCall } from "../src/lib/chat/work-steps";
+import { isQuietWork, QUIET_MAX_SECONDS, workCallFailed, type WorkCall } from "../src/lib/chat/work-steps";
 
 /**
  * DESIGN.md §91：简单回合收起干活卡 + 开场一句收进卡片 + 只有图片的段不画空气泡。
@@ -111,14 +111,15 @@ describe("简单回合（§91）", () => {
     expect(isQuietWork({ calls: [], live: false, hasFinal: true })).toBe(false);
   });
 
-  test("toolResultFailed", () => {
-    expect(toolResultFailed(undefined)).toBe(true);
-    expect(toolResultFailed(DEVICES)).toBe(false);
-    expect(toolResultFailed(SHOT)).toBe(false);
-    expect(toolResultFailed('"Refused. no"')).toBe(true);
-    expect(toolResultFailed("Error: boom")).toBe(true);
-    expect(toolResultFailed('{"ok":false}')).toBe(true);
-    expect(toolResultFailed('{"ok":true,"note":"error handling is fine"}')).toBe(false);
+  test("workCallFailed", () => {
+    expect(workCallFailed(undefined)).toBe(true);
+    expect(workCallFailed(DEVICES)).toBe(false);
+    expect(workCallFailed(SHOT)).toBe(false);
+    expect(workCallFailed('"Refused. no"')).toBe(true);
+    expect(workCallFailed("Error: boom")).toBe(true);
+    expect(workCallFailed('{"ok":false}')).toBe(true);
+    expect(workCallFailed('{"ok":true,"note":"error handling is fine"}')).toBe(false);
+    expect(workCallFailed('"The vendor reported an error: 500"')).toBe(true);
   });
 });
 

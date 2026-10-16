@@ -1,4 +1,5 @@
 import { describeWorkerStep } from "../../../../shared/work-step";
+import { toolResultFailed } from "../plugins/tool-result";
 
 /**
  * 主对话这一轮干了哪些活（DESIGN.md §70 干活卡）：从这一轮的工具调用里数步骤、取「当前步骤」那一行。
@@ -150,12 +151,13 @@ function doneLabel(work: readonly WorkCall[]): string {
 }
 
 /**
- * 工具结果是不是「没做成」（§91）：被拒绝（`Refused.`）、服务器补的「This call produced no result」（中断）、
+ * 工具结果是不是「没做成」（§91）：服务器工具门报的失败（`toolResultFailed`）、被拒绝（`Refused.`）、服务器补的「This call produced no result」（中断）、
  * JSON 里带 `error` / `ok: false`，或者以 Error / 错误 / 失败 开头。只用来判断这一轮能不能悄悄收起干活卡，
  * 拿不准就当没做成（卡片照常显示）。
  */
-export function toolResultFailed(result: string | undefined): boolean {
+export function workCallFailed(result: string | undefined): boolean {
   if (result === undefined) return true;
+  if (toolResultFailed(result)) return true;
   let text = result.trim();
   if (text.startsWith('"')) {
     try {
