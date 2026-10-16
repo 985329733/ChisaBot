@@ -2,6 +2,7 @@ import type { Message } from "@ag-ui/core";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { useBotComputerTab } from "@/lib/chat/use-bot-computer";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { LandingRedirect } from "@/components/agents/landing-redirect";
 import { channelListQueryOptions } from "@/lib/channels/queries";
@@ -78,13 +79,21 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
   }, [existing, navigate, watch]);
 
   // 右栏「计算机」开关（DESIGN.md §79）：和对话页一样记在 `watch` 搜索参数里（刷新保留、后退关闭）。
+  // 按机器人记住选的是哪个标签（DESIGN.md §85）：地址里没有 `watch` 时用上次的。
   const navigateHere = Route.useNavigate();
-  const setWatching = useCallback(
-    (open: boolean) =>
+  const writeWatch = useCallback(
+    (open: boolean, replace: boolean) =>
       void navigateHere({
         search: (previous) => ({ ...previous, watch: open ? true : undefined }),
+        replace,
       }),
     [navigateHere],
+  );
+  const [isWatching, setWatching] = useBotComputerTab(
+    // 马上要转到已有对话：交给那边记，这里不补地址（两次导航会互相顶掉）。
+    existing ? undefined : agent,
+    watch ? true : undefined,
+    writeWatch,
   );
 
   // Stale or private `?agent=` values are ignored because the roster is permission-filtered.
@@ -142,7 +151,7 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
     try {
       // Recorded, then started: a coworker picked here is as much a choice as an `@` on the
       // home screen, and the trail has to say so for both.
-      await startChosen(recipient.id, text, { watch });
+      await startChosen(recipient.id, text, { watch: isWatching });
     } catch (caught) {
       // Preserve the unsent draft when channel creation fails.
       setSent(null);
@@ -161,7 +170,7 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
        */}
       <RegisterBotChat
         agentId={chosen?.id}
-        computerOpen={watch}
+        computerOpen={isWatching}
         freshTopic
         onComputerChange={setWatching}
       />
@@ -194,6 +203,8 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
         // Choosing a coworker answers the "To:" field, so the message is what remains: the caret
         // lands in the composer the moment a recipient exists, whether picked here or in the URL.
         autoFocus
+        // 还没开对话前写的字也按机器人记着（DESIGN.md §85）。
+        draftKey={`new:${agent}`}
         // Commands must be loaded before the first channel message is sent.
         commands={skillCommands}
         disabled={

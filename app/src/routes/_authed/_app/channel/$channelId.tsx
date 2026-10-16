@@ -25,6 +25,8 @@ import {
   channelQueryOptions,
 } from "@/lib/channels/queries";
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
+import { setThreadUi, threadUi } from "@/lib/chat/ui-memory";
+import { useBotComputerTab } from "@/lib/chat/use-bot-computer";
 
 const chatSearchSchema = z.object({
   settings: z.boolean().optional(),
@@ -51,9 +53,15 @@ function RouteComponent() {
   });
   const navigate = Route.useNavigate();
   const isSettingsOpen = settings === true;
-  const isWatching = watch === true;
-  /** Channel routing currently supports one coworker. */
-  const agentId = channel.data?.agentIds[0];
+  /**
+   * Channel routing currently supports one coworker. 刷新时对话详情还没读到：先用这台设备记下的「这段对话是哪个
+   * 机器人的」（DESIGN.md §85），右栏第一帧就画对。
+   */
+  const agentId = channel.data?.agentIds[0] ?? threadUi(channelId)?.agent;
+  useEffect(() => {
+    const id = channel.data?.agentIds[0];
+    if (id && threadUi(channelId)?.agent !== id) setThreadUi(channelId, { agent: id });
+  }, [channelId, channel.data]);
 
   const markRead = useMutation(markChannelReadMutationOptions(queryClient));
   /*
@@ -84,13 +92,16 @@ function RouteComponent() {
   }, [channelId, unseen, markReadMutate]);
 
   // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）；设置窗格仍是聊天旁的详情栏，两者互不挤占。
-  const setWatching = useCallback(
-    (open: boolean) =>
+  // 按机器人记住选的是哪个标签（DESIGN.md §85）：地址里没有 `watch` 时用上次的。
+  const writeWatch = useCallback(
+    (open: boolean, replace: boolean) =>
       void navigate({
         search: (previous) => ({ ...previous, watch: open ? true : undefined }),
+        replace,
       }),
     [navigate],
   );
+  const [isWatching, setWatching] = useBotComputerTab(agentId, watch, writeWatch);
   // 机器人开始用计算机时自动切到「计算机」，停手后自动切回「面板」（用户没动手的话）。
   useComputerAutoWatch(agentId, isWatching, setWatching);
   // 「历史对话」（DESIGN.md §42.6 / §68）：这个机器人的所有对话（频道的、旧 `/bot` 的），点一条在这里打开。
