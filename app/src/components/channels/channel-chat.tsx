@@ -924,7 +924,14 @@ export function ChannelChat({
      * transcript kept the turn.
      */
     if (turnFailure.current !== null) {
-      throw new Error(turnFailure.current);
+      /*
+       * 这一轮已经有了回答 / 工具调用（中途断的，用户反馈截图：「你好?」之后机器人干了几步、然后
+       * 「暂时连不上模型服务」）：这条消息已经是对话的一部分，机器人也接着它做了事。再把字放回输入框，
+       * 屏幕上就是「气泡里一份、输入框里又一份」，点重试还会把同一句话再发一遍。所以这时算发出去了：
+       * 输入框清空、记下的草稿也清掉（DESIGN.md §88.4）；「重试」从这条消息起重新生成（`retryTurn`）。
+       * 什么都没回来就失败的，照旧把字放回去（重试 = 再发一次，先拿掉失败的那份）。
+       */
+      if (!turnAnswered(target.messages)) throw new Error(turnFailure.current);
     }
     return target.messages
       .filter(
@@ -1174,6 +1181,8 @@ export function ChannelChat({
             sendBlocked={modelSaving}
             agents={toAgentOptions(agentProfiles, channel.agentIds)}
             channelId={channel.id}
+            draftKey={channel.id}
+            scrollKey={channel.id}
             /*
              * THE TURN, not the run. `say` waits for the runtime agent and the join before a run starts,
              * and `agent.isRunning` alone leaves that gap unmarked — which is the one moment the
@@ -1296,6 +1305,12 @@ export function ChannelChat({
              * turn's copy out first, but only when nothing came back under it: a partial answer is
              * part of the conversation and stays.
              */
+            onRetryTurn={() => {
+              // 中途断的一轮（已经有回答 / 工具调用）：字没放回输入框，重试 = 从这条消息起重新生成（§88.4）。
+              if (!turnAnswered(agentRef.current.messages)) return false;
+              void regenerate().catch(() => undefined);
+              return true;
+            }}
             onBeforeRetry={() => {
               const target = agentRef.current;
               const list = target.messages;
@@ -1354,4 +1369,14 @@ function HistoryNotice({
       ) : null}
     </div>
   );
+}
+
+/** 最后一条用户消息之后已经有回答或工具调用（这一轮机器人已经接着它做了事）。 */
+export function turnAnswered(list: readonly Message[]): boolean {
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const message = list[i]!;
+    if (message.role === "user") return false;
+    if (message.role === "assistant" || message.role === "tool") return true;
+  }
+  return false;
 }

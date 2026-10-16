@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -23,6 +24,7 @@ import { agentListQueryOptions } from "@/lib/agents/queries";
 import { useCurrentBotChat } from "@/lib/agents/bot-chat-context";
 import { ComputerViewPanel } from "@/components/computer/computer-panel";
 import { usePanelBot } from "@/lib/panels/active-bot";
+import { setBotUi } from "@/lib/chat/ui-memory";
 import {
   readStoredPreference,
   writeStoredPreference,
@@ -32,6 +34,7 @@ import {
   PANEL_RAIL_HOTKEY_LABEL,
   setPanelRailOpen,
   setPanelSheetOpen,
+  showRailFor,
   togglePanelRail,
   usePanelRailOpen,
   usePanelSheetOpen,
@@ -79,12 +82,30 @@ export function PanelRail({ className }: { className?: string }) {
     );
     setWidth(next);
   };
+  /*
+   * 右栏宽度和展开 / 收起按机器人记（DESIGN.md §88）：换了机器人，在绘制之前换成它上次的样子；
+   * 没记过的机器人用全局最后一次的宽度。
+   */
+  const { botId: widthBot } = usePanelBot();
+  const widthBotRef = useRef(widthBot);
+  widthBotRef.current = widthBot;
+  useLayoutEffect(() => {
+    const remembered = showRailFor(widthBot);
+    setWidth(
+      remembered !== undefined && remembered >= MIN_WIDTH && remembered <= MAX_WIDTH ? remembered : storedWidth(),
+    );
+  }, [widthBot]);
+  const keepWidth = (w: number) => {
+    writeStoredPreference(WIDTH_KEY, String(w));
+    setBotUi(widthBotRef.current, { railWidth: w });
+  };
+
   const onPointerUp = () => {
     if (!start.current) return;
     start.current = null;
     setDragging(false);
     setWidth((w) => {
-      writeStoredPreference(WIDTH_KEY, String(w));
+      keepWidth(w);
       return w;
     });
   };
@@ -126,7 +147,7 @@ export function PanelRail({ className }: { className?: string }) {
    * 机器人刚建了一张面板（新 id、正在搭建）：右栏切到「面板」并亮出来，像 Hark 一样让人看着它搭起来。
    * 第一次加载时已有的卡片不算。
    */
-  const { botId: railBotId } = usePanelBot();
+  const railBotId = widthBot;
   const live = useLivePanels(railBotId);
   const seenPanels = useRef<{ bot?: string; ids: Set<string> } | null>(null);
   useEffect(() => {
@@ -227,7 +248,7 @@ export function PanelRail({ className }: { className?: string }) {
         className={cn("glass-rail-handle", dragging && "is-dragging")}
         onDoubleClick={() => {
           setWidth(DEFAULT_WIDTH);
-          writeStoredPreference(WIDTH_KEY, String(DEFAULT_WIDTH));
+          keepWidth(DEFAULT_WIDTH);
         }}
         onKeyDown={(event) => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -236,7 +257,7 @@ export function PanelRail({ className }: { className?: string }) {
             Math.max(MIN_WIDTH, width + (event.key === "ArrowLeft" ? 20 : -20)),
           );
           setWidth(next);
-          writeStoredPreference(WIDTH_KEY, String(next));
+          keepWidth(next);
         }}
         onPointerCancel={onPointerUp}
         onPointerDown={onPointerDown}

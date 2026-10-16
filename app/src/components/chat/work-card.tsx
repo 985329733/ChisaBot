@@ -1,6 +1,7 @@
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
+import { setWorkUi, workUi } from "@/lib/chat/ui-memory";
 import { currentWorkStep, summarizeDoneWork, summarizeWork, type WorkCall, workStepLines } from "@/lib/chat/work-steps";
 
 /** 干活卡把当前这一步广播出去，右栏正在搭建的面板写「正在搜索「…」」（DESIGN.md §77.1）。 */
@@ -49,7 +50,14 @@ export function workSeconds(turnKey: string): number | null {
 
 export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; turnKey: string; live: boolean }) {
   if (live) remember(startedAt, turnKey, Date.now());
-  const [open, setOpen] = useState(false);
+  // 点开过的干活卡离开再回来 / 刷新后还开着（按这一轮记，DESIGN.md §88）。
+  const [open, setOpenState] = useState(() => workUi(turnKey)?.open === true);
+  const setOpen = (update: (value: boolean) => boolean) =>
+    setOpenState((value) => {
+      const next = update(value);
+      setWorkUi(turnKey, { open: next });
+      return next;
+    });
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!live) return;
@@ -57,9 +65,15 @@ export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; 
     return () => window.clearInterval(timer);
   }, [live]);
   // 结束时记下用时（只记一次）；之后重画都用同一个数。
-  const [doneSeconds, setDoneSeconds] = useState<number | null>(() => (live ? null : workSeconds(turnKey)));
+  // 用时只有亲眼看着它跑的那一页知道：记下来，刷新 / 切回来后「做了 2 步 · 10 秒」的秒数还在（§88）。
+  const [doneSeconds, setDoneSeconds] = useState<number | null>(() =>
+    live ? null : (workSeconds(turnKey) ?? workUi(turnKey)?.seconds ?? null),
+  );
   useEffect(() => {
-    if (!live) setDoneSeconds(workSeconds(turnKey));
+    if (live) return;
+    const seconds = workSeconds(turnKey);
+    if (seconds !== null) setWorkUi(turnKey, { seconds });
+    setDoneSeconds(seconds ?? workUi(turnKey)?.seconds ?? null);
   }, [live, turnKey]);
   const step = live ? currentWorkStep(calls) : null;
   const stepKey = step ? `${step.name}\n${step.label}` : "";

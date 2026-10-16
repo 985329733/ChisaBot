@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { botUi, setBotUi } from "@/lib/chat/ui-memory";
 import { formatHotkey, type HotkeyCombo } from "@/lib/hotkeys/hotkeys";
 import {
   readStoredPreference,
@@ -20,12 +21,31 @@ export const PANEL_RAIL_HOTKEY_LABEL = formatHotkey(PANEL_RAIL_HOTKEY).join("+")
 
 let open = readStoredPreference(PANEL_RAIL_STORAGE_KEY) !== "collapsed";
 const listeners = new Set<() => void>();
+/** 右栏现在显示的是哪个机器人的（`PanelRail` 设）：展开 / 收起也按机器人记一份（DESIGN.md §88）。 */
+let railBot: string | undefined;
 
 export function setPanelRailOpen(next: boolean) {
+  // 按机器人记：哪怕全局的值没变（别的机器人也是这个状态），这个机器人的选择也要记下。
+  if (railBot) setBotUi(railBot, { railOpen: next });
   if (next === open) return;
   open = next;
   writeStoredPreference(PANEL_RAIL_STORAGE_KEY, next ? "expanded" : "collapsed");
   for (const listener of listeners) listener();
+}
+
+/**
+ * 右栏换成另一个机器人的：它记过展开 / 收起就照它的来（同一帧，不闪）；没记过就保持现在的（全局最后一次的选择）。
+ * 返回这个机器人记下的宽度（没有就是 undefined）。
+ */
+export function showRailFor(botId: string | undefined): number | undefined {
+  railBot = botId;
+  const memo = botUi(botId);
+  if (memo?.railOpen !== undefined && memo.railOpen !== open) {
+    open = memo.railOpen;
+    writeStoredPreference(PANEL_RAIL_STORAGE_KEY, open ? "expanded" : "collapsed");
+    for (const listener of listeners) listener();
+  }
+  return memo?.railWidth;
 }
 
 export function togglePanelRail() {

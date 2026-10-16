@@ -29,6 +29,8 @@ export function ConversationView({
   agents = [],
   commands,
   channelId,
+  draftKey,
+  scrollKey,
   modelControl,
   contextControl,
   sendBlocked = false,
@@ -38,6 +40,7 @@ export function ConversationView({
   stopped,
   stoppedTurns,
   onBeforeRetry,
+  onRetryTurn,
   stoppable,
   queueWhileBusy = false,
   restoring = false,
@@ -71,6 +74,10 @@ export function ConversationView({
    * first send — which leaves the composer exactly as it behaved before attachments existed.
    */
   channelId?: string;
+  /** 草稿记在哪（DESIGN.md §88），交给 Composer。 */
+  draftKey?: string;
+  /** 滚动位置记在哪（DESIGN.md §88），交给 ChatTranscript。 */
+  scrollKey?: string;
   modelControl?: ReactNode;
   /** 输入框里的「上下文」读数（DESIGN.md §25）。 */
   contextControl?: ReactNode;
@@ -97,6 +104,8 @@ export function ConversationView({
    * failed turn's own copy of the message out of the transcript instead of showing it twice.
    */
   onBeforeRetry?: () => void;
+  /** 先问调用方要不要自己重试这一轮（中途断的一轮从那条消息起重新生成，DESIGN.md §88.4）；返回 true 就不再走输入框。 */
+  onRetryTurn?: () => boolean;
   /**
    * There is a run for Stop to abort, which is a narrower fact than `pending` and is the honest one
    * to draw a Stop button from. Defaults to `pending` for a caller with no gap between the two.
@@ -445,6 +454,7 @@ export function ConversationView({
    */
   const composerBoxRef = useRef<HTMLDivElement | null>(null);
   const retry = () => {
+    if (onRetryTurn?.()) return;
     const box = composerBoxRef.current;
     const send = box?.querySelector<HTMLButtonElement>('form button[type="submit"]');
     if (send && !send.disabled) {
@@ -478,6 +488,7 @@ export function ConversationView({
           queued={queued}
           restoring={restoring}
           hydrating={hydrating}
+          {...(scrollKey ? { scrollKey } : {})}
           topNotice={transcriptNotice}
           {...(fallbacks ? { fallbacks } : {})}
           {...(stoppedTurns ? { stoppedTurns } : {})}
@@ -493,6 +504,7 @@ export function ConversationView({
           agents={agents}
           autoFocus={autoFocus}
           {...(channelId ? { channelId } : {})}
+          {...(draftKey ? { draftKey } : {})}
           {...(commands ? { commands } : {})}
           className="w-full mt-auto"
           compact
