@@ -1912,12 +1912,13 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 
 ### 91.1 窗框（`pc/src/window-chrome.js`，唯一来源）
 - 登录窗、本机确认、审批、更新提示的窗口参数只从 `window-chrome.js` 拿（main.js 和截图脚本共用），都是 `frame: false`、不能改大小、不能最大化 / 全屏。
-- **Windows 11（build ≥ 22000）/ macOS = `dwm`**：不透明 + `thickFrame`，圆角（约 8px）和阴影由系统画，和主窗口（§18 / v3）同一做法。页面铺满到边，不画圆角、不画描边。
-- **Windows 10 / Linux = `clip`**：透明窗口，页面自己裁成 `--r-window`（8px，和 Windows 11 系统圆角一致）圆角：`html` 用透明渐变背景阻止 body 天空铺满画布，`body` `clip-path: inset(0 round 8px)`；没有系统阴影，外沿画一圈 1px 很淡的墨色细线（亮 `rgba(17,26,43,.16)`，暗 `rgba(0,0,0,.55)`），**不是白边**。
+- **Windows（10 和 11）/ Linux = `clip`**：透明窗口，页面自己裁成 `--r-window`（8px，和 Windows 11 系统圆角、主窗口一致）圆角：`html` 用透明渐变背景阻止 body 天空铺满画布，`body` `clip-path: inset(0 round 8px)`；外沿画一圈 1px 很淡的墨色细线（亮 `rgba(17,26,43,.16)`，暗 `rgba(0,0,0,.55)`），**不是白边**。透明窗口没有系统阴影（代价，接受）。
+- **为什么 Windows 11 不用系统圆角**（DWM + `thickFrame`，主窗口的做法）：Windows 真机 + Electron 44 截图（`pc-shots.yml`）里，这些固定大小的小窗口在 125% / 150% 缩放下左右露出 1–2px 浅色窗框边（≈ `#d7d8d9` / `#f1f1f1`），深色时就是一圈白边——正是用户说的「多了圈边框」；没有 GPU 的 Windows 11（虚拟机、远程桌面）系统也不画圆角。透明裁切在 100 / 125 / 150% 都只有一道边。主窗口（可改大小、要系统贴靠）不变。
+- **macOS = `dwm`**：不透明无边框，系统画圆角和阴影。环境变量 `CHISABOT_WINDOW_FRAME=dwm|clip` 可强制某一种（排查用）。
 - 页面从 `?frame=dwm|clip` 得知窗框，`chrome.js` 在 `<head>` 里同步写到 `<html data-frame>`，第一帧就对。
 
 ### 91.2 登录窗
-- 固定 460×760，天空从窗口边缘铺到边缘。顶部 40px 拖动带 `.win-bar`，空白天空也能拖（卡片、下拉、页脚不拖）。
+- 固定 460×760（矮屏幕贴着工作区留 24px，最低 480；放不下时页面内滚动，细半透明滚动条，`max-height: 720px` 时收紧间距），天空从窗口边缘铺到边缘。顶部 40px 拖动带 `.win-bar`，空白天空也能拖（卡片、下拉、页脚不拖）。
 - 右上角只有 **最小化 + 关闭**（`.win-ctrl`，与主窗口网页顶栏同值：46×40、贴住右上角、关闭悬停 `#c42b1c`、焦点内描边），没有最大化。按钮只作用于本窗口（IPC `window:local`，主进程核对来源且拒绝主窗口）。
 - 窗口按钮在 DOM 里排在表单后面：Tab 先走 服务器地址 → 账号 → 密码 → 记住登录 → 登录，最后才到窗口按钮。
 - 卡片外沿是柔和的玻璃边：描边减半（`--stroke` 45%）+ 顶部高光，不再是一圈硬白线。
@@ -1929,9 +1930,8 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 
 ### 91.4 不在本节
 - 主窗口（§18）不变；同一服务器打开的授权弹窗（连接账号）是服务器 / 第三方网页，没有自己的窗口按钮，保留原生边框。
-- Windows 11 系统给每个窗口画的 1px DWM 边框保留（和主窗口一致；去掉要调 `DwmSetWindowAttribute`，需要原生模块，会改外壳指纹）。
 
 ### 91.5 回归
 - `pc/test/window-chrome.check.js`：登录窗以 `frame: false` 创建、两种窗框参数、main.js 所有本机窗口走 window-chrome、窗口按钮权限、Tab 顺序、clip 模式 CSS、弹窗单层边、定高夹取。
-- 截图：`pc/scripts/shots/main.js` + `.github/workflows/pc-shots.yml`（windows-latest 真 Electron，100% / 125% / 150% × 系统窗框 / clip × 亮 / 暗；桌面合成截图含系统圆角 / 阴影 / DWM 边框，垫中灰底）。
+- 截图：`pc/scripts/shots/main.js` + `.github/workflows/pc-shots.yml`（windows-latest 真 Electron，100% / 125% / 150% × 默认（clip）/ 系统窗框对照（dwm）× 亮 / 暗；桌面合成截图含窗框 / 圆角 / 阴影，垫中灰底。缩放用 `--force-device-scale-factor` 模拟（runner 是 1024×768、Windows Server 2025、无 GPU））。
 

@@ -24,7 +24,7 @@ const arg = (name, fallback) => {
 };
 const OUT = path.resolve(arg("out", "shots"));
 const SCALE = Number(arg("scale", "1"));
-const FRAME = arg("frame", chrome.frameMode({ platform: process.platform, release: os.release() }));
+const FRAME = arg("frame", chrome.frameMode({ platform: process.platform }));
 const ONLY = arg("only", "");
 if (SCALE && SCALE !== 1) app.commandLine.appendSwitch("force-device-scale-factor", String(SCALE));
 app.commandLine.appendSwitch("disable-gpu-vsync");
@@ -186,7 +186,7 @@ async function run() {
   const background = () => (dark ? "#12203a" : "#9dbddc");
   for (const d of [false, true]) {
     dark = d;
-    if (!ONLY || ONLY.includes("login")) await open("login", "login.html", { ...chrome.loginWindowOptions(FRAME, { background: background() }) });
+    if (!ONLY || ONLY.includes("login")) await open("login", "login.html", { ...chrome.loginWindowOptions(FRAME, { background: background(), workAreaHeight: screen.getPrimaryDisplay().workArea.height }) });
     current.approval = {
       id: "a1",
       botName: "星灵",

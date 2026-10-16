@@ -2,10 +2,14 @@
 /**
  * 本机小窗口的「窗框」（DESIGN.md §91）：登录窗、本机确认、审批弹窗、更新提示都无边框、圆角，和主窗口同一套做法。
  *
- *  - Windows 11（内部版本 ≥ 22000）和 macOS：不透明无边框窗口 + thickFrame，圆角（Windows 11 约 8px）和阴影由系统画
- *    （DWM）。网页不再画圆角或描边，避免「系统圆角 + 网页卡片描边」两圈。frameMode = "dwm"。
- *  - Windows 10 及更早、Linux：系统不画圆角。用透明窗口，网页自己把整页裁成 WINDOW_RADIUS 圆角（chrome.css 里
- *    html[data-frame="clip"]）。透明窗口没有系统阴影，网页画一圈很淡的墨色细线代替（不是白边）。frameMode = "clip"。
+ *  - Windows（10 和 11）、Linux：透明窗口，网页自己把整页裁成 WINDOW_RADIUS 圆角（chrome.css 里 html[data-frame="clip"]），
+ *    外沿一圈很淡的墨色细线（不是白边）。frameMode = "clip"。
+ *    为什么 Windows 11 也不用系统圆角（DWM + thickFrame，主窗口的做法）：在 Windows 真机 Electron 44 上截图（pc-shots.yml），
+ *    125% / 150% 缩放下这些小窗口左右两侧会露出 1–2px 的浅色窗框边（≈ #d7d8d9 / #f1f1f1），深色时就是一圈白边——
+ *    正是「多了圈边框」；没有 GPU 的 Windows 11（虚拟机、远程桌面）系统也不画圆角。透明裁切在 100/125/150% 都只有一道边。
+ *    代价：透明窗口没有系统阴影。
+ *  - macOS：不透明无边框窗口，系统画圆角和阴影。frameMode = "dwm"。
+ *  - 设置 CHISABOT_WINDOW_FRAME=dwm|clip 可以强制某一种（排查用）。
  *  - 这些窗口都不能改大小、不能最大化 / 全屏（右上角只有最小化 + 关闭，弹窗只有自己的按钮）。
  *
  * 纯函数，pc/test/window-chrome.check.js 直接测；main.js 和截图脚本（scripts/shots/）都只从这里拿窗口参数。
@@ -28,10 +32,17 @@ function windowsBuild(release) {
  * @param {{platform: string, release?: string}} sys process.platform + os.release()
  * @returns {"dwm" | "clip"}
  */
-function frameMode({ platform, release } = {}) {
-  if (platform === "win32") return windowsBuild(release) >= 22000 ? "dwm" : "clip";
+function frameMode({ platform, override } = {}) {
+  if (override === "dwm" || override === "clip") return override;
   if (platform === "darwin") return "dwm";
   return "clip";
+}
+
+/** 登录窗高度：放得下就 760，矮屏幕（如 1366×768 @125% 工作区只有 ~614）贴着工作区留 24px。 */
+function loginHeight(workAreaHeight) {
+  const h = Number(workAreaHeight);
+  if (!Number.isFinite(h) || h <= 0) return LOGIN_SIZE.height;
+  return Math.max(480, Math.min(LOGIN_SIZE.height, Math.floor(h - 24)));
 }
 
 /**
@@ -52,11 +63,11 @@ function chromeOptions(mode, { background = "#9dbddc" } = {}) {
 }
 
 /** 登录窗：固定 460×760，可以最小化，不能最大化 / 改大小。 */
-function loginWindowOptions(mode, opts) {
+function loginWindowOptions(mode, opts = {}) {
   return {
     ...chromeOptions(mode, opts),
     width: LOGIN_SIZE.width,
-    height: LOGIN_SIZE.height,
+    height: opts.workAreaHeight ? loginHeight(opts.workAreaHeight) : LOGIN_SIZE.height,
     minimizable: true,
     title: "登录 ChisaBot",
   };
@@ -86,6 +97,7 @@ module.exports = {
   LOGIN_SIZE,
   windowsBuild,
   frameMode,
+  loginHeight,
   chromeOptions,
   loginWindowOptions,
   dialogWindowOptions,

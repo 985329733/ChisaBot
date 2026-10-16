@@ -55,8 +55,8 @@ const BUILD = buildConfig.load();
 const pkg = require("../package.json");
 
 const PARTITION = "persist:chisabot";
-/** 本机小窗口的窗框（DESIGN.md §91）：Windows 11 系统圆角（dwm）/ Windows 10 透明 + 网页裁圆角（clip）。 */
-const FRAME = windowChrome.frameMode({ platform: process.platform, release: os.release() });
+/** 本机小窗口的窗框（DESIGN.md §91）：Windows 上透明窗口 + 网页裁圆角（clip），macOS 系统圆角（dwm）。 */
+const FRAME = windowChrome.frameMode({ platform: process.platform, override: process.env.CHISABOT_WINDOW_FRAME });
 const ASSETS = path.join(__dirname, "..", "assets");
 /**
  * 窗口 / 任务栏图标：Windows 上用多尺寸 .ico（resources/icons/chisabot-<哈希>.ico，开发运行时 build/icon.ico），
@@ -172,7 +172,7 @@ function openLogin(notice = "") {
   const existing = windows.login && !windows.login.isDestroyed();
   // 无边框、圆角、固定大小（DESIGN.md §91）：右上角只有最小化 + 关闭，页面顶部是拖动带。
   const win = localWindow("login", "login.html", {
-    ...windowChrome.loginWindowOptions(FRAME, { background: windowBackground() }),
+    ...windowChrome.loginWindowOptions(FRAME, { background: windowBackground(), workAreaHeight: screen.getPrimaryDisplay().workArea.height }),
     query: notice ? { notice } : undefined,
   });
   if (existing && notice) win.webContents.send("state:changed", `notice:${notice}`);

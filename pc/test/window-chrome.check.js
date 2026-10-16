@@ -10,15 +10,21 @@ const SRC = path.join(__dirname, "..", "src");
 const UI = path.join(SRC, "ui");
 const main = fs.readFileSync(path.join(SRC, "main.js"), "utf8");
 
-test("frameMode: Windows 11 → system rounding (dwm), Windows 10 / Linux → clip, macOS → dwm", () => {
-  assert.equal(chrome.frameMode({ platform: "win32", release: "10.0.22631" }), "dwm");
-  assert.equal(chrome.frameMode({ platform: "win32", release: "10.0.26100" }), "dwm");
-  assert.equal(chrome.frameMode({ platform: "win32", release: "10.0.22000" }), "dwm");
-  assert.equal(chrome.frameMode({ platform: "win32", release: "10.0.19045" }), "clip");
-  assert.equal(chrome.frameMode({ platform: "win32", release: "10.0.20348" }), "clip", "Server 2022 没有系统圆角");
-  assert.equal(chrome.frameMode({ platform: "win32", release: "" }), "clip");
-  assert.equal(chrome.frameMode({ platform: "darwin", release: "24.0.0" }), "dwm");
-  assert.equal(chrome.frameMode({ platform: "linux", release: "6.8.0" }), "clip");
+test("frameMode: Windows (10 and 11) / Linux → clip, macOS → dwm, env override wins", () => {
+  assert.equal(chrome.frameMode({ platform: "win32" }), "clip", "Windows 11 也用透明裁切：系统窗框在 125/150% 露浅色边");
+  assert.equal(chrome.frameMode({ platform: "linux" }), "clip");
+  assert.equal(chrome.frameMode({ platform: "darwin" }), "dwm");
+  assert.equal(chrome.frameMode({ platform: "win32", override: "dwm" }), "dwm");
+  assert.equal(chrome.frameMode({ platform: "darwin", override: "clip" }), "clip");
+  assert.equal(chrome.frameMode({ platform: "win32", override: "nonsense" }), "clip");
+});
+
+test("login height fits short work areas", () => {
+  assert.equal(chrome.loginHeight(1040), 760);
+  assert.equal(chrome.loginHeight(614), 590);
+  assert.equal(chrome.loginHeight(300), 480);
+  assert.equal(chrome.loginHeight(undefined), 760);
+  assert.equal(chrome.loginWindowOptions("clip", { workAreaHeight: 614 }).height, 590);
 });
 
 test("login window is created frameless, fixed size, no maximize, both frame modes", () => {
@@ -30,7 +36,7 @@ test("login window is created frameless, fixed size, no maximize, both frame mod
     assert.equal(o.fullscreenable, false);
     assert.equal(o.minimizable, true, `${mode}: 能最小化`);
     assert.equal(o.width, 460);
-    assert.equal(o.height, 760);
+    assert.equal(o.height, 760, "没传工作区时 760");
   }
   const dwm = chrome.loginWindowOptions("dwm", { background: "#12203a" });
   assert.equal(dwm.thickFrame, true, "dwm：thickFrame 才有 Windows 11 系统圆角和阴影");
