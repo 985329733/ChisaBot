@@ -16,10 +16,16 @@ Android 客户端（`android/`）是 Kotlin + Jetpack Compose（Material3）原�
 | `md/Markdown.kt` | 轻量 Markdown 块解析 + 切气泡（§69） |
 | `ui/*` | 主题（蓝天玻璃）、登录、机器人列表、聊天、Markdown 渲染、json-render 原生组件、面板、网页兜底 |
 
+## 图片与图标
+
+- 图片（Coil）走 `Api.imageClient`：同一份 Cookie、跟随跳转；消息 / 头像里的相对路径 `/api/…` 用 `absUrl()` 补成当前服务器地址。
+- 启动图标沿用品牌头像（mipmap 名字不变，桌面图标缓存键稳定）；自适应图标多一层 `monochrome`（头像剪影，`mipmap-xxxhdpi/ic_launcher_monochrome.png`），Android 13+ 打开「主题图标」时可以跟着壁纸变色。
+- 网页兜底页跟随系统深浅色：页面开始 / 加载完把网页的 `localStorage.openbot-theme` 和 `html.dark` 对齐到原生。
+
 ## 用到的服务器接口（都是已有的）
 
 - 登录：`POST /api/devices/agent/pair`、`POST /auth/device-session`（`X-Device-Token`）、`POST /auth/login`、`GET /auth/session`、`POST /api/devices/agent/unenroll`、`POST /auth/logout`
-- 机器人：`GET /api/agents`、`GET /api/settings/preferences`（`mainBotId`）
+- 机器人：`GET /api/agents`、`GET /api/settings/preferences`（`mainBotId`）、`GET /api/bot-avatars`（DESIGN §79 自定义头像：图片 / emoji / 首字；接口不存在或没设的机器人 → 按 `avatarSeed` 选渐变色 + 首字）。头像一律圆形。
 - 会话：`GET /api/channels?limit=100`（机器人打开最近的一对一会话）、`POST /api/channels {agentIds:[bot]}`（第一条消息时建）
 - 历史：`GET /api/copilotkit/threads/<threadId>/messages`、`…/inbox`（`running` = 别处正在回答，原生版每 1.5 秒读一次历史直到结束）
 - 回复：`POST /api/copilotkit/agent/<bot>/run`（`Accept: text/event-stream`，body = RunAgentInput，只带新的那条用户消息，服务器以存下的历史为准）；停止 `POST /api/copilotkit/agent/<bot>/stop/<threadId>`
