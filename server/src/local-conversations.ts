@@ -176,6 +176,65 @@ class ConversationStore {
   }
 }
 
+/**
+ * 服务重启（多半是更新部署）时还在跑的那一轮（DESIGN.md §89，2026-10-16「模型老断」）。
+ *
+ * 以前只把它标成 interrupted、放掉锁：存下的事件停在半截（最后一条常常是 TOOL_CALL_END，没有结果、没有
+ * RUN_ERROR），重新打开对话时那张「正在操作你的设备」卡永远在转，报错条要么没有，要么说成「连不上模型服务」。
+ * 现在按正常收尾的同一套规则（@copilotkit/shared finalizeRunEvents）把它补完：没结果的工具调用补一条
+ * 「被打断」的结果，最后补一条说清原因的 RUN_ERROR；对话记录里也给这些调用补上同样的结果。
+ * 只追加，不改不删已有的事件和消息。
+ */
+export const RESTART_INTERRUPTED_MESSAGE = "ChisaBot 服务刚才重启了（多半是在更新），这一轮做到一半被打断。再发一次，机器人会接着做。";
+
+export async function closeInterruptedRun(database: Database, threadId: string, runId: string): Promise<boolean> {
+  const rows = await database.$client.unsafe<{ event: BaseEvent }[]>(
+    "SELECT event FROM openbot_local_events WHERE thread_id = $1 AND run_id = $2 ORDER BY sequence",
+    [threadId, runId],
+  );
+  if (!rows.length) return false;
+  const events = rows.map((row) => row.event);
+  if (events.some((event) => event.type === EventType.RUN_FINISHED || event.type === EventType.RUN_ERROR)) return false;
+  const finalizer = createRunEventFinalizer();
+  for (const event of events) finalizer.observe(event);
+  const appended = finalizer.finalize({ interruptionMessage: RESTART_INTERRUPTED_MESSAGE });
+  if (!appended.length) return false;
+  for (const event of appended) {
+    await database.$client.unsafe(
+      "INSERT INTO openbot_local_events (thread_id, run_id, event) VALUES ($1, $2, $3::text::jsonb)",
+      [threadId, runId, JSON.stringify(event)],
+    );
+  }
+  const results = appended.filter((event) => event.type === EventType.TOOL_CALL_RESULT) as Array<
+    BaseEvent & { toolCallId: string; messageId: string; content: string }
+  >;
+  if (results.length) {
+    const thread = await database.$client.unsafe<{ messages: Message[] }[]>(
+      "SELECT messages FROM openbot_local_threads WHERE id = $1", [threadId],
+    );
+    const messages = thread[0]?.messages;
+    if (Array.isArray(messages)) {
+      const answered = new Set(messages.filter((m) => m.role === "tool").map((m) => (m as { toolCallId?: string }).toolCallId));
+      let next = messages;
+      for (const result of results) {
+        if (answered.has(result.toolCallId)) continue;
+        const at = next.findIndex((m) => m.role === "assistant" && ((m as { toolCalls?: { id: string }[] }).toolCalls ?? []).some((call) => call.id === result.toolCallId));
+        if (at < 0) continue;
+        let insertAt = at + 1;
+        while (insertAt < next.length && next[insertAt]?.role === "tool") insertAt++;
+        next = [...next.slice(0, insertAt), { id: result.messageId, role: "tool", toolCallId: result.toolCallId, content: result.content } as Message, ...next.slice(insertAt)];
+      }
+      if (next !== messages) {
+        await database.$client.unsafe(
+          "UPDATE openbot_local_threads SET messages = $2::text::jsonb WHERE id = $1",
+          [threadId, JSON.stringify(next)],
+        );
+      }
+    }
+  }
+  return true;
+}
+
 export class LocalConversationClient {
   constructor(private readonly store: ConversationStore) {}
 
@@ -225,16 +284,24 @@ export class LocalConversationClient {
    * 用户看到的就是「发消息没反应」。一个数据库只跑一个 ChisaBot 进程（compose 先停旧容器再起新的）；
    * 多副本部署设 CHISABOT_RELEASE_LOCKS_ON_START=0 关掉。
    */
-  async ɵreleaseOrphanedLocks(): Promise<{ threads: number; runs: number }> {
-    const runs = await this.store.database.$client.unsafe(
+  async ɵreleaseOrphanedLocks(): Promise<{ threads: number; runs: number; closed: number }> {
+    const runs = await this.store.database.$client.unsafe<{ thread_id: string; run_id: string }[]>(
       `UPDATE openbot_local_runs SET status = 'interrupted', finished_at = now()
-       WHERE status = 'running' RETURNING run_id`,
+       WHERE status = 'running' RETURNING thread_id, run_id`,
     );
     const threads = await this.store.database.$client.unsafe(
       `UPDATE openbot_local_threads SET run_id = NULL, lock_expires_at = NULL
        WHERE run_id IS NOT NULL RETURNING id`,
     );
-    return { threads: threads.length, runs: runs.length };
+    let closed = 0;
+    for (const run of runs) {
+      try {
+        if (await closeInterruptedRun(this.store.database, run.thread_id, run.run_id)) closed++;
+      } catch (error) {
+        console.warn("closing interrupted run failed", run.run_id, error);
+      }
+    }
+    return { threads: threads.length, runs: runs.length, closed };
   }
 
   /** 这个进程里没有对应的运行（上一个进程留下的锁）：按停止时直接释放，用户不用干等锁到期。 */
