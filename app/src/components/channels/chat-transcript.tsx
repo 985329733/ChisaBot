@@ -679,18 +679,19 @@ function SettleAtEnd({
    * 「anchored-to-message」）；这一轮结束了它也不收——人看着回答下面一大块空。变矮时 §88.1 又把少掉的高度
    * 补成留白（slack），刷新后 §88.3 还把它原样放回去。
    *
-   * 现在：回答结束（busy 变 false）后等收起动画（§82.9，220ms）走完，人还在底部、没动过滚动：先把滚动容器的空
+   * 现在：回答结束（busy 变 false）的那一次提交里（和收起动画同时开始），人还在底部、没动过滚动：先把滚动容器的空
    * 原样挪进我们的留白（总高度不变，画面不动），让滚动容器改成「跟着底部」（scrollToEnd 把它的 spacer 清零），
-   * 再把留白在 260ms 里缩到 0——浏览器把 scrollTop 一点点夹小，整段对话平滑地往下落到正常的底边距。
+   * 再把留白在 300ms 里缩到 0——浏览器把 scrollTop 一点点夹小，整段对话平滑地往下落到正常的底边距。
    * 人往上翻过、或者又开始回答了：不动。`prefers-reduced-motion`：一下收掉。
    */
   const wasBusy = useRef(busy);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const was = wasBusy.current;
     wasBusy.current = busy;
     if (busy || !was || hydrating) return;
-    const timer = window.setTimeout(() => releaseRef.current?.(), 320);
-    return () => window.clearTimeout(timer);
+    // 和这一轮结束时的收起（§82.9 过程话 / §91 干活卡）同一次提交、绘制之前开始：收起和收空一起往下落，
+    // 不会先被收起夹一下、滚动容器再把那条消息拉回顶上（预览实测：等收起走完再收，中间往回跳 67px）。
+    releaseRef.current?.();
   }, [busy, hydrating]);
 
   // 离开对话：最后记一次位置。用 layout 的清理——那时 DOM 还在页面上，量得出来（普通 effect 的清理时已经拿掉了）。
@@ -909,7 +910,7 @@ function SettleAtEnd({
         finish();
         return;
       }
-      // 3) 留白缩到 0：ease-out，260ms。
+      // 3) 留白缩到 0：ease-out，RELEASE_MS。
       const start = performance.now();
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / RELEASE_MS);
@@ -955,7 +956,7 @@ function SettleAtEnd({
 }
 
 /** 一轮结束后底下的空收掉用多久（毫秒，§91.3）。 */
-const RELEASE_MS = 260;
+const RELEASE_MS = 300;
 
 /**
  * How many of the newest turns cascade when a channel is opened, and how far apart.
