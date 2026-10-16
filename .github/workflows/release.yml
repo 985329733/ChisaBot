@@ -2,7 +2,7 @@ name: Client release
 
 # 推 v* 标签（或在 Actions 页手动运行并填标签）时构建 ChisaBot 客户端安装包，并发布到该标签的 GitHub Release：
 #   - PC（pc/，Electron，windows-latest）：NSIS 安装包、免安装 zip、latest.yml、.blockmap
-#   - Android（android/，Kotlin WebView 外壳，ubuntu-latest）：APK + chisabot-android.json（含 sha256）
+#   - Android（android/，Kotlin + Jetpack Compose 原生，ubuntu-latest）：APK + chisabot-android.json（含 sha256）
 # Release 里放的是「通用版」：不内置任何服务器，首次运行由用户填写自己的服务器地址，在线更新读本仓库的 Releases。
 # 仓库变量 CHISABOT_SERVER_URL / CHISABOT_UPDATE_FEED / CHISABOT_ANDROID_UPDATE_FEED（或手动运行时的同名输入）
 # 存在时，再多打一份「自建版」作为工作流产物（pc-custom、android-custom），由发布者放到自己的更新目录。
@@ -245,7 +245,7 @@ jobs:
           if [ "$FLAVOR" = custom ]; then
             export CHISABOT_SERVER_URL="$SERVER_URL" CHISABOT_ANDROID_UPDATE_FEED="$ANDROID_FEED"
           fi
-          gradle --no-daemon assembleRelease
+          gradle --no-daemon testDebugUnitTest assembleRelease
           ls -la app/build/outputs/apk/release/
       - name: APK + feed json
         env:
