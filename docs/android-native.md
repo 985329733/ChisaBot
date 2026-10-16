@@ -25,7 +25,7 @@ Android 客户端（`android/`）是 Kotlin + Jetpack Compose（Material3）原�
 ## 用到的服务器接口（都是已有的）
 
 - 登录：`POST /api/devices/agent/pair`、`POST /auth/device-session`（`X-Device-Token`）、`POST /auth/login`、`GET /auth/session`、`POST /api/devices/agent/unenroll`、`POST /auth/logout`
-- 机器人：`GET /api/agents`、`GET /api/settings/preferences`（`mainBotId`）、`GET /api/bot-avatars`（DESIGN §79 自定义头像：图片 / emoji / 首字；接口不存在或没设的机器人 → 按 `avatarSeed` 选渐变色 + 首字）。头像一律圆形。
+- 机器人：`GET /api/agents`、`GET /api/settings/preferences`（`mainBotId`）、`GET /api/bot-avatars`（DESIGN §81 自定义头像：图片 / emoji / 首字；接口不存在或没设的机器人 → 按 `avatarSeed` 选渐变色 + 首字）。头像一律圆形。
 - 会话：`GET /api/channels?limit=100`（机器人打开最近的一对一会话）、`POST /api/channels {agentIds:[bot]}`（第一条消息时建）
 - 历史：`GET /api/copilotkit/threads/<threadId>/messages`、`…/inbox`（`running` = 别处正在回答，原生版每 1.5 秒读一次历史直到结束）
 - 回复：`POST /api/copilotkit/agent/<bot>/run`（`Accept: text/event-stream`，body = RunAgentInput，只带新的那条用户消息，服务器以存下的历史为准）；停止 `POST /api/copilotkit/agent/<bot>/stop/<threadId>`

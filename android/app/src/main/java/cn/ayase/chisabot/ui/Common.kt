@@ -116,7 +116,7 @@ fun AsyncButton(
     }
 }
 
-/** DESIGN §79 头像底色：140° 渐变（浅 → 深），白字。键和网页一致。 */
+/** DESIGN §81 头像底色：140° 渐变（浅 → 深），白字。键和网页一致。 */
 private val AVATAR_GRADIENTS = linkedMapOf(
     "sky" to (0xFF6CB6FF to 0xFF2F74F0), "ocean" to (0xFF3CC3D3 to 0xFF1662A8), "mint" to (0xFF5AD8AE to 0xFF1B9474),
     "lime" to (0xFFA8DC55 to 0xFF4B952B), "amber" to (0xFFFFC765 to 0xFFE2850F), "coral" to (0xFFFF9478 to 0xFFDC4F38),
@@ -136,7 +136,7 @@ fun monogram(name: String): String {
 }
 
 /**
- * 机器人头像，一律圆形（DESIGN §79）。上传的图 → 圆形图（加载中 / 失败显示首字底）；emoji / monogram → 渐变底；
+ * 机器人头像，一律圆形（DESIGN §81）。上传的图 → 圆形图（加载中 / 失败显示首字底）；emoji / monogram → 渐变底；
  * 没设头像 → 按 avatarSeed 选一个渐变 + 首字（网页默认是 boring-avatars 图案，原生先用首字，第二阶段对齐）。
  */
 @Composable

@@ -40,7 +40,7 @@ import java.util.UUID
 private val Context.store by preferencesDataStore("native")
 private val BOTS_CACHE = stringPreferencesKey("bots")
 
-/** 机器人头像（DESIGN §79，GET /api/bot-avatars）：image = 上传的图（url 相对路径，带 ?v= 版本），emoji / monogram = 渐变底 + 字。null = 默认（按 avatarSeed）。 */
+/** 机器人头像（DESIGN §81，GET /api/bot-avatars）：image = 上传的图（url 相对路径，带 ?v= 版本），emoji / monogram = 渐变底 + 字。null = 默认（按 avatarSeed）。 */
 data class BotAvatarSpec(val kind: String, val url: String? = null, val emoji: String? = null, val color: String? = null)
 
 data class Bot(val id: String, val name: String, val title: String, val seed: String, val main: Boolean, val avatar: BotAvatarSpec? = null)

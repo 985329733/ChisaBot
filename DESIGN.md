@@ -1602,6 +1602,26 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 计算机开着时发出第一条消息：新对话带着 `watch` 打开，画面不会在第一条消息下面关掉。
 - 回归保护：`app/tests/rail-computer-entry.test.ts`（两条聊天路由都登记了计算机开关）+ e2e `tests/rail-computer/rail-computer.mjs`（空聊天 / 已有对话，1280 亮 + 390 暗，两个标签都在、点「计算机」能切过去）。
 
+## 80. Android 原生版：Kotlin + Compose，核心原生、其余网页兜底（2026-10-16）
+
+用户 2026-10-16：「我需要原生的，kotlin实现」。以前的 Android 是 WebView 外壳（约 750 KB）。CB-068。计划和后续阶段见 `docs/android-native.md`。
+
+**80.1 原生的部分（第一阶段）**：登录（扫码绑定为主、账号密码备用，同一套 `/api/devices/agent/pair` + `/auth/device-session` + `/auth/login`）、机器人列表（只列机器人、主机器人置顶带「主机器人」标，ADR-0001）、聊天（读 `/api/copilotkit/threads/<id>/messages` 历史，发送走 `POST /api/copilotkit/agent/<bot>/run` 的 AG-UI 事件流，停止 `…/stop/<thread>`）、右栏面板只读（`/api/live-panels?botId=`）。不新增服务器接口。
+- 聊天画面和网页同一套规则：一轮一张干活卡画在第一个干活的工具那一行，结束原地换成「✓ 搜索 2 次 · 看了 1 个网页 · 9 秒 ⌄」、高度不变（§75）；准备动作不算一步；一句话停住 0.9 秒出三个小点（§78.2）；换字上下滑 200ms（§78.3）；按空行切短气泡、最多 6 个（§69）；表格、代码卡（语言 + 复制）、草稿卡、文档卡（封顶 300dp、底部淡出、「展开全文」§76）、图片、单独一行链接 → 链接卡（§48）；render_ui / 面板的 json-render spec 原生画（Card、Stack、Grid、Metric、Table、List、Chart、Ring、Products、Tabs、KeyValue、Timeline、Countdown…）。说法（`WorkSteps.kt`）抄 `shared/work-step.ts`，两边改一处要同步。
+- 逐字平滑放出和网页同一规则（docs/streaming.md）；流式时末行半截的图片 / 链接记号先不显示。
+- 列表倒序（最新在底部、`reverseLayout`），行用稳定 key；往上翻时新内容不把画面往下推；离开底部出 36dp 圆形 ↓「回到底部」（§78.4）。
+
+**80.2 网页兜底：没有死路**：设置、管理后台、Claude Code、待处理、机器人资料、历史对话、表单类卡片（Input / Select / Checkbox）和不认识的组件，在应用内的网页页打开（同一份 CookieManager 会话，不用再登录；站外链接交给系统浏览器；网页把我们带回 `/login` 时回到原生登录页，不解除绑定）。
+
+**80.3 样子**：蓝天磨砂玻璃——天空渐变底 + 几朵模糊的云（API 31+ 用 RenderEffect 模糊，以下没有模糊、玻璃更不透明一点）、玻璃卡 1px 亮边、墨色文字四级；跟随系统浅色 / 深色；动效 150–300ms；按钮异步状态（进行中转圈 → ✓ 绿 / ✕ 红，最少 300ms，宽度不变，§2）；骨架和真行同高，不跳。全部简体中文。
+
+**80.4 兼容**：包名、签名、更新源不变，versionCode 只增（0.1.13 = 219）；登录状态沿用 WebView 版的 SharedPreferences「chisabot」和 CookieManager，从旧版在线更新过来不用重新登录。调试包允许 `http://10.0.2.2:<端口>`（模拟器连本机预览），正式包只认 https。
+
+**80.6 头像与图标**：机器人头像按 §81 一律圆形：`GET /api/bot-avatars` 有图片就画图片（同一会话 Cookie），emoji / 首字画 §81 的渐变底；没设头像的机器人原生先用「按 avatarSeed 选渐变 + 首字」（网页默认是花纹，第二阶段对齐）。启动图标沿用品牌头像，自适应图标加 `monochrome` 层（Android 13+ 主题图标）。网页兜底页跟随系统深浅色。
+
+**80.5 验证**：`android/app/src/test`（AG-UI 事件归并、历史合并工具结果、干活卡说法 / 收成一行、一轮一张卡 + 过程话收起、以卡片收尾、Markdown 块 / 气泡、文档卡四个反引号、半截记号）；模拟器（API 34，390dp 宽）连预览 + 假模型走一遍：登录、机器人列表、WORK 流式干活卡、RICH（表格 / 代码 / 列表 / 图片 / 链接卡）、DOC、CARD、PANEL 搭建 → 出图、设置网页兜底，浅色 + 深色截图。
+
+
 ## 81. 机器人资料一张表 + 圆形头像：新建和编辑同一个表单；上传 / 表情 / 首字（2026-10-16）
 
 用户要「新建 / 修改机器人统一表单 + 头像上传」。以前新建（§74.2 两格）和资料页「编辑」、管理弹窗「通用」是三套不同的表单，字段和顺序都不一样；头像只有按 id 生成的花纹，改不了。细节和接口见 `docs/bot-avatars.md`。
@@ -1627,20 +1647,3 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 ### 81.4 存储
 - 表 `chisabot_bot_avatars`（开机 `CREATE TABLE IF NOT EXISTS`，一个机器人一行，图片字节存库里）；没改任何已有表。回滚旧镜像 = 所有机器人回到花纹，数据留着。
 - 回归保护：`server/tests/bot-avatars.test.ts`、`app/tests/create-bot-dialog.test.tsx` 等；e2e 走查 1280 亮 + 390 暗（新建 → 上传裁剪 → 建好 → 聊天 → 资料编辑 → 换表情 → 左栏跟着变）。
-## 80. Android 原生版：Kotlin + Compose，核心原生、其余网页兜底（2026-10-16）
-
-用户 2026-10-16：「我需要原生的，kotlin实现」。以前的 Android 是 WebView 外壳（约 750 KB）。CB-068。计划和后续阶段见 `docs/android-native.md`。
-
-**80.1 原生的部分（第一阶段）**：登录（扫码绑定为主、账号密码备用，同一套 `/api/devices/agent/pair` + `/auth/device-session` + `/auth/login`）、机器人列表（只列机器人、主机器人置顶带「主机器人」标，ADR-0001）、聊天（读 `/api/copilotkit/threads/<id>/messages` 历史，发送走 `POST /api/copilotkit/agent/<bot>/run` 的 AG-UI 事件流，停止 `…/stop/<thread>`）、右栏面板只读（`/api/live-panels?botId=`）。不新增服务器接口。
-- 聊天画面和网页同一套规则：一轮一张干活卡画在第一个干活的工具那一行，结束原地换成「✓ 搜索 2 次 · 看了 1 个网页 · 9 秒 ⌄」、高度不变（§75）；准备动作不算一步；一句话停住 0.9 秒出三个小点（§78.2）；换字上下滑 200ms（§78.3）；按空行切短气泡、最多 6 个（§69）；表格、代码卡（语言 + 复制）、草稿卡、文档卡（封顶 300dp、底部淡出、「展开全文」§76）、图片、单独一行链接 → 链接卡（§48）；render_ui / 面板的 json-render spec 原生画（Card、Stack、Grid、Metric、Table、List、Chart、Ring、Products、Tabs、KeyValue、Timeline、Countdown…）。说法（`WorkSteps.kt`）抄 `shared/work-step.ts`，两边改一处要同步。
-- 逐字平滑放出和网页同一规则（docs/streaming.md）；流式时末行半截的图片 / 链接记号先不显示。
-- 列表倒序（最新在底部、`reverseLayout`），行用稳定 key；往上翻时新内容不把画面往下推；离开底部出 36dp 圆形 ↓「回到底部」（§78.4）。
-
-**80.2 网页兜底：没有死路**：设置、管理后台、Claude Code、待处理、机器人资料、历史对话、表单类卡片（Input / Select / Checkbox）和不认识的组件，在应用内的网页页打开（同一份 CookieManager 会话，不用再登录；站外链接交给系统浏览器；网页把我们带回 `/login` 时回到原生登录页，不解除绑定）。
-
-**80.3 样子**：蓝天磨砂玻璃——天空渐变底 + 几朵模糊的云（API 31+ 用 RenderEffect 模糊，以下没有模糊、玻璃更不透明一点）、玻璃卡 1px 亮边、墨色文字四级；跟随系统浅色 / 深色；动效 150–300ms；按钮异步状态（进行中转圈 → ✓ 绿 / ✕ 红，最少 300ms，宽度不变，§2）；骨架和真行同高，不跳。全部简体中文。
-
-**80.4 兼容**：包名、签名、更新源不变，versionCode 只增（0.1.13 = 219）；登录状态沿用 WebView 版的 SharedPreferences「chisabot」和 CookieManager，从旧版在线更新过来不用重新登录。调试包允许 `http://10.0.2.2:<端口>`（模拟器连本机预览），正式包只认 https。
-
-**80.5 验证**：`android/app/src/test`（AG-UI 事件归并、历史合并工具结果、干活卡说法 / 收成一行、一轮一张卡 + 过程话收起、以卡片收尾、Markdown 块 / 气泡、文档卡四个反引号、半截记号）；模拟器（API 34，390dp 宽）连预览 + 假模型走一遍：登录、机器人列表、WORK 流式干活卡、RICH（表格 / 代码 / 列表 / 图片 / 链接卡）、DOC、CARD、PANEL 搭建 → 出图、设置网页兜底，浅色 + 深色截图。
-
