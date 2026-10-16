@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { readSentAt, type SentAtReading } from "@/lib/chat/send-scroll";
 
 /**
  * 服务器记下的两类「一轮」信息（频道聊天读，chat-transcript.tsx 的 compactTurns 画）：
@@ -69,4 +70,36 @@ function sameMap(a: Map<string, string>, b: Map<string, string>) {
   if (a.size !== b.size) return false;
   for (const [key, value] of a) if (b.get(key) !== value) return false;
   return true;
+}
+
+/**
+ * 最新一条用户消息的服务器发送时刻（换算到本机时钟，DESIGN.md §94）：打开时读一次，每轮结束后 1.5 秒再读
+ * （同「已停止」）。决定下一条发出去时要不要翻页对齐（5 分钟内连续聊天不翻）。读不到为 null，由本机时刻兜底。
+ */
+export function useLastSentAt(threadId: string | null | undefined): SentAtReading | null {
+  const [reading, setReading] = useState<SentAtReading | null>(null);
+  useEffect(() => {
+    setReading(null);
+    if (!threadId) return;
+    let alive = true;
+    const load = () =>
+      fetch(`/api/copilotkit/threads/${encodeURIComponent(threadId)}/sent-at`, { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: unknown) => {
+          if (!alive) return;
+          const next = readSentAt(body, Date.now());
+          if (next) setReading((previous) => (previous && previous.userMessageId === next.userMessageId && Math.abs(previous.at - next.at) < 1000 ? previous : next));
+        })
+        .catch(() => {});
+    void load();
+    const onRunning = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail === false) setTimeout(load, 1500);
+    };
+    window.addEventListener("chisabot-chat-running", onRunning);
+    return () => {
+      alive = false;
+      window.removeEventListener("chisabot-chat-running", onRunning);
+    };
+  }, [threadId]);
+  return reading;
 }

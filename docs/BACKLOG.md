@@ -85,6 +85,7 @@
 | [CB-076](#cb-076) | 「模型老断」：长命令 / 断线 / 部署重启时这一轮被误报成「连不上模型服务」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-078](#cb-078) | 窄窗口里输入框两边没有间距 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-079](#cb-079) | 简单回合隐藏步骤卡；回答下面的空气泡和多余空白 | 成熟度 Maturity | `type: bug` · `area: chat` · `P1` · `status: done` |
+| [CB-080](#cb-080) | 连续聊天时发消息整页上跳 | 成熟度 Maturity | `type: bug` · `area: chat` · `P1` · `status: done` |
 | [CB-081](#cb-081) | 机器人浏览器多标签 + 收藏夹 | 成熟度 Maturity | `type: feat` · `area: computer` · `P1` · `status: done` |
 | [CB-082](#cb-082) | 浏览器暗色图标 + 外侧去掉标签 + 放大页重排 + 旧测试 | 成熟度 Maturity | `type: bug` · `area: computer` · `P1` · `status: done` |
 
@@ -1183,6 +1184,20 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 有「面板」把手时输入框右沿让开把手（≥ 4px），窄窗口里和消息列内容边对齐
 - [x] 宽屏尺寸不变（672px 居中）
 - [x] 回归：`app/tests/ui-align.test.ts`、`tests/composer-gutter/gutter.mjs`
+
+## CB-080
+
+**连续聊天时发消息整页上跳**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: chat` `P1` `status: done`
+
+用户 2026-10-16：「我发现我现在输入，整个列表会上跳……如果 5 分钟之内我有输入，就不进行这个跳跃翻页，超过 5 分钟就按现在这种处理」。DESIGN.md §94。
+根因：每条刚发的用户消息都带对齐标记，滚动容器把它对齐到顶上并留一屏 spacer（§35 / §88.1），连续聊天时每句都翻一页。
+
+#### 验收标准
+- [x] 上一条用户消息 <5 分钟（服务器时刻，本机兜底）：不对齐、不新留空白、底部跟着长，0 次往回
+- [x] ≥5 分钟 / 第一句 / 刷新后上一条早就发了：照旧对齐到顶上
+- [x] 打字（输入框长高）对话只为钉住底部挪动
+- [x] 回归：`app/tests/send-scroll.test.ts`、`tests/send-scroll/`（预览 + 假模型，1280 / 390）
 
 ## CB-077
 

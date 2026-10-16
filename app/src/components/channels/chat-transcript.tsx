@@ -107,6 +107,7 @@ import { SCHEDULE_MARKER } from "../../../../shared/schedules";
 import { LOCAL_AGENT_RESULT_MARKER } from "../../../../shared/local-agents";
 import { ToolLine } from "./tool-line";
 import { setThreadUi, threadUi } from "@/lib/chat/ui-memory";
+import { isContinuousSend, previousSentAt, rememberSent, type SentAtReading } from "@/lib/chat/send-scroll";
 
 type ChatTranscriptProps = {
   busy?: boolean;
@@ -130,6 +131,8 @@ type ChatTranscriptProps = {
    * 不当成刚发的新一轮去对齐，也不平滑滚动；人一动滚轮 / 手指 / 按键就不再钉。
    */
   hydrating?: boolean;
+  /** 最新一条用户消息的服务器发送时刻（本机时钟）：决定下一条发出去时翻不翻页（DESIGN.md §94）。 */
+  lastSentAt?: SentAtReading | null;
   /**
    * Why the last turn ended without an answer, if it did.
    *
@@ -570,6 +573,23 @@ function ScrollNewestQueuedIntoView({ newest }: { newest: string | null }) {
   return null;
 }
 
+/** 消息列的行距（px）。 */
+function rowGapOf(content: HTMLElement): number {
+  const gap = Number.parseFloat(getComputedStyle(content).rowGap);
+  return Number.isFinite(gap) ? gap : 0;
+}
+
+/**
+ * 两块留白（滚动容器的 spacer、我们的 slack）在这一列里实际占的高度：各自的高度减去被负上边距抵掉的那道行距。
+ * 消息行本身的高度 = 列高 − 这个数（§94 用它算新那一行吃掉多少空白）。
+ */
+function blankArea(content: HTMLElement, slack: number): number {
+  const gap = rowGapOf(content);
+  const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
+  const spacerHeight = spacer && !spacer.hidden ? spacer.offsetHeight : 0;
+  return (spacerHeight > 0 ? spacerHeight - gap : 0) + (slack > 0 ? slack - gap : 0);
+}
+
 /** 恢复完成后还钉在底部多久（毫秒）：晚到的「已停止」行、图片撑高、存储补进来的几轮都在这段时间里。 */
 export const SETTLE_AFTER_HYDRATE_MS = 2500;
 
@@ -594,9 +614,12 @@ function SettleAtEnd({
   viewport,
   scrollKey,
   slack,
+  sendMode,
 }: {
   /** 这一段对话正在回答（§93.3：一轮结束时把底下留的空收掉）。 */
   busy?: boolean;
+  /** 刚出现的那条用户消息是不是连续聊天里发的（§94）：是就不翻页，底部跟着长。 */
+  sendMode?: React.RefObject<SendMode>;
   hydrating: boolean;
   newestUserMessageId: string | null;
   viewport: React.RefObject<HTMLDivElement | null>;
@@ -625,6 +648,10 @@ function SettleAtEnd({
     /** 正在把留白收掉（§93.3）：这段时间里变矮不再补留白。 */
     releasing: false,
     busy,
+    /** 上一次量到的位置（§94 连续发消息时用）：scrollTop、是不是在底部、消息行本身的高度（不算两块留白）。 */
+    lastTop: 0,
+    lastAtBottom: true,
+    lastRows: 0,
   });
   state.current.busy = busy;
   const reduceMotion = useReducedMotion();
@@ -650,8 +677,42 @@ function SettleAtEnd({
       s.until = 0;
       s.restore = null;
       s.baseline = newestUserMessageId;
-      // 新的一轮有滚动容器自己的留白（spacer），我们的留白让给它（同一次提交里，看不到中间那一下）。
-      setSlack(0);
+      if (sendMode?.current.continuous && sendMode.current.id === newestUserMessageId) {
+        /*
+         * §94 连续聊天：这一条不带对齐标记，不翻页。滚动容器可能还停在上一轮的「对齐到顶上」状态（下面有它的
+         * spacer）——不处理的话它会继续把上一轮钉在顶上，新内容长到视口下面去。这里同一次提交里把它切回「跟着
+         * 底部」（scrollToEnd 会把 spacer 清零），清掉的那块空白改成我们的留白，先让新那一行吃掉；人在底部时
+         * scrollTop 正好落回原处，画面不动，之后内容先填留白、填满了再由滚动容器跟着底部往上长。人不在底部
+         * （往上翻着）时不留白，直接回到底部（发了一句就该看到它）。
+         */
+        const element = viewport.current;
+        const content = element?.querySelector<HTMLElement>('[data-slot="message-scroller-content"]');
+        if (element && content) {
+          const before = s.lastTop;
+          const wasAtBottom = s.lastAtBottom;
+          const gap = rowGapOf(content);
+          const blank = wasAtBottom ? blankArea(content, s.slack) : 0;
+          // 新那一行（连同前面的行距）已经在 DOM 里：它比空白矮多少，就留多少（两块留白都用负的上边距抵掉一道行距）。
+          const growth = content.offsetHeight - blankArea(content, s.slack) - s.lastRows;
+          const keep = blank - Math.max(0, growth);
+          setSlack(keep > 0 ? keep + gap : 0);
+          element.style.scrollBehavior = "auto";
+          scrollToEnd({ behavior: "auto" });
+          if (wasAtBottom && blank > 0 && Math.abs(element.scrollTop - before) <= 2) element.scrollTop = before;
+          element.style.scrollBehavior = "";
+        } else {
+          setSlack(0);
+          scrollToEnd({ behavior: "auto" });
+        }
+      } else if (s.slack > 0) {
+        /*
+         * 新的一轮有滚动容器自己的留白（spacer），我们的留白让给它——但要等它对齐完（它在这次提交后的微任务里
+         * 读标记、算 spacer、开始滚）再拿掉。当场拿掉的话总高度先变矮，浏览器把 scrollTop 夹小，平滑滚动从夹过的
+         * 位置出发：先往回跳一截（刷新后回到留着空白的对话再发，实测 193px / 238px）再往前滚。等它算完再拿：
+         * 它的目标位置正好是没有这块留白时的最底，现在的位置在它前面，拿掉不会夹，看得见的东西不动。
+         */
+        queueMicrotask(() => setSlack(0));
+      }
     }
     s.wasHydrating = hydrating;
   }, [hydrating, newestUserMessageId]);
@@ -780,7 +841,11 @@ function SettleAtEnd({
     const look = () => {
       seen.top = element.scrollTop;
       seen.atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 4;
+      s.lastTop = seen.top;
+      s.lastAtBottom = seen.atBottom;
+      s.lastRows = content.offsetHeight - blankArea(content, s.slack);
     };
+    s.lastTop = element.scrollTop;
     let lastHeight = content.offsetHeight;
     /*
      * 高度变了（图片加载完撑高、晚到的小行）：ResizeObserver 的回调在布局之后、绘制之前跑，这里当场回到底部，
@@ -944,6 +1009,28 @@ function SettleAtEnd({
     mutations.observe(content, { childList: true });
     const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pinNow);
     sizes?.observe(content);
+    /*
+     * 视口变矮（输入框打字长高、加了小块 / 附件、手机键盘弹出）时人在底部看着：同一帧把 scrollTop 加上变矮的量，
+     * 最后一行留在输入框上面（§94）。滚动容器自己也会回到底部，但要等到下一帧——中间那一帧最后一行被盖住一截。
+     * 只在它「跟着底部」（没有 spacer）时做：对齐着某一轮时它会把那一轮留在顶上，这里不插手。
+     */
+    let lastClient = element.clientHeight;
+    const viewportSizes =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            const height = element.clientHeight;
+            const shrink = lastClient - height;
+            lastClient = height;
+            const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
+            if (shrink > 0 && seen.atBottom && !active() && !s.restore && (!spacer || spacer.hidden)) {
+              element.style.scrollBehavior = "auto";
+              element.scrollTop += shrink;
+              element.style.scrollBehavior = "";
+            }
+            look();
+          });
+    viewportSizes?.observe(element);
     element.addEventListener("wheel", release, { passive: true });
     element.addEventListener("touchmove", release, { passive: true });
     element.addEventListener("keydown", onKey);
@@ -958,6 +1045,7 @@ function SettleAtEnd({
       window.cancelAnimationFrame(frame);
       mutations.disconnect();
       sizes?.disconnect();
+      viewportSizes?.disconnect();
       element.removeEventListener("wheel", release);
       element.removeEventListener("touchmove", release);
       element.removeEventListener("keydown", onKey);
@@ -2275,6 +2363,7 @@ export function ChatTranscript({
   onRetry,
   topNotice,
   fallbacks,
+  lastSentAt = null,
 }: ChatTranscriptProps) {
   /*
    * NOT MEMOISED, AND THAT IS DELIBERATE. `useMemo` keyed on `messages` looks obviously right and
@@ -2401,7 +2490,12 @@ export function ChatTranscript({
    * 现在只有恢复完成后新出现的那一条用户消息带标记，而且只带 FRESH_ANCHOR_MS：对齐它是 §35 要的，
    * 别的行一概不会被拉到顶上。
    */
-  const freshAnchor = useFreshAnchor(newestUserMessageId, hydrating);
+  /*
+   * §94：上一条用户消息发出不到 5 分钟（连续聊天）→ 这一条不带对齐标记，SettleAtEnd 让底部跟着长，不翻页。
+   * sendMode 在渲染时定（滚动容器在这次提交后的微任务里读标记），SettleAtEnd 的 layout effect 读同一个 ref。
+   */
+  const sendMode = useRef<SendMode>({ id: null, continuous: false });
+  const freshAnchor = useFreshAnchor(newestUserMessageId, hydrating, lastSentAt, sendMode);
   const newestAnchor = freshAnchor === null ? undefined : [...anchorRowIds(items)].at(-1);
   const anchorRows = newestAnchor ? new Set([newestAnchor]) : EMPTY_ANCHORS;
   const slackRef = useRef<HTMLDivElement | null>(null);
@@ -2548,7 +2642,7 @@ export function ChatTranscript({
           <span className="chat-bottom-pill-t">{"回到底部"}</span>
         </MessageScrollerButton>
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
-        <SettleAtEnd busy={busy} hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} slack={slackRef} {...(scrollKey ? { scrollKey } : {})} />
+        <SettleAtEnd busy={busy} hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} slack={slackRef} sendMode={sendMode} {...(scrollKey ? { scrollKey } : {})} />
       </MessageScroller>
     </MessageScrollerProvider>
   );
@@ -2657,23 +2751,38 @@ const EMPTY_ANCHORS: ReadonlySet<string> = new Set();
 /** 刚发出去的那条用户消息带对齐标记多久（毫秒）。对齐在它出现的那一刻就做完了，之后留着只会被误用。 */
 export const FRESH_ANCHOR_MS = 3000;
 
+/** 最近一次新出现的用户消息是不是「连续聊天」里发的（§94）。 */
+type SendMode = { id: string | null; continuous: boolean };
+
 /**
  * 恢复完成之后新出现的最新一条用户消息（人刚发的，或者别的设备发来的）；出现 FRESH_ANCHOR_MS 之后、
  * 或者在恢复中（历史一段段到）都是 null。在渲染时算出来：滚动容器在这一次提交后的微任务里读标记，
  * 晚一拍（effect 里再 setState）就错过了。
  */
-function useFreshAnchor(newestUserMessageId: string | null, hydrating: boolean): string | null {
-  const seen = useRef<{ baseline: string | null; id: string | null; at: number } | null>(null);
-  if (seen.current === null) seen.current = { baseline: newestUserMessageId, id: null, at: 0 };
+function useFreshAnchor(
+  newestUserMessageId: string | null,
+  hydrating: boolean,
+  lastSentAt: SentAtReading | null = null,
+  sendMode?: React.RefObject<SendMode>,
+): string | null {
+  const seen = useRef<{ baseline: string | null; id: string | null; at: number; last: string | null; continuous: boolean } | null>(null);
+  if (seen.current === null) seen.current = { baseline: newestUserMessageId, id: null, at: 0, last: newestUserMessageId, continuous: false };
   const memo = seen.current;
   if (hydrating) {
     memo.baseline = newestUserMessageId;
     memo.id = null;
+    memo.continuous = false;
   } else if (newestUserMessageId !== null && newestUserMessageId !== memo.baseline && newestUserMessageId !== memo.id) {
+    const now = Date.now();
+    // 上一条（这条出现之前的最新一条用户消息）什么时候发的：服务器读数优先，本机记的兜底（§94）。
+    memo.continuous = isContinuousSend(previousSentAt(memo.last, lastSentAt), now);
     memo.id = newestUserMessageId;
-    memo.at = Date.now();
+    memo.at = now;
+    rememberSent(newestUserMessageId, now);
+    if (sendMode) sendMode.current = { id: newestUserMessageId, continuous: memo.continuous };
   }
-  const fresh = memo.id !== null && memo.id === newestUserMessageId && Date.now() - memo.at < FRESH_ANCHOR_MS;
+  memo.last = newestUserMessageId;
+  const fresh = !memo.continuous && memo.id !== null && memo.id === newestUserMessageId && Date.now() - memo.at < FRESH_ANCHOR_MS;
   // 过期后重画一次，把标记拿掉。
   const [, expire] = useState(0);
   useEffect(() => {
