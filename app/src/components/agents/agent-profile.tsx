@@ -74,7 +74,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
   return (
     <div className="flex w-full flex-col gap-6 p-8">
       <header className="flex flex-col items-center gap-3 text-center">
-        <AbstractAvatar
+        <AbstractAvatar agentId={profile.id}
           name={profile.name}
           seed={profile.avatarSeed}
           size={80}
@@ -95,7 +95,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
 
       <section className="grid gap-2">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {"角色"}
+          {"它做什么"}
         </h2>
         <p className="text-sm whitespace-pre-wrap text-pretty">
           {profile.roleDescription}

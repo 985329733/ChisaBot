@@ -59,7 +59,7 @@ function BotsPage() {
                   size="sm"
                 >
                   <ItemMedia>
-                    <AbstractAvatar
+                    <AbstractAvatar agentId={agent.id}
                       name={agent.name}
                       seed={agent.avatarSeed}
                       size={28}

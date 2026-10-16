@@ -7197,3 +7197,75 @@ a.cc-pill { text-decoration: none; }
 .cc-new-ws { white-space: nowrap; min-width: 0; }
 .cc-new-ws .cc-new-ws-s { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cc-sync-rules-h:focus:not(:focus-visible) { outline: none; }
+
+/* ---------- 机器人头像 + 资料表单（DESIGN.md §81） ---------- */
+.bot-ava { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; overflow: hidden; border-radius: 50%; isolation: isolate; line-height: 1; }
+.bot-ava > svg { width: 100%; height: 100%; }
+.bot-ava-img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.bot-ava-face { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; color: #fff; font-weight: 600; letter-spacing: 0; user-select: none; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.12); }
+.bot-ava-face.is-emoji { font-size: 1.18em; text-shadow: none; }
+.bot-ava-c-sky { background: linear-gradient(140deg, #6cb6ff, #2f74f0); }
+.bot-ava-c-ocean { background: linear-gradient(140deg, #3cc3d3, #1662a8); }
+.bot-ava-c-mint { background: linear-gradient(140deg, #5ad8ae, #1b9474); }
+.bot-ava-c-lime { background: linear-gradient(140deg, #a8dc55, #4b952b); }
+.bot-ava-c-amber { background: linear-gradient(140deg, #ffc765, #e2850f); }
+.bot-ava-c-coral { background: linear-gradient(140deg, #ff9478, #dc4f38); }
+.bot-ava-c-rose { background: linear-gradient(140deg, #ff8bb0, #cf3d76); }
+.bot-ava-c-violet { background: linear-gradient(140deg, #b896ff, #6a4fd6); }
+.bot-ava-c-slate { background: linear-gradient(140deg, #95a2b8, #4b586e); }
+
+.bot-form { display: flex; flex-direction: column; gap: 12px; min-height: 0; flex: 1; }
+.bot-form.is-card { padding: 20px; }
+.bot-form-fields { display: grid; gap: 6px; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 2px 4px; }
+.bot-form.is-card .bot-form-fields { overflow: visible; }
+.bot-form-field { display: grid; gap: 6px; }
+.bot-form-label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.bot-form-note { min-height: 18px; font-size: 12px; line-height: 18px; color: var(--ink-4); }
+.bot-form-note.is-error { color: var(--danger); }
+.bot-form-error { margin: 0; font-size: 13px; color: var(--danger); }
+.bot-form-actions { display: flex; flex: none; justify-content: flex-end; gap: 8px; }
+
+.bot-ava-field { display: flex; align-items: center; gap: 14px; padding: 2px 0 6px; }
+.bot-ava-field-btn { position: relative; flex: none; padding: 0; border-radius: 50%; cursor: pointer; transition: box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.bot-ava-field-btn:hover { box-shadow: 0 0 0 3px var(--accent-blue-soft); }
+.bot-ava-field-btn:active { transform: scale(0.97); }
+.bot-ava-field-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-line); }
+.bot-ava-field-cam { position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--popover); border: 1px solid var(--line); color: var(--ink-2); backdrop-filter: blur(8px); }
+.bot-ava-field-text { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.bot-ava-field-hint { font-size: 12px; color: var(--ink-4); }
+
+.bot-ava-seg { align-self: center; }
+.bot-ava-stage { display: grid; place-items: center; min-height: 330px; }
+.bot-ava-drop-wrap, .bot-ava-preset { display: grid; justify-items: center; gap: 14px; width: 100%; }
+.bot-ava-drop { display: grid; justify-items: center; gap: 4px; width: 100%; padding: 18px 12px; border: 1.5px dashed var(--focus-line); border-radius: 14px; color: var(--ink-2); font-size: 14px; transition: background var(--dur-1), border-color var(--dur-1), color var(--dur-1); }
+.bot-ava-drop:hover { background: var(--accent-blue-soft); border-color: var(--accent-blue); color: var(--accent-blue-ink); }
+.bot-ava-drop:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+.bot-ava-drop-sub { font-size: 12px; color: var(--ink-4); text-align: center; }
+/* 表情格固定 36 px 高：不随弹窗宽度变高，三个分页的高度一样（1280 下 aspect-ratio 会多出 5 px）。 */
+.bot-ava-emojis { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 36px; gap: 4px; width: 100%; max-width: 344px; }
+.bot-ava-emoji { display: grid; place-items: center; height: 36px; border-radius: 10px; font-size: 20px; transition: background var(--dur-1), box-shadow var(--dur-1); }
+.bot-ava-emoji:hover { background: var(--accent-blue-soft); }
+.bot-ava-emoji[aria-checked="true"] { background: var(--accent-blue-soft); box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.bot-ava-emoji:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus-line); }
+.bot-ava-colors { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bot-ava-swatch { width: 26px; height: 26px; border-radius: 50%; transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1); }
+.bot-ava-swatch:hover { transform: scale(1.08); }
+.bot-ava-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--popover), 0 0 0 4px var(--accent-blue); }
+.bot-ava-swatch:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--popover), 0 0 0 4px var(--focus-line); }
+.bot-ava-mono-note { margin: 0; min-height: 40px; font-size: 13px; line-height: 20px; color: var(--ink-3); text-align: center; }
+.bot-ava-crop-wrap { display: grid; justify-items: center; gap: 10px; }
+.bot-ava-crop { position: relative; overflow: hidden; border-radius: 16px; background: #0b1220; touch-action: none; cursor: grab; user-select: none; }
+.bot-ava-crop:active { cursor: grabbing; }
+.bot-ava-crop:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-line); }
+.bot-ava-crop-img { position: absolute; left: 50%; top: 50%; max-width: none; pointer-events: none; user-select: none; }
+.bot-ava-crop-ring { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 999px rgba(8, 14, 28, 0.58); outline: 2px solid rgba(255, 255, 255, 0.85); pointer-events: none; }
+.bot-ava-zoom { display: flex; align-items: center; gap: 8px; width: 240px; }
+.bot-ava-zoom-btn { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--ink-2); transition: background var(--dur-1); }
+.bot-ava-zoom-btn:hover { background: var(--accent-blue-soft); }
+.bot-ava-range { flex: 1; accent-color: var(--accent-blue); }
+.bot-ava-error { margin: 0; min-height: 18px; font-size: 13px; line-height: 18px; color: var(--danger); text-align: center; }
+.bot-ava-foot { flex-direction: row; }
+.bot-ava-foot-gap { flex: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .bot-ava-field-btn, .bot-ava-drop, .bot-ava-emoji, .bot-ava-swatch, .bot-ava-zoom-btn { transition: none; }
+}

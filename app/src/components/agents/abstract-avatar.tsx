@@ -1,25 +1,19 @@
-import Avatar from "boring-avatars";
+import { BotAvatar } from "@/components/agents/bot-avatar";
 
+/**
+ * 旧名字，留给现有调用处：现在就是共用的圆形 `BotAvatar`（DESIGN.md §81）。给了 `agentId` 就显示机器人自己的头像
+ * （上传的图片 / 表情 / 首字），没有设置时是按 `seed` 生成的花纹。
+ */
 export function AbstractAvatar({
   name,
   seed,
   size = 40,
+  agentId,
 }: {
   name: string;
   seed: string;
   size?: number;
+  agentId?: string;
 }) {
-  return (
-    <span
-      role="img"
-      aria-label={name}
-      className="inline-flex shrink-0 overflow-hidden rounded-full"
-      style={{ height: size, width: size }}
-    >
-      {/* The drawing carries its own role; hidden so the coworker is announced once, by name. */}
-      <span aria-hidden="true" className="contents">
-        <Avatar name={seed} size={size} />
-      </span>
-    </span>
-  );
+  return <BotAvatar agentId={agentId} name={name} seed={seed} size={size} />;
 }

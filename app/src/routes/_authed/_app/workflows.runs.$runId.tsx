@@ -349,7 +349,7 @@ function StepCard({ run, step }: { run: WorkflowRunView; step: WorkflowStepState
             {step.name}
           </div>
           <div className="wf-step-who">
-            <AbstractAvatar name={step.botName} seed={bot?.avatarSeed ?? step.botId} size={18} />
+            <AbstractAvatar agentId={step.botId} name={step.botName} seed={bot?.avatarSeed ?? step.botId} size={18} />
             <span>{step.botName}</span>
             <IconArrowRight aria-hidden className="size-3 opacity-50" />
             <span>{step.roleName}</span>

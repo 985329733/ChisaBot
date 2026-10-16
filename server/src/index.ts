@@ -190,6 +190,7 @@ import { createChatShots } from "./chat-shots";
 import { createImService, type ImService, imConnectionOf } from "./im/service";
 import { createLinkPreviews } from "./link-preview/service";
 import { createMemoryNotes } from "./memory-notes/service";
+import { createBotAvatars } from "./bot-avatars/service";
 import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createGithub } from "./github/service";
@@ -1257,6 +1258,9 @@ const proactiveReadOnlyRefs = createReadOnlyClassifier(pluginStore);
 /** 长期记忆（DESIGN.md §50）：每轮开头的记忆用法 + 笔记；上游 personal_memories 不再给机器人。 */
 const memoryNotes = createMemoryNotes(database);
 await memoryNotes.ensure();
+/** 机器人头像（DESIGN.md §81）：上传的图片 / 表情 / 首字；没有 = 花纹头像。 */
+const botAvatars = createBotAvatars(database, agentProfileStore);
+await botAvatars.ensure();
 /** 密钥保险箱（DESIGN.md §52）：API 密钥 / 令牌，值不进模型；api_request 按域名替换。 */
 const vault = createVault(database, { encryptionKey: config.keyEncryptionKey });
 await vault.ensure();
@@ -3651,6 +3655,7 @@ const app = createApp(
       ["/api/bot-threads", botThreads.routes(requireUser)],
       ["/api/im", imService!.routes(requireUser)],
       ["/api/memory-notes", memoryNotes.routes(requireUser)],
+      ["/api/bot-avatars", botAvatars.routes(requireUser)],
       ["/api/chisa-skills", chisaSkills.routes(requireUser)],
       ["/api/vault", vault.routes(requireUser)],
       ["/api/github", github.routes(requireUser)],
