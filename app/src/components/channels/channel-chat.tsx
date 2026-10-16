@@ -51,6 +51,8 @@ import {
 import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
+import { readSync } from "@/lib/copilot/bot-thread";
+import { CONNECTION_LOST_REASON, isConnectionDrop, settleDroppedTurn, storedTurnAnswered } from "@/lib/copilot/connection-drop";
 import { useFallbackTurns, useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
 import { queueMessage } from "@/lib/copilot/thread-inbox";
 import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
@@ -752,6 +754,8 @@ export function ChannelChat({
    * handle that `copilotkit.runAgent` does not hand back.
    */
   const turnFailure = useRef<string | null>(null);
+  /** 这一轮的流在浏览器这头断了（不是模型出错，DESIGN.md §89）：先不报，run 结束后问服务器这一轮怎样了。 */
+  const connectionDropped = useRef(false);
   const assistantMessagesBeforeRun = useRef<Set<string>>(new Set());
 
   /*
@@ -846,6 +850,7 @@ export function ChannelChat({
 
     setRunError(null);
     turnFailure.current = null;
+    connectionDropped.current = false;
     assistantMessagesBeforeRun.current = new Set(
       target.messages
         .filter((message) => message.role === "assistant")
@@ -880,9 +885,10 @@ export function ChannelChat({
       trimmed,
       () => void modelQueryClient.invalidateQueries({ queryKey: panelKeys.session(runtimeAgentId) }),
     );
+    const userMessageId = newId();
     target.addMessage({
       content: contentOverride ?? toMessageContent(trimmed, attachments),
-      id: newId(),
+      id: userMessageId,
       role: "user",
     } as Message);
     report(trimmed || describeAttachments(attachments), null);
@@ -901,6 +907,40 @@ export function ChannelChat({
       });
     } finally {
       setRunsInFlight((count) => count - 1);
+    }
+
+    /*
+     * 流断了而不是模型出错（DESIGN.md §89）：问服务器这一轮怎样了。只读——不重发消息，设备命令不会再跑一遍。
+     * 还在跑 → 不报错，接入同步（§64）几秒内接上、接着往下写；已经答完 → 读回存下的回答；
+     * 都不是（服务重启 / 一直连不上）→ 说「和 ChisaBot 的连接断了」，并把没有结果的步骤收起来，卡片不再一直转。
+     */
+    if (connectionDropped.current && awaitingReply.current) {
+      connectionDropped.current = false;
+      const outcome = await settleDroppedTurn({
+        running: async () => {
+          const reply = await readSync(runtimeAgentId, channel.threadId);
+          if (reply === "unsupported") return "unsupported";
+          return reply?.thread && reply.thread.threadId === channel.threadId ? reply.thread.running : null;
+        },
+        answered: async () => {
+          const stored = await readThreadMessages(channel.threadId, runtimeAgentId);
+          if (stored.availability === "unavailable") return null;
+          if (!storedTurnAnswered(stored.messages as never, userMessageId)) return false;
+          const latest = agentRef.current;
+          const merged = withStoredTail(mergeStoredMessages(latest.messages, stored.messages), stored.messages);
+          if (merged !== latest.messages) latest.setMessages(merged);
+          return true;
+        },
+      });
+      if (outcome === "lost") {
+        const current = agentRef.current;
+        const closed = repairUnansweredToolCalls(current.messages);
+        if (closed !== current.messages) current.setMessages(closed as typeof current.messages);
+        failRef.current(CONNECTION_LOST_REASON);
+      } else {
+        awaitingReply.current = false;
+        activity.kick();
+      }
     }
 
     /*
@@ -989,6 +1029,7 @@ export function ChannelChat({
     }
   };
 
+  const failRef = useRef<(message: string) => void>(() => {});
   useEffect(() => {
     const fail = (message: string) => {
       if (!awaitingReply.current) return;
@@ -998,11 +1039,19 @@ export function ChannelChat({
       turnFailure.current = message;
       setRunError(message);
     };
+    failRef.current = fail;
     const subscription = agent.subscribe?.({
       // Both surfaces fall back to the same sentence, from the same place, so a person who uses
       // both is not told two different things about the same silence.
       onRunErrorEvent: ({ event }) => fail(stoppedReason(event?.message)),
-      onRunFailed: ({ error }) => fail(stoppedReason(error)),
+      onRunFailed: ({ error }) => {
+        // 浏览器这头的连接断了：先别报（更别说成「连不上模型服务」），deliver 里问过服务器再定（§89）。
+        if (awaitingReply.current && isConnectionDrop(error)) {
+          connectionDropped.current = true;
+          return;
+        }
+        fail(stoppedReason(error));
+      },
       onRunFinishedEvent: () => {
         const wasOurs = awaitingReply.current;
         awaitingReply.current = false;

@@ -81,6 +81,7 @@
 | [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
 | [CB-074](#cb-074) | 电脑文件夹导入失败后残留、移除后无法重新导入 | 成熟度 Maturity | `type: bug` · `area: pc` · `area: agents` · `P0` · `status: done` |
 | [CB-075](#cb-075) | 每个机器人记住我的操作状态；消息记录仍会往回跳 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
+| [CB-076](#cb-076) | 「模型老断」：长命令 / 断线 / 部署重启时这一轮被误报成「连不上模型服务」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 
 ## CB-001
 
@@ -1217,3 +1218,20 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 网页：链接时显示识别结果 +「用 sing-box 转换此链接」开关（开了才能测试 / 保存）+ 一句机场节点风险提醒；保存后自动测，显示出口 IP 和国家
 - [x] 预览 e2e：本机起的 trojan / vless reality / vmess ws / ss 测试服务端（不用真实节点），经节点 sing-box 测通 claude.ai + api.anthropic.com，杀掉 sing-box 后自动恢复，密码 / UUID 不出现在日志、数据库、接口里
 
+## CB-076
+
+**「模型老断」：长命令 / 断线 / 部署重启时这一轮被误报成「连不上模型服务」**  
+标签：`type: bug` `area: chat` `P0` `status: done`
+
+用户 2026-10-16 15:4x：「模型老断」——让机器人在电脑上用 winget 装 Node.js，一轮做到一半就是「暂时连不上模型服务」，「正在操作你的设备 第 3 步 · 401 秒」还在转。DESIGN.md §89。
+线上证据（FRA 网关日志 + `openbot_local_runs` / `openbot_local_events`）：3 天里 0 条 RUN_ERROR（模型 / 上游没出过错）；用户可见的两次断都不是模型——
+15:37:43 部署（`auto-202610160737-125cd05`）重启了应用，nginx「upstream prematurely closed」，那一轮被标 interrupted、事件停在 TOOL_CALL_END；
+15:44:39 用户电脑到 Cloudflare 的连接整条断了（/run 流和频道 WebSocket 同一秒断，2 秒后换边缘节点重连），服务器那一轮照常跑到 15:54:06 RUN_FINISHED（一条 388 秒 + 一条 436 秒没有任何事件的 device_run_shell）。
+
+#### 验收标准
+- [x] 浏览器这头的流断了不再说成模型的错：先问服务器——还在跑就不报错、自动接上；答完了读回答案；服务器也没了才报「和 ChisaBot 服务器的连接断了」，并把没结果的步骤收起来（单测 `app/tests/connection-drop.test.ts`）
+- [x] 断线后不重发任何东西（只读 `sync` / `messages`），设备命令不会因此再跑一遍
+- [x] 确认长时间没动静的流不会被中间层当空闲掐掉：运行时本来每 15 秒写 `: keep-alive`（预览 + 掐 25 秒空闲的中间层实测 60 秒不出声的一轮不断），不另加
+- [x] 服务重启时还在跑的那一轮，开机补完：没结果的工具调用补「被打断」结果 + 说明原因的 RUN_ERROR，对话记录也补上（`server/tests/restart-interrupted-run.integration.test.ts`）
+- [x] 更新器切换前等正在回答的对话结束（最多 `DRAIN_SECONDS`=900 秒），不再拦腰截断
+- [x] 预览 e2e（`wt-modeldrop-h`：假模型长时间不出声 + 会掐空闲 / 会整条断线的中间层 + 重启预览）：整条断线时修前报「暂时连不上模型服务」，修后不报错、回答完整、卡片不转；重启时报连接断了而不是模型

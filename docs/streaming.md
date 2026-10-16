@@ -38,6 +38,10 @@ curl -N -s -X POST -H 'content-type: application/json' -H 'accept: text/event-st
 
 - nginx：`proxy_buffering off;`，`gzip_types` 里不要有 `text/event-stream`（或尊重 `X-Accel-Buffering`）。
 - 其他代理 / CDN：关闭对 `text/event-stream` 的压缩和缓冲。
+- 心跳：运行时本来就在 SSE 空闲时每 15 秒写一行注释 `: keep-alive`（2026-10-16 用会掐 25 秒空闲连接的中间层实测：60 秒不出声的一轮不会被掐）。
+  机器人在电脑上跑几分钟的命令时流不会因为「没动静」被中间层掐断；注释行所有 SSE 解析器都忽略。
+- 浏览器这头断线（换网、CDN 换边缘节点）时，网页先问服务器这一轮还在不在跑：在跑就自动接上、不报错；答完了就读回答案；
+  服务器重启了才报「和 ChisaBot 服务器的连接断了」。只有服务器发来的 RUN_ERROR 才会说是模型的问题。
 
 ## 只有一套聊天（CB-046，2026-10-15）
 

@@ -283,6 +283,28 @@ if [ "$BUILD_ONLY" = 1 ] || [ "$DRY" = 1 ]; then
   exit 0
 fi
 
+# ---------- drain ----------
+# 切换会重启应用容器，正在跑的那一轮会被拦腰截断（2026-10-16「模型老断」：15:37 一次部署打断了用户正在装 Node.js
+# 的那一轮，DESIGN.md §89）。构建可能要好几分钟，期间用户又发了消息；所以在真正切换前再等一次：没有正在回答的
+# 对话（线程锁）才切。最多等 DRAIN_SECONDS（默认 900 秒），到点还没空就照样切——重启后应用会把被打断的那一轮
+# 补完（工具结果 + 说明原因的 RUN_ERROR），聊天里写清楚是服务重启，不会说成模型的错。DRAIN_SECONDS=0 关掉。
+DRAIN_SECONDS=${DRAIN_SECONDS:-900}
+busy_threads() {
+  docker exec "$CONTAINER" sh -c 'export PGPASSWORD=$(cat /var/lib/postgresql/pgpassword 2>/dev/null); psql -h 127.0.0.1 -U openbot openbot -Atc "select count(*) from openbot_local_threads where lock_expires_at > now()"' 2>/dev/null | tr -dc 0-9
+}
+if [ "$DRAIN_SECONDS" -gt 0 ] 2>/dev/null; then
+  step drain "等正在回答的对话结束再切换（最多 $DRAIN_SECONDS 秒）"
+  WAITED=0
+  while :; do
+    N=$(busy_threads)
+    [ -z "$N" ] && { echo "读不到对话状态，直接切换"; break; }
+    [ "$N" = 0 ] && { [ "$WAITED" -gt 0 ] && echo "对话都已结束（等了 $WAITED 秒）"; break; }
+    [ "$WAITED" -ge "$DRAIN_SECONDS" ] && { echo "注意：等了 $WAITED 秒仍有 $N 个对话在回答，照常切换（重启后会把被打断的那一轮补完）"; break; }
+    [ $((WAITED % 60)) = 0 ] && echo "还有 $N 个对话在回答，等它们结束…（已等 $WAITED 秒）"
+    sleep 5; WAITED=$((WAITED + 5))
+  done
+fi
+
 # ---------- swap ----------
 step swap "切换到 $NEW_IMAGE"
 RB="$COMPOSE_DIR/rollback-to-$CUR_TAG.sh"
