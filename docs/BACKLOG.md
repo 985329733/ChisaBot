@@ -80,6 +80,7 @@
 | [CB-072](#cb-072) | 机器人 ↔ Claude Code 切换整屏刷新 → 原地切换 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
 | [CB-074](#cb-074) | 电脑文件夹导入失败后残留、移除后无法重新导入 | 成熟度 Maturity | `type: bug` · `area: pc` · `area: agents` · `P0` · `status: done` |
+| [CB-075](#cb-075) | 每个机器人记住我的操作状态；消息记录仍会往回跳 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 
 ## CB-001
 
@@ -1162,6 +1163,18 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 预取对面的分包和数据；分包未到时旧画面留着，直接打开 `/cc` 只画左栏骨架
 - [x] 切回机器人回到上次的对话，切到 Claude Code 回到上次的会话
 - [x] 回归：`app/tests/left-mode-switch.test.tsx`、`tests/mode-switch/mode-switch.mjs`
+
+## CB-075
+
+**每个机器人记住我的操作状态；消息记录仍会往回跳**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: chat` `P0` `status: done`
+
+用户 2026-10-16：「消息记录仍会往回跳」「每个机器人记住我的操作状态（计算机/面板、草稿、滚动位置）」。DESIGN.md §88。
+
+#### 验收标准
+- [x] 发消息（干活卡、日程卡）全程 0 次往回跳（1280 / 390）
+- [x] 右栏标签 / 展开 / 宽度按机器人记住；草稿、滚动位置、干活卡展开按对话记住；左栏点回来、切回来、刷新都还原
+- [x] 回归：单测 + `tests/bot-state/bot-state.mjs`
 
 ## CB-074
 
