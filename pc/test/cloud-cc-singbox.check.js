@@ -109,7 +109,8 @@ test("出站检查：类型白名单、tag 固定、去掉 detour", () => {
 
 test("没有 sing-box 时说清楚", async () => {
   const sb = createSingBox({ bin: "/nonexistent/sing-box" });
-  await assert.rejects(sb.start(outbound()), /没有 sing-box/);
+  // CI 上没有 sing-box 时 serverPort 没赋值，补一个端口，让检查走到「找不到 sing-box」这一步
+  await assert.rejects(sb.start(outbound({ server_port: serverPort || 1 })), /没有 sing-box/);
   assert.equal(await singBoxVersion("/nonexistent/sing-box"), null);
 });
 
