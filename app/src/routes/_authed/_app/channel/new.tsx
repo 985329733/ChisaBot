@@ -1,7 +1,7 @@
 import type { Message } from "@ag-ui/core";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RegisterBotChat } from "@/components/agents/bot-chat-actions";
 import { LandingRedirect } from "@/components/agents/landing-redirect";
 import { channelListQueryOptions } from "@/lib/channels/queries";
@@ -77,6 +77,16 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
       void navigate({ to: "/channel/$channelId", params: { channelId: existing }, search: watch ? { watch: true } : {}, replace: true });
   }, [existing, navigate, watch]);
 
+  // 右栏「计算机」开关（DESIGN.md §79）：和对话页一样记在 `watch` 搜索参数里（刷新保留、后退关闭）。
+  const navigateHere = Route.useNavigate();
+  const setWatching = useCallback(
+    (open: boolean) =>
+      void navigateHere({
+        search: (previous) => ({ ...previous, watch: open ? true : undefined }),
+      }),
+    [navigateHere],
+  );
+
   // Stale or private `?agent=` values are ignored because the roster is permission-filtered.
   const listed = profiles?.find((profile) => profile.id === agent);
   /**
@@ -132,7 +142,7 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
     try {
       // Recorded, then started: a coworker picked here is as much a choice as an `@` on the
       // home screen, and the trail has to say so for both.
-      await startChosen(recipient.id, text);
+      await startChosen(recipient.id, text, { watch });
     } catch (caught) {
       // Preserve the unsent draft when channel creation fails.
       setSent(null);
@@ -145,7 +155,16 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
 
   return (
     <div className="relative flex h-full flex-col">
-      <RegisterBotChat agentId={chosen?.id} freshTopic />
+      {/*
+       * 空聊天也是这个机器人的对话：右栏照样是「面板 | 计算机」（DESIGN.md §23 / §79）。计算机属于机器人、
+       * 不属于某条对话，所以还没发第一条消息也能打开；发出第一条时 `watch` 跟着带进新对话。
+       */}
+      <RegisterBotChat
+        agentId={chosen?.id}
+        computerOpen={watch}
+        freshTopic
+        onComputerChange={setWatching}
+      />
       {chosen && !sent ? (
         // Quiet identity of the Bot picked in the left column, until the first message replaces it.
         <div className="chat-intro">
