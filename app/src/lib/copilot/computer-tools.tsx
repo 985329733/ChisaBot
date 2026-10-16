@@ -59,6 +59,8 @@ type ComputerOutcome = {
   stopped?: boolean;
   humanHasControl?: boolean;
   entries?: unknown[];
+  /** computer_tabs action=new 带网址时，新标签里打开的那页。 */
+  page?: { url?: string; title?: string };
   refused?: boolean;
   reason?: string;
   staleRefs?: boolean;
