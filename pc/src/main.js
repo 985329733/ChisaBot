@@ -825,6 +825,7 @@ function pumpConfirm() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
   confirmWindow.loadFile(path.join(UI, "confirm.html"), { query: windowChrome.frameQuery(FRAME) });
+  dialogWidth.set(confirmWindow, 440);
   showAfterFit(confirmWindow, () => {
     confirmWindow?.show();
     confirmWindow?.focus();
@@ -844,6 +845,8 @@ function pumpConfirm() {
  * 页面没报（旧页面 / 出错）时 ready-to-show 后 400ms 照常显示。
  */
 const pendingShow = new WeakMap();
+/** 创建时的宽度：小数缩放（125% / 150%）下 getBounds 会比设定值多几 px，定高时用它回写，不越来越宽。 */
+const dialogWidth = new WeakMap();
 function showAfterFit(win, show) {
   let done = false;
   const go = () => {
@@ -888,6 +891,7 @@ function pumpApprovals() {
   });
   approvalWindow.setAlwaysOnTop(true, "screen-saver");
   approvalWindow.loadFile(path.join(UI, "approval.html"), { query: windowChrome.frameQuery(FRAME) });
+  dialogWidth.set(approvalWindow, width);
   showAfterFit(approvalWindow, () => {
     approvalWindow?.showInactive();
     approvalWindow?.flashFrame(true);
@@ -1356,9 +1360,10 @@ function registerIpc() {
     const h = windowChrome.fitHeight(height);
     if (!h) return false;
     const b = win.getBounds();
-    if (Math.abs(b.height - h) >= 2) {
-      if (win === approvalWindow) win.setBounds({ x: b.x, y: b.y + b.height - h, width: b.width, height: h });
-      else win.setBounds({ x: b.x, y: Math.round(b.y + (b.height - h) / 2), width: b.width, height: h });
+    const width = dialogWidth.get(win) || b.width;
+    if (Math.abs(b.height - h) >= 2 || b.width !== width) {
+      if (win === approvalWindow) win.setBounds({ x: b.x, y: b.y + b.height - h, width, height: h });
+      else win.setBounds({ x: b.x, y: Math.round(b.y + (b.height - h) / 2), width, height: h });
     }
     pendingShow.get(win)?.();
     return true;

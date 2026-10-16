@@ -69,7 +69,8 @@ function register() {
     const h = chrome.fitHeight(height);
     if (!win || !h) return false;
     const b = win.getBounds();
-    win.setBounds({ x: b.x, y: b.y, width: b.width, height: h });
+    // 用创建时的宽度：小数缩放下 getBounds 会多出几 px，拿它回写会越写越宽。
+    win.setBounds({ x: b.x, y: b.y, width: win.chisaWidth || b.width, height: h });
     win.emit("chisa-fit");
     return true;
   };
@@ -89,6 +90,8 @@ function backdrop() {
     show: false,
   });
   win.loadURL("data:text/html,<body style='margin:0;background:%236b7280'></body>");
+  // 盖住 runner 的控制台窗口；截图窗口用更高的 screen-saver 层。
+  win.setAlwaysOnTop(true, "floating");
   win.once("ready-to-show", () => win.showInactive());
   return win;
 }
@@ -104,9 +107,10 @@ async function desktopShot(bounds, file) {
   if (!src) throw new Error("no screen source");
   const img = src.thumbnail;
   const M = 24;
+  // --force-device-scale-factor 只放大窗口内容和尺寸，窗口左上角在屏幕上的物理坐标仍等于 DIP 坐标（实测）。
   const crop = {
-    x: Math.max(0, Math.round((bounds.x - display.bounds.x - M) * sf)),
-    y: Math.max(0, Math.round((bounds.y - display.bounds.y - M) * sf)),
+    x: Math.max(0, Math.round(bounds.x - display.bounds.x - M)),
+    y: Math.max(0, Math.round(bounds.y - display.bounds.y - M)),
     width: Math.round((bounds.width + M * 2) * sf),
     height: Math.round((bounds.height + M * 2) * sf),
   };
@@ -126,6 +130,8 @@ async function open(name, page, options, { fitted = false } = {}) {
     show: false,
     webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true },
   });
+  win.chisaWidth = options.width;
+  win.setAlwaysOnTop(true, "screen-saver");
   const shown = new Promise((resolve) => {
     let done = false;
     const go = () => {
