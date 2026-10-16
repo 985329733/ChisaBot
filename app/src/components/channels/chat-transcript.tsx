@@ -629,7 +629,7 @@ function SettleAtEnd({
   state.current.busy = busy;
   const reduceMotion = useReducedMotion();
   /** §91.3：一轮结束后收掉底下留的空（由下面的 effect 填上；没挂上时什么都不做）。 */
-  const releaseRef = useRef<(() => void) | null>(null);
+  const releaseRef = useRef<(() => boolean) | null>(null);
 
   useLayoutEffect(() => {
     const s = state.current;
@@ -691,7 +691,16 @@ function SettleAtEnd({
     if (busy || !was || hydrating) return;
     // 和这一轮结束时的收起（§82.9 过程话 / §91 干活卡）同一次提交、绘制之前开始：收起和收空一起往下落，
     // 不会先被收起夹一下、滚动容器再把那条消息拉回顶上（预览实测：等收起走完再收，中间往回跳 67px）。
-    releaseRef.current?.();
+    if (releaseRef.current?.() !== false) return;
+    // 这一帧还不行（滚动容器还在对齐、最后几个字刚进来）：接下来几帧再试，最多 ~0.5 秒。
+    let tries = 0;
+    let frame = 0;
+    const retry = () => {
+      if (releaseRef.current?.() !== false || ++tries > 30) return;
+      frame = window.requestAnimationFrame(retry);
+    };
+    frame = window.requestAnimationFrame(retry);
+    return () => window.cancelAnimationFrame(frame);
   }, [busy, hydrating]);
 
   // 离开对话：最后记一次位置。用 layout 的清理——那时 DOM 还在页面上，量得出来（普通 effect 的清理时已经拿掉了）。
@@ -883,15 +892,20 @@ function SettleAtEnd({
     };
     let releaseFrame = 0;
     releaseRef.current = () => {
-      if (s.busy || s.releasing || s.restore || active()) return;
-      if (performance.now() - touchedAt < 400) return;
+      const why = (reason: string) => {
+        element.dataset.cbRelease = reason;
+        return false;
+      };
+      if (s.busy || s.releasing || s.restore || active()) return why(`skip:${s.busy ? "busy" : s.releasing ? "releasing" : s.restore ? "restore" : "settling"}`);
+      if (performance.now() - touchedAt < 400) return why("touched");
       const gap = element.scrollHeight - element.scrollTop - element.clientHeight;
-      if (gap > 4) return; // 人不在底部：留白在视口外，§88.1 自己会收
+      if (gap > 4) return why(`gap:${Math.round(gap)}`); // 人不在底部：留白在视口外，§88.1 自己会收
       const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
       const spacerHeight = spacer && !spacer.hidden ? spacer.offsetHeight : 0;
       const total = spacerHeight + s.slack;
-      if (total <= 1) return;
+      if (total <= 1) return why("none");
       s.releasing = true;
+      element.dataset.cbRelease = `release:${Math.round(total)}`;
       // 1) 滚动容器的空挪进留白（同一帧），2) 让它改成跟着底部（spacer 清零，位置不变）。
       setSlack(total);
       const top = element.scrollTop;
@@ -908,7 +922,7 @@ function SettleAtEnd({
       };
       if (reduceMotion) {
         finish();
-        return;
+        return true;
       }
       // 3) 留白缩到 0：ease-out，RELEASE_MS。
       const start = performance.now();
@@ -924,6 +938,7 @@ function SettleAtEnd({
         releaseFrame = window.requestAnimationFrame(step);
       };
       releaseFrame = window.requestAnimationFrame(step);
+      return true;
     };
     const mutations = new MutationObserver(pin);
     mutations.observe(content, { childList: true });
