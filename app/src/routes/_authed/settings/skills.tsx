@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { SearchBox } from "@/components/memory/memory-notes";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -76,7 +76,7 @@ function SkillsPage() {
               {skill.summary ? <span className="mem-body">{skill.summary}</span> : null}
               <span className="device-row-meta">
                 <span className="skill-slug">{`/${skill.slug}`}</span>
-                {skill.mine ? null : <span className="device-cap-chip">{"共享 · 只读"}</span>}
+                {skill.mine ? null : <span className="device-cap-chip"><T>{"共享 · 只读"}</T></span>}
               </span>
             </>
           }

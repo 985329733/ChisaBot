@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { type CcRef, ccDiffQueryOptions, ccFileQueryOptions, ccFilesQueryOptions } from "@/lib/cloud-cc";
 import { cn } from "@/lib/utils";
+import { T } from "@/components/ui/button";
 
 export type RightTab = "changes" | "files";
 
@@ -247,10 +248,10 @@ export function CcRightContent({
     <div className="cc-rp-body">
       <div aria-label="右栏内容" className="sg-segmented cc-rp-seg" role="radiogroup">
         <button aria-checked={tab === "changes"} className="sg-segmented-item" data-testid="cc-tab-changes" onClick={() => onTab("changes")} role="radio" type="button">
-          {"改动"}
+          <T>{"改动"}</T>
         </button>
         <button aria-checked={tab === "files"} className="sg-segmented-item" data-testid="cc-tab-files" onClick={() => onTab("files")} role="radio" type="button">
-          {"文件"}
+          <T>{"文件"}</T>
         </button>
       </div>
       {tab === "changes" ? <ChangesTab base={base} enabled={enabled} sessionId={sessionId} turnId={turnId} /> : <FilesTab base={base} enabled={enabled} sessionId={sessionId} />}

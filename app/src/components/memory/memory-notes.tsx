@@ -22,7 +22,7 @@ import {
   SUBJECT_KINDS,
 } from "../../../../shared/memory-notes";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -87,7 +87,7 @@ export function NoteRow({ note, botName, onEdit, onDelete }: { note: MemoryNoteV
             <>
               {body ? <span className="mem-body">{body.replace(/\n+/g, " · ")}</span> : null}
               <span className="device-row-meta">
-                {note.context ? <span className="device-cap-chip">{`情境：${note.context}`}</span> : null}
+                {note.context ? <span className="device-cap-chip"><T>{`情境：${note.context}`}</T></span> : null}
                 <span className="mem-by">
                   {note.author === "bot" ? (
                     <>

@@ -13,7 +13,7 @@ import {
   NoteRow,
   SearchBox,
 } from "@/components/memory/memory-notes";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { Card, ErrorCard, Toolbar } from "@/components/ui/skyglass";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { memoryNoteKeys, memoryNotesQueryOptions } from "@/lib/memory-notes";
@@ -82,8 +82,8 @@ function MemoryPage() {
                   if (kind !== "all" && !count) return null;
                   return (
                     <button aria-checked={filter === kind} className="sg-segmented-item" key={kind} onClick={() => setFilter(kind)} role="radio" type="button">
-                      {kind === "all" ? "全部" : MEMORY_KIND_LABELS[kind]}
-                      <span className="mem-count">{count}</span>
+                      <T>{kind === "all" ? "全部" : MEMORY_KIND_LABELS[kind]}</T>
+                      <span className="mem-count"><T>{count}</T></span>
                     </button>
                   );
                 })}

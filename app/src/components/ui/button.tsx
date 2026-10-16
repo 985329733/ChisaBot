@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -158,22 +158,22 @@ export function AsyncContent({
     return (
       <>
         {state !== "idle" ? <StatusGlyph /> : null}
-        {children}
+        {labelText(children)}
       </>
     );
   }
   return (
     <span className="btn-stack" data-state={state}>
       <span aria-hidden={state !== "idle" || undefined} className="btn-face" data-face="idle">
-        {children}
+        {labelText(children)}
       </span>
       <span aria-hidden={state === "idle" || undefined} className="btn-face" data-face="status">
         <StatusGlyph />
         {labels && !iconOnly ? (
           <span className="btn-labels">
-            <span data-for="pending">{labels.pending}</span>
-            <span data-for="success">{labels.success}</span>
-            <span data-for="error">{labels.error}</span>
+            <span className="btn-t" data-for="pending">{labels.pending}</span>
+            <span className="btn-t" data-for="success">{labels.success}</span>
+            <span className="btn-t" data-for="error">{labels.error}</span>
           </span>
         ) : null}
       </span>
@@ -184,6 +184,41 @@ export function AsyncContent({
       ) : null}
     </span>
   );
+}
+
+/**
+ * DESIGN.md §82.2：按钮里的裸文字包一层 `.btn-t`（inline-block + `text-box: trim-both cap alphabetic`），
+ * 让文字盒只剩「大写字母顶 → 基线」，再由按钮的 flex 居中。不包的话按钮居中的是字体的 ascent + descent，
+ * 中文字形在文泉驿下偏上 1–2px、在 Noto Sans CJK 下偏上 0.5–1px；包了以后两种字体都在 ±0.5px 内。
+ * 只包字符串 / 数字；图标和别的元素原样放着（`truncate` 的 span 不能包：裁掉的盒子会把字形裁掉）。
+ */
+export function labelText(children: ReactNode): ReactNode {
+  if (typeof children === "string" || typeof children === "number") return <span className="btn-t">{children}</span>;
+  const items = Children.toArray(children);
+  if (!items.some((child) => typeof child === "string" || typeof child === "number")) return children;
+  // 连着的几段文字（「全部 」{n}）合成一个 span：分开包的话按钮的 gap 会插在它们中间。
+  const out: ReactNode[] = [];
+  let text: (string | number)[] = [];
+  const flush = () => {
+    if (!text.length) return;
+    const joined = text.join("");
+    out.push(joined.trim() ? <span className="btn-t" key={`t${out.length}`}>{joined}</span> : joined);
+    text = [];
+  };
+  for (const child of items) {
+    if (typeof child === "string" || typeof child === "number") text.push(child);
+    else {
+      flush();
+      out.push(child);
+    }
+  }
+  flush();
+  return out;
+}
+
+/** 胶囊 / 小标签里的文字（不是 `Button` 的那些）用同一层，和按钮一样居中。 */
+export function T({ children }: { children?: ReactNode }) {
+  return <span className="btn-t">{children}</span>;
 }
 
 const IDLE_MUTATION: MutationLike = { status: "idle", submittedAt: 0 };

@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { type CcSessionStatus, type CcWorkspaceView, SYNC_STATE_ZH } from "../../../../shared/cloud-cc";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
@@ -22,7 +22,7 @@ export function SyncPill({ state }: { state: CcWorkspaceView["syncState"] }) {
   return (
     <span className={cn("cc-pill cc-sync-pill", tone)} data-state={state}>
       <i aria-hidden className="cc-dot" />
-      {SYNC_STATE_ZH[state]}
+      <T>{SYNC_STATE_ZH[state]}</T>
     </span>
   );
 }
@@ -92,7 +92,7 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
                   {"克隆中"}
                 </span>
               ) : ws.cloneState === "error" ? (
-                <span className="cc-pill is-danger">{"克隆失败"}</span>
+                <span className="cc-pill is-danger"><T>{"克隆失败"}</T></span>
               ) : (
                 <SyncPill state={ws.syncState} />
               )}

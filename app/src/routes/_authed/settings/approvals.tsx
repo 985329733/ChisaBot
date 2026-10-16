@@ -13,7 +13,7 @@ import {
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { ConfirmRow } from "@/components/approvals/confirm-row";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -124,7 +124,7 @@ function ApprovalPrefsPage() {
                               {CONFIRM_MODE_LABEL[rule.mode]}
                             </span>
                             <span className="ap-chip">{CONFIRM_CATEGORY_INFO[rule.category].label}</span>
-                            {rule.keywords.length ? <span className="device-cap-chip">{`涉及 ${rule.keywords.join("、")}`}</span> : null}
+                            {rule.keywords.length ? <span className="device-cap-chip"><T>{`涉及 ${rule.keywords.join("、")}`}</T></span> : null}
                           </span>
                           <span className="mem-by">
                             {`${rule.source === "bot" ? `${botName.get(rule.agentId ?? "") ?? "机器人"}记下的` : "你写的"} · ${agoText(rule.createdAt)}`}
@@ -222,7 +222,7 @@ function PrefRow({ pref, onSaved }: { pref: ConfirmPrefView; onSaved: () => Prom
             title={pref.locked && value === "auto" ? "付款一律先问你" : undefined}
             type="button"
           >
-            {CONFIRM_MODE_LABEL[value]}
+            <T>{CONFIRM_MODE_LABEL[value]}</T>
           </button>
         ))}
       </div>
@@ -307,7 +307,7 @@ function RuleForm({ onAdded }: { onAdded: () => Promise<unknown> }) {
           placeholder={"涉及（可选）：张三、下载文件夹"}
           value={keywords}
         />
-        <Button data-testid="rule-add" disabled={!valid} feedback="add" size="sm" state={add.state} type="submit">
+        <Button data-testid="rule-add" disabled={!valid} feedback="add" state={add.state} type="submit">
           {"添加"}
         </Button>
       </div>

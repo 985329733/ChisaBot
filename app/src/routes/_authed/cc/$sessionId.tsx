@@ -22,7 +22,7 @@ import { CcMessageView } from "@/components/cloud-cc/cc-transcript";
 import { CcSyncPillButton } from "@/components/cloud-cc/cc-sync";
 import { PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
@@ -188,8 +188,8 @@ function CcSession({ sessionId, detail }: { sessionId: string; detail: SessionDe
           {session.title}
         </h1>
         <div className="cc-head-pills">
-          <span className="cc-pill is-info">{`${ws?.name ?? "工作区"} · ${session.branch ?? "自己的目录"}`}</span>
-          {!phone ? <span className="cc-pill" data-testid="cc-resume-pill">{session.resumable ? `接着上次 · ${session.turns} 轮` : "新的 Claude 会话"}</span> : null}
+          <span className="cc-pill is-info"><T>{`${ws?.name ?? "工作区"} · ${session.branch ?? "自己的目录"}`}</T></span>
+          {!phone ? <span className="cc-pill" data-testid="cc-resume-pill"><T>{session.resumable ? `接着上次 · ${session.turns} 轮` : "新的 Claude 会话"}</T></span> : null}
           {ws ? <CcSyncPillButton ws={ws} /> : null}
           {session.prUrl ? (
             <a className="cc-pill is-ok" data-testid="cc-pr-pill" href={session.prUrl} rel="noreferrer noopener" target="_blank">

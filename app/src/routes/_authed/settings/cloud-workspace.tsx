@@ -8,7 +8,7 @@ import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
@@ -30,8 +30,8 @@ function CloudWorkspacePage() {
   const node = status.data?.node ?? null;
   const pills = node ? (
     <span className="cc-pills">
-      <span className={cn("cc-pill", node.online ? "is-ok" : "is-off")}>{node.online ? "在线" : "离线"}</span>
-      <span className="cc-pill is-info">{`正在运行 ${status.data?.running ?? 0} / ${status.data?.maxConcurrent ?? 2}`}</span>
+      <span className={cn("cc-pill", node.online ? "is-ok" : "is-off")}><T>{node.online ? "在线" : "离线"}</T></span>
+      <span className="cc-pill is-info"><T>{`正在运行 ${status.data?.running ?? 0} / ${status.data?.maxConcurrent ?? 2}`}</T></span>
     </span>
   ) : null;
   return (
@@ -240,7 +240,7 @@ function ClaudeAccount() {
                   >
                     {"在云端完成登录"}
                   </Button>
-                  <Button data-testid="cc-login-start" disabled={!online} feedback={{ pending: "打开中…", success: "已打开", error: "没有打开" }} onClick={() => void start.run()} size="sm" state={start.state} variant="ghost">
+                  <Button data-testid="cc-login-start" disabled={!online} feedback={{ pending: "打开中…", success: "已打开", error: "没有打开" }} onClick={() => void start.run()} state={start.state} variant="ghost">
                     {"粘贴授权码（备用）"}
                   </Button>
                 </>

@@ -4,7 +4,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -165,9 +165,9 @@ function AccountsPage() {
                           <>
                             <span className="device-row-meta">
                               <span className="skill-slug">{account.username}</span>
-                              <span className="device-cap-chip">{account.role === "admin" ? "管理员" : "朋友"}</span>
-                              {account.disabled ? <span className="device-cap-chip is-off">{"已停用"}</span> : null}
-                              {account.id === data.me ? <span className="device-cap-chip">{"你"}</span> : null}
+                              <span className="device-cap-chip"><T>{account.role === "admin" ? "管理员" : "朋友"}</T></span>
+                              {account.disabled ? <span className="device-cap-chip is-off"><T>{"已停用"}</T></span> : null}
+                              {account.id === data.me ? <span className="device-cap-chip"><T>{"你"}</T></span> : null}
                             </span>
                             <span className="mem-by">{account.builtin ? "内置管理员 · 在服务器配置里改密码" : lastSeenText(account.lastLoginAt)}</span>
                           </>
