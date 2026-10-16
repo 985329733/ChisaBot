@@ -83,6 +83,51 @@ export function workStepLines(calls: readonly WorkCall[]): string[] {
   return steps;
 }
 
+/**
+ * 一段过程话（DESIGN.md §90）：机器人在两步之间说的话，收进干活卡。`at` = 它前面这一轮已经有几个调用。
+ */
+export type WorkNote = { at: number; text: string };
+
+/** 过程话里的 markdown 记号去掉（卡片里是一行小字，不画 markdown）。 */
+export function plainNote(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * 干活卡点开后的一列（§90）：每一步一句（同 `workStepLines`），过程话按它出现的位置插在步骤之间。
+ * 没有过程话时与 `workStepLines` 完全一样。
+ */
+export function workTimeline(calls: readonly WorkCall[], notes: readonly WorkNote[] = []): { kind: "step" | "note"; text: string }[] {
+  const lines: { kind: "step" | "note"; text: string }[] = [];
+  const pending = [...notes].sort((a, b) => a.at - b.at);
+  const flush = (upTo: number) => {
+    while (pending.length && pending[0]!.at <= upTo) {
+      const text = plainNote(pending.shift()!.text);
+      if (text && lines.at(-1)?.text !== text) lines.push({ kind: "note", text });
+    }
+  };
+  let lastStep: string | undefined;
+  calls.forEach((call, index) => {
+    flush(index);
+    if (NOT_WORK.has(call.name)) return;
+    const line = describeWorkerStep(call.name, parseArgs(call.arguments));
+    if (!line || line.startsWith("正在使用 ")) return;
+    const past = line.replace(/^正在/, "");
+    if (lines.at(-1)?.kind === "step" && lastStep === past) return;
+    lastStep = past;
+    lines.push({ kind: "step", text: past });
+  });
+  flush(Number.POSITIVE_INFINITY);
+  return lines;
+}
+
 function doneLabel(work: readonly WorkCall[]): string {
   let searches = 0;
   let pages = 0;

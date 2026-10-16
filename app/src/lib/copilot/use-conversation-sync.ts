@@ -84,7 +84,7 @@ export function revisionNeedsRebuild(known: string | null, seen: string | undefi
  *
  * `liveTail`（频道聊天，DESIGN.md §64）：服务器正在回答时，最后一条用户消息之后的那几条（正在写的回答、
  * 思考、工具调用）不算——这台手里的只是刷新 / 切后台前收到的半截，跳过它们的事件就会一直停在半截上。
- * 不跳过时 SDK 在「开始」事件里清空这条再按回放重建，然后接着实时往下写。
+ * 不跳过时由 `tailReplayPatch` 在「开始」事件里先清空这条（SDK 自己不清，§90.3），再按回放重建，然后接着实时往下写。
  */
 export function knownForMerge(
   messages: readonly { id: string; role: string; toolCalls?: { id: string }[] }[],
@@ -100,6 +100,70 @@ export function knownForMerge(
     messages: new Set(kept.map((message) => message.id)),
     toolCalls: new Set(kept.flatMap((message) => (message.toolCalls ?? []).map((call) => call.id))),
   };
+}
+
+/**
+ * `liveTail` 接入时「这台手里只有半截」的那几条（最后一条用户消息之后）：回放从头重建它们。
+ *
+ * 以前以为 SDK 在 TEXT_MESSAGE_START 时会清空已有的同 id 消息——它不会（@ag-ui/client：已有就不新建，
+ * 正文照样往后追加），于是回放把整段又接了一遍：「刚才安装调用中断了…刚才安装调用中断了…」（DESIGN.md §90.3）。
+ * 工具调用同理（参数追加成两份 JSON），工具结果会多插一条同 id 的消息。这里在回放到它们时：
+ *  - 文字 / 思考的「开始」：先把这条的正文清空（每次接入每条只清一次），后面的正文按回放重新写；
+ *  - 工具调用的「开始」：参数清空；
+ *  - 工具结果：已经有同 id / 同一个调用的结果就原地换内容，不再插第二条。
+ */
+export type TailReplay = { messages: Set<string>; toolCalls: Set<string>; reset: Set<string> };
+
+export function liveTailOf(messages: readonly { id: string; role: string; toolCalls?: { id: string }[] }[]): TailReplay {
+  const lastUser = messages.map((message) => message.role).lastIndexOf("user");
+  const tail = messages.slice(lastUser + 1);
+  return {
+    messages: new Set(tail.map((message) => message.id)),
+    toolCalls: new Set(tail.flatMap((message) => (message.toolCalls ?? []).map((call) => call.id))),
+    reset: new Set(),
+  };
+}
+
+type TailMsg = { id: string; role: string; content?: unknown; toolCallId?: string; toolCalls?: { id: string; function: { name: string; arguments: string } }[] };
+
+export function tailReplayPatch<T extends TailMsg>(
+  event: { type: string; messageId?: string; toolCallId?: string; content?: unknown },
+  messages: readonly T[],
+  tail: TailReplay,
+): { messages?: T[]; stopPropagation?: true } | undefined {
+  if ((event.type === "TEXT_MESSAGE_START" || event.type === "REASONING_MESSAGE_START") && event.messageId) {
+    const id = event.messageId;
+    if (!tail.messages.has(id) || tail.reset.has(id)) return;
+    tail.reset.add(id);
+    if (!messages.some((message) => message.id === id)) return;
+    return { messages: messages.map((message) => (message.id === id ? { ...message, content: "" } : message)) };
+  }
+  if (event.type === "TOOL_CALL_START" && event.toolCallId) {
+    const id = event.toolCallId;
+    const key = `tool:${id}`;
+    if (!tail.toolCalls.has(id) || tail.reset.has(key)) return;
+    tail.reset.add(key);
+    if (!messages.some((message) => message.toolCalls?.some((call) => call.id === id))) return;
+    return {
+      messages: messages.map((message) =>
+        message.toolCalls?.some((call) => call.id === id)
+          ? { ...message, toolCalls: message.toolCalls.map((call) => (call.id === id ? { ...call, function: { ...call.function, arguments: "" } } : call)) }
+          : message,
+      ),
+    };
+  }
+  if (event.type === "TOOL_CALL_RESULT") {
+    const at = messages.findIndex(
+      (message) =>
+        (event.messageId !== undefined && message.id === event.messageId) ||
+        (message.role === "tool" && event.toolCallId !== undefined && message.toolCallId === event.toolCallId),
+    );
+    if (at === -1) return;
+    const next = [...messages];
+    next[at] = { ...next[at]!, content: event.content };
+    return { messages: next, stopPropagation: true };
+  }
+  return;
 }
 
 /**
@@ -134,6 +198,8 @@ export function useConversationSync(
     let connecting = false;
     /** 合并式接入时，接入前这台已经有的消息 / 工具调用（回放里它们的内容不再追加一遍）。 */
     let merge: { messages: Set<string>; toolCalls: Set<string> } | null = null;
+    /** liveTail 接入时要按回放重建的那几条（§90.3）。 */
+    let tail: TailReplay | null = null;
     /** 对话版本基线（§67）；版本变了（别的设备截断过）就按服务器回放重建，本机在跑时等它结束再重建。 */
     let knownRevision: string | null = null;
     let rebuildPending = false;
@@ -145,11 +211,13 @@ export function useConversationSync(
       if (connecting || agent.isRunning) return;
       connecting = true;
       merge = mode === "merge" ? knownForMerge(agent.messages as never, liveTail && running) : null;
+      tail = mode === "merge" && liveTail && running ? liveTailOf(agent.messages as never) : null;
       void connect({ agent })
         .catch(() => {})
         .finally(() => {
           connecting = false;
           merge = null;
+          tail = null;
           rebase = true;
         });
     };
@@ -199,6 +267,7 @@ export function useConversationSync(
         if (e.toolCallId && KNOWN_TOOL_EVENTS.has(e.type) && merge.toolCalls.has(e.toolCallId)) return { stopPropagation: true };
         if (e.type === "TOOL_CALL_RESULT" && ((e.messageId && merge.messages.has(e.messageId)) || (e.toolCallId && merge.toolCalls.has(e.toolCallId) && hasResult(e.toolCallId))))
           return { stopPropagation: true };
+        if (tail) return tailReplayPatch(e, messages as never, tail) as never;
         return;
       },
       onRunFinalized: () => {

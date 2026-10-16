@@ -107,6 +107,8 @@ object Turns {
         }
         var workPlaced = false
         val hasWork = workIdx >= 0
+        // 后面还有干活的工具：这段话是过程话，还在跑也马上收起（§90），不在卡片下面散成一段
+        fun workAfter(n: Int) = (n + 1 until segs.size).any { val s = segs[it]; s is Seg.Tool && WorkSteps.isWorkCall(s.call.name) }
         for ((n, seg) in segs.withIndex()) {
             when (seg) {
                 is Seg.Text -> {
@@ -114,7 +116,7 @@ object Turns {
                     when {
                         n == resultIdx -> rows += Row.Bot("t:" + seg.id, seg.text, Row.Kind.Result, streamingNow, !live)
                         !hasWork || n < workIdx -> rows += Row.Bot("t:" + seg.id, seg.text, Row.Kind.Opening, streamingNow, false)
-                        live -> rows += Row.Bot("t:" + seg.id, seg.text, Row.Kind.Process, streamingNow, false)
+                        live && !workAfter(n) -> rows += Row.Bot("t:" + seg.id, seg.text, Row.Kind.Process, streamingNow, false)
                         else -> Unit // 结束后过程话收起（§75）
                     }
                 }
