@@ -643,8 +643,23 @@ function SettleAtEnd({
     /** 还要回到上次那一条（找不到就在恢复完成时放弃，改钉底部）。 */
     restore: memo && !memo.atBottom && memo.anchor ? memo : null,
     hydrating,
-    /** 底下的留白（px）。 */
-    slack: 0,
+    /** 底下的留白（px）：固定高度时是设的值；「跟着变」（§94.6，floor 不是 null）时是它现在实际的高度。 */
+    get slack(): number {
+      const floor = this.floor;
+      if (floor === null) return this.slackPx;
+      const el = slack.current;
+      const content = el?.parentElement?.parentElement;
+      if (!el || !content) return 0;
+      const own = el.offsetHeight;
+      // 对话比一屏短时（min-h-full）它还会多撑出一截填满视口：那一截不算留白。
+      return Math.max(0, Math.min(own, floor - (content.offsetHeight - own)));
+    },
+    slackPx: 0,
+    /**
+     * §94.6「跟着变」的留白：这一列的最小高度钉在 floor（px），留白 flex-grow 填满「floor − 消息行」。消息行变矮 / 变高
+     * 在同一次布局里由留白补上 / 让出——总高度不变，浏览器不夹 scrollTop，不用等到下一帧的 ResizeObserver。null = 不在用。
+     */
+    floor: null as number | null,
     /** 正在把留白收掉（§93.3）：这段时间里变矮不再补留白。 */
     releasing: false,
     busy,
@@ -677,6 +692,8 @@ function SettleAtEnd({
       s.until = 0;
       s.restore = null;
       s.baseline = newestUserMessageId;
+      // 「跟着变」的留白先按现在的高度冻成固定的（§94.6）：下面两条路（连续 / 翻页）都按固定高度算，滚动容器对齐时也不受影响。
+      if (s.floor !== null) setSlack(s.slack);
       if (sendMode?.current.continuous && sendMode.current.id === newestUserMessageId) {
         /*
          * §94 连续聊天：这一条不带对齐标记，不翻页。滚动容器可能还停在上一轮的「对齐到顶上」状态（下面有它的
@@ -720,7 +737,11 @@ function SettleAtEnd({
   function setSlack(px: number) {
     const el = slack.current;
     const next = Math.max(0, Math.round(px));
-    state.current.slack = next;
+    state.current.slackPx = next;
+    // 设固定高度：先退出「跟着变」（§94.6）。
+    state.current.floor = null;
+    if (el?.parentElement?.parentElement) el.parentElement.parentElement.style.minHeight = "";
+    if (el) el.style.flex = "";
     if (!el) return;
     if (next === 0) {
       el.style.display = "none";
@@ -844,6 +865,45 @@ function SettleAtEnd({
       s.lastTop = seen.top;
       s.lastAtBottom = seen.atBottom;
       s.lastRows = content.offsetHeight - blankArea(content, s.slack);
+      elastic();
+    };
+    /*
+     * §94.6 钉在底部、没人动、不在恢复 / 收留白时，留白改成「跟着变」：这一列最小高度 = 现在的总高度，留白 flex-grow
+     * 填满。之后消息行变矮（干活卡收起、工具那一行换成结果、开场一句收进卡片）、变高（回答多出一行、新的一行进来）都在
+     * 同一次布局里由留白补上 / 让出，不管那次布局是在一帧里还是被谁在任务里量出来的——总高度不变，scrollTop 不被夹，
+     * 画面不动。行长到超出这块地方时这一列照常变高，滚动容器跟着底部往上长，下一次 look 再把最小高度抬上去。
+     * 条件一不满足（人往上翻了、在恢复、在收留白）：按现在的实际高度冻成固定的（画面不变），交回原来的规则。
+     */
+    const elastic = () => {
+      const el = slack.current;
+      if (!el || el.parentElement?.parentElement !== content) return;
+      const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
+      const ok =
+        seen.atBottom &&
+        !s.releasing &&
+        !active() &&
+        !s.restore &&
+        performance.now() - touchedAt > 400 &&
+        element.scrollHeight > element.clientHeight &&
+        // 滚动容器正把某一轮对齐在顶上（有它的 spacer）：它自己算高度，这里不插手。
+        (!spacer || spacer.hidden);
+      if (!ok) {
+        if (s.floor !== null) setSlack(s.slack);
+        return;
+      }
+      const height = content.offsetHeight;
+      if (s.floor === height) return;
+      if (s.floor === null) {
+        // 固定 → 跟着变：留白现在多高，跟着变以后还是多高（floor = 现在的总高度）。
+        const gap = rowGapOf(content);
+        el.style.display = "block";
+        el.style.marginTop = `${-gap}px`;
+        el.style.height = "0px";
+        el.style.flex = "1 0 0px";
+      }
+      s.floor = height;
+      content.style.minHeight = `max(100%, ${height}px)`;
+      lastHeight = content.offsetHeight;
     };
     s.lastTop = element.scrollTop;
     let lastHeight = content.offsetHeight;
@@ -1051,6 +1111,7 @@ function SettleAtEnd({
     element.addEventListener("pointerdown", onPointer);
     element.addEventListener("scroll", onScroll, { passive: true });
     return () => {
+      if (s.floor !== null) setSlack(s.slack);
       if (saveTimer !== null) clearTimeout(saveTimer);
       window.cancelAnimationFrame(releaseFrame);
       releaseRef.current = null;
