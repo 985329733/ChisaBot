@@ -15,6 +15,8 @@ import {
 } from "@tabler/icons-react";
 import { motion, useReducedMotion } from "motion/react";
 import {
+  cloneElement,
+  isValidElement,
   memo,
   useEffect,
   useLayoutEffect,
@@ -2000,6 +2002,23 @@ export function ChatTranscript({
     busy && !(settled !== null && settled.length === shape.length && settled.last === shape.last);
   // 一轮收成「开场一句 → 结果」，与机器人聊天同一规则（compactTurns，2026-10-13 第四轮）。
   const compact = compactTurns(items, live, stoppedTurns ?? EMPTY_STOPS, fallbacks);
+  /*
+   * 收起而不是拔掉（DESIGN §82.9）：一轮结束时过程话 / 旧的浏览小条被收起（compact.hidden），以前那一帧直接卸载，
+   * 下面的结果往上一跳。这一页上亲眼看着它可见过的行，变成 hidden 后留在原处、用 220ms 收成 0 高 + 淡出
+   * （`data-folded`，styles.css），之后作为看不见、不可聚焦的 0 高行留在列表里；重新打开对话时本来就不画它们。
+   */
+  const shownRef = useRef<Set<string>>(new Set());
+  const foldedRef = useRef<Set<string>>(new Set());
+  for (const item of items) {
+    if (compact.hidden.has(item.id) && shownRef.current.has(item.id)) foldedRef.current.add(item.id);
+  }
+  useLayoutEffect(() => {
+    const ids = new Set(items.map((item) => item.id));
+    const shown = new Set<string>();
+    for (const id of ids) if (!compact.hidden.has(id)) shown.add(id);
+    shownRef.current = shown;
+    for (const id of foldedRef.current) if (!ids.has(id)) foldedRef.current.delete(id);
+  });
 
   /*
    * ONLY WHILE THERE IS NOTHING ELSE TO LOOK AT. Once a reply starts streaming, or a tool line
@@ -2169,7 +2188,7 @@ export function ChatTranscript({
             ) : null}
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
             {items.map((item, index) => {
-              if (compact.hidden.has(item.id)) return null;
+              if (compact.hidden.has(item.id)) return foldedRef.current.has(item.id) ? renderFolded(item, index) : null;
               const stoppedHere = compact.stoppedAfter.has(item.id);
               const fallback = compact.fallbackAfter.get(item.id);
               if (!stoppedHere && !fallback) return renderRow(item, index);
@@ -2204,6 +2223,13 @@ export function ChatTranscript({
     if (showToolActivity) return null;
     const work = compact.work.get(id);
     return work ? <WorkRow calls={work.calls} live={work.live} turnKey={work.key} /> : null;
+  }
+
+  /** 刚被收起的一行：原样画着，外层 `data-folded` 收成 0 高（§82.9）；读屏和 Tab 都跳过它。 */
+  function renderFolded(item: TranscriptItem, index: number) {
+    const row = renderRow(item, index);
+    if (!isValidElement<Record<string, unknown>>(row)) return null;
+    return cloneElement(row, { "aria-hidden": true, "data-folded": "", inert: true, scrollAnchor: false });
   }
 
   function renderRow(item: TranscriptItem, index: number) {

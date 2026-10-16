@@ -2,6 +2,7 @@ import type * as React from "react";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 
 import { cn } from "@/lib/utils";
+import { labelText } from "@/components/ui/button";
 import { IconChevronRight, IconCheck } from "@tabler/icons-react";
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
@@ -80,6 +81,7 @@ function DropdownMenuItem({
   className,
   inset,
   variant = "default",
+  children,
   ...props
 }: MenuPrimitive.Item.Props & {
   inset?: boolean;
@@ -95,7 +97,10 @@ function DropdownMenuItem({
         className,
       )}
       {...props}
-    />
+    >
+      {/* §82.6：裸文字包 `.btn-t`（和按钮一样裁到「大写字母顶 → 基线」），菜单项 flex 居中后和图标在一条线上。 */}
+      {labelText(children)}
+    </MenuPrimitive.Item>
   );
 }
 

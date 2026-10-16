@@ -208,7 +208,7 @@ export function AccountMenu({
             <span className="mi-lead">
               <IconMoon className={icon} />
             </span>
-            <span className="min-w-0 flex-1">{"暗色外观"}</span>
+            <span className="t-line min-w-0 flex-1">{"暗色外观"}</span>
             <Switch
               aria-label={"暗色外观"}
               checked={dark}
@@ -254,7 +254,7 @@ function Row({
       variant={danger ? "destructive" : "default"}
     >
       <span className="mi-lead">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="t-line min-w-0 flex-1">{label}</span>
       {hint ? <span className="glass-mi-hint">{hint}</span> : null}
     </DropdownMenuItem>
   );

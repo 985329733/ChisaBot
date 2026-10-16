@@ -115,9 +115,13 @@
       let T = union(parts.map((p) => p.rect)); let I = union(parts.map((p) => p.ink));
       // §82.2 文字包在 .btn-t（text-box: trim-both cap alphabetic）里时，按钮居中的是裁过的盒子（大写字母顶 → 基线），
       // 不是字体的 ascent + descent：竖向用 .btn-t 的盒子量，否则 V 会把「裁过以后墨迹居中」误报成文字框偏。
+      // §82.6：同样适用于别的裁了文字盒的元素（下拉触发的值、菜单项 `.t-line`、「复制」的 `.btn-labels > span`）。
+      // 横向也用裁过的盒子：字体没有 halt 时 `.t-close` 用负 margin 收掉「）」空着的半个字宽，文字节点的矩形还带着那半个字宽。
+      let trimmedBox = null;
       if (T && parts.length && CSS.supports("text-box", "trim-both cap alphabetic")) {
-        const trims = parts.map((p) => p.node.closest?.(".btn-t"));
-        if (trims.every(Boolean)) { const R = union([...new Set(trims)].map((t) => t.getBoundingClientRect())); T = { ...T, top: R.top, bottom: R.bottom }; T.cy = (T.top + T.bottom) / 2; T.h = T.bottom - T.top; }
+        const trimOf = (n) => { for (let e = n; e && e !== el.parentElement; e = e.parentElement) { if (e.classList?.contains("btn-t")) return e; const t = getComputedStyle(e).textBoxTrim; if (t && t !== "none") return e; } return null; };
+        const trims = parts.map((p) => trimOf(p.node));
+        if (trims.every(Boolean)) { const R = union([...new Set(trims)].map((t) => t.getBoundingClientRect())); trimmedBox = R; T = { ...T, top: R.top, bottom: R.bottom }; T.cy = (T.top + T.bottom) / 2; T.h = T.bottom - T.top; }
       }
       if (isInput) {
         // 输入框：用一个同字体的探针量文字在框里的位置（值或占位文字）
@@ -143,7 +147,7 @@
       // 同一个文字节点被折成几行才算换行（名字 + 版本号这种上下两行不算）
       const nodeLines = new Map(); for (const p of parts) { const k = p.node; if (!nodeLines.has(k)) nodeLines.set(k, new Set()); nodeLines.get(k).add(Math.round(p.rect.top / 4)); }
       const wrapped = [...nodeLines.values()].some((v) => v.size > 1) && !parts.some((p) => /vertical/.test(getComputedStyle(p.node).writingMode) || p.node.getBoundingClientRect().width <= parseFloat(getComputedStyle(p.node).fontSize) * 1.4);
-      const C = union([...parts.map((p) => p.rect), ...ics.map((i) => i.rect)]) || T;
+      const C = union([...(trimmedBox ? [trimmedBox] : parts.map((p) => p.rect)), ...ics.map((i) => i.rect)]) || T;
       const d = desc(el);
       const idx = controls.length; el.setAttribute("data-align-i", String(idx));
       const rec = { i: idx, d, h: r1(outer.h), w: r1(outer.w), dy: r1(T.cy - b.cy), dyInk: r1(I.cy - outer.cy), dx: r1(C.cx - b.cx), lines, centred: hCentred(el, cs) && !isInput, single: lines <= 1, boxed: hasBox(cs) || isInput, radius: parseFloat(cs.borderTopLeftRadius) || 0, desc: /[gjpqy,;（）()「」【】]/.test(parts.map((p) => p.text).join("") || el.value || el.placeholder || ""), cjk: /[\u3400-\u9fff]/.test(parts.map((p) => p.text).join("") || el.value || el.placeholder || ""),
