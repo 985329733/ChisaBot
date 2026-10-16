@@ -6878,6 +6878,18 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 /* Claude Code 视图（§73.2–§73.6） */
 .cc-mode-switch { display: flex; width: 100%; flex: none; }
 .cc-mode-switch .sg-segmented-item { flex: 1; justify-content: center; }
+/* §84 机器人 ↔ Claude Code 原地切换：左栏容器只有一个，两块内容叠在同一格里交叉淡入；主区淡入一次（不从 0 开始，不出现空白帧）。 */
+.left-rail-stack { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); flex: 1 1 auto; min-height: 0; min-width: 0; height: 100%; }
+.left-rail-pane { grid-area: 1 / 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; opacity: 1; transition: opacity var(--dur-2) var(--ease-out); }
+.left-rail-pane[data-active="false"] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--dur-1) var(--ease-std), visibility 0s linear var(--dur-1); }
+.glass-main[data-mode="cc"] { animation: mode-in-cc var(--dur-2) var(--ease-out); }
+.glass-main[data-mode="bots"] { animation: mode-in-bots var(--dur-2) var(--ease-out); }
+@keyframes mode-in-cc { from { opacity: .6; } to { opacity: 1; } }
+@keyframes mode-in-bots { from { opacity: .6; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .left-rail-pane, .left-rail-pane[data-active="false"] { transition: none; }
+  .glass-main[data-mode] { animation: none; }
+}
 .cc-center { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; padding: 24px; }
 .cc-center > * { width: 100%; max-width: 440px; }
 .cc-tree { display: flex; flex-direction: column; gap: 4px; padding: 2px 2px 8px; }

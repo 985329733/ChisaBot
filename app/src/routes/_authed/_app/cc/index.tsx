@@ -10,7 +10,7 @@ import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { EmptyState, ErrorCard } from "@/components/ui/skyglass";
 import { ccWorkspacesQueryOptions, cloudWorkspaceQueryOptions, LAST_CC_SESSION_KEY } from "@/lib/cloud-cc";
 
-export const Route = createFileRoute("/_authed/cc/")({
+export const Route = createFileRoute("/_authed/_app/cc/")({
   component: CcHome,
 });
 

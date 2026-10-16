@@ -20,9 +20,12 @@ export function GlassShell({
   sidebar,
   right,
   banner,
+  mode,
   children,
 }: {
   scope: ShellScope;
+  /** 机器人 / Claude Code 原地切换后主区淡入一次（DESIGN.md §84）；不传就不动。 */
+  mode?: string;
   sidebar: ReactNode;
   right?: ReactNode;
   banner?: ReactNode;
@@ -37,7 +40,7 @@ export function GlassShell({
         <PhoneGestures />
         {sidebar}
         <div className="glass-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-scope={scope}>
-          <main className="glass-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="glass-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-mode={mode}>
             {banner}
             <ShellBoundary>{children}</ShellBoundary>
           </main>

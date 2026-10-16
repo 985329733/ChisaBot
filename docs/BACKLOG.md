@@ -77,7 +77,9 @@
 | [CB-069](#cb-069) | 新建 / 修改机器人统一表单 + 圆形头像（上传 / 表情 / 首字） | 成熟度 Maturity | `type: feat` · `area: web` · `P1` |
 | [CB-070](#cb-070) | 全站 UI 文字对齐 + 干活卡上下间距 | 成熟度 Maturity | `type: fix` · `area: web` · `P1` |
 | [CB-071](#cb-071) | 打开对话落在最新一条、不跳；切机器人秒开；接入回放瘦身 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
-| [CB-072](#cb-072) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
+| [CB-072](#cb-072) | 机器人 ↔ Claude Code 切换整屏刷新 → 原地切换 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
+| [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
+
 
 ## CB-001
 
@@ -1144,6 +1146,21 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 接入回放不再每轮重传 context / tools / 旧消息（35 轮对话 3471 KB → 235 KB），客户端消息列表不变
 - [x] 回归：`app/tests/transcript-cache.test.ts`、`app/tests/open-at-latest.test.ts`、`server/tests/slim-replay.test.ts`、`tests/open-scroll/open-scroll.mjs`
 
+## CB-072
+
+**机器人 ↔ Claude Code 切换整屏刷新 → 原地切换**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: web` `P1` `status: done`
+
+用户 2026-10-16 反馈（PC 0.1.13，网页同样）：左栏「机器人｜Claude Code」每切一次整个窗口闪一下。DESIGN.md §84。
+根因：两边是两个兄弟布局路由，各自一个 `GlassShell`，切换时外壳整个卸载重挂；第一次切过去分包未到，等待画面在外壳之外画成整屏骨架；切回机器人经 `/` 再跳、左栏数据全部重读。不是整页导航，PC 外壳也没有重新加载。
+
+#### 验收标准
+- [x] 切换时外壳、顶栏、左栏容器不重挂；0 次文档导航；0 帧整屏骨架 / 空白（1280 + 390，亮 + 暗）
+- [x] 左栏两块内容交叉淡入（150–220ms，减少动态效果时直接换），主区淡入一次；切回时左栏滚动 / 展开状态还在
+- [x] 预取对面的分包和数据；分包未到时旧画面留着，直接打开 `/cc` 只画左栏骨架
+- [x] 切回机器人回到上次的对话，切到 Claude Code 回到上次的会话
+- [x] 回归：`app/tests/left-mode-switch.test.tsx`、`tests/mode-switch/mode-switch.mjs`
+
 ## CB-065
 
 **云端 Claude Code P5：ChisaCloudCode 留还是下线**  
@@ -1156,12 +1173,12 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 
 最近合并的见 [ROADMAP「最近完成」](ROADMAP.md#最近完成) 和 [CHANGELOG](../CHANGELOG.md)。
 
-## CB-072
+## CB-073
 
 **Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换）**  
 标签：`type: feature` `area: cloud-cc` `P1` `status: done`
 
-用户 2026-10-16 12:43：「Claude 上游代理」也要能填 trojan:// / vless:// / vmess:// / ss:// / hysteria2:// / tuic:// 分享链接，填了这类链接时要清楚地提示需要开启 sing-box 转换。DESIGN.md §84，docs/cloud-claude-code.md。
+用户 2026-10-16 12:43：「Claude 上游代理」也要能填 trojan:// / vless:// / vmess:// / ss:// / hysteria2:// / tuic:// 分享链接，填了这类链接时要清楚地提示需要开启 sing-box 转换。DESIGN.md §85，docs/cloud-claude-code.md。
 
 #### 验收标准
 - [x] 解析器 `shared/proxy-links.ts`：六种协议、tls / reality（pbk、sid、fp）/ vision、ws / grpc / h2 / httpupgrade、ws `?ed=`、IPv6、url 编码 / 中文 / emoji 节点名、ss SIP002 + 旧式；不支持的写清楚原因（单测 `shared/proxy-links.test.ts`，有 sing-box 时每种出站都过 `sing-box check`）

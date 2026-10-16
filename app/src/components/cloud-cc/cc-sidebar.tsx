@@ -1,7 +1,8 @@
 import { IconCode } from "@tabler/icons-react";
 import type * as React from "react";
 import { AccountCard } from "@/components/layout/account-menu";
-import { Sidebar, SidebarContent, SidebarRail, useOptionalSidebar } from "@/components/ui/sidebar";
+import { RailSidebar, RailSidebarEdge } from "@/components/layout/rail-sidebar";
+import { type Sidebar, SidebarContent, useOptionalSidebar } from "@/components/ui/sidebar";
 import { CcNodeCard, CcTree } from "./cc-tree";
 import { LeftModeSwitch } from "./left-mode-switch";
 
@@ -14,16 +15,16 @@ export function CcSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const collapsed = Boolean(sidebar && !sidebar.isMobile && sidebar.state === "collapsed");
   if (collapsed)
     return (
-      <Sidebar collapsible="icon" variant="floating" {...props}>
+      <RailSidebar collapsible="icon" variant="floating" {...props}>
         <nav aria-label="Claude Code" className="glass-mini">
           <button aria-label="展开 Claude Code 列表" className="glass-mini-new" onClick={() => sidebar?.setOpen(true)} type="button">
             <IconCode className="size-5" />
           </button>
         </nav>
-      </Sidebar>
+      </RailSidebar>
     );
   return (
-    <Sidebar collapsible="icon" variant="floating" {...props}>
+    <RailSidebar collapsible="icon" variant="floating" {...props}>
       <SidebarContent className="glass-side-full gap-3 overflow-hidden">
         <LeftModeSwitch mode="cc" />
         <section aria-label="工作区和会话" className="glass-card glass-side-card min-h-0 flex-1">
@@ -37,7 +38,7 @@ export function CcSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </section>
         <AccountCard />
       </SidebarContent>
-      <SidebarRail />
-    </Sidebar>
+      <RailSidebarEdge />
+    </RailSidebar>
   );
 }

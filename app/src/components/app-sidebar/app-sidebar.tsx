@@ -21,13 +21,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
 import { SidebarSearchField } from "@/components/layout/sidebar-search-field";
 import {
-  Sidebar,
+  type Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarMenu,
-  SidebarRail,
   useOptionalSidebar,
 } from "@/components/ui/sidebar";
+import { RailSidebar, RailSidebarEdge } from "@/components/layout/rail-sidebar";
 import { requestSidebarSearchFocus, useSidebarSearch } from "@/lib/sidebar-search";
 import { cn } from "@/lib/utils";
 import {
@@ -582,7 +582,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   if (collapsed) {
     const railBots = mainBot ? [mainBot, ...others] : roster;
     return (
-      <Sidebar collapsible="icon" variant="floating" {...props}>
+      <RailSidebar collapsible="icon" variant="floating" {...props}>
         <BotMiniRail
           attentionById={attentionById}
           bots={railBots}
@@ -591,12 +591,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           selectedBotId={selectedBotId}
           setMainBot={setMainBot}
         />
-      </Sidebar>
+      </RailSidebar>
     );
   }
 
   return (
-    <Sidebar collapsible="icon" variant="floating" {...props}>
+    <RailSidebar collapsible="icon" variant="floating" {...props}>
       <SidebarContent className="glass-side-full gap-3 overflow-hidden" id="chisabot-bot-list">
         <LeftModeSwitch mode="bots" />
         <section
@@ -711,8 +711,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* 账号永远在左栏最底下，单独一张小卡：「我是谁」和「我在用什么」分开。 */}
         <AccountCard />
       </SidebarContent>
-      <SidebarRail />
-    </Sidebar>
+      <RailSidebarEdge />
+    </RailSidebar>
   );
 }
 
