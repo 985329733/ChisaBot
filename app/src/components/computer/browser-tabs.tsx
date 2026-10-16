@@ -1,6 +1,7 @@
 import { IconLoader2, IconPlus, IconWorld, IconX } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { siteMonogram } from "@/lib/browser-bookmarks";
+import { DARK_INK_LUMINANCE, hexLuminance, useDarkInk } from "@/lib/favicon-tone";
 import { type BrowserTab, humanTab, useBrowserTabs } from "@/lib/computers/tabs";
 
 /**
@@ -8,26 +9,32 @@ import { type BrowserTab, humanTab, useBrowserTabs } from "@/lib/computers/tabs"
  *
  * 机器人和人看到的是同一组真标签（云端 Chromium 里的页面）。人接管时可以点着切、× 关、+ 新开；
  * 只看着的时候标签栏照样显示，当前那个高亮——看得出机器人在哪个标签上，点不动（提示先接管）。
- * `compact` 是右栏小画面上面那一条：只有标签、没有 + 和 ×，点一下打开大屏。
+ * 标签栏只在放大的浏览器里出现；右栏小画面上面不再放标签（DESIGN §96）。
+ *
+ * 图标在暗色主题里：深色墨图标（GitHub 这类单色黑图标、深色字母块）垫一块浅色小底板，免得黑上加黑
+ * （`is-dark-ink`，lib/favicon-tone.ts）。
  */
 export function TabFavicon({ tab, size = 16 }: { tab: Pick<BrowserTab, "favicon" | "title" | "url">; size?: number }) {
   const [broken, setBroken] = useState(false);
-  if (tab.favicon && !broken)
+  const imgSrc = tab.favicon && !broken ? tab.favicon : undefined;
+  const darkInk = useDarkInk(imgSrc);
+  if (imgSrc)
     return (
       <img
         alt=""
         aria-hidden
-        className="btab-ic"
+        className={`btab-ic${darkInk ? " is-dark-ink" : ""}`}
         height={size}
         onError={() => setBroken(true)}
-        src={tab.favicon}
+        src={imgSrc}
         width={size}
       />
     );
   if (!/^https?:\/\//i.test(tab.url)) return <IconWorld aria-hidden className="btab-ic is-glyph" size={size} />;
   const mono = siteMonogram(tab.title, tab.url);
+  const monoDark = (hexLuminance(mono.color) ?? 1) < DARK_INK_LUMINANCE;
   return (
-    <span aria-hidden className="btab-ic is-mono" style={{ background: mono.color, width: size, height: size }}>
+    <span aria-hidden className={`btab-ic is-mono${monoDark ? " is-dark-ink" : ""}`} style={{ background: mono.color, width: size, height: size }}>
       {mono.letter}
     </span>
   );
@@ -37,17 +44,15 @@ export function TabStrip({
   computerId,
   driving,
   poll,
-  compact = false,
-  onPick,
+  end,
 }: {
   computerId: string;
   /** 人拿着控制权（可以切 / 关 / 开）。 */
   driving: boolean;
   /** 没有直播 socket 推标签时自己轮询。 */
   poll: boolean;
-  compact?: boolean;
-  /** compact 时点标签：打开大屏。 */
-  onPick?: () => void;
+  /** 标签栏最右端（放大页把关闭按钮放在这里）。 */
+  end?: ReactNode;
 }) {
   const view = useBrowserTabs(computerId, poll);
   const [busy, setBusy] = useState<string | null>(null);
@@ -68,7 +73,13 @@ export function TabStrip({
     node?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [activeId]);
 
-  if (!view || view.tabs.length === 0) return null;
+  if (!view || view.tabs.length === 0)
+    return end ? (
+      <div className="btabs is-empty">
+        <div className="btabs-lead" />
+        <div className="btabs-end">{end}</div>
+      </div>
+    ) : null;
   const full = view.tabs.length >= view.max;
   const canAct = driving && view.running;
 
@@ -92,7 +103,9 @@ export function TabStrip({
       : "接管控制后可以切换、关闭和新开标签";
 
   return (
-    <div className={`btabs${compact ? " is-compact" : ""}${view.running ? "" : " is-saved"}`}>
+    <div className={`btabs${view.running ? "" : " is-saved"}`}>
+      {/* 标签 + 「+」挨在一起（和 Chrome / Edge 一样「+」紧跟最后一个标签），右端留给 `end`。 */}
+      <div className="btabs-lead">
       <div aria-label={"标签页"} className="btabs-track" ref={strip} role="tablist">
         {view.tabs.map((tab) => {
           const active = tab.id === activeId || (!activeId && tab.active);
@@ -106,15 +119,14 @@ export function TabStrip({
               title={hint ? `${tab.title}\n${hint}` : tab.title}
             >
               <button
-                aria-disabled={!canAct && !compact}
+                aria-disabled={!canAct}
                 className="btab-main"
                 onClick={() => {
-                  if (compact) onPick?.();
-                  else if (!active) void run(`a:${tab.id}`, "activate", tab.id);
+                  if (!active) void run(`a:${tab.id}`, "activate", tab.id);
                 }}
                 onAuxClick={(event) => {
                   // 中键关标签，和桌面浏览器一样。
-                  if (event.button === 1 && !compact) void run(`c:${tab.id}`, "close", tab.id);
+                  if (event.button === 1) void run(`c:${tab.id}`, "close", tab.id);
                 }}
                 type="button"
               >
@@ -125,7 +137,7 @@ export function TabStrip({
                 )}
                 <span className="btab-t">{tab.title}</span>
               </button>
-              {!compact && canAct ? (
+              {canAct ? (
                 <button
                   aria-label={`关闭标签页「${tab.title}」`}
                   className="btab-x"
@@ -145,7 +157,6 @@ export function TabStrip({
           );
         })}
       </div>
-      {!compact ? (
         <button
           aria-label={"新标签页"}
           className="btabs-new"
@@ -156,11 +167,8 @@ export function TabStrip({
         >
           {busy === "new" ? <IconLoader2 className="animate-spin" size={16} /> : <IconPlus size={16} />}
         </button>
-      ) : view.tabs.length > 1 ? (
-        <span className="btabs-count" title={`${view.tabs.length} 个标签页`}>
-          {view.tabs.length}
-        </span>
-      ) : null}
+      </div>
+      {end ? <div className="btabs-end">{end}</div> : null}
       {problem ? (
         <p className="btabs-problem" role="alert">
           {problem}

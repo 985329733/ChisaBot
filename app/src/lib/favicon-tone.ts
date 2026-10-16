@@ -1,0 +1,106 @@
+import { useEffect, useState } from "react";
+
+/**
+ * 网站图标在暗色主题里会不会「黑上加黑」（DESIGN.md §96）。
+ *
+ * GitHub、Notion、X 这类单色黑图标放在暗色标签栏 / 收藏栏上几乎看不见。我们不按站点名单反色，
+ * 而是看图标本身：不透明像素的平均亮度很低（基本是深色墨）就判成「深色图标」，暗色主题下给它垫一块
+ * 浅色小底板（CSS `.dark .btab-ic.is-dark-ink`）。彩色图标、浅色图标保持原样。
+ *
+ * 图标都是 data: 地址（tabs.ts 只收 data:image/…），画到 canvas 上不会被跨域污染。
+ */
+
+/** 深色阈值：相对亮度（0 黑 … 1 白）低于它算深色墨。#24292f ≈ 0.023，#6b7280 ≈ 0.17。 */
+export const DARK_INK_LUMINANCE = 0.12;
+
+const channel = (value: number) => {
+  const c = value / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+
+/** sRGB → WCAG 相对亮度。 */
+export function relativeLuminance(r: number, g: number, b: number): number {
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** `#rgb` / `#rrggbb` → 亮度；解析不了返回 null。 */
+export function hexLuminance(hex: string): number | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  let h = m[1] as string;
+  if (h.length === 3) h = h.replace(/./g, (c) => c + c);
+  const n = Number.parseInt(h, 16);
+  return relativeLuminance((n >> 16) & 255, (n >> 8) & 255, n & 255);
+}
+
+/**
+ * RGBA 像素 → 是不是「深色墨」图标。只看不透明度 > 0.5 的像素，按不透明度加权平均亮度；
+ * 几乎全透明（没画东西）返回 false。
+ */
+export function isDarkInkPixels(data: ArrayLike<number>, threshold = DARK_INK_LUMINANCE): boolean {
+  let weight = 0;
+  let sum = 0;
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    const a = (data[i + 3] as number) / 255;
+    if (a <= 0.5) continue;
+    weight += a;
+    sum += a * relativeLuminance(data[i] as number, data[i + 1] as number, data[i + 2] as number);
+  }
+  if (weight < 4) return false;
+  return sum / weight < threshold;
+}
+
+const cache = new Map<string, boolean>();
+const pending = new Map<string, Promise<boolean>>();
+
+function measure(src: string): Promise<boolean> {
+  const hit = cache.get(src);
+  if (hit !== undefined) return Promise.resolve(hit);
+  const running = pending.get(src);
+  if (running) return running;
+  const job = new Promise<boolean>((resolve) => {
+    if (typeof Image === "undefined" || typeof document === "undefined") return resolve(false);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const size = 24;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return resolve(false);
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(isDarkInkPixels(ctx.getImageData(0, 0, size, size).data));
+      } catch {
+        resolve(false);
+      }
+    };
+    img.onerror = () => resolve(false);
+    img.src = src;
+  }).then((dark) => {
+    cache.set(src, dark);
+    pending.delete(src);
+    return dark;
+  });
+  pending.set(src, job);
+  return job;
+}
+
+/** 图标 src 是不是深色墨（结果按 src 缓存；量出来之前是 false）。 */
+export function useDarkInk(src: string | undefined): boolean {
+  const [dark, setDark] = useState(() => (src ? (cache.get(src) ?? false) : false));
+  useEffect(() => {
+    if (!src) {
+      setDark(false);
+      return;
+    }
+    let alive = true;
+    void measure(src).then((value) => {
+      if (alive) setDark(value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+  return dark;
+}

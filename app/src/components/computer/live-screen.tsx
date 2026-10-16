@@ -687,6 +687,9 @@ export function LiveScreen({
 
   return (
     <div className="computer-live flex flex-col gap-2">
+      {/* 浏览器外壳：标签栏 / 地址栏 / 收藏栏放在同一块玻璃工具条上（DESIGN §96）。 */}
+      {aboveUrlbar || driving || belowUrlbar ? (
+      <div className="computer-chrome">
       {aboveUrlbar}
       {driving ? (
         <form
@@ -754,6 +757,8 @@ export function LiveScreen({
         <p className="computer-urlbar-problem" role="alert">
           {navProblem}
         </p>
+      ) : null}
+      </div>
       ) : null}
       <div
         className="computer-screen relative w-full overflow-hidden rounded-xl"

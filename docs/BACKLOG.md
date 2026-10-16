@@ -86,6 +86,7 @@
 | [CB-078](#cb-078) | 窄窗口里输入框两边没有间距 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-079](#cb-079) | 简单回合隐藏步骤卡；回答下面的空气泡和多余空白 | 成熟度 Maturity | `type: bug` · `area: chat` · `P1` · `status: done` |
 | [CB-081](#cb-081) | 机器人浏览器多标签 + 收藏夹 | 成熟度 Maturity | `type: feat` · `area: computer` · `P1` · `status: done` |
+| [CB-082](#cb-082) | 浏览器暗色图标 + 外侧去掉标签 + 放大页重排 + 旧测试 | 成熟度 Maturity | `type: bug` · `area: computer` · `P1` · `status: done` |
 
 ## CB-001
 
@@ -1250,6 +1251,19 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 机器人能读收藏、打开收藏；只有用户要求时才增删
 - [x] 「多个浏览器」：按多标签做（理由见 DESIGN §95.1）
 - [x] 回归：`agent-computer/tests/tabs.test.ts`、`server/tests/browser-bookmarks.test.ts`、`server/tests/computer-tabs-routes.test.ts`、`app/tests/browser-tabs.test.tsx`、预览 e2e
+
+## CB-082
+
+**浏览器暗色图标 + 外侧去掉标签 + 放大页重排 + 旧测试**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: computer` `P1` `status: done`
+
+用户 2026-10-16：暗色模式下 GitHub 图标看不清；「外面不需要标签。这样展示太难看了。图2这个页面也要改一改，不好看，交还浏览器被挤到滚动条下面了」。DESIGN.md §96。
+
+#### 验收标准
+- [x] 暗色主题：深色墨图标（真 favicon / 字母块）在标签栏、收藏栏、收藏夹下拉、管理面板里都看得见（通用判断，不靠站点名单）
+- [x] 右栏计算机上面没有标签条
+- [x] 放大页不滚动：工具条（标签 + 地址栏 + 收藏栏）一块、「+」紧跟最后一个标签、× 在标签栏右端、屏幕等比缩放、底栏始终在卡片里；只看 / 接管、1280×840 / 1440×900 / 900 / 390、亮 / 暗都验过
+- [x] `computer-control-button.test.tsx`、`rail-computer-entry.test.ts` 跟上现在的中文界面 / 源码，不改产品行为
 
 ## 已完成
 
