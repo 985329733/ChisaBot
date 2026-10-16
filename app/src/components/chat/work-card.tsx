@@ -48,6 +48,14 @@ export function workSeconds(turnKey: string): number | null {
   return seconds >= 2 ? seconds : null;
 }
 
+/**
+ * 这一轮用了几秒——知道才给（这一页看着它跑过，或这台浏览器记下过，§88）；不知道为 null。
+ * 简单回合（§91）用它挡住「其实跑了很久」的那几轮。
+ */
+export function knownWorkSeconds(turnKey: string): number | null {
+  return workSeconds(turnKey) ?? workUi(turnKey)?.seconds ?? null;
+}
+
 export function WorkRow({
   calls,
   turnKey,

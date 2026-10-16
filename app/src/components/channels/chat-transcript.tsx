@@ -58,8 +58,10 @@ import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
-import { WorkRow } from "@/components/chat/work-card";
-import { isWorkCall, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
+import { knownWorkSeconds, WorkRow } from "@/components/chat/work-card";
+import { isQuietWork, isWorkCall, toolResultFailed, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
+import { useThreadConfirmations } from "@/lib/confirmations";
+import { useCopilotChatConfiguration } from "@copilotkit/react-core/v2";
 import { supersededPageCalls } from "@/lib/chat/page-cards";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
@@ -2193,6 +2195,28 @@ export function ChatTranscript({
     busy && !(settled !== null && settled.length === shape.length && settled.last === shape.last);
   // 一轮收成「开场一句 → 结果」，与机器人聊天同一规则（compactTurns，2026-10-13 第四轮）。
   const compact = compactTurns(items, live, stoppedTurns ?? EMPTY_STOPS, fallbacks);
+  const showToolActivity = useToolActivityVisible();
+  /*
+   * 简单回合（DESIGN.md §91）：做完了、只读的一两步、有结果——干活卡那一行整行收起，只留结果。结构上的判断在
+   * compactTurns（`quiet`）；有确认卡的调用、这一页知道用时超过 15 秒的，照常显示。确认列表和确认卡片用同一份
+   * 缓存（同一个 queryKey），不多发请求。打开「调试：显示工具调用」时不收（每一步本来就画着）。
+   */
+  const chatConfig = useCopilotChatConfiguration();
+  const hasQuiet = !showToolActivity && [...compact.work.values()].some((work) => work.quiet);
+  const confirmations = useThreadConfirmations(hasQuiet ? (chatConfig?.threadId ?? null) : null, false);
+  const confirmed = new Set<string>();
+  for (const request of confirmations.data ?? []) if (request.toolCallId) confirmed.add(request.toolCallId);
+  const quietRows = new Set<string>();
+  if (hasQuiet) {
+    for (const [anchor, work] of compact.work) {
+      if (!work.quiet) continue;
+      if (isQuietWork({ calls: work.calls, live: work.live, hasFinal: true, confirmed, seconds: knownWorkSeconds(work.key) })) {
+        quietRows.add(anchor);
+      }
+    }
+  }
+  /** 这一行不画（收起的过程话、旧的浏览小条、简单回合的干活卡那一行）。 */
+  const rowHidden = (id: string) => compact.hidden.has(id) || quietRows.has(id);
   /*
    * 收起而不是拔掉（DESIGN §82.9）：一轮结束时过程话 / 旧的浏览小条被收起（compact.hidden），以前那一帧直接卸载，
    * 下面的结果往上一跳。这一页上亲眼看着它可见过的行，变成 hidden 后留在原处、用 220ms 收成 0 高 + 淡出
@@ -2201,12 +2225,12 @@ export function ChatTranscript({
   const shownRef = useRef<Set<string>>(new Set());
   const foldedRef = useRef<Set<string>>(new Set());
   for (const item of items) {
-    if (compact.hidden.has(item.id) && shownRef.current.has(item.id)) foldedRef.current.add(item.id);
+    if (rowHidden(item.id) && shownRef.current.has(item.id)) foldedRef.current.add(item.id);
   }
   useLayoutEffect(() => {
     const ids = new Set(items.map((item) => item.id));
     const shown = new Set<string>();
-    for (const id of ids) if (!compact.hidden.has(id)) shown.add(id);
+    for (const id of ids) if (!rowHidden(id)) shown.add(id);
     shownRef.current = shown;
     for (const id of foldedRef.current) if (!ids.has(id)) foldedRef.current.delete(id);
   });
@@ -2220,7 +2244,6 @@ export function ChatTranscript({
    * message. A tool call that is running shimmers on its own line and needs nothing from here.
    */
   const lastItem = items.at(-1);
-  const showToolActivity = useToolActivityVisible();
   const waitingOnFirstToken =
     busy &&
     ((lastItem?.kind === "text" && lastItem.role === "user") ||
@@ -2394,7 +2417,7 @@ export function ChatTranscript({
             ) : null}
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
             {items.map((item, index) => {
-              if (compact.hidden.has(item.id)) return foldedRef.current.has(item.id) ? renderFolded(item, index) : null;
+              if (rowHidden(item.id)) return foldedRef.current.has(item.id) ? renderFolded(item, index) : null;
               const stoppedHere = compact.stoppedAfter.has(item.id);
               const fallback = compact.fallbackAfter.get(item.id);
               if (!stoppedHere && !fallback) return renderRow(item, index);
@@ -2581,6 +2604,16 @@ export function lastAnswerId(items: readonly TranscriptItem[], hidden: ReadonlyS
  *    后面又调了工具的那段马上收；这一轮结束了（有结果 / 出错 / 停止 / 中断）剩下的过程话也收。
  *    还在跑、后面还没调工具的最后一段照旧露在外面（它可能就是正在写的结果）。
  */
+/** 一轮的干活卡（§75.1 / §90 / §91）。 */
+export type WorkEntry = {
+  calls: WorkCall[];
+  key: string;
+  live: boolean;
+  notes: WorkNote[];
+  /** 简单回合（只读的一两步、做完了、有结果）：结构上可以整行收起（§91）。 */
+  quiet: boolean;
+};
+
 export function compactTurns(
   items: readonly TranscriptItem[],
   busy: boolean,
@@ -2597,13 +2630,13 @@ export function compactTurns(
    * 干活卡（§75.1）：这一轮第一个干活的工具那一行 → 这一轮的全部调用、是否还在跑；key = 这一轮开头那条消息（记用时用）。
    * 还在跑时画实时卡，结束后同一个位置收成「搜索 2 次 · 12 秒 ⌄」。
    */
-  work: Map<string, { calls: WorkCall[]; key: string; live: boolean; notes: WorkNote[] }>;
+  work: Map<string, WorkEntry>;
 } {
   const tone = new Map<string, "lead" | "step" | "final">();
   const hidden = new Set<string>();
   const stoppedAfter = new Set<string>();
   const fallbackAfter = new Map<string, string>();
-  const work = new Map<string, { calls: WorkCall[]; key: string; live: boolean; notes: WorkNote[] }>();
+  const work = new Map<string, WorkEntry>();
   // 一轮的开头：人发的消息，或服务器放进来、接着跑一轮的那几种（定时任务 / 任务结果 / 后来确认，CB-046）。
   const sent = (item: TranscriptItem) =>
     item.kind === "attachments" ||
@@ -2656,7 +2689,13 @@ export function compactTurns(
         const tools = item.kind === "tool" ? [item] : item.kind === "browser" ? item.steps : [];
         for (const tool of tools) {
           const name = tool.toolCall.function.name;
-          calls.push({ name, arguments: tool.toolCall.function.arguments, done: tool.result !== undefined });
+          calls.push({
+            name,
+            arguments: tool.toolCall.function.arguments,
+            done: tool.result !== undefined,
+            id: tool.toolCall.id,
+            failed: tool.result !== undefined && toolResultFailed(tool.result),
+          });
           if (anchor === null && isWorkCall(name)) anchor = item.id;
         }
       }
@@ -2669,13 +2708,15 @@ export function compactTurns(
          */
         const notes: WorkNote[] = [];
         let seen = 0;
-        let carded = false;
         turn.rest.forEach((item, at) => {
-          if (item.id === anchor) carded = true;
           if (item.kind === "tool") seen += 1;
           else if (item.kind === "browser") seen += item.steps.length;
-          // 开场一句如果出现在卡片之后（这一轮先干活后说话），它也是过程话。
-          else if (item.kind === "text" && (tone.get(item.id) === "step" || (carded && tone.get(item.id) === "lead"))) {
+          /*
+           * 开场一句也是过程话（§91，改 §90 的「卡片之前的开场一句照旧是气泡」）：有干活卡的一轮里，
+           * 「我来查看你当前在线电脑的屏幕…」后面就是干活的工具，和两步之间的话一样收进卡片（实时时下一步一开始就收）。
+           * 出现在卡片之后的开场一句（先干活后说话）同理。
+           */
+          else if (item.kind === "text" && (tone.get(item.id) === "step" || tone.get(item.id) === "lead")) {
             const workAfter = turn.rest.slice(at + 1).some(
               (next) => next.kind === "browser" || (next.kind === "tool" && isWorkCall(next.toolCall.function.name)),
             );
@@ -2685,7 +2726,9 @@ export function compactTurns(
             }
           }
         });
-        work.set(anchor, { calls, key, live, notes });
+        // 简单回合（§91）：结构上的判断在这里；确认卡、用时只有渲染时知道，ChatTranscript 再看一遍。
+        const quiet = isQuietWork({ calls, live, stopped: isStopped, hasFinal: final !== null });
+        work.set(anchor, { calls, key, live, notes, quiet });
       }
     }
     // CB-021：同一轮里同一个页面只留一张卡（§54「同一轮同一页面一张卡」）。
