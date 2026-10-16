@@ -40,7 +40,17 @@ import java.util.UUID
 private val Context.store by preferencesDataStore("native")
 private val BOTS_CACHE = stringPreferencesKey("bots")
 
-data class Bot(val id: String, val name: String, val title: String, val seed: String, val main: Boolean)
+/** 机器人头像（DESIGN §79，GET /api/bot-avatars）：image = 上传的图（url 相对路径，带 ?v= 版本），emoji / monogram = 渐变底 + 字。null = 默认（按 avatarSeed）。 */
+data class BotAvatarSpec(val kind: String, val url: String? = null, val emoji: String? = null, val color: String? = null)
+
+data class Bot(val id: String, val name: String, val title: String, val seed: String, val main: Boolean, val avatar: BotAvatarSpec? = null)
+
+private fun parseAvatar(el: kotlinx.serialization.json.JsonElement?): BotAvatarSpec? {
+    val o = el as? JsonObject ?: return null
+    val kind = o.s("kind") ?: return null
+    if (kind !in setOf("image", "emoji", "monogram")) return null
+    return BotAvatarSpec(kind, o.s("url"), o.s("emoji"), o.s("color"))
+}
 
 data class Panel(
     val id: String, val title: String, val status: String, val spec: String?, val sources: List<Pair<String, String>>,
@@ -75,6 +85,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         get() {
             val o = origin() ?: return null
             if (apiCache?.origin != o) apiCache = Api(o) { renewWithDevice(o) }
+            cn.ayase.chisabot.net.currentOrigin = o
             return apiCache
         }
 
@@ -207,7 +218,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val list = arr.mapNotNull { el ->
             val o = el as? JsonObject ?: return@mapNotNull null
             if (o["hidden"]?.toString() == "true") return@mapNotNull null
-            Bot(o.s("id") ?: return@mapNotNull null, o.s("name") ?: "机器人", o.s("title") ?: "", o.s("avatarSeed") ?: "", o["main"]?.toString() == "true")
+            Bot(o.s("id") ?: return@mapNotNull null, o.s("name") ?: "机器人", o.s("title") ?: "", o.s("avatarSeed") ?: "", o["main"]?.toString() == "true", parseAvatar(o["avatar"]))
         }
         val withMain = if (mainId != null) list.map { it.copy(main = it.id == mainId) } else list
         // 主机器人置顶（ADR-0001：左栏只列机器人，主机器人在最上面）
@@ -221,9 +232,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val agents = api.get("/api/agents").a("agents") ?: JsonArray(emptyList())
                 val mainId = runCatching { api.get("/api/settings/preferences").o("preferences")?.s("mainBotId") }.getOrNull()
-                bots = parseBots(agents, mainId)
+                // 头像是单独的接口（只列有自定义头像的机器人）；老服务器没有这个接口 → 全用默认头像。
+                val avatars = runCatching { api.get("/api/bot-avatars").o("avatars") }.getOrNull()
+                bots = parseBots(agents, mainId).map { b -> b.copy(avatar = parseAvatar(avatars?.get(b.id))) }
                 botsError = null
-                val cache = buildJsonArray { bots.forEach { b -> add(buildJsonObject { put("id", b.id); put("name", b.name); put("title", b.title); put("avatarSeed", b.seed); put("main", b.main) }) } }
+                val cache = buildJsonArray { bots.forEach { b -> add(buildJsonObject { put("id", b.id); put("name", b.name); put("title", b.title); put("avatarSeed", b.seed); put("main", b.main)
+                    b.avatar?.let { av -> put("avatar", buildJsonObject { put("kind", av.kind); av.url?.let { put("url", it) }; av.emoji?.let { put("emoji", it) }; av.color?.let { put("color", it) } }) }
+                }) } }
                 ctx.store.edit { it[BOTS_CACHE] = cache.toString() }
             } catch (_: Unauthorized) {
                 expired()

@@ -45,6 +45,8 @@ import cn.ayase.chisabot.BuildConfig
 fun WebScreen(vm: AppViewModel, path: String, title: String) {
     val sky = LocalSky.current
     val origin = vm.origin() ?: return
+    // 网页的深浅色存在它自己的 localStorage「openbot-theme」里；兜底页跟原生界面一样跟随系统（不然深色手机上会突然亮一块）。
+    val theme = if (sky.dark) "dark" else "light"
     var progress by remember { mutableStateOf(0) }
     var pageTitle by remember { mutableStateOf(title) }
     var web by remember { mutableStateOf<WebView?>(null) }
@@ -81,7 +83,9 @@ fun WebScreen(vm: AppViewModel, path: String, title: String) {
                                 runCatching { view.context.startActivity(Intent(Intent.ACTION_VIEW, url)) }
                                 return true
                             }
+                            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) { syncTheme(view, theme) }
                             override fun onPageFinished(view: WebView, url: String) {
+                                syncTheme(view, theme)
                                 CookieManager.getInstance().flush()
                                 if (Uri.parse(url).path?.startsWith("/login") == true) vm.expired()
                             }
@@ -108,4 +112,13 @@ fun WebScreen(vm: AppViewModel, path: String, title: String) {
             }
         }
     }
+}
+
+/** 把网页主题对齐到原生（同网页 lib/theme.ts applyDarkTheme：存储键 + html.dark + color-scheme）。 */
+private fun syncTheme(view: WebView, theme: String) {
+    view.evaluateJavascript(
+        "(function(t){try{if(localStorage.getItem('openbot-theme')!==t)localStorage.setItem('openbot-theme',t);" +
+            "var r=document.documentElement;if(r){r.classList.toggle('dark',t==='dark');r.style.colorScheme=t;}}catch(e){}})('$theme')",
+        null,
+    )
 }

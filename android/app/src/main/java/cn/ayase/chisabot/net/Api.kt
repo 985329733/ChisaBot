@@ -21,6 +21,15 @@ import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/** 当前服务器（给图片用：消息里 / 头像接口给的是相对路径 /api/…）。AppViewModel 换服务器时更新。 */
+@Volatile var currentOrigin: String? = null
+
+/** 相对路径补成当前服务器的绝对地址；本来就是绝对地址 / data: 的原样返回。 */
+fun absUrl(url: String): String = when {
+    url.startsWith("/") && !url.startsWith("//") -> (currentOrigin ?: "") + url
+    else -> url
+}
+
 class ApiError(val status: Int, message: String) : IOException(message)
 class Unauthorized : IOException("登录已过期")
 
@@ -58,6 +67,8 @@ class Api(val origin: String, private val renew: (suspend () -> Boolean)? = null
                 .readTimeout(30, TimeUnit.SECONDS)
                 .build()
         }
+        /** 图片（Coil）：同一个 Cookie，跟随跳转（文件下载会 302 到签名地址）。 */
+        val imageClient: OkHttpClient by lazy { client.newBuilder().followRedirects(true).build() }
         /** 流式回复：读超时关掉（一轮可能几分钟，中间停顿几十秒也正常）。 */
         val streamClient: OkHttpClient by lazy { client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build() }
     }

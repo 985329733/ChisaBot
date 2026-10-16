@@ -66,6 +66,7 @@ import cn.ayase.chisabot.md.Block
 import cn.ayase.chisabot.md.Bubble
 import cn.ayase.chisabot.md.Markdown
 import coil.compose.AsyncImage
+import cn.ayase.chisabot.net.absUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -168,7 +169,7 @@ fun BlockView(b: Block, muted: Boolean = false) {
         }
         is Block.Doc -> DocCard(b)
         is Block.Image -> AsyncImage(
-            model = b.url, contentDescription = b.alt.ifBlank { "图片" }, contentScale = ContentScale.FillWidth,
+            model = absUrl(b.url), contentDescription = b.alt.ifBlank { "图片" }, contentScale = ContentScale.FillWidth,
             modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().heightIn(min = 80.dp, max = 420.dp).clip(RoundedCornerShape(14.dp))
                 .background(sky.glass1).clickable { openUrl(ctx, b.url) },
         )

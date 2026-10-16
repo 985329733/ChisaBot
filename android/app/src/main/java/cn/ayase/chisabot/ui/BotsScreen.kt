@@ -90,7 +90,7 @@ private fun BotRow(vm: AppViewModel, bot: Bot) {
                 .padding(horizontal = 14.dp, vertical = 12.dp).animateContentSize(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BotAvatar(bot.name, bot.seed, 44.dp)
+            BotAvatar(bot, 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

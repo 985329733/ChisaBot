@@ -74,6 +74,7 @@ import cn.ayase.chisabot.chat.Row as ChatRow
 import cn.ayase.chisabot.chat.Turns
 import cn.ayase.chisabot.chat.WorkSteps
 import coil.compose.AsyncImage
+import cn.ayase.chisabot.net.absUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -113,7 +114,7 @@ fun ChatScreen(vm: AppViewModel, bot: Bot) {
                 }
                 rows.isEmpty() && vm.chatLoadError != null -> ErrorCard(vm.chatLoadError ?: "") { vm.loadChat(bot) }
                 rows.isEmpty() -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    BotAvatar(bot.name, bot.seed, 64.dp)
+                    BotAvatar(bot, 64.dp)
                     Spacer(Modifier.height(12.dp))
                     Text("有什么可以帮你？", color = sky.ink2, fontSize = 16.sp)
                 }
@@ -144,7 +145,7 @@ private fun RowView(vm: AppViewModel, row: ChatRow, actions: RenderActions) {
         is ChatRow.User -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 row.msg.images.forEach { url ->
-                    AsyncImage(url, "图片", contentScale = ContentScale.Crop, modifier = Modifier.size(160.dp).clip(RoundedCornerShape(14.dp)).background(sky.glass1))
+                    AsyncImage(absUrl(url), "图片", contentScale = ContentScale.Crop, modifier = Modifier.size(160.dp).clip(RoundedCornerShape(14.dp)).background(sky.glass1))
                 }
                 if (row.msg.text.isNotBlank()) Text(
                     row.msg.text, color = sky.onUser, fontSize = 15.5.sp, lineHeight = 23.sp,

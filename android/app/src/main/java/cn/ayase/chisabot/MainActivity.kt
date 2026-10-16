@@ -68,6 +68,8 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
+        // 图片走同一个会话 Cookie（上传的机器人头像、对话里的服务器文件都要登录才能取）。
+        coil.Coil.setImageLoader(coil.ImageLoader.Builder(this).okHttpClient { cn.ayase.chisabot.net.Api.imageClient }.crossfade(180).build())
         updater = Updater(this)
         vm.start()
         setContent {

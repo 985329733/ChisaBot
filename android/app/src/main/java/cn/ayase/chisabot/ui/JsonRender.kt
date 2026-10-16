@@ -57,6 +57,7 @@ import cn.ayase.chisabot.chat.s
 import cn.ayase.chisabot.chat.str
 import cn.ayase.chisabot.net.Api
 import coil.compose.AsyncImage
+import cn.ayase.chisabot.net.absUrl
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -218,7 +219,7 @@ private fun Element(els: JsonObject, key: String, depth: Int) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).itemAction(it).padding(vertical = 7.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (ordered) Text("${i + 1}.", color = sky.ink3, fontSize = 14.sp, modifier = Modifier.width(24.dp))
                     it.s("image")?.takeIf { u -> u.startsWith("https") }?.let { u ->
-                        AsyncImage(u, null, contentScale = ContentScale.Crop, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(sky.glass1))
+                        AsyncImage(absUrl(u), null, contentScale = ContentScale.Crop, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(sky.glass1))
                         Spacer(Modifier.width(10.dp))
                     }
                     Column(Modifier.weight(1f)) {
@@ -260,7 +261,7 @@ private fun Element(els: JsonObject, key: String, depth: Int) {
         }
         "Image" -> Column {
             val ratio = when (props.p("aspect")) { "16:9" -> 16f / 9f; "4:3" -> 4f / 3f; "1:1" -> 1f; else -> null }
-            AsyncImage(props.p("src"), props.p("alt"), contentScale = ContentScale.Crop,
+            AsyncImage(props.p("src")?.let(::absUrl), props.p("alt"), contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxWidth().then(if (ratio != null) Modifier.aspectRatio(ratio) else Modifier.heightIn(max = 360.dp)).clip(RoundedCornerShape(12.dp)).background(sky.glass1).itemAction(props))
             props.p("caption")?.let { Text(it, color = sky.ink3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp)) }
         }
@@ -287,7 +288,7 @@ private fun Element(els: JsonObject, key: String, depth: Int) {
             props.p("caption")?.let { Text(it, color = sky.ink3, fontSize = 12.sp) }
         }
         "Hero" -> Box(Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(toneColor(props.p("tone") ?: "accent"), toneColor(props.p("tone") ?: "accent").copy(alpha = 0.5f)))).itemAction(props)) {
-            props.p("image")?.let { AsyncImage(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(150.dp)) }
+            props.p("image")?.let { AsyncImage(absUrl(it), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(150.dp)) }
             Box(Modifier.fillMaxWidth().height(150.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
             Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
                 props.p("value")?.let { Text(it, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold) }
@@ -297,7 +298,7 @@ private fun Element(els: JsonObject, key: String, depth: Int) {
         }
         "Avatar" -> Row(Modifier.itemAction(props), verticalAlignment = Alignment.CenterVertically) {
             val src = props.p("src")
-            if (src != null) AsyncImage(src, null, contentScale = ContentScale.Crop, modifier = Modifier.size(40.dp).clip(if (props.p("shape") == "square") RoundedCornerShape(8.dp) else CircleShape))
+            if (src != null) AsyncImage(absUrl(src), null, contentScale = ContentScale.Crop, modifier = Modifier.size(40.dp).clip(if (props.p("shape") == "square") RoundedCornerShape(8.dp) else CircleShape))
             else BotAvatar(props.p("name") ?: "?", props.p("name") ?: "", 40.dp)
             Spacer(Modifier.width(10.dp))
             Column {
@@ -335,7 +336,7 @@ private fun Element(els: JsonObject, key: String, depth: Int) {
                         row.forEach { it ->
                             Column(Modifier.weight(1f).glass(sky, RoundedCornerShape(14.dp), 2).clickable { it.s("url")?.let { u -> openUrl(ctx, u) } }) {
                                 Box {
-                                    AsyncImage(it.s("image"), it.s("name"), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(1f).background(sky.glass1))
+                                    AsyncImage(it.s("image")?.let(::absUrl), it.s("name"), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(1f).background(sky.glass1))
                                     it.s("badge")?.let { b -> Box(Modifier.padding(6.dp)) { Pill(b, sky.accent) } }
                                 }
                                 Column(Modifier.padding(10.dp)) {

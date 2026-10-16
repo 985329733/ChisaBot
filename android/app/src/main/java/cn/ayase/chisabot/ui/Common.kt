@@ -34,6 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import cn.ayase.chisabot.Bot
+import cn.ayase.chisabot.BotAvatarSpec
+import cn.ayase.chisabot.net.absUrl
+import coil.compose.AsyncImage
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -109,16 +116,49 @@ fun AsyncButton(
     }
 }
 
-private val AVATAR_COLORS = listOf(0xFF3F86EE, 0xFF7C5CFF, 0xFF1F9D8B, 0xFFE07A3F, 0xFFD9467A, 0xFF4D9F2E, 0xFF2E7DB8, 0xFF9A5BD8)
+/** DESIGN §79 头像底色：140° 渐变（浅 → 深），白字。键和网页一致。 */
+private val AVATAR_GRADIENTS = linkedMapOf(
+    "sky" to (0xFF6CB6FF to 0xFF2F74F0), "ocean" to (0xFF3CC3D3 to 0xFF1662A8), "mint" to (0xFF5AD8AE to 0xFF1B9474),
+    "lime" to (0xFFA8DC55 to 0xFF4B952B), "amber" to (0xFFFFC765 to 0xFFE2850F), "coral" to (0xFFFF9478 to 0xFFDC4F38),
+    "rose" to (0xFFFF8BB0 to 0xFFCF3D76), "violet" to (0xFFB896FF to 0xFF6A4FD6), "slate" to (0xFF95A2B8 to 0xFF4B586E),
+)
 
-/** 机器人头像：按 avatarSeed 选颜色 + 名字首字（网页是 DiceBear 图案，原生先用首字，第二阶段对齐）。 */
+private fun gradientFor(color: String?, seed: String): Brush {
+    val (a, b) = AVATAR_GRADIENTS[color] ?: AVATAR_GRADIENTS.values.elementAt((seed.hashCode() and 0x7fffffff) % AVATAR_GRADIENTS.size)
+    return Brush.linearGradient(listOf(Color(a), Color(b)), start = Offset(0f, 0f), end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY))
+}
+
+/** 首字（拉丁字母大写），和网页 monogram 一致。 */
+fun monogram(name: String): String {
+    val first = name.trim().codePoints().findFirst()
+    if (!first.isPresent) return "?"
+    return String(Character.toChars(first.asInt)).uppercase()
+}
+
+/**
+ * 机器人头像，一律圆形（DESIGN §79）。上传的图 → 圆形图（加载中 / 失败显示首字底）；emoji / monogram → 渐变底；
+ * 没设头像 → 按 avatarSeed 选一个渐变 + 首字（网页默认是 boring-avatars 图案，原生先用首字，第二阶段对齐）。
+ */
 @Composable
-fun BotAvatar(name: String, seed: String, size: Dp = 40.dp) {
-    val color = Color(AVATAR_COLORS[(seed.ifEmpty { name }.hashCode() and 0x7fffffff) % AVATAR_COLORS.size])
-    Box(Modifier.size(size).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-        Text(name.take(1), color = Color.White, fontSize = (size.value * 0.42f).sp, fontWeight = FontWeight.SemiBold)
+fun BotAvatar(name: String, seed: String, size: Dp = 40.dp, avatar: BotAvatarSpec? = null) {
+    val key = seed.ifEmpty { name }
+    Box(Modifier.size(size).clip(CircleShape).background(gradientFor(avatar?.color, key)), contentAlignment = Alignment.Center) {
+        if (avatar?.kind == "emoji" && !avatar.emoji.isNullOrBlank()) {
+            Text(avatar.emoji, fontSize = (size.value * 0.5f).sp)
+        } else {
+            Text(monogram(name), color = Color.White, fontSize = (size.value * 0.42f).sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (avatar?.kind == "image" && !avatar.url.isNullOrBlank()) {
+            AsyncImage(
+                model = absUrl(avatar.url), contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.size(size).clip(CircleShape),
+            )
+        }
     }
 }
+
+@Composable
+fun BotAvatar(bot: Bot, size: Dp = 40.dp) = BotAvatar(bot.name, bot.seed, size, bot.avatar)
 
 /** 顶部栏：玻璃条 + 返回 + 标题 + 右侧动作。 */
 @Composable
