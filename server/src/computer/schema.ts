@@ -391,3 +391,22 @@ export type ComputerStatus = {
   /** Set when state is "unreachable", in words a person can act on. */
   reason?: string;
 };
+
+
+/** 浏览器标签（DESIGN.md §XX）。和 agent-computer/src/tabs.ts 的 TabsView 同一个形状。 */
+export type BrowserTab = {
+  id: string;
+  url: string;
+  title: string;
+  active: boolean;
+  favicon?: string;
+  loading?: boolean;
+};
+export type TabsView = {
+  tabs: BrowserTab[];
+  activeId: string | null;
+  max: number;
+  running: boolean;
+};
+export type TabAction = "new" | "activate" | "close";
+export type StartLink = { title: string; url: string };
