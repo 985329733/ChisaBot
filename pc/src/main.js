@@ -55,6 +55,19 @@ const pkg = require("../package.json");
 
 const PARTITION = "persist:chisabot";
 const ASSETS = path.join(__dirname, "..", "assets");
+/**
+ * 窗口 / 任务栏图标：Windows 上用多尺寸 .ico（resources/icons/chisabot-<哈希>.ico，开发运行时 build/icon.ico），
+ * 标题栏 16px、任务栏 24/32px、Alt+Tab 48px 都有对应尺寸，不是从 512px 的 PNG 缩出来的；其它系统用 PNG。
+ */
+const WINDOW_ICON = (() => {
+  if (process.platform === "win32") {
+    const packaged = shellRefresh.findIcon({ resourcesPath: process.resourcesPath });
+    if (packaged) return packaged;
+    const dev = path.join(__dirname, "..", "build", "icon.ico");
+    if (fs.existsSync(dev)) return dev;
+  }
+  return path.join(ASSETS, "icon.png");
+})();
 const UI = path.join(__dirname, "ui");
 const HIDDEN = process.argv.includes("--hidden");
 /** 外壳指纹（scripts/shell-fingerprint.js 打包前写入）：和更新源比，决定普通更新还是重新安装。 */
@@ -122,7 +135,7 @@ function localWindow(name, file, { query, ...options } = {}) {
     minHeight: 520,
     show: false,
     title: "ChisaBot PC",
-    icon: path.join(ASSETS, "icon.png"),
+    icon: WINDOW_ICON,
     autoHideMenuBar: true,
     backgroundColor: windowBackground(),
     webPreferences: {
@@ -280,7 +293,7 @@ function openChat(pathname) {
     minHeight: 560,
     show: false,
     title: "ChisaBot",
-    icon: path.join(ASSETS, "icon.png"),
+    icon: WINDOW_ICON,
     autoHideMenuBar: true,
     // 无边框：网页顶栏就是标题栏（拖动区 + 网页里的最小化 / 最大化 / 关闭，DESIGN-v3 §3）。
     // 不透明窗口 + thickFrame：Windows 11 由系统画圆角（约 8px）和窗口阴影，拖边调整大小、
@@ -303,7 +316,7 @@ function openChat(pathname) {
   win.once("ready-to-show", () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => {
     // 同一服务器的弹窗（例如连接账号的授权窗口）照常打开；本机桥只认主窗口，弹窗里拿不到。
-    if (isServerUrl(url)) return { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(ASSETS, "icon.png") } };
+    if (isServerUrl(url)) return { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: WINDOW_ICON } };
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
@@ -1421,18 +1434,27 @@ app.on("before-quit", () => {
 function refreshShellIfChanged() {
   if (process.platform !== "win32" || !app.isPackaged) return;
   const last = config.get().shellHash || "";
-  if (!shellRefresh.needsShellRefresh({ current: SHELL_HASH, last })) return;
+  const icon = shellRefresh.findIcon({ resourcesPath: process.resourcesPath });
+  const desktopDir = app.getPath("desktop");
+  const candidates = [
+    ...shellRefresh.shortcutCandidates({
+      desktopDir,
+      appData: process.env.APPDATA,
+      shortcutName: pkg.build?.nsis?.shortcutName || pkg.productName || "ChisaBot PC",
+    }),
+    ...shellRefresh.scanShortcuts({ desktopDir, appData: process.env.APPDATA }),
+  ];
+  // 指纹没变也看一眼：有快捷方式的图标还不是这份 .ico（或指向已不存在的旧安装位置）就修。
+  const changed = shellRefresh.needsShellRefresh({ current: SHELL_HASH, last });
+  if (!changed && !shellRefresh.staleShortcuts({ shell, execPath: process.execPath, icon, candidates }).length) return;
   let result = { updated: [], cacheRefreshed: false };
   try {
     result = shellRefresh.refreshShell({
       shell,
       execPath: process.execPath,
+      icon,
       appUserModelId: APP_USER_MODEL_ID,
-      candidates: shellRefresh.shortcutCandidates({
-        desktopDir: app.getPath("desktop"),
-        appData: process.env.APPDATA,
-        shortcutName: pkg.build?.nsis?.shortcutName || pkg.productName || "ChisaBot PC",
-      }),
+      candidates,
       systemRoot: process.env.SystemRoot || process.env.windir,
       osRelease: os.release(),
       run: (cmd, args) => {

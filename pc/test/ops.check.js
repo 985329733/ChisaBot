@@ -81,6 +81,19 @@ test("windows path rules (win32 api)", async () => {
   await assert.rejects(resolveInRoots("C:\\Users\\me\\Docs2\\a.txt", ["C:\\Users\\me\\Docs"], "win32"), /不在允许/);
 });
 
+test("windows default folders: C:\\AI is outside (message lists the roots); Chinese / slash / drive-root paths", async () => {
+  const roots = ["C:\\Users\\48818\\Desktop", "C:\\Users\\48818\\Documents", "C:\\Users\\48818\\Downloads"];
+  await assert.rejects(resolveInRoots("C:\\AI", roots, "win32"), (error) => {
+    assert.match(error.message, /路径不在允许的文件夹内：C:\\AI/);
+    assert.match(error.message, /C:\\Users\\48818\\Desktop、/);
+    return true;
+  });
+  assert.match(await resolveInRoots("C:/Users/48818/Documents/报告/周报.md", roots, "win32"), /周报\.md$/);
+  assert.match(await resolveInRoots("C:\\AI\\笔记", [...roots, "C:\\AI"], "win32"), /^C:\\AI\\笔记$/);
+  assert.match(await resolveInRoots("C:\\AI", ["C:\\"], "win32"), /^C:\\AI$/);
+  assert.match(await resolveInRoots("报告", roots, "win32"), /^C:\\Users\\48818\\Desktop\\报告$/);
+});
+
 test("powershell encoding and input scripts", () => {
   assert.equal(Buffer.from(encodePowerShell("echo 你好"), "base64").toString("utf16le"), "echo 你好");
   assert.match(winInputScript({ action: "click", x: 10, y: 20 }), /SetCursorPos\(10, 20\)/);

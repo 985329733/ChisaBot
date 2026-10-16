@@ -2,23 +2,49 @@
 ;
 ; electron-builder 的安装包在更新模式（--updated，在线更新默认就是这样运行的）下会保留旧的快捷方式
 ; （keepShortcuts），也不刷新 Windows 图标缓存：exe 里的图标换了，桌面 / 开始菜单 / 任务栏上看到的还是旧的。
+; 只刷新缓存也不一定够（0.1.11 在 Windows 11 上重新安装后图标仍是旧的）：资源管理器按「图标文件路径 + 序号」
+; 缓存，exe 路径没变就可能继续用旧图。所以快捷方式的图标不再指向 exe，而是指向按内容哈希命名的
+; resources\icons\chisabot-<哈希>.ico（build/icons/，pc/scripts/win-icon.py 生成）——新路径缓存里没有，一定按新文件读。
 ; 每次安装（全新安装、更新、重新安装）结束时这里都会：
-;   1. 把还存在的桌面、开始菜单快捷方式按新 exe 重写一遍（用户删掉的不会再建）；
-;   2. 通知资源管理器图标已变（SHChangeNotify SHCNE_ASSOCCHANGED + SHCNF_FLUSH）；
+;   1. 把还存在的桌面、开始菜单快捷方式重写一遍，图标 = 上面的 .ico（找不到就用 exe）；用户删掉的不会再建；
+;   2. 通知资源管理器这几个文件变了（SHCNE_UPDATEITEM）和图标关联变了（SHCNE_ASSOCCHANGED + SHCNF_FLUSH）；
 ;   3. 运行 ie4uinit.exe -show（Windows 10/11 重建图标缓存；旧系统用 -ClearIconCache），失败就算了。
-; 任务栏固定的快捷方式由客户端首次启动时更新（src/shell-refresh.js），安装程序不碰它。
+; 任务栏固定的快捷方式由客户端启动时更新（src/shell-refresh.js），安装程序不碰它。
+
+!ifndef BUILD_UNINSTALLER
+Var chisabotIcon
+!endif
+
+!macro chisabotFindIcon
+  Push $R8
+  Push $R9
+  StrCpy $chisabotIcon "$appExe"
+  ClearErrors
+  FindFirst $R8 $R9 "$INSTDIR\resources\icons\chisabot-*.ico"
+  ${if} $R9 != ""
+    StrCpy $chisabotIcon "$INSTDIR\resources\icons\$R9"
+  ${endIf}
+  FindClose $R8
+  ClearErrors
+  Pop $R9
+  Pop $R8
+!macroend
 
 !macro chisabotRefreshLink LINK
   ${if} ${FileExists} "${LINK}"
-    CreateShortCut "${LINK}" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+    CreateShortCut "${LINK}" "$appExe" "" "$chisabotIcon" 0 "" "" "${APP_DESCRIPTION}"
     ClearErrors
     WinShell::SetLnkAUMI "${LINK}" "${APP_ID}"
+    ; SHCNE_UPDATEITEM = 0x2000, SHCNF_PATHW = 0x0005
+    System::Call 'shell32::SHChangeNotify(i 0x2000, i 0x0005, w "${LINK}", i 0)'
   ${endIf}
 !macroend
 
 !macro customInstall
+  !insertmacro chisabotFindIcon
   !insertmacro chisabotRefreshLink "$newDesktopLink"
   !insertmacro chisabotRefreshLink "$newStartMenuLink"
+  System::Call 'shell32::SHChangeNotify(i 0x2000, i 0x0005, w "$appExe", i 0)'
   ; SHCNE_ASSOCCHANGED = 0x08000000, SHCNF_FLUSH = 0x1000
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0x1000, i 0, i 0)'
   ${if} ${FileExists} "$SYSDIR\ie4uinit.exe"

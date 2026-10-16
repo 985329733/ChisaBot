@@ -54,7 +54,7 @@ electron-updater 一定以 `--updated /S` 运行安装包，electron-builder 的
 
 现在分成两种安装方式：
 
-- **外壳指纹**（`pc/scripts/shell-fingerprint.js`）：对 `build/icon.ico`、`build/installer.nsh`、`assets/icon.png`、
+- **外壳指纹**（`pc/scripts/shell-fingerprint.js`）：对 `build/icon.ico`、`build/icons/*.ico`、`build/installer.nsh`、`assets/icon.png`、
   `assets/tray-*.png`、`package.json` 的 `main` / `productName` / `build`（`publish` 除外）/ `electron` 与
   `electron-builder` 版本 / `NATIVE_DEPENDENCIES` 里的原生依赖算 sha256（取 16 位）。版本号、更新源、纯 JS 依赖不算。
   `npm run fingerprint` 写 `src/shell-fingerprint.json`（打进 asar）；`npm test` 先跑 `--check`，过期就失败。
@@ -73,6 +73,16 @@ electron-updater 一定以 `--updated /S` 运行安装包，electron-builder 的
   不同（包括从没有这个功能的版本升上来），把指向本程序 exe 的桌面 / 开始菜单 / **任务栏固定** 快捷方式用
   `shell.writeShortcutLink(…, "update", { icon: exe, iconIndex: 0 })` 重写，再跑 `ie4uinit.exe -show`，记下新指纹，
   写一条本机记录 `shell_refresh`。
+- **快捷方式图标指向按内容哈希命名的 .ico（0.1.12）**：0.1.11 在 Windows 11 上手动重新安装后，桌面 / 开始菜单 / 任务栏仍是旧图标
+  ——exe 里是新图标（已解出 v0.1.11 安装包和 ChisaBotPC.exe 的图标资源核对），但资源管理器按「图标文件路径 + 序号」缓存，
+  exe 路径没变就继续用缓存里的旧图，`ie4uinit -show` 并不总能清掉。现在 `pc/scripts/win-icon.py` 生成 `build/icon.ico`
+  （16 20 24 32 40 48 存 32 位 BMP，64 96 128 256 存 PNG）并按内容哈希复制一份 `build/icons/chisabot-<12 位哈希>.ico`，
+  `build.extraResources` 打到 `resources/icons/`。安装脚本（`chisabotFindIcon`）和 `shell-refresh.js`（`findIcon`）把快捷方式的
+  图标指向这个文件——新路径缓存里没有，必然重新读；换图标后哈希变、路径也变。安装脚本对每个快捷方式和 exe 再发
+  `SHChangeNotify(SHCNE_UPDATEITEM)`。客户端每次启动都检查（`staleShortcuts`）：桌面、开始菜单 Programs（含一层子文件夹）、
+  任务栏固定里**所有**指向本程序 exe 的 .lnk（不论名字），以及指向已不存在的旧安装位置里 `ChisaBotPC.exe` 的 .lnk，图标不是这份
+  .ico 就重写（外壳指纹没变也会修）。窗口 / 任务栏图标（`BrowserWindow.icon`）在 Windows 上也用这份多尺寸 .ico。
+  换图标：改 `assets/brand/source.webp` 后 `python3 pc/scripts/win-icon.py && npm run fingerprint`（`npm test` 检查文件名和内容一致）。
 - **已经装了 0.1.2 及更早版本的电脑**：它们不认识 `chisabotShell`，照旧以 `--updated /S` 运行新安装包。但新安装包里的
   `installer.nsh` 会重写快捷方式、刷新图标缓存，新版本第一次启动也会再刷新一次（它们的 `shellHash` 为空），所以不用手动重装，
   图标在这次更新后就换过来。从下一次外壳变化开始，它们已经是新客户端，走「重新安装」。
