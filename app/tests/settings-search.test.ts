@@ -95,7 +95,9 @@ describe("settings search", () => {
 
   test("results carry a breadcrumb and a jump hash for items only", () => {
     const [hit] = searchSettings("备用模型", admin);
-    expect(hit!.path).toBe("模型 › 模型");
+    expect(hit!.path).toBe("模型");
+    expect(searchSettings("常驻指令", admin)[0]!.path).toBe("通用");
+    expect(searchSettings("记忆 机器人", admin).find((h) => h.item)?.path).toBe("机器人 › 记忆");
     expect(hitHash(hit!)).toBe("find=models.fallback-models");
     const [page] = searchSettings("密钥", admin);
     expect(hitHash(page!)).toBeUndefined();

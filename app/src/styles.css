@@ -7705,3 +7705,8 @@ html[data-phone] .chat-composer-box { padding-bottom: calc(1rem + var(--safe-b, 
 @media (max-width: 640px) {
   .perm-seg .sg-segmented-item { padding: 0 10px; }
 }
+/* 手机上「每个机器人的权限」：开关换到名字下面一行，不把名字挤成竖条。 */
+@media (max-width: 640px) {
+  .sg-lrow:has(.perm-seg) { flex-wrap: wrap; row-gap: 8px; }
+  .sg-lrow:has(.perm-seg) .sg-lrow-a { width: 100%; padding-left: 52px; }
+}

@@ -40,7 +40,7 @@ export function searchSettings(query: string, viewer: SettingsViewer, limit = 12
   const hits: SettingsHit[] = [];
   for (const page of visiblePages(viewer)) {
     const group = groupLabel(page.group) ?? "";
-    const pagePath = group ? `${group} › ${page.title}` : page.title;
+    const pagePath = group && group !== page.title ? `${group} › ${page.title}` : page.title;
     const score = (title: string, keywords: readonly string[], description: string, bonus: number) => {
       let total = 0;
       for (const token of tokens) {

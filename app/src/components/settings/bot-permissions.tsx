@@ -80,7 +80,7 @@ function BotPermissionRow({ bot }: { bot: AgentProfile }) {
         state.isError
           ? (state.error?.message ?? "读不到权限")
           : state.data && !state.data.stored
-            ? `没单独设过，沿用下面「操作你的电脑」：${BOT_PERMISSION_INFO[mode].label}`
+            ? `沿用下面「操作你的电脑」：${BOT_PERMISSION_INFO[mode].label}`
             : BOT_PERMISSION_INFO[mode].description
       }
       title={bot.name}

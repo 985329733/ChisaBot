@@ -72,7 +72,8 @@ export function SectionRail({
   const sidebar = useOptionalSidebar();
   const collapsed = Boolean(sidebar && !sidebar.isMobile && sidebar.state === "collapsed");
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const anyHere = groups.some((group) => inGroup(group, pathname));
+  // 只看可折叠的组：当前页在不折叠的组里（设置 →「通用」）时，照样展开 defaultOpen 的那一组。
+  const anyHere = groups.some((group) => group.collapsible && inGroup(group, pathname));
   const scrollRef = useRef<HTMLDivElement>(null);
   // 当前页那一行在可视区外（矮屏、组都展开着）时，打开设置先把它滚进来。
   useEffect(() => {

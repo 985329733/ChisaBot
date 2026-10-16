@@ -91,7 +91,7 @@ function RouteComponent() {
        * are not rebindable, and a row with nothing to click says so by having nothing to click.
        */}
       {/* 快捷键只读、不可改，收进一行，点开看全部（2026-10-12 精简）。 */}
-      <PageSection>
+      <PageSection description={"在 ChisaBot 任意位置可用。"} title={"快捷键"}>
         <PageRows>
           <Item size="sm">
             <ItemContent>
