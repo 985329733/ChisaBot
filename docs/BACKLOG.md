@@ -80,6 +80,7 @@
 | [CB-072](#cb-072) | 机器人 ↔ Claude Code 切换整屏刷新 → 原地切换 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
 | [CB-074](#cb-074) | 电脑文件夹导入失败后残留、移除后无法重新导入 | 成熟度 Maturity | `type: bug` · `area: pc` · `area: agents` · `P0` · `status: done` |
+| [CB-077](#cb-077) | 中途说明文字没折叠进步骤；断线重接同一段话出现两遍 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-075](#cb-075) | 每个机器人记住我的操作状态；消息记录仍会往回跳 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-076](#cb-076) | 「模型老断」：长命令 / 断线 / 部署重启时这一轮被误报成「连不上模型服务」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 
@@ -1164,6 +1165,21 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 预取对面的分包和数据；分包未到时旧画面留着，直接打开 `/cc` 只画左栏骨架
 - [x] 切回机器人回到上次的对话，切到 Claude Code 回到上次的会话
 - [x] 回归：`app/tests/left-mode-switch.test.tsx`、`tests/mode-switch/mode-switch.mjs`
+
+## CB-077
+
+**中途说明文字没折叠进步骤；断线重接同一段话出现两遍**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: chat` `P0` `status: done`
+
+用户 2026-10-16（星灵，0.1.14）截图：「检查结果显示 Node.js/npm 都未安装…」散在「做了 3 步 38 秒」下面；「刚才安装调用中断了…」在气泡里出现两遍。DESIGN.md §90。
+根因：没有结果的轮次（出错 / 停止 / 中断 / 还在跑）过程话一直画在卡片外；liveTail 接入回放时 SDK 不清空已有的同 id 消息，正文接了两遍。
+
+#### 验收标准
+- [x] 后面又调了工具的过程话（实时也是）、结束后剩下的过程话收进干活卡，点开按位置列出；结果照旧是气泡
+- [x] 刷新 / 重新打开一样
+- [x] 本机的流断了、服务器接着写完时，同一段话、工具参数、工具结果都只有一份
+- [x] Android 原生同样的收起规则（不发版）
+- [x] 回归：`app/tests/fold-narration.test.ts`、Android `NativeLogicTest`、`tests/fold-narration/`（预览 + 假模型）
 
 ## CB-075
 

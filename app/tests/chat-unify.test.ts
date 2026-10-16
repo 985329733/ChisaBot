@@ -157,9 +157,10 @@ describe("work card row (§75)", () => {
     expect(compact.tone.get("a3")).toBe("final");
     expect(compact.hidden.has("a2")).toBe(true);
     expect(compact.hidden.has("a3")).toBe(false);
-    // 还在跑：不提前改
+    // 还在跑：结果不提前定；a2 后面又调了工具，是过程话，马上收进干活卡（§90）
     const running = compactTurns(items, true, new Set());
     expect(running.tone.get("a3")).toBe("step");
-    expect(running.hidden.has("a2")).toBe(false);
+    expect(running.hidden.has("a2")).toBe(true);
+    expect(running.hidden.has("a3")).toBe(false);
   });
 });

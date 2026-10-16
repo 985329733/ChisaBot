@@ -2,7 +2,7 @@ import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { setWorkUi, workUi } from "@/lib/chat/ui-memory";
-import { currentWorkStep, summarizeDoneWork, summarizeWork, type WorkCall, workStepLines } from "@/lib/chat/work-steps";
+import { currentWorkStep, summarizeDoneWork, summarizeWork, type WorkCall, type WorkNote, workTimeline } from "@/lib/chat/work-steps";
 
 /** 干活卡把当前这一步广播出去，右栏正在搭建的面板写「正在搜索「…」」（DESIGN.md §77.1）。 */
 export const WORK_STEP_EVENT = "chisabot-work-step";
@@ -48,7 +48,12 @@ export function workSeconds(turnKey: string): number | null {
   return seconds >= 2 ? seconds : null;
 }
 
-export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; turnKey: string; live: boolean }) {
+export function WorkRow({
+  calls,
+  turnKey,
+  live,
+  notes,
+}: { calls: readonly WorkCall[]; turnKey: string; live: boolean; /** 收进卡片的过程话（§90）。 */ notes?: readonly WorkNote[] }) {
   if (live) remember(startedAt, turnKey, Date.now());
   // 点开过的干活卡离开再回来 / 刷新后还开着（按这一轮记，DESIGN.md §88）。
   const [open, setOpenState] = useState(() => workUi(turnKey)?.open === true);
@@ -92,7 +97,7 @@ export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; 
   if (live ? !summary : !done) return null;
   const since = startedAt.get(turnKey) ?? now;
   const seconds = live ? Math.max(0, Math.round((now - since) / 1000)) : doneSeconds;
-  const steps = open ? workStepLines(calls) : [];
+  const steps = open ? workTimeline(calls, notes) : [];
   const text = live ? summary!.current : done!.label;
   return (
     <div className="chat-work" data-state={live ? "live" : "done"}>
@@ -142,8 +147,14 @@ export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; 
         <ol className="chat-work-steps" data-testid="chat-work-steps">
           {steps.length === 0 ? <li>{"正在准备"}</li> : null}
           {steps.map((step, index) => (
-            <li className={live && index === steps.length - 1 ? "is-current" : undefined} key={`${index}:${step}`}>
-              {step}
+            <li
+              className={
+                step.kind === "note" ? "chat-work-note" : live && index === steps.length - 1 ? "is-current" : undefined
+              }
+              data-kind={step.kind}
+              key={`${index}:${step.text}`}
+            >
+              {step.text}
             </li>
           ))}
         </ol>

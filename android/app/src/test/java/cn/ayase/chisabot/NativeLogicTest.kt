@@ -87,7 +87,8 @@ class NativeLogicTest {
         )
         val live = Turns.build(msgs, running = true, error = null)
         assertEquals(1, live.count { it is Row.Work })
-        assertTrue(live.any { it is Row.Bot && it.kind == Row.Kind.Process })
+        // 后面又调了工具的过程话，还在跑时也收起（§90）
+        assertFalse(live.any { it is Row.Bot && it.text == "再核对一下。" })
         val workAt = live.indexOfFirst { it is Row.Work }
         assertTrue(live.indexOfFirst { it is Row.Bot && it.text == "我去查一下。" } < workAt)
         val done = Turns.build(msgs, running = false, error = null)
@@ -95,6 +96,24 @@ class NativeLogicTest {
         assertEquals("结果在这。", (done.last() as Row.Bot).text)
         assertTrue((done.last() as Row.Bot).copyable)
         assertEquals(live.first { it is Row.Work }.key, done.first { it is Row.Work }.key) // 同一个 key：原地换样子，不跳
+    }
+
+    @Test fun narrationFoldsIntoWorkCard() {
+        // 过程话 → 工具：还在跑时，最后一段（后面还没工具）照旧露着
+        val msgs = listOf(
+            ChatMessage("u", "user", "装一下"),
+            ChatMessage("a1", "assistant", "我先检查。", listOf(ToolCall("c1", "device_run_shell", "{}", "r", true))),
+            ChatMessage("a2", "assistant", "没装，我用 winget 装。", listOf(ToolCall("c2", "device_run_shell", "{}", null, false))),
+        )
+        val live = Turns.build(msgs, running = true, error = null)
+        assertFalse(live.any { it is Row.Bot && it.text == "没装，我用 winget 装。" })
+        // 过程话 → 被中断的工具 → 出错：结束后收起，不当结果
+        val failed = Turns.build(msgs.dropLast(1) + ChatMessage("a2", "assistant", "没装，我用 winget 装。", listOf(ToolCall("c2", "device_run_shell", "{}", "interrupted", true))), running = false, error = "暂时连不上模型服务。")
+        assertFalse(failed.any { it is Row.Bot && it.text == "没装，我用 winget 装。" })
+        assertTrue(failed.last() is Row.Error)
+        // 过程话就是结果（没出错）：照旧是结果气泡
+        val ok = Turns.build(msgs.dropLast(1) + ChatMessage("a2", "assistant", "装好了。"), running = false, error = null)
+        assertTrue(ok.any { it is Row.Bot && it.kind == Row.Kind.Result && it.text == "装好了。" })
     }
 
     @Test fun turnsThinkingAndPause() {

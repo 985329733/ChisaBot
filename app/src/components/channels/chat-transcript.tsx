@@ -59,7 +59,7 @@ import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
 import { WorkRow } from "@/components/chat/work-card";
-import { isWorkCall, type WorkCall } from "@/lib/chat/work-steps";
+import { isWorkCall, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
 import { supersededPageCalls } from "@/lib/chat/page-cards";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
@@ -2428,7 +2428,7 @@ export function ChatTranscript({
   function workRowFor(id: string) {
     if (showToolActivity) return null;
     const work = compact.work.get(id);
-    return work ? <WorkRow calls={work.calls} live={work.live} turnKey={work.key} /> : null;
+    return work ? <WorkRow calls={work.calls} live={work.live} notes={work.notes} turnKey={work.key} /> : null;
   }
 
   /** 刚被收起的一行：原样画着，外层 `data-folded` 收成 0 高（§82.9）；读屏和 Tab 都跳过它。 */
@@ -2577,6 +2577,9 @@ export function lastAnswerId(items: readonly TranscriptItem[], hidden: ReadonlyS
  *  - 中间的过程话：没结果时一行淡色小字；有了结果就收起；
  *  - 开网页的小条每轮只留最后一组；
  *  - 被停掉的一轮：最后一个看得见的行后面挂「已停止」。
+ *  - 有干活卡的一轮（§90）：过程话收进卡片（点开在步骤之间按顺序列出），不再在卡片下面散成一段淡色字——
+ *    后面又调了工具的那段马上收；这一轮结束了（有结果 / 出错 / 停止 / 中断）剩下的过程话也收。
+ *    还在跑、后面还没调工具的最后一段照旧露在外面（它可能就是正在写的结果）。
  */
 export function compactTurns(
   items: readonly TranscriptItem[],
@@ -2594,13 +2597,13 @@ export function compactTurns(
    * 干活卡（§75.1）：这一轮第一个干活的工具那一行 → 这一轮的全部调用、是否还在跑；key = 这一轮开头那条消息（记用时用）。
    * 还在跑时画实时卡，结束后同一个位置收成「搜索 2 次 · 12 秒 ⌄」。
    */
-  work: Map<string, { calls: WorkCall[]; key: string; live: boolean }>;
+  work: Map<string, { calls: WorkCall[]; key: string; live: boolean; notes: WorkNote[] }>;
 } {
   const tone = new Map<string, "lead" | "step" | "final">();
   const hidden = new Set<string>();
   const stoppedAfter = new Set<string>();
   const fallbackAfter = new Map<string, string>();
-  const work = new Map<string, { calls: WorkCall[]; key: string; live: boolean }>();
+  const work = new Map<string, { calls: WorkCall[]; key: string; live: boolean; notes: WorkNote[] }>();
   // 一轮的开头：人发的消息，或服务器放进来、接着跑一轮的那几种（定时任务 / 任务结果 / 后来确认，CB-046）。
   const sent = (item: TranscriptItem) =>
     item.kind === "attachments" ||
@@ -2659,7 +2662,31 @@ export function compactTurns(
       }
       if (anchor !== null && hidden.has(anchor)) anchor = browsers.at(-1)?.id ?? null;
       const key = turn.users[turn.users.length - 1]?.id;
-      if (anchor !== null && key) work.set(anchor, { calls, key, live });
+      if (anchor !== null && key) {
+        /*
+         * 过程话收进卡片（§90）。出错收尾、最后一段后面没有工具的那段照旧当结果：本机看到的「出错」常常只是
+         * 本机的流断了，服务器接着把真正的回答写完了（§90.4），按出错把最后一段收起会把回答藏起来。
+         */
+        const notes: WorkNote[] = [];
+        let seen = 0;
+        let carded = false;
+        turn.rest.forEach((item, at) => {
+          if (item.id === anchor) carded = true;
+          if (item.kind === "tool") seen += 1;
+          else if (item.kind === "browser") seen += item.steps.length;
+          // 开场一句如果出现在卡片之后（这一轮先干活后说话），它也是过程话。
+          else if (item.kind === "text" && (tone.get(item.id) === "step" || (carded && tone.get(item.id) === "lead"))) {
+            const workAfter = turn.rest.slice(at + 1).some(
+              (next) => next.kind === "browser" || (next.kind === "tool" && isWorkCall(next.toolCall.function.name)),
+            );
+            if (!live || workAfter) {
+              hidden.add(item.id);
+              notes.push({ at: seen, text: item.text });
+            }
+          }
+        });
+        work.set(anchor, { calls, key, live, notes });
+      }
     }
     // CB-021：同一轮里同一个页面只留一张卡（§54「同一轮同一页面一张卡」）。
     const pageCalls = turn.rest.flatMap((item) =>
