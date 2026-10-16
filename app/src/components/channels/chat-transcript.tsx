@@ -588,12 +588,15 @@ export const SETTLE_AFTER_HYDRATE_MS = 2500;
  * 翻页键、拖滚动条）或者发了新消息，马上停手，交回滚动容器原来的规则。
  */
 function SettleAtEnd({
+  busy = false,
   hydrating,
   newestUserMessageId,
   viewport,
   scrollKey,
   slack,
 }: {
+  /** 这一段对话正在回答（§91.3：一轮结束时把底下留的空收掉）。 */
+  busy?: boolean;
   hydrating: boolean;
   newestUserMessageId: string | null;
   viewport: React.RefObject<HTMLDivElement | null>;
@@ -619,7 +622,14 @@ function SettleAtEnd({
     hydrating,
     /** 底下的留白（px）。 */
     slack: 0,
+    /** 正在把留白收掉（§91.3）：这段时间里变矮不再补留白。 */
+    releasing: false,
+    busy,
   });
+  state.current.busy = busy;
+  const reduceMotion = useReducedMotion();
+  /** §91.3：一轮结束后收掉底下留的空（由下面的 effect 填上；没挂上时什么都不做）。 */
+  const releaseRef = useRef<(() => void) | null>(null);
 
   useLayoutEffect(() => {
     const s = state.current;
@@ -630,6 +640,11 @@ function SettleAtEnd({
     } else if (s.wasHydrating) {
       s.until = performance.now() + SETTLE_AFTER_HYDRATE_MS;
       s.baseline = newestUserMessageId;
+      /*
+       * §91.3：恢复完了、这一段没在回答——上次离开时底下留的空（新一轮对齐到顶上时滚动容器留的）不再放回去：
+       * 做完的一轮只要正常的底边距。还在回答时照旧放回去（§88.3，接着写的回答先填那块空，画面不跳）。
+       */
+      if (!s.busy && s.slack > 0) setSlack(0);
     } else if (newestUserMessageId !== s.baseline) {
       // 恢复完成后又多了一条用户消息：人发的（或别的设备发的），交回「新一轮对齐到顶上」。
       s.until = 0;
@@ -657,14 +672,36 @@ function SettleAtEnd({
     el.style.height = `${next}px`;
   }
 
+  /*
+   * §91.3 一轮结束后收掉底下的空（用户 2026-10-16「下面还有额外的空白」）。
+   *
+   * 根因：新一轮发出去时，滚动容器把那条用户消息对齐到顶上，回答比一屏短时在下面垫一块空（它自己的 spacer，
+   * 「anchored-to-message」）；这一轮结束了它也不收——人看着回答下面一大块空。变矮时 §88.1 又把少掉的高度
+   * 补成留白（slack），刷新后 §88.3 还把它原样放回去。
+   *
+   * 现在：回答结束（busy 变 false）后等收起动画（§82.9，220ms）走完，人还在底部、没动过滚动：先把滚动容器的空
+   * 原样挪进我们的留白（总高度不变，画面不动），让滚动容器改成「跟着底部」（scrollToEnd 把它的 spacer 清零），
+   * 再把留白在 260ms 里缩到 0——浏览器把 scrollTop 一点点夹小，整段对话平滑地往下落到正常的底边距。
+   * 人往上翻过、或者又开始回答了：不动。`prefers-reduced-motion`：一下收掉。
+   */
+  const wasBusy = useRef(busy);
+  useEffect(() => {
+    const was = wasBusy.current;
+    wasBusy.current = busy;
+    if (busy || !was || hydrating) return;
+    const timer = window.setTimeout(() => releaseRef.current?.(), 320);
+    return () => window.clearTimeout(timer);
+  }, [busy, hydrating]);
+
   // 离开对话：最后记一次位置。用 layout 的清理——那时 DOM 还在页面上，量得出来（普通 effect 的清理时已经拿掉了）。
   const finalWrite = useRef<(() => void) | null>(null);
   useLayoutEffect(() => () => finalWrite.current?.(), []);
 
-  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。
+  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。没在恢复、也没在回答：不放（§91.3）。
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!memo?.atBottom || memo.spacer <= 0 || !element) return;
+    if (!hydrating && !busy) return;
     setSlack(Math.min(memo.spacer, Math.max(0, element.clientHeight - 96)));
     // biome-ignore lint/correctness/useExhaustiveDependencies: once, on open.
   }, []);
@@ -757,7 +794,9 @@ function SettleAtEnd({
       }
       const max = element.scrollHeight - element.clientHeight;
       const recentlyTouched = performance.now() - touchedAt < 400;
-      if (grew > 0 && s.slack > 0) {
+      if (s.releasing) {
+        // 正在收留白（§91.3）：变矮是我们自己收的，不补回去。
+      } else if (grew > 0 && s.slack > 0) {
         // 长出来的先填留白：总高度不变，画面不动。
         const use = Math.min(s.slack, grew);
         setSlack(s.slack - use);
@@ -785,6 +824,7 @@ function SettleAtEnd({
       const max = element.scrollHeight - element.clientHeight;
       if (
         seen.atBottom &&
+        !s.releasing &&
         !active() &&
         !s.restore &&
         performance.now() - touchedAt > 400 &&
@@ -840,6 +880,50 @@ function SettleAtEnd({
       saveTimer = null;
       write();
     };
+    let releaseFrame = 0;
+    releaseRef.current = () => {
+      if (s.busy || s.releasing || s.restore || active()) return;
+      if (performance.now() - touchedAt < 400) return;
+      const gap = element.scrollHeight - element.scrollTop - element.clientHeight;
+      if (gap > 4) return; // 人不在底部：留白在视口外，§88.1 自己会收
+      const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
+      const spacerHeight = spacer && !spacer.hidden ? spacer.offsetHeight : 0;
+      const total = spacerHeight + s.slack;
+      if (total <= 1) return;
+      s.releasing = true;
+      // 1) 滚动容器的空挪进留白（同一帧），2) 让它改成跟着底部（spacer 清零，位置不变）。
+      setSlack(total);
+      const top = element.scrollTop;
+      element.style.scrollBehavior = "auto";
+      scrollToEnd({ behavior: "auto" });
+      element.scrollTop = top;
+      element.style.scrollBehavior = "";
+      const finish = () => {
+        setSlack(0);
+        lastHeight = content.offsetHeight;
+        s.releasing = false;
+        look();
+        save();
+      };
+      if (reduceMotion) {
+        finish();
+        return;
+      }
+      // 3) 留白缩到 0：ease-out，260ms。
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / RELEASE_MS);
+        const eased = 1 - (1 - t) ** 3;
+        if (t >= 1 || s.busy || performance.now() - touchedAt < 50) {
+          finish();
+          return;
+        }
+        setSlack(total * (1 - eased));
+        lastHeight = content.offsetHeight;
+        releaseFrame = window.requestAnimationFrame(step);
+      };
+      releaseFrame = window.requestAnimationFrame(step);
+    };
     const mutations = new MutationObserver(pin);
     mutations.observe(content, { childList: true });
     const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pinNow);
@@ -851,6 +935,9 @@ function SettleAtEnd({
     element.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       if (saveTimer !== null) clearTimeout(saveTimer);
+      window.cancelAnimationFrame(releaseFrame);
+      releaseRef.current = null;
+      s.releasing = false;
       finalWrite.current = null;
       window.cancelAnimationFrame(frame);
       mutations.disconnect();
@@ -862,10 +949,13 @@ function SettleAtEnd({
       element.removeEventListener("scroll", onScroll);
     };
     // biome-ignore lint/correctness/useExhaustiveDependencies: slack / state are refs.
-  }, [scrollToEnd, scrollToMessage, viewport, scrollKey]);
+  }, [scrollToEnd, scrollToMessage, viewport, scrollKey, reduceMotion]);
 
   return null;
 }
+
+/** 一轮结束后底下的空收掉用多久（毫秒，§91.3）。 */
+const RELEASE_MS = 260;
 
 /**
  * How many of the newest turns cascade when a channel is opened, and how far apart.
@@ -2442,7 +2532,7 @@ export function ChatTranscript({
           <span className="chat-bottom-pill-t">{"回到底部"}</span>
         </MessageScrollerButton>
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
-        <SettleAtEnd hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} slack={slackRef} {...(scrollKey ? { scrollKey } : {})} />
+        <SettleAtEnd busy={busy} hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} slack={slackRef} {...(scrollKey ? { scrollKey } : {})} />
       </MessageScroller>
     </MessageScrollerProvider>
   );
