@@ -13,7 +13,7 @@
  *   cc_approval_result { approvalId, decision: "approve" | "deny", always }
  *   cc_browser_input { loginId, events }       云端登录浏览器的点击 / 键盘（不记录）
  *   「在云端完成登录」「Claude 上游代理」走 cc_rpc：browser_start / browser_stop / proxy_set / proxy_test / egress
- *   proxy_set / proxy_test 带 outbound（节点链接解析出的 sing-box 出站，DESIGN §84）时，在容器里起 sing-box（singbox.js），
+ *   proxy_set / proxy_test 带 outbound（节点链接解析出的 sing-box 出站，DESIGN §85）时，在容器里起 sing-box（singbox.js），
  *   本机转发器把它当 socks5 上游。
  *   GitHub 工作区（P3，git.js）走 cc_rpc：ws_clone / ws_merge / ws_push / ws_push_preview / ws_base_diff / ws_delete / ws_drop_tree；
  *   cc_turn 带 git: { branch } 时，会话目录是工作区 work/ 的一个工作树（分支 cc/…）。

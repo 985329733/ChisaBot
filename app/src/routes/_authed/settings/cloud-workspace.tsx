@@ -264,7 +264,7 @@ function ClaudeAccount() {
 }
 
 /**
- * 「Claude 上游代理」（DESIGN.md §73.8、§84）：你自己的代理 / 静态住宅 IP，或者 trojan / vless / vmess / ss / hysteria2 / tuic 节点链接。
+ * 「Claude 上游代理」（DESIGN.md §73.8、§85）：你自己的代理 / 静态住宅 IP，或者 trojan / vless / vmess / ss / hysteria2 / tuic 节点链接。
  * 设了以后，云端节点里 Claude Code 的所有请求（含登录、换令牌）和「在云端完成登录」的浏览器访问 Claude 的域名时都走它；
  * GitHub、npm 这些不走。节点链接要打开「用 sing-box 转换此链接」：服务器上的云端节点起一个本机转换器（sing-box）。
  * 地址 / 链接存在保险箱里，这里只显示打码后的（协议 · 主机:端口 · 节点名）。

@@ -211,7 +211,7 @@ function createForwarder({ log = () => {} } = {}) {
         const sock = await open(u.hostname, Number(u.port || 80));
         const headers = { ...req.headers };
         for (const k of Object.keys(headers)) if (/^proxy-/i.test(k)) delete headers[k];
-        const up = http.request({ host: u.hostname, port: Number(u.port || 80), path: `${u.pathname}${u.search}`, method: req.method, headers, createConnection: () => sock, agent: false }, (r) => {
+        const up = http.request({ host: u.hostname, port: Number(u.port || 80), path: `${u.pathname}${u.search}`, method: req.method, headers, createConnection: () => sock }, (r) => {
           res.writeHead(r.statusCode || 502, r.headers);
           r.pipe(res);
         });
@@ -292,8 +292,9 @@ function httpsGet(url, p, timeoutMs = 15_000) {
           path: `${u.pathname}${u.search}`,
           method: "GET",
           headers: { "user-agent": "ChisaBot-cloudnode/1.0", accept: "*/*" },
-          ...(sock ? { createConnection: () => tls.connect({ socket: sock, servername: u.hostname }) } : {}),
-          agent: false,
+          // 经上游：用隧道上的 TLS 连接。注意 Node 只在 agent 没给（undefined）时才用 createConnection——
+          // 写了 agent: false 会新建一个 Agent、悄悄直连（#153 起测试连接其实一直没经过上游，2026-10-16 修）。
+          ...(sock ? { createConnection: () => tls.connect({ socket: sock, servername: u.hostname }) } : { agent: false }),
         },
         (res) => {
           let body = "";

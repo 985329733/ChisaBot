@@ -2,7 +2,7 @@
 # 构建：docker build -t chisabot-cloudnode:2.1.165 --build-arg CLAUDE_CODE_VERSION=2.1.165 deploy/cloud-node
 FROM node:22-bookworm-slim
 ARG CLAUDE_CODE_VERSION=2.1.165
-# 「Claude 上游代理」的节点链接转换（DESIGN.md §84）：固定版本的 sing-box，sha256 对过官方发布页才装
+# 「Claude 上游代理」的节点链接转换（DESIGN.md §85）：固定版本的 sing-box，sha256 对过官方发布页才装
 ARG SINGBOX_VERSION=1.14.3
 ARG SINGBOX_SHA256_AMD64=e2bdf179c15a3652955dc44867e33ca0965c9c9b91b34267dcc5a5d639a5feee
 ARG SINGBOX_SHA256_ARM64=29dae24d76bea3bc62d07dd3e60cfc12003de7debbd6b768df9be9c68360174e

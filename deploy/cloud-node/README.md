@@ -59,7 +59,7 @@ ChisaBot 网页：设置 → 云端工作区 →「**在云端完成登录**」�
 ### 节点链接（sing-box 转换）
 
 也可以直接粘贴 `trojan://`、`vless://`（含 Reality / Vision）、`vmess://`（v2rayN base64 JSON）、`ss://`（SIP002 和旧式）、
-`hysteria2://` / `hy2://`、`tuic://` 节点链接，打开「用 sing-box 转换此链接」后保存（DESIGN.md §84）。
+`hysteria2://` / `hy2://`、`tuic://` 节点链接，打开「用 sing-box 转换此链接」后保存（DESIGN.md §85）。
 
 - 镜像里装了固定版本的 sing-box（`SINGBOX_VERSION`，构建时按官方发布页的 sha256 校验，`/usr/local/bin/sing-box`）。
   旧镜像没有 sing-box：页面会提示更新镜像，普通 http / socks5 代理照常能用。

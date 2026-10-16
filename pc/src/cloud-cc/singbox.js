@@ -1,6 +1,6 @@
 "use strict";
 /**
- * 「Claude 上游代理」的节点链接转换（docs/cloud-claude-code.md「节点链接（sing-box 转换）」，DESIGN.md §84）。
+ * 「Claude 上游代理」的节点链接转换（docs/cloud-claude-code.md「节点链接（sing-box 转换）」，DESIGN.md §85）。
  *
  * 服务器把 trojan:// / vless:// / vmess:// / ss:// / hysteria2:// / tuic:// 链接解析成 sing-box 出站（shared/proxy-links.ts），
  * 经 cc_rpc proxy_set 发过来；这里在容器里起一个 sing-box 子进程：

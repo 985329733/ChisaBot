@@ -44,7 +44,7 @@ import { type Github, GithubError } from "../github/service";
  * - 在云端完成登录：节点容器里的无头 Chromium 打开授权页，画面（CDP screencast）经设备 WSS → 这里 → 设置页（SSE）；
  *   点击 / 键盘反过来走。授权页跳到回调地址时节点自己拿到授权码交给 `claude auth login`，授权码不经过这里。
  * - Claude 上游代理：地址存在保险箱保留名 `claude-proxy`（加密），节点连上 / 改设置时下发给节点（只在节点内存里）。
- *   节点链接（trojan / vless / vmess / ss / hysteria2 / tuic，DESIGN §84）：保险箱里存原链接；下发给节点的是解析好的
+ *   节点链接（trojan / vless / vmess / ss / hysteria2 / tuic，DESIGN §85）：保险箱里存原链接；下发给节点的是解析好的
  *   sing-box 出站（shared/proxy-links.ts），节点在容器里起 sing-box 转成本机 socks5。保存要带 convert: true（网页上的开关）。
  * - GitHub 工作区（P3，§3.4）：新建时服务器从保险箱取出 GitHub 令牌，随 ws_clone 发给节点（只在那一次 git 进程里用）；
  *   每个会话一个工作树 + 分支 cc/…；「合入工作目录」把会话分支合进 work/（冲突时不动）；「推送并开 PR」令牌再下发一次推送，
