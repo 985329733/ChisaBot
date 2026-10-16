@@ -2,6 +2,7 @@ import { IconAlertTriangle, IconChevronDown, IconCloud, IconDeviceDesktop, IconF
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { type CcSyncState, type CcWorkspaceView, SYNC_STATE_ZH } from "../../../../shared/cloud-cc";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button, T } from "@/components/ui/button";
@@ -10,8 +11,9 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
-import { ccApi, ccKeys, ccSyncQueryOptions } from "@/lib/cloud-cc";
-import { type PcFolderInfo, type PcSyncBinding, type PcSyncChoice, pcSyncBridge, usePcSync } from "@/lib/pc-bridge";
+import { client } from "@/lib/client";
+import { ccApi, ccKeys, ccSyncQueryOptions, ccWorkspacesQueryOptions } from "@/lib/cloud-cc";
+import { type PcFolderInfo, type PcSyncBinding, type PcSyncChoice, pcErrorMessage, pcSyncBridge, samePcPath, usePcSync } from "@/lib/pc-bridge";
 import { cn } from "@/lib/utils";
 
 /**
@@ -437,42 +439,119 @@ export function CcSyncWatcher() {
   return <CcConflictDialog binding={current} onOpenChange={(o) => !o && setOpen(null)} open />;
 }
 
-/** 新建工作区 →「电脑上的文件夹」（图 2 右，只在 PC 客户端里）。 */
-export function CcLocalFolderPane({ onBusy, onDone }: { onBusy: (busy: boolean) => void; onDone: () => void }) {
+/** 这次新建留下的电脑文件夹工作区（旧客户端失败时不会自己撤销）：新出现的、来源是这个文件夹的。 */
+async function leftoverLocal(before: Set<string>, folder: string, known: string | null) {
+  const all = await client<CcWorkspaceView[]>("/api/claude-code/workspaces", "workspaces", { fallback: "读不到工作区" }).catch(() => [] as CcWorkspaceView[]);
+  const ids = all.filter((w) => w.source === "local" && !before.has(w.id) && samePcPath(w.sourceLabel.replace(/^电脑文件夹 · /, ""), folder)).map((w) => w.id);
+  if (known && all.some((w) => w.id === known) && !ids.includes(known)) ids.push(known);
+  return ids;
+}
+function within<T>(p: Promise<T>, ms: number) {
+  return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+}
+
+/**
+ * 新建工作区 →「电脑上的文件夹」（图 2 右，只在 PC 客户端里）。DESIGN.md §73.9 / §87：
+ *  - 选好的文件夹本机已经记着同步：工作区还在 = 不能重复导入；工作区已经在云端删掉了（残留）=「解除旧的同步并重新导入」。
+ *  - 新建失败一律撤销（新客户端自己撤；旧客户端由这里找出留下的工作区再撤），报一句中文原因，按钮变「重试」。
+ *  - 按钮放在对话框底栏（footer 传进来的位置），和「取消」一行、靠右。
+ */
+export function CcLocalFolderPane({ onBusy, onDone, footer }: { onBusy: (busy: boolean) => void; onDone: () => void; footer?: HTMLElement | null }) {
   const bridge = pcSyncBridge();
   const pc = usePcSync();
+  const workspaces = useQuery(ccWorkspacesQueryOptions(!!bridge));
   const [info, setInfo] = useState<PcFolderInfo | null>(null);
   const [name, setName] = useState("");
   const [enableSync, setEnableSync] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const progress = useMemo(() => (info ? (pc?.bindings.find((b) => b.path === info.path)?.busy ?? null) : null), [pc, info]);
+  const progress = useMemo(() => (info ? (pc?.bindings.find((b) => samePcPath(b.path, info.path))?.busy ?? null) : null), [pc, info]);
+  // 这个文件夹在本机记着的同步（选的时候的检查结果 + 同步状态里同一个路径的记录）：工作区还在 = 在同步，都已删掉 = 残留。
+  // 新客户端检查时问过服务器（boundStale）；工作区列表读不到时用它，旧客户端读不到就先等。
+  type Held = { kind: "free" } | { kind: "checking" } | { kind: "bound"; name: string | null } | { kind: "stale"; ids: string[] };
+  const [frozen, setFrozen] = useState<Held | null>(null);
+  const computed = useMemo((): Held => {
+    if (!info) return { kind: "free" };
+    const at = (pc?.bindings ?? []).filter((b) => samePcPath(b.path, info.path)).map((b) => b.workspaceId);
+    const ids = [...new Set([...(info.bound ? [info.bound] : []), ...at])];
+    if (!ids.length) return { kind: "free" };
+    if (!workspaces.data) {
+      if (info.boundStale === true) return { kind: "stale", ids: info.staleIds?.length ? info.staleIds : ids };
+      if (info.boundStale === false) return { kind: "bound", name: info.boundName ?? null };
+      return { kind: "checking" };
+    }
+    const live = ids.find((id) => workspaces.data.some((w) => w.id === id));
+    if (live) return { kind: "bound", name: workspaces.data.find((w) => w.id === live)?.name ?? null };
+    return { kind: "stale", ids };
+  }, [info, workspaces.data, pc]);
+  // 上传过程中新工作区也会出现在同步记录里：按开始时的判断显示，失败了再放开
+  const held = frozen ?? computed;
   const pick = useAsyncAction(async () => {
     setError(null);
-    const r = await bridge!.pick();
+    setFrozen(null);
+    const r = await bridge!.pick().catch((e) => {
+      throw new Error(pcErrorMessage(e));
+    });
     if (r) {
       setInfo(r);
       setName(r.name);
+      void queryClient.invalidateQueries({ queryKey: ccKeys.workspaces });
     }
   }, { errorToast: (e) => e.message });
   const create = useAsyncAction(
     async () => {
       if (!info) throw new Error("先选一个文件夹");
+      if (held.kind === "bound" || held.kind === "checking") throw new Error("这个文件夹已经在同步一个工作区了");
       setError(null);
+      setFrozen(held);
       onBusy(true);
+      const before = new Set((queryClient.getQueryData<CcWorkspaceView[]>(ccKeys.workspaces) ?? workspaces.data ?? []).map((w) => w.id));
+      const wsName = name.trim() || info.name;
+      let made: string | null = null;
       try {
-        const r = await bridge!.create({ path: info.path, name: name.trim() || info.name, enableSync });
+        let id: string;
+        if (held.kind === "stale" && !bridge!.forget) {
+          // 旧客户端（0.1.13 及以前）没有 forget、新建会被旧记录拦住：网页建工作区，电脑「开启同步」（非空文件夹 = 上传）
+          const ws = await ccApi.createLocalWorkspace({ name: wsName, label: info.path });
+          made = ws.id;
+          await bridge!.enable({ workspaceId: ws.id, path: info.path, name: ws.name, source: "local" });
+          if (!enableSync) await bridge!.release(ws.id);
+          id = ws.id;
+        } else {
+          if (held.kind === "stale") for (const old of held.ids) await bridge!.forget!(old);
+          id = (await bridge!.create({ path: info.path, name: wsName, enableSync })).workspace.id;
+        }
         await queryClient.invalidateQueries({ queryKey: ccKeys.workspaces });
-        const session = await ccApi.createSession(r.workspace.id);
+        const session = await ccApi.createSession(id);
         await queryClient.invalidateQueries({ queryKey: ccKeys.workspaces });
         setTimeout(() => {
           onDone();
           void navigate({ to: "/cc/$sessionId", params: { sessionId: session.id } });
         }, 900);
       } catch (e) {
-        setError((e as Error).message);
-        throw e;
+        const msg = pcErrorMessage(e);
+        // 补偿：找出这次留下的工作区，先让电脑交还（最多等 20 秒），再撤销（删节点目录 + 同步记录 + 工作区）
+        const left = await leftoverLocal(before, info.path, made);
+        let undone = left.length > 0;
+        for (const id of left) {
+          await within(bridge!.release(id).catch(() => null), 20_000);
+          const r = await ccApi.abandonLocalWorkspace(id).catch(() => null);
+          if (!r) undone = false;
+        }
+        await queryClient.invalidateQueries({ queryKey: ccKeys.workspaces });
+        const already = /已经撤销/.test(msg);
+        setError(
+          left.length === 0 || already
+            ? msg
+            : undone
+              ? `${msg}。已经撤销了这次新建（云端没有留下工作区，电脑上的文件没动），可以直接点「重试」。`
+              : `${msg}。云端留下了一个空的工作区，可以在左栏删掉它再重试。`,
+        );
+        // 旧记录可能变了（新客户端撤销时已放下）：重新检查一遍这个文件夹
+        if (bridge) void bridge.status().catch(() => null);
+        setFrozen(null);
+        throw new Error(msg);
       } finally {
         onBusy(false);
       }
@@ -517,7 +596,15 @@ export function CcLocalFolderPane({ onBusy, onDone }: { onBusy: (busy: boolean) 
               {"这个文件夹超过 2 GB 或 5 万个文件，第一次上传会比较久。可以继续，也可以换一个小一点的文件夹。"}
             </p>
           ) : null}
-          {info.bound ? <p className="cc-form-err">{"这个文件夹已经在同步一个工作区了。"}</p> : null}
+          {held.kind === "bound" ? (
+            <p className="cc-form-err" data-testid="cc-local-bound">
+              {held.name ? `这个文件夹已经在同步工作区「${held.name}」了。` : "这个文件夹已经在同步一个工作区了。"}
+            </p>
+          ) : held.kind === "stale" ? (
+            <p className="cc-sync-warn" data-testid="cc-local-stale" role="note">
+              {"这个文件夹以前同步过的工作区已经在云端删掉了，这台电脑上还留着旧的同步记录。点「解除旧的同步并重新导入」会放下旧记录（文件夹里的文件不动），再重新上传。"}
+            </p>
+          ) : null}
           <IgnoreRules rules={info.ignores} />
           <label className="cc-field">
             <span className="cc-field-l">{"名称"}</span>
@@ -528,21 +615,24 @@ export function CcLocalFolderPane({ onBusy, onDone }: { onBusy: (busy: boolean) 
             <span>{"传完后在这台电脑上开启同步（之后随时可以关）"}</span>
           </label>
           {error ? (
-            <p className="cc-form-err" role="alert">
+            <p className="cc-form-err" data-testid="cc-local-error" role="alert">
               {error}
             </p>
           ) : null}
-          <div className="cc-local-foot">
-            <Button
-              data-testid="cc-local-create"
-              disabled={!!info.bound}
-              feedback={{ pending: progress ?? "上传中…", success: "已创建", error: "没有建成" }}
-              onClick={() => void create.run()}
-              state={create.state}
-            >
-              {"上传并创建"}
-            </Button>
-          </div>
+          {(() => {
+            const button = (
+              <Button
+                data-testid="cc-local-create"
+                disabled={held.kind === "bound" || held.kind === "checking"}
+                feedback={{ pending: progress ?? (held.kind === "stale" ? "重新导入中…" : "上传中…"), success: "已创建", error: "没有建成" }}
+                onClick={() => void create.run()}
+                state={create.state}
+              >
+                {held.kind === "stale" ? "解除旧的同步并重新导入" : error ? "重试" : "上传并创建"}
+              </Button>
+            );
+            return footer ? createPortal(button, footer) : <div className="cc-local-foot">{button}</div>;
+          })()}
         </>
       )}
     </div>

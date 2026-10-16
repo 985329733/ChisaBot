@@ -79,7 +79,7 @@
 | [CB-071](#cb-071) | 打开对话落在最新一条、不跳；切机器人秒开；接入回放瘦身 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-072](#cb-072) | 机器人 ↔ Claude Code 切换整屏刷新 → 原地切换 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
-
+| [CB-074](#cb-074) | 电脑文件夹导入失败后残留、移除后无法重新导入 | 成熟度 Maturity | `type: bug` · `area: pc` · `area: agents` · `P0` · `status: done` |
 
 ## CB-001
 
@@ -1162,6 +1162,22 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 预取对面的分包和数据；分包未到时旧画面留着，直接打开 `/cc` 只画左栏骨架
 - [x] 切回机器人回到上次的对话，切到 Claude Code 回到上次的会话
 - [x] 回归：`app/tests/left-mode-switch.test.tsx`、`tests/mode-switch/mode-switch.mjs`
+
+## CB-074
+
+**电脑文件夹导入失败后残留、移除后无法重新导入**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: pc` `area: agents` `P0` `status: done`
+
+用户 2026-10-16 12:46（PC 0.1.13）：选 `C:\AI\Seelen-UI` 第一次报错但工作区还是出现了；移除后重新导入被「这个文件夹已经在同步一个工作区了。」挡住；底栏「取消」单独一行。DESIGN.md §87。
+根因：节点重启后同步边车留在旧网络命名空间（ECONNREFUSED）；新建失败不撤销；删工作区不拆同步（服务器孤儿绑定 / 租约 + PC 本机记录）。
+
+#### 验收标准
+- [x] 新建失败：服务器、节点、电脑都不留东西，中文原因 + 重试（PC 新版自己撤；0.1.13 由网页撤）
+- [x] 新建 / 开启同步前探边车；主机看门狗让边车跟上节点的网络命名空间
+- [x] 删工作区拆掉绑定 / 租约 / 公钥 / 隧道并通知电脑；PC 对账后放下本机记录；服务器启动清孤儿
+- [x] 残留的旧记录不再挡住导入：「解除旧的同步并重新导入」（0.1.13 / 0.1.14 也能用）
+- [x] 底栏「取消 · 上传并创建」一行靠右
+- [x] 回归：`server/tests/cloud-sync-cleanup.test.ts`、`pc/test/sync-forget.check.js`、预览 e2e（Linux 电脑替身）
 
 ## CB-065
 

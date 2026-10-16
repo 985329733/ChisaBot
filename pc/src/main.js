@@ -753,6 +753,7 @@ function registerSyncIpc() {
     return await m.enable({ workspaceId: String(input.workspaceId || ""), dir, name: input.name, source: input.source });
   });
   handleWeb("pc:sync-release", async (input) => ensureSyncManager().release(String(input?.workspaceId || "")));
+  handleWeb("pc:sync-forget", async (input) => ensureSyncManager().forget(String(input?.workspaceId || "")));
   handleWeb("pc:sync-now", async (input) => ensureSyncManager().syncNow(String(input?.workspaceId || "")));
   handleWeb("pc:sync-resolve", async (input) =>
     ensureSyncManager().resolve({ workspaceId: String(input?.workspaceId || ""), path: String(input?.path || ""), choice: String(input?.choice || "") }),

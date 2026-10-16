@@ -175,6 +175,7 @@ export function createCloudSyncService(options: CloudSyncOptions) {
   async function recover() {
     const rows = await sql.unsafe<{ id: string; owner_user_id: string }[]>("SELECT id, owner_user_id FROM chisabot_cc_workspaces WHERE sync_state = 'syncing'");
     for (const r of rows) await event(r.owner_user_id, r.id, "recover", null, { note: "服务器重启时还在同步中，等电脑上线后重新对比" });
+    await cleanupOrphans().catch((e) => console.warn("cloud sync orphan cleanup failed", e));
     return rows.length;
   }
 
@@ -261,18 +262,35 @@ export function createCloudSyncService(options: CloudSyncOptions) {
   /** 「电脑上的文件夹」新建（图 2 右）：云端建一个空的 work/，工作区来源 local。 */
   async function createLocalWorkspace(device: DeviceRecord, input: { name: string; label?: string | null }) {
     assertPc(device);
-    const node = await options.nodeFor(device.ownerUserId);
+    return await createLocal(device.ownerUserId, device.id, input);
+  }
+
+  /**
+   * 同步边车（127.0.0.1:2222，和节点共用网络命名空间）连得上吗。节点重启后边车还留在旧的命名空间里时这里就连不上
+   * （2026-10-16 「电脑文件夹导入失败后残留」的根因），先查一遍，什么都不建。旧节点没有 sync_probe：当作没问题。
+   */
+  async function probeSidecar(nodeDeviceId: string) {
+    const r = await nodeRpc<{ ok: boolean; error?: string | null }>(nodeDeviceId, "sync_probe", {}, 10_000).catch((e: Error) =>
+      /不认识的操作/.test(String(e.message)) ? { ok: true, error: null } : { ok: false, error: String(e.message).slice(0, 120) },
+    );
+    if (!r.ok) throw new SyncError(`云端的同步组件没有就绪（${r.error || "连不上"}），这次什么都没有建。稍后再点一次重试；一直这样的话在 设置 → 云端工作区 里重启节点。`, 503);
+  }
+
+  /** 新建电脑文件夹工作区（PC 用设备令牌，或者网页替旧客户端建）：先查边车，再在节点上建 work/，最后记数据库。 */
+  async function createLocal(ownerUserId: string, deviceId: string | null, input: { name: string; label?: string | null }) {
+    const node = await options.nodeFor(ownerUserId);
     if (!node) throw new SyncError("还没有云端工作区节点。", 409);
     if (!hub.isOnline(node.device_id)) throw new SyncError("云端工作区不在线。", 409);
+    await probeSidecar(node.device_id);
     const id = `ws_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
     // 先在节点上建好 work/，成功了再记数据库（节点出错时不留半个工作区）
     const init = await nodeRpc<{ git?: boolean }>(node.device_id, "ws_init_local", { workspaceId: id });
     await nodeRpc(node.device_id, "sync_lease", { workspaceId: id, holder: "cloud", epoch: 0 });
     await sql.unsafe(
       "INSERT INTO chisabot_cc_workspaces (id, owner_user_id, node_device_id, name, source, is_git, path, sync_state) VALUES ($1, $2, $3, $4, 'local', $6, $5, 'paused')",
-      [id, device.ownerUserId, node.device_id, input.name, input.label ?? null, !!init?.git],
+      [id, ownerUserId, node.device_id, input.name, input.label ?? null, !!init?.git],
     );
-    await event(device.ownerUserId, id, "created", null, { device: device.id, source: "local" });
+    await event(ownerUserId, id, "created", null, { device: deviceId, source: "local" });
     return { id, name: input.name, source: "local", syncState: "paused" as SyncState };
   }
 
@@ -289,6 +307,7 @@ export function createCloudSyncService(options: CloudSyncOptions) {
       throw new SyncError(`「${otherDevice?.name ?? "另一台电脑"}」正在同步这个工作区。先在那台电脑上「交还云端」，它离线的话在网页上「强制收回」。`, 409);
     }
     if (ws.sync_state === "conflict") throw new SyncError("这个工作区有没处理完的冲突，先在电脑上处理。", 409);
+    await probeSidecar(ws.node_device_id);
     const existing = await bindingOf(ws.id, device.id);
     const fpr = keyFingerprint(pubKey);
     let row: BindingRow;
@@ -609,6 +628,96 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     });
   }
 
+  // ── 工作区删除 / 撤销新建 / 残留清理（DESIGN.md §87） ─────────────────
+
+  /** 删掉这个工作区的同步记录（绑定、租约、冲突）。事件留着做审计。 */
+  async function purgeRows(workspaceId: string) {
+    await sql.unsafe("DELETE FROM chisabot_cc_sync_conflicts WHERE workspace_id = $1", [workspaceId]);
+    await sql.unsafe("DELETE FROM chisabot_cc_sync_bindings WHERE workspace_id = $1", [workspaceId]);
+    await sql.unsafe("DELETE FROM chisabot_cc_leases WHERE workspace_id = $1", [workspaceId]);
+  }
+
+  /**
+   * 工作区要被删了（service.ts deleteWorkspace 在删行之前调）：断开隧道、删绑定 / 租约 / 冲突、重写节点上的公钥，
+   * 再告诉登记过的电脑「放下本机的同步记录」（sync_forget；0.1.14 起的客户端处理，旧客户端忽略，网页给一键解除）。
+   */
+  async function forgetWorkspace(ownerUserId: string, workspaceId: string, nodeDeviceId: string | null) {
+    if (!ID_RE.test(workspaceId)) return 0;
+    if (handoffs.has(workspaceId)) throw new SyncError("这个工作区正在和电脑交接，等一下再删。", 409);
+    const rows = await sql.unsafe<BindingRow[]>("SELECT * FROM chisabot_cc_sync_bindings WHERE workspace_id = $1", [workspaceId]);
+    const closed = closeTunnels((t) => t.workspaceId === workspaceId, "工作区已删除");
+    await purgeRows(workspaceId);
+    if (nodeDeviceId) await pushKeys(nodeDeviceId).catch(() => false);
+    const devices = [...new Set(rows.map((r) => r.pc_device_id))];
+    for (const d of devices) hub.sendRaw(d, { type: "sync_forget", workspaceId });
+    await event(ownerUserId, workspaceId, "forgotten", null, { devices, bindings: rows.length, tunnels: closed });
+    return rows.length;
+  }
+
+  /** 工作区已经不在了、同步记录还在（删除前的版本留下的）：启动时、电脑来对账时清掉。 */
+  async function cleanupOrphans() {
+    const rows = await sql.unsafe<{ workspace_id: string; owner_user_id: string | null }[]>(
+      `SELECT workspace_id, max(owner_user_id) AS owner_user_id FROM (
+         SELECT workspace_id, owner_user_id FROM chisabot_cc_sync_bindings
+         UNION ALL SELECT workspace_id, NULL FROM chisabot_cc_leases
+         UNION ALL SELECT workspace_id, NULL FROM chisabot_cc_sync_conflicts
+       ) x WHERE NOT EXISTS (SELECT 1 FROM chisabot_cc_workspaces w WHERE w.id = x.workspace_id) GROUP BY workspace_id`,
+    );
+    for (const r of rows) {
+      closeTunnels((t) => t.workspaceId === r.workspace_id, "工作区已删除");
+      await purgeRows(r.workspace_id);
+      if (r.owner_user_id) await event(r.owner_user_id, r.workspace_id, "orphan_cleanup", null, { note: "工作区已删除，清掉留下的同步记录" });
+    }
+    if (rows.length) console.log(JSON.stringify({ type: "cloud-sync-orphans", cleaned: rows.map((r) => r.workspace_id) }));
+    return rows.map((r) => r.workspace_id);
+  }
+
+  /** 电脑来对账：它本机记着的工作区里，哪些服务器上已经没有了（它就放下本机的记录）。 */
+  async function reconcile(device: DeviceRecord, input: { workspaceIds: string[] }) {
+    const ids = [...new Set(input.workspaceIds.filter((id) => ID_RE.test(id)))].slice(0, 200);
+    if (!ids.length) return { gone: [] as string[] };
+    const have = new Set(
+      (await sql.unsafe<{ id: string }[]>("SELECT id FROM chisabot_cc_workspaces WHERE owner_user_id = $1 AND id = ANY(string_to_array($2::text, ','))", [device.ownerUserId, ids.join(",")])).map((r) => r.id),
+    );
+    const gone = ids.filter((id) => !have.has(id));
+    // 只清真的不存在的工作区留下的行（别人的工作区 id 也会落在 gone 里，不能顺手删它的同步记录）
+    if (gone.length) {
+      const exists = new Set(
+        (await sql.unsafe<{ id: string }[]>("SELECT id FROM chisabot_cc_workspaces WHERE id = ANY(string_to_array($1::text, ','))", [gone.join(",")])).map((r) => r.id),
+      );
+      for (const id of gone) if (!exists.has(id)) await purgeRows(id);
+    }
+    return { gone };
+  }
+
+  /**
+   * 撤销一次没成功的「电脑上的文件夹」新建（补偿）：只对电脑文件夹工作区、还没开过会话的才行。断开隧道、
+   * 删节点上的目录、删同步记录和工作区行、重写公钥。电脑（by）自己清本机；别的登记过的电脑收到 sync_forget。
+   */
+  async function dropNewLocal(ownerUserId: string, workspaceId: string, by: string | null, kind: string) {
+    if (!ID_RE.test(workspaceId)) throw new SyncError("工作区 id 不对。");
+    const ws = (await sql.unsafe<WorkspaceRow[]>("SELECT * FROM chisabot_cc_workspaces WHERE id = $1 AND owner_user_id = $2", [workspaceId, ownerUserId]))[0];
+    if (!ws) {
+      await purgeRows(workspaceId);
+      return { abandoned: false, gone: true };
+    }
+    if (ws.source !== "local") throw new SyncError("只能撤销「电脑上的文件夹」新建的工作区。");
+    const sessions = (await sql.unsafe<{ n: number }[]>("SELECT count(*)::int AS n FROM chisabot_cc_sessions WHERE workspace_id = $1", [ws.id]).catch(() => [{ n: 0 }]))[0]?.n ?? 0;
+    if (sessions > 0) throw new SyncError("这个工作区已经开过会话，不能撤销；要删的话在左栏工作区菜单里删除。", 409);
+    if (handoffs.has(ws.id)) throw new SyncError("这个工作区正在和电脑交接，等一下再试。", 409);
+    const rows = await sql.unsafe<BindingRow[]>("SELECT * FROM chisabot_cc_sync_bindings WHERE workspace_id = $1", [ws.id]);
+    const closed = closeTunnels((t) => t.workspaceId === ws.id, "撤销新建");
+    let diskLeft = false;
+    if (hub.isOnline(ws.node_device_id)) await nodeRpc(ws.node_device_id, "ws_delete", { workspaceId: ws.id }, 120_000).catch(() => (diskLeft = true));
+    else diskLeft = true;
+    await purgeRows(ws.id);
+    await sql.unsafe("DELETE FROM chisabot_cc_workspaces WHERE id = $1", [ws.id]);
+    await pushKeys(ws.node_device_id).catch(() => false);
+    for (const d of new Set(rows.map((r) => r.pc_device_id))) if (d !== by) hub.sendRaw(d, { type: "sync_forget", workspaceId: ws.id });
+    await event(ownerUserId, ws.id, kind, null, { device: by, tunnels: closed, diskLeft });
+    return { abandoned: true, gone: true, diskLeft };
+  }
+
   // ── 网页 / 手机（只读 + 强制收回） ──────────────────────────────────
 
   async function view(ownerUserId: string, workspaceId: string) {
@@ -704,6 +813,7 @@ export function createCloudSyncService(options: CloudSyncOptions) {
   const gitBody = z.object({ workspaceId: z.string().max(80), op: z.enum(["info", "adopt"]), branch: z.string().max(200).nullable().optional(), sha: z.string().max(64).nullable().optional() });
   const handoffBody = z.object({ workspaceId: z.string().max(80), handoffId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), step: z.enum(["ready", "released", "failed", "recover"]), detail: z.string().max(500).nullable().optional() });
   const wsBody = z.object({ workspaceId: z.string().max(80) });
+  const reconcileBody = z.object({ workspaceIds: z.array(z.string().max(80)).max(200) });
 
   function onError(error: Error, c: { json: (b: unknown, s: number) => Response }) {
     if (error instanceof SyncError) return c.json({ error: error.message }, error.status);
@@ -727,6 +837,12 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     sub.post("/resolve", async (c) => c.json(await resolve(c.get("device"), resolveBody.parse(await c.req.json().catch(() => ({}))))));
     sub.post("/git", async (c) => c.json(await git(c.get("device"), gitBody.parse(await c.req.json().catch(() => ({}))))));
     sub.post("/handoff", async (c) => c.json(await handoffStep(c.get("device"), handoffBody.parse(await c.req.json().catch(() => ({}))))));
+    sub.post("/reconcile", async (c) => c.json(await reconcile(c.get("device"), reconcileBody.parse(await c.req.json().catch(() => ({}))))));
+    sub.post("/abandon", async (c) => {
+      const device = c.get("device");
+      if (device.revoked) throw new SyncError("这台设备已被撤销。", 403);
+      return c.json(await dropNewLocal(device.ownerUserId, wsBody.parse(await c.req.json().catch(() => ({}))).workspaceId, device.id, "abandoned"));
+    });
     sub.get("/:workspaceId", async (c) => c.json(await view(c.get("device").ownerUserId, c.req.param("workspaceId"))));
     routes.route("/agent/sync", sub as never);
   }
@@ -736,6 +852,7 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     const app = new Hono<{ Variables: AppVariables }>();
     app.use("/workspaces/:id/sync", requireUser);
     app.use("/workspaces/:id/sync/*", requireUser);
+    app.use("/local-workspaces", requireUser);
     const admin: MiddlewareHandler<{ Variables: AppVariables }> = async (c, next) => {
       if (c.var.actor.role !== "admin") return c.json({ error: "只有管理员能用云端 Claude Code。" }, 403);
       await next();
@@ -743,6 +860,10 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     app.onError(onError as never);
     app.get("/workspaces/:id/sync", admin, async (c) => c.json(await view(c.var.actor.id, c.req.param("id"))));
     app.post("/workspaces/:id/sync/force-reclaim", admin, async (c) => c.json(await forceReclaim(c.var.actor.id, c.req.param("id"))));
+    // 旧客户端（同步桥 version 1，没有 forget）的「解除旧的同步并重新导入」：网页先在这里建工作区，再让电脑「开启同步」；
+    // 失败了网页调 abandon 撤销（DESIGN.md §87）。
+    app.post("/local-workspaces", admin, async (c) => c.json({ workspace: await createLocal(c.var.actor.id, null, createBody.parse(await c.req.json().catch(() => ({})))) }));
+    app.post("/workspaces/:id/sync/abandon", admin, async (c) => c.json(await dropNewLocal(c.var.actor.id, c.req.param("id"), null, "abandoned")));
     return app;
   }
 
@@ -757,7 +878,9 @@ export function createCloudSyncService(options: CloudSyncOptions) {
     closeDeviceTunnels,
     emergencyStop,
     withHandoff,
+    forgetWorkspace,
+    cleanupOrphans,
     // 测试用
-    _internal: { tickets, tunnels, bind, report, release, ticket, view, forceReclaim, createLocalWorkspace, lease, resolve, git, handoffStep, handoffs },
+    _internal: { tickets, tunnels, bind, report, release, ticket, view, forceReclaim, createLocalWorkspace, createLocal, lease, resolve, git, handoffStep, handoffs, reconcile, dropNewLocal },
   };
 }

@@ -203,7 +203,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   /** 电脑同步（sync.ts）挂进来的交接：PC 正在使用时写 work/ 要先交接。 */
   const syncHooks: {
     withHandoff: null | (<T>(ownerUserId: string, workspaceId: string, write: (handoffId: string) => Promise<T>, changed: (result: T) => boolean) => Promise<T>);
-  } = { withHandoff: null };
+    /** 删工作区时把电脑同步一起拆掉（绑定、租约、公钥、隧道、通知电脑），DESIGN.md §87。 */
+    forgetWorkspace?: null | ((ownerUserId: string, workspaceId: string, nodeDeviceId: string | null) => Promise<unknown>);
+  } = { withHandoff: null, forgetWorkspace: null };
   const busyWorkspaces = new Set<string>(); // 正在克隆 / 合入 / 推送的工作区（同一时间只做一件写 git 的事）
   const github = options.github ?? null;
   const gitBase = (options.gitBase || "https://github.com").replace(/\/+$/, "");
@@ -1164,6 +1166,8 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     if (!hub.isOnline(ws.node_device_id)) throw new CcError("云端工作区不在线，删不了磁盘上的文件。", 409);
     await rpc(ws.node_device_id, "ws_delete", { workspaceId: ws.id }, 120_000);
     await sql.unsafe("UPDATE chisabot_cc_sessions SET archived_at = COALESCE(archived_at, now()), updated_at = now() WHERE workspace_id = $1", [ws.id]);
+    // 电脑同步一起拆掉：以前这里不管，删掉的工作区留下绑定 / 租约，电脑上「这个文件夹已经在同步一个工作区了」（§87）
+    if (syncHooks.forgetWorkspace) await syncHooks.forgetWorkspace(ownerUserId, ws.id, ws.node_device_id).catch((e: Error) => console.warn("cloud sync forget failed", String(e.message).slice(0, 200)));
     await sql.unsafe("DELETE FROM chisabot_cc_workspaces WHERE id = $1", [ws.id]);
     await audit(ownerUserId, null, "workspace_deleted", { workspaceId: ws.id, repo: ws.repo_full_name });
     return { deleted: true };
@@ -1619,8 +1623,9 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     /** 电脑文件夹同步（sync.ts）用：节点上的 cc_rpc，和这个人的节点。 */
     nodeRpc: rpc,
     nodeFor,
-    setSyncHooks: (hooks: { withHandoff: (typeof syncHooks)["withHandoff"] }) => {
+    setSyncHooks: (hooks: { withHandoff: (typeof syncHooks)["withHandoff"]; forgetWorkspace?: (typeof syncHooks)["forgetWorkspace"] }) => {
       syncHooks.withHandoff = hooks.withHandoff;
+      syncHooks.forgetWorkspace = hooks.forgetWorkspace ?? null;
     },
     // 测试用
     _internal: { live, nodes, startTurn, send, decideApproval, workspaces, createSession, status, createGithubWorkspace, mergeSession, pushSession },

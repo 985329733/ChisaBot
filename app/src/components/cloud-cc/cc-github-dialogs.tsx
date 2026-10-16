@@ -34,6 +34,8 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
   const canLocal = !!pcSyncBridge();
   const [src, setSrc] = useState<"github" | "local">("github");
   const [localBusy, setLocalBusy] = useState(false);
+  // 「电脑上的文件夹」的按钮放进底栏这个位置（和「取消」一行、靠右，§87）
+  const [localFoot, setLocalFoot] = useState<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const typed = query.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, "");
@@ -120,7 +122,7 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
           </div>
           {!canLocal ? <p className="cc-src-note">{"「电脑上的文件夹」只能在 ChisaBot 电脑客户端里选"}</p> : null}
           {src === "local" ? (
-            <CcLocalFolderPane onBusy={setLocalBusy} onDone={() => onOpenChange(false)} />
+            <CcLocalFolderPane footer={localFoot} onBusy={setLocalBusy} onDone={() => onOpenChange(false)} />
           ) : github.isPending ? (
             <div aria-busy className="cc-repo-skel" />
           ) : !connected ? (
@@ -211,7 +213,7 @@ export function CcNewWorkspaceDialog({ open, onOpenChange }: { open: boolean; on
             state={create.state}
           >
             {"创建并克隆"}
-          </Button> : null}
+          </Button> : <div className="contents" data-testid="cc-local-foot-slot" ref={setLocalFoot} />}
         </DialogFooter>
       </DialogContent>
     </Dialog>

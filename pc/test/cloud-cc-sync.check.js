@@ -146,3 +146,16 @@ test("tunnel: PC stdin/stdout ⇄ (server splice) ⇄ node ⇄ local sshd stand-
   echo.close();
   assert.equal(tunnelUrl("https://a.example:8443/x", "t"), "wss://a.example:8443/api/devices/agent/sync-tunnel?ticket=t");
 });
+
+test("sync_probe (§87): sshd answers SSH- → ok; nothing listening (sidecar in a stale netns) → not ok, Chinese reason", async () => {
+  const root = tmp();
+  const srv = net.createServer((s) => s.end("SSH-2.0-OpenSSH_9.6\r\n"));
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port;
+  const ok = await createSyncNode({ root, keysDir: path.join(root, "k"), sshPort: port }).rpc("sync_probe", {});
+  assert.deepEqual(ok, { ok: true, error: null });
+  await new Promise((r) => srv.close(r));
+  const bad = await createSyncNode({ root, keysDir: path.join(root, "k"), sshPort: port }).rpc("sync_probe", {});
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /连不上同步边车：ECONNREFUSED/);
+});
