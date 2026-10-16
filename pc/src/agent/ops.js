@@ -169,7 +169,7 @@ async function resolveInRoots(requested, roots, platform = process.platform) {
     const b = fold(rootReal);
     if (a === b || a.startsWith(b.endsWith(P.sep) ? b : b + P.sep)) return target;
   }
-  throw new OpError(`路径不在允许的文件夹内：${raw || "(空)"}`);
+  throw new OpError(`路径不在允许的文件夹内：${raw || "(空)"}（允许的文件夹：${roots.join("、")}）。在网页或 PC 的设备设置里把它加入允许的文件夹，或让机器人再试一次并在审批时批准加入。`);
 }
 
 function looksBinary(buffer) {

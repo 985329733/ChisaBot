@@ -37,6 +37,15 @@
       "node_modules/**/*"
     ],
     "asar": true,
+    "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "icons",
+        "filter": [
+          "*.ico"
+        ]
+      }
+    ],
     "win": {
       "target": [
         "nsis",

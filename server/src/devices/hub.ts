@@ -10,7 +10,11 @@ import {
   capabilityFor,
 } from "../../../shared/devices";
 import { isMobilePlatform, MOBILE_ONLINE_WINDOW_MS } from "./pairing";
+import { outsideRoots, outsideRootsNote } from "./roots";
 import { type DevicePatch, type DeviceRecord, type DeviceStore, fullAccessActive } from "./store";
+
+/** 和 store.ts MAX_ROOTS 一致。 */
+const MAX_ALLOWED_ROOTS = 20;
 
 /** 0.1.8 之前的客户端只有这些操作；更新的操作要看 hello.features。 */
 const LEGACY_OPERATIONS = new Set<DeviceOperation>([
@@ -590,6 +594,12 @@ export function createDeviceHub(options: {
           input = { ...input, summary: `${input.summary}（${reason}）` };
         }
       }
+      // 允许的文件夹之外的路径：照样审批（「允许」也改成问），批准后把文件夹加进去再执行（roots.ts）。
+      const outside = !full && policy !== "off" ? outsideRoots(record.platform, record.allowedRoots, input.operation, input.args) : null;
+      if (outside) {
+        policy = "ask";
+        input = { ...input, summary: `${input.summary}（${outsideRootsNote(outside)}）` };
+      }
       const started = now();
       const auditId = await store.audit({
         deviceId: record.id,
@@ -644,7 +654,7 @@ export function createDeviceHub(options: {
               })
               .catch(() => "ask" as const)
           : "ask";
-      if (policy === "ask" && preference === "auto") {
+      if (policy === "ask" && preference === "auto" && !outside) {
         approvalNote = "按审批偏好直接执行";
       } else if (policy === "ask") {
         const decision = await requestApproval(record, input);
@@ -661,6 +671,31 @@ export function createDeviceHub(options: {
         const fresh = await store.get(record.id);
         if (!fresh || fresh.revoked || fresh.paused)
           return refuse("refused", "审批期间设备已停止或被撤销。");
+        if (outside) {
+          const roots = fresh.allowedRoots;
+          if (!roots.some((root) => root.toLowerCase() === outside.folder.toLowerCase())) {
+            if (roots.length >= MAX_ALLOWED_ROOTS)
+              return refuse("refused", `允许的文件夹已经有 ${roots.length} 个（上限 ${MAX_ALLOWED_ROOTS}），没法再加 ${outside.folder}。请到 设置 → 设备 → 这台设备 删掉不用的文件夹。`);
+            const updated = await store.update(record.id, { allowedRoots: [...roots, outside.folder] });
+            if (!updated || !updated.allowedRoots.some((root) => root.toLowerCase() === outside.folder.toLowerCase()))
+              return refuse("refused", `没能把 ${outside.folder} 加入允许的文件夹。`);
+            await store.audit({
+              deviceId: record.id,
+              ownerUserId: record.ownerUserId,
+              actorType: "user",
+              actorId: null,
+              actorName: who ? `${who}批准` : "批准",
+              action: "roots_added",
+              summary: `批准时加入允许的文件夹：${outside.folder}`,
+              outcome: "succeeded",
+              detail: null,
+              durationMs: null,
+            });
+            // config 和 call 走同一条 WebSocket、按顺序处理：PC 先拿到新文件夹，再收到调用。
+            await pushConfig(record.id);
+          }
+          approvalNote = `${approvalNote}；已把 ${outside.folder} 加入允许的文件夹`;
+        }
       }
 
       const connection = connections.get(record.id);

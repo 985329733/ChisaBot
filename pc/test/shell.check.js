@@ -271,3 +271,107 @@ test("main wires the fingerprint into the updater, quit-time reinstall and first
   assert.ok(ui.includes("此更新需要重新安装，以更新图标/组件"));
   assert.ok(ui.includes('"重新安装"'));
 });
+
+// ---- 0.1.12：快捷方式图标指向按内容哈希命名的 .ico（资源管理器图标缓存按路径记，exe 路径不变会一直显示旧图标） ----
+
+function icoEntries(buf) {
+  const n = buf.readUInt16LE(4);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const at = 6 + 16 * i;
+    const size = buf[at] || 256;
+    const bytes = buf.readUInt32LE(at + 8);
+    const offset = buf.readUInt32LE(at + 12);
+    const png = buf.subarray(offset, offset + 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    out.push({ size, png, bytes, headerOk: png || buf.readUInt32LE(offset) === 40 });
+  }
+  return out;
+}
+
+test("build/icon.ico: brand icon 16–256, small sizes as 32-bit BMP, big as PNG; build/icons has the same bytes under its content hash", () => {
+  const ico = fs.readFileSync(path.join(PC, "build", "icon.ico"));
+  const entries = icoEntries(ico);
+  assert.deepStrictEqual(entries.map((e) => e.size), [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]);
+  for (const e of entries) {
+    assert.ok(e.headerOk, `${e.size}px 帧头不对`);
+    assert.strictEqual(e.png, e.size > 48, `${e.size}px 应该是 ${e.size > 48 ? "PNG" : "BMP"}`);
+  }
+  const names = fs.readdirSync(path.join(PC, "build", "icons")).filter((n) => n.endsWith(".ico"));
+  assert.strictEqual(names.length, 1, "build/icons 里只放当前这一份");
+  const hash = require("node:crypto").createHash("sha256").update(ico).digest("hex").slice(0, 12);
+  assert.strictEqual(names[0], `chisabot-${hash}.ico`, "换了 build/icon.ico 要重跑 python3 pc/scripts/win-icon.py");
+  assert.ok(fs.readFileSync(path.join(PC, "build", "icons", names[0])).equals(ico));
+  const pkg = JSON.parse(fs.readFileSync(path.join(PC, "package.json"), "utf8"));
+  assert.deepStrictEqual(pkg.build.extraResources, [{ from: "build/icons", to: "icons", filter: ["*.ico"] }]);
+  assert.strictEqual(pkg.build.win.icon, "build/icon.ico");
+});
+
+test("fingerprint covers build/icons and differs from 0.1.11 (a37303ffb08b9d60) → old clients reinstall", () => {
+  const inputs = fp.collectInputs ? fp.collectInputs() : fp.compute().inputs;
+  assert.ok(Object.keys(inputs).some((k) => k.startsWith("build/icons/")));
+  assert.notStrictEqual(fp.compute().hash, "a37303ffb08b9d60");
+  assert.strictEqual(requiresFullInstall({ version: "0.1.12", chisabotShell: fp.compute().hash }, "a37303ffb08b9d60"), true);
+});
+
+test("installer.nsh points shortcuts at resources\\icons\\chisabot-*.ico and notifies the shell per file", () => {
+  const nsh = fs.readFileSync(path.join(PC, "build", "installer.nsh"), "utf8");
+  assert.match(nsh, /FindFirst \$R8 \$R9 "\$INSTDIR\\resources\\icons\\chisabot-\*\.ico"/);
+  assert.match(nsh, /CreateShortCut "\$\{LINK\}" "\$appExe" "" "\$chisabotIcon" 0/);
+  assert.match(nsh, /SHChangeNotify\(i 0x2000, i 0x0005, w "\$\{LINK\}"/);
+  assert.match(nsh, /!ifndef BUILD_UNINSTALLER\s+Var chisabotIcon\s+!endif/, "卸载程序里不能有没用到的变量（warningsAsErrors）");
+  assert.ok(nsh.indexOf("!insertmacro chisabotFindIcon") < nsh.indexOf('!insertmacro chisabotRefreshLink "$newDesktopLink"'));
+});
+
+test("findIcon / scanShortcuts / staleShortcuts / refreshShell with the hashed icon", () => {
+  const res = "C:\\Users\\u\\AppData\\Local\\Programs\\ChisaBot PC\\resources";
+  const exe = "C:\\Users\\u\\AppData\\Local\\Programs\\ChisaBot PC\\ChisaBotPC.exe";
+  const ico = `${res}\\icons\\chisabot-61767ffc510d.ico`;
+  assert.strictEqual(shellRefresh.findIcon({ resourcesPath: res, readdir: () => ["x.png", "chisabot-61767ffc510d.ico"] }), ico);
+  assert.strictEqual(shellRefresh.findIcon({ resourcesPath: res, readdir: () => { throw new Error("ENOENT"); } }), "");
+  assert.strictEqual(shellRefresh.findIcon({}), "");
+
+  const desk = "C:\\Users\\u\\Desktop";
+  const appData = "C:\\Users\\u\\AppData\\Roaming";
+  const start = `${appData}\\Microsoft\\Windows\\Start Menu\\Programs`;
+  const bar = `${appData}\\Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar`;
+  const tree = {
+    [desk]: ["ChisaBot PC.lnk", "ChisaBot PC - 副本.lnk", "笔记.txt", "别的.lnk"],
+    [start]: ["ChisaBot PC.lnk", "工具"],
+    [`${start}\\工具`]: ["ChisaBot.lnk"],
+    [bar]: ["ChisaBot PC (2).lnk"],
+  };
+  const found = shellRefresh.scanShortcuts({ desktopDir: desk, appData, readdir: (d) => { if (!(d in tree)) throw new Error("ENOENT"); return tree[d]; }, isDir: (p) => p in tree });
+  assert.deepStrictEqual(found, [
+    `${desk}\\ChisaBot PC.lnk`, `${desk}\\ChisaBot PC - 副本.lnk`, `${desk}\\别的.lnk`,
+    `${start}\\ChisaBot PC.lnk`, `${start}\\工具\\ChisaBot.lnk`, `${bar}\\ChisaBot PC (2).lnk`,
+  ]);
+
+  const oldExe = "D:\\旧\\ChisaBot PC\\ChisaBotPC.exe"; // 以前装在别处、现在已经删了
+  const links = {
+    [`${desk}\\ChisaBot PC.lnk`]: { target: exe, icon: exe, iconIndex: 0 },
+    [`${desk}\\ChisaBot PC - 副本.lnk`]: { target: oldExe },
+    [`${desk}\\别的.lnk`]: { target: "C:\\Windows\\notepad.exe" },
+    [`${start}\\ChisaBot PC.lnk`]: { target: exe, icon: ico },
+    [`${bar}\\ChisaBot PC (2).lnk`]: { target: exe.toUpperCase(), icon: "" },
+  };
+  const exists = (p) => p in links || p === exe || p === ico;
+  const shell = { readShortcutLink: (p) => links[p], writeShortcutLink: (p, op, opts) => (writes.push([p, opts.target, opts.icon]), true) };
+  const writes = [];
+  const stale = shellRefresh.staleShortcuts({ shell, exists, execPath: exe, icon: ico, candidates: found });
+  assert.deepStrictEqual(stale, [`${desk}\\ChisaBot PC.lnk`, `${desk}\\ChisaBot PC - 副本.lnk`, `${bar}\\ChisaBot PC (2).lnk`]);
+  // 全都已经是新图标：不需要刷新。
+  assert.deepStrictEqual(shellRefresh.staleShortcuts({ shell: { readShortcutLink: () => ({ target: exe, icon: ico }) }, exists: () => true, execPath: exe, icon: ico, candidates: found }), []);
+
+  const result = shellRefresh.refreshShell({ shell, exists, execPath: exe, icon: ico, candidates: [...found, `${desk}\\ChisaBot PC.lnk`] });
+  assert.deepStrictEqual(result.updated, [`${desk}\\ChisaBot PC.lnk`, `${desk}\\ChisaBot PC - 副本.lnk`, `${start}\\ChisaBot PC.lnk`, `${bar}\\ChisaBot PC (2).lnk`]);
+  assert.ok(writes.every(([, target, icon]) => target === exe && icon === ico));
+  assert.strictEqual(writes.length, 4, "同一个快捷方式只写一次，别人的不碰");
+});
+
+test("main: window icon = hashed .ico on Windows; launch checks stale shortcuts even when the fingerprint is unchanged", () => {
+  const main = fs.readFileSync(path.join(PC, "src", "main.js"), "utf8");
+  assert.ok(!main.includes('icon: path.join(ASSETS, "icon.png")'), "窗口都用 WINDOW_ICON");
+  assert.ok(main.includes("shellRefresh.findIcon({ resourcesPath: process.resourcesPath })"));
+  assert.ok(main.includes("shellRefresh.staleShortcuts("));
+  assert.ok(main.includes("shellRefresh.scanShortcuts("));
+});

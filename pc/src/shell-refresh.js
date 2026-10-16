@@ -8,7 +8,12 @@
  * 这里再兜一次底，并且顺带处理任务栏固定的快捷方式（安装程序不碰它）。
  *
  * 何时运行：src/shell-fingerprint.json 的哈希和本机 config.json 记下的 shellHash 不同（包括第一次装上带
- * 这个功能的版本，那时 shellHash 为空），只跑一次，跑完记下新哈希。只改指向本程序 exe 的快捷方式。
+ * 这个功能的版本，那时 shellHash 为空）；或者（0.1.12 起每次启动都看一眼）有指向本程序的快捷方式图标不是
+ * 现在这份 resources\icons\chisabot-<哈希>.ico。只改指向本程序 exe 的快捷方式（以及指向已经不存在的
+ * 旧安装位置里 ChisaBotPC.exe 的快捷方式——换了安装目录重装后，旧快捷方式会一直显示旧图标）。
+ *
+ * 图标为什么指向单独的 .ico 而不是 exe：资源管理器按「图标文件路径 + 序号」缓存图标，exe 路径不变就可能
+ * 一直用缓存里的旧图（0.1.11 在 Windows 11 上重新安装后仍是旧图标）。按内容哈希命名的 .ico 是新路径，必然重新读取。
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -20,6 +25,52 @@ function loadFingerprint(file = path.join(__dirname, "shell-fingerprint.json")) 
   } catch {
     return "";
   }
+}
+
+/** resources\icons 里按内容哈希命名的图标（打包时 build/icons → resources/icons）；没有就返回 ""。 */
+function findIcon({ resourcesPath, readdir = fs.readdirSync } = {}) {
+  if (!resourcesPath) return "";
+  try {
+    const name = readdir(path.win32.join(resourcesPath, "icons"))
+      .filter((n) => /^chisabot-[0-9a-f]{6,}\.ico$/i.test(n))
+      .sort()[0];
+    return name ? path.win32.join(resourcesPath, "icons", name) : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * 去这几个地方找 .lnk：桌面、开始菜单 Programs（含一层子文件夹）、任务栏固定。名字不一定是「ChisaBot PC.lnk」
+ * （用户自己固定 / 复制出来的可能叫别的），所以列目录，再按目标判断是不是本程序。
+ */
+function scanShortcuts({ desktopDir, appData, readdir = fs.readdirSync, isDir = (p) => fs.statSync(p).isDirectory() }) {
+  const dirs = [];
+  if (desktopDir) dirs.push([desktopDir, 0]);
+  if (appData) {
+    dirs.push([path.win32.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"), 1]);
+    dirs.push([path.win32.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar"), 0]);
+  }
+  const out = [];
+  const walk = (dir, depth) => {
+    let names = [];
+    try {
+      names = readdir(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const full = path.win32.join(dir, name);
+      if (/\.lnk$/i.test(name)) out.push(full);
+      else if (depth > 0) {
+        try {
+          if (isDir(full)) walk(full, depth - 1);
+        } catch {}
+      }
+    }
+  };
+  for (const [dir, depth] of dirs) walk(dir, depth);
+  return out;
 }
 
 /** 可能指向本程序的快捷方式：桌面、开始菜单（用户级）、任务栏固定。 */
@@ -44,21 +95,57 @@ function needsShellRefresh({ current, last }) {
   return current !== (last || "");
 }
 
+/** 这个快捷方式是不是本程序的：目标就是现在的 exe；或者目标是别处的 ChisaBotPC.exe 而那个文件已经不在了（旧安装位置）。 */
+function pointsAtUs(target, execPath, exists) {
+  if (!target) return false;
+  if (samePath(target, execPath)) return true;
+  const base = path.win32.basename(String(target)).toLowerCase();
+  return base === path.win32.basename(String(execPath)).toLowerCase() && !exists(target);
+}
+
+/** 图标已经是想要的那份？（icon 为空 = 用 exe 自己的图标） */
+function iconUpToDate(info, wanted, execPath) {
+  const icon = info?.icon ? String(info.icon) : "";
+  if (wanted) return samePath(icon, wanted);
+  return !icon || samePath(icon, execPath);
+}
+
 /**
- * 重写快捷方式 + 刷新图标缓存。所有依赖可注入，方便测试。返回 { updated: [路径], cacheRefreshed }。
- *  - shell：Electron shell（readShortcutLink / writeShortcutLink，只在 Windows 上有）
- *  - run(cmd, args)：启动外部程序，不等待
+ * 有没有指向本程序、但图标还不是 wanted 的快捷方式（每次启动用它决定要不要刷新；只读，不改）。
  */
-function refreshShell({ shell, exists = fs.existsSync, execPath, appUserModelId, candidates, systemRoot, osRelease = "", run, log = () => {} }) {
-  const updated = [];
+function staleShortcuts({ shell, exists = fs.existsSync, execPath, icon = "", candidates }) {
+  const stale = [];
   for (const link of candidates) {
     try {
       if (!exists(link)) continue;
       const info = shell.readShortcutLink(link);
-      if (!samePath(info?.target, execPath)) continue;
+      if (!pointsAtUs(info?.target, execPath, exists)) continue;
+      if (!samePath(info?.target, execPath) || !iconUpToDate(info, icon, execPath)) stale.push(link);
+    } catch {}
+  }
+  return stale;
+}
+
+/**
+ * 重写快捷方式 + 刷新图标缓存。所有依赖可注入，方便测试。返回 { updated: [路径], cacheRefreshed }。
+ *  - shell：Electron shell（readShortcutLink / writeShortcutLink，只在 Windows 上有）
+ *  - icon：resources\icons\chisabot-<哈希>.ico（findIcon）；空 = 用 exe 里的图标
+ *  - run(cmd, args)：启动外部程序，不等待
+ */
+function refreshShell({ shell, exists = fs.existsSync, execPath, icon = "", appUserModelId, candidates, systemRoot, osRelease = "", run, log = () => {} }) {
+  const updated = [];
+  const seen = new Set();
+  for (const link of candidates) {
+    const key = String(link).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      if (!exists(link)) continue;
+      const info = shell.readShortcutLink(link);
+      if (!pointsAtUs(info?.target, execPath, exists)) continue;
       const ok = shell.writeShortcutLink(link, "update", {
         target: execPath,
-        icon: execPath,
+        icon: icon || execPath,
         iconIndex: 0,
         ...(appUserModelId ? { appUserModelId } : {}),
       });
@@ -84,4 +171,4 @@ function refreshShell({ shell, exists = fs.existsSync, execPath, appUserModelId,
   return { updated, cacheRefreshed };
 }
 
-module.exports = { loadFingerprint, shortcutCandidates, needsShellRefresh, refreshShell, samePath };
+module.exports = { loadFingerprint, shortcutCandidates, scanShortcuts, findIcon, staleShortcuts, needsShellRefresh, refreshShell, samePath, pointsAtUs };

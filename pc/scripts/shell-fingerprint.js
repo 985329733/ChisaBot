@@ -8,7 +8,7 @@
  * Windows 的图标缓存也不刷新，所以换了图标之后用户看到的还是旧图标。
  *
  * 这里把这些「外壳输入」算成一个短哈希：
- *   - build/icon.ico（exe 资源里的图标）、build/installer.nsh（安装脚本）、assets/icon.png、assets/tray-*.png
+ *   - build/icon.ico（exe 资源里的图标）、build/icons/*.ico（快捷方式图标）、build/installer.nsh（安装脚本）、assets/icon.png、assets/tray-*.png
  *   - package.json：main、productName、build（appId / win / nsis / asar / electronLanguages 等，publish 除外，
  *     CI 会按版本类型改写它）、devDependencies 里的 electron、electron-builder
  *   - NATIVE_DEPENDENCIES 里列出的原生依赖的版本（现在没有；加了带 .node 的依赖要写进来）
@@ -40,6 +40,11 @@ function sha256(data) {
 function collectInputs(root = ROOT) {
   const inputs = {};
   const files = ["build/icon.ico", "build/installer.nsh", "assets/icon.png"];
+  // build/icons/chisabot-<哈希>.ico：快捷方式指向的图标文件（docs/online-update.md §2.1）。
+  const iconsDir = path.join(root, "build", "icons");
+  if (fs.existsSync(iconsDir)) {
+    for (const name of fs.readdirSync(iconsDir).sort()) if (/\.ico$/i.test(name)) files.push(`build/icons/${name}`);
+  }
   const assetsDir = path.join(root, "assets");
   if (fs.existsSync(assetsDir)) {
     for (const name of fs.readdirSync(assetsDir).sort()) if (/^tray-.*\.png$/.test(name)) files.push(`assets/${name}`);
