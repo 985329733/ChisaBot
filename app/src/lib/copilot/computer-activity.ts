@@ -65,6 +65,9 @@ export function describeComputerCall(path: string, body: unknown): string | null
   if (path.startsWith("/files/list")) return "正在查看工作区";
   if (path.startsWith("/exec")) return "正在运行命令";
   if (path.startsWith("/control/request")) return "正在请你帮忙";
+  if (path === "/tabs" && b.action === "new") return typeof b.url === "string" ? `正在新标签页打开 ${hostOf(b.url)}` : "正在新开标签页";
+  if (path === "/tabs" && b.action === "activate") return "正在切换标签页";
+  if (path === "/tabs" && b.action === "close") return "正在关标签页";
   return null;
 }
 

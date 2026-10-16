@@ -1213,7 +1213,7 @@ serve<StreamData>({
       }
 
       // 服务器推来这个机器人主人的收藏夹：起始页上的常用网站跟着变。
-      if (url.pathname === "/start-links" && request.method === "PUT") {
+      if (url.pathname === "/start-links" && request.method === "POST") {
         const body = (await request.json().catch(() => null)) as { links?: unknown } | null;
         if (!Array.isArray(body?.links)) return json({ error: "links 要是数组。" }, 400);
         const links: StartLink[] = body.links

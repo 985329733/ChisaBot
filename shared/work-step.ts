@@ -28,6 +28,8 @@ export function describeWorkerStep(name: string, args: Record<string, unknown>):
     case "computer_snapshot": return "正在查看页面上的按钮和输入框";
     case "computer_read": return "正在阅读页面";
     case "computer_screenshot": return "正在看页面";
+    case "computer_tabs": return args.action === "new" && typeof args.url === "string" ? `正在新标签页打开 ${hostOf(args.url)}` : args.action === "close" ? "正在关标签页" : args.action === "switch" ? "正在切换标签页" : "正在看开着的标签页";
+    case "computer_bookmarks": return args.action === "add" ? "正在加收藏" : args.action === "remove" ? "正在删收藏" : args.action === "open" ? "正在打开收藏" : "正在看收藏夹";
     case "computer_click": return "正在点击";
     case "computer_type": return "正在填写";
     case "computer_key": return "正在按键";
