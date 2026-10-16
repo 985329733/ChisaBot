@@ -31,7 +31,7 @@ describe("右栏计算机入口", () => {
   });
 
   test("空聊天发第一条消息时把打开的计算机带进新对话", () => {
-    expect(read("new.tsx")).toMatch(/startChosen\([^)]*\{\s*watch\s*\}\)/);
+    expect(read("new.tsx")).toMatch(/startChosen\([^)]*\{\s*watch(?:\s*:\s*isWatching)?\s*\}\)/);
     const start = readFileSync(join(import.meta.dir, "../src/lib/channels/start.ts"), "utf8");
     expect(start).toContain("search: { watch: true }");
   });

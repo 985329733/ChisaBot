@@ -1,5 +1,5 @@
-import { IconAlertTriangle, IconWorld } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+import { IconAlertTriangle, IconWorld, IconX } from "@tabler/icons-react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supplySecret } from "@/lib/computers/control";
 import {
@@ -16,6 +16,7 @@ import { BookmarkStar, BookmarksBar } from "./bookmarks-bar";
 import { TabStrip } from "./browser-tabs";
 import { LiveScreen, type LiveScreenController } from "./live-screen";
 import { useElementVisible, usePageVisible } from "./preview-visibility";
+import { useTakeoverFit } from "./takeover-fit";
 
 /** Explicit blank-browser URLs use placeholder artwork; missing URL fields are treated as real pages. */
 function isBlankBrowser(shot: Screenshot): boolean {
@@ -469,6 +470,34 @@ export function ComputerView({
    */
   const wheelHere = driving && !settled;
 
+  const takeoverRef = useTakeoverFit(expanded);
+  const closeButton = (
+    <button
+      type="button"
+      className="computer-takeover-close"
+      aria-label={wheelHere ? "交还并关闭" : "关闭"}
+      title={wheelHere ? "交还并关闭（Esc）" : "关闭（Esc）"}
+      onClick={() => {
+        if (wheelHere) void changeControl?.("release");
+        setExpanded(false);
+      }}
+    >
+      <IconX size={16} stroke={2} />
+    </button>
+  );
+  /** 一轮已经结束：没有标签栏，只写这是哪一轮留下的画面。 */
+  const recordTitle = (
+    <div className="btabs is-empty">
+      <div className="btabs-lead">
+        <span className="ctk-record-t">
+          {name ? <ChannelAvatar participantIds={[computerId]} size={16} /> : null}
+          {knownPage?.title || knownPage?.url || "这一轮打开的页面"}
+        </span>
+      </div>
+      <div className="btabs-end">{closeButton}</div>
+    </div>
+  );
+
   const polledScreen = showScreen ? (
     <img
       src={`data:image/png;base64,${drawn.base64}`}
@@ -480,15 +509,7 @@ export function ComputerView({
 
   return (
     <>
-      {browserChrome && !settled ? (
-        <TabStrip
-          compact
-          computerId={computerId}
-          driving={driving}
-          onPick={() => setExpanded(true)}
-          poll={pageVisible && !expanded}
-        />
-      ) : null}
+      {/* 右栏小画面上面不放标签栏：标签只在放大的浏览器里出现（用户 2026-10-16「外面不需要标签」，DESIGN §96）。 */}
       <figure ref={previewRef} className="overflow-hidden rounded-2xl border">
         {/* Inline preview remains in transcript; click opens a readable full-size view. */}
         <button
@@ -649,7 +670,7 @@ export function ComputerView({
               aria-modal="true"
               aria-label={"助手的屏幕"}
               // 高于抽屉（窄窗口时右栏是 z-50 的抽屉），接管的大屏永远在最上层、可以点。
-              className="computer-takeover fixed inset-0 z-[70] flex flex-col items-center justify-center p-4 sm:p-8"
+              className="computer-takeover fixed inset-0 z-[70] flex items-center justify-center"
             >
               {/*
                 Backdrop closes only while read-only; during driving, Escape remains the exit. A
@@ -663,56 +684,50 @@ export function ComputerView({
                 tabIndex={wheelHere ? -1 : 0}
                 className={`absolute inset-0 bg-black/80 ${wheelHere ? "cursor-default" : "cursor-zoom-out"}`}
               />
-              {/* A card holding the screen, with who and the wheel centered beneath it. */}
               {/*
-                宽度按视口高度收：地址栏 + 屏幕 + 底部操作要一起放进一屏，不会顶出窗口上沿。
-                放不下时卡片自己滚动。
+                放大的浏览器（DESIGN §96）：卡片永远不滚动。上面一块玻璃工具条（标签栏 + 地址栏 + 收藏栏，
+                关闭按钮在标签栏最右端），中间是按剩余高度等比缩放的屏幕，底部一行「谁 · 状态 · 交还」
+                始终在卡片里面。可用高度由 useTakeoverFit 量出来写进 --ctk-avail。
               */}
               <div
-                className="computer-takeover-card relative flex w-full min-w-0 flex-col overflow-y-auto rounded-2xl p-4 shadow-2xl"
-                style={{
-                  maxWidth: `min(86vw, calc((100vh - 220px) * ${aspectRatio} + 32px))`,
-                  maxHeight: "calc(100vh - 2rem)",
-                }}
+                ref={takeoverRef}
+                className={`computer-takeover-card${settled ? " is-record" : ""}`}
+                style={{ "--ctk-ar": String(aspectRatio) } as CSSProperties}
               >
-                <button
-                  type="button"
-                  className="computer-takeover-close"
-                  aria-label={wheelHere ? "交还并关闭" : "关闭"}
-                  title={wheelHere ? "交还并关闭（Esc）" : "关闭（Esc）"}
-                  onClick={() => {
-                    if (wheelHere) void changeControl?.("release");
-                    setExpanded(false);
-                  }}
-                >
-                  ×
-                </button>
-                {/*
-                  Overlay uses the live socket; the inline card keeps low-cost polling. With no page
-                  to draw it reserves the same frame and says the same thing the card does — the
-                  wheel below is the reason this view opens at all in that state.
-                */}
-                <div className="relative min-h-0 shrink-0 rounded-xl">
-                  {settled && drawn ? (
-                    /*
-                     * A record, opened larger. Not a window on the browser.
-                     *
-                     * Zooming a past turn used to mount the live stream and offer Take control, so
-                     * the one gesture for looking closer at what a turn did was also the one that
-                     * replaced it with whatever the Bot has open now. The kept frame exists to stop
-                     * exactly that; its own zoom control was undoing it.
-                     */
-                    <div className="relative w-full" style={{ aspectRatio }}>
-                      <img
-                        alt={"此轮次开放了什么"}
-                        className="absolute inset-0 h-full w-full object-contain"
-                        src={`data:image/png;base64,${drawn.base64}`}
-                      />
+                {settled && drawn ? (
+                  /*
+                   * A record, opened larger. Not a window on the browser.
+                   *
+                   * Zooming a past turn used to mount the live stream and offer Take control, so
+                   * the one gesture for looking closer at what a turn did was also the one that
+                   * replaced it with whatever the Bot has open now. The kept frame exists to stop
+                   * exactly that; its own zoom control was undoing it.
+                   */
+                  <>
+                    <div className="computer-chrome">{recordTitle}</div>
+                    <div className="ctk-stage">
+                      <div className="computer-screen ctk-screen relative overflow-hidden rounded-lg" data-ctk-screen style={{ aspectRatio }}>
+                        <img
+                          alt={"此轮次开放了什么"}
+                          className="absolute inset-0 h-full w-full object-contain"
+                          src={`data:image/png;base64,${drawn.base64}`}
+                        />
+                      </div>
                     </div>
-                  ) : showLiveScreen ? (
+                  </>
+                ) : showLiveScreen ? (
+                  /*
+                    Overlay uses the live socket; the inline card keeps low-cost polling.
+                  */
+                  <div className="ctk-stage is-live">
                     <LiveScreen
                       aboveUrlbar={
-                        <TabStrip computerId={computerId} driving={driving} poll={!showLiveScreen} />
+                        <TabStrip
+                          computerId={computerId}
+                          driving={driving}
+                          end={closeButton}
+                          poll={!showLiveScreen}
+                        />
                       }
                       aspectRatio={aspectRatio}
                       belowUrlbar={
@@ -758,58 +773,62 @@ export function ComputerView({
                         </div>
                       ) : null}
                     </LiveScreen>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                    {settled ? null : <TabStrip computerId={computerId} driving={driving} poll />}
-                    <div className="computer-frame relative w-full rounded-xl" style={{ aspectRatio }}>
-                      <NothingToSee
-                        blankBrowser={blankBrowser}
-                        page={knownPage}
-                        problem={problem}
-                        settled={settled}
-                      />
+                  </div>
+                ) : (
+                  /*
+                    With no page to draw it reserves the same frame and says the same thing the
+                    card does — the wheel below is the reason this view opens at all in that state.
+                  */
+                  <>
+                    <div className="computer-chrome">
+                      {settled ? recordTitle : <TabStrip computerId={computerId} driving={driving} end={closeButton} poll />}
                     </div>
+                    <div className="ctk-stage">
+                      <div className="computer-frame ctk-screen relative w-full rounded-lg" data-ctk-screen style={{ aspectRatio }}>
+                        <NothingToSee
+                          blankBrowser={blankBrowser}
+                          page={knownPage}
+                          problem={problem}
+                          settled={settled}
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
                 {/*
                   NOT ON A TURN THAT IS OVER. Every past turn used to carry the wheel and the
                   standing "who is driving" prose under a picture of a page it opened an hour ago,
                   offering control of whatever the Bot has open now. Those sentences are about the
                   present and this view is a record; a record does not get a steering wheel.
                 */}
-                {control?.transitioning ? (
-                  <p className="mt-3 text-center text-sm">
-                    {"在将控制权交给您之前完成当前操作…"}
-                  </p>
-                ) : null}
                 {settled ? null : (
-                  <div className="computer-takeover-controls relative z-10 mt-4 flex items-center justify-center gap-4">
-                    <span className="flex min-w-0 items-center gap-2 text-sm">
-                      {name ? (
-                        <span className="flex shrink-0 items-center gap-1.5 font-medium">
-                          <ChannelAvatar
-                            participantIds={[computerId]}
-                            size={20}
-                          />
-                          {name}
-                        </span>
-                      ) : null}
-                      {driving ? (
-                        <span className="truncate text-muted-foreground">
-                          {"您拥有控制权 — 在页面上点击并输入。"}
-                          {control?.reason ? `${control.reason}` : null}
-                        </span>
+                  <div className="ctk-foot computer-takeover-controls">
+                    {name ? (
+                      <span className="ctk-who">
+                        <ChannelAvatar participantIds={[computerId]} size={20} />
+                        <span className="ctk-who-n">{name}</span>
+                      </span>
+                    ) : null}
+                    <span
+                      className="ctk-status"
+                      title={control?.reason ? control.reason : undefined}
+                    >
+                      {control?.transitioning ? (
+                        "正在完成当前操作，马上交给你…"
+                      ) : driving ? (
+                        "你正在控制浏览器"
                       ) : control?.requested ? (
-                        <span className="truncate text-muted-foreground">
-                          <strong className="font-medium text-foreground">
-                            {"机器人需要你。"}
-                          </strong>{" "}
-                          {control.reason}
-                        </span>
-                      ) : null}
+                        <>
+                          <strong className="font-medium text-foreground">{"机器人需要你"}</strong>
+                          {control.reason ? `：${control.reason}` : null}
+                        </>
+                      ) : (
+                        "机器人在用浏览器，接管后可以点击和输入"
+                      )}
                     </span>
-                    <ComputerControlButton computerId={computerId} />
+                    <span className="ctk-act">
+                      <ComputerControlButton computerId={computerId} />
+                    </span>
                   </div>
                 )}
               </div>
