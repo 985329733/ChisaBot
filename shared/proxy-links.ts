@@ -1,5 +1,5 @@
 /**
- * 「Claude 上游代理」的节点分享链接（docs/cloud-claude-code.md「节点链接（sing-box 转换）」，DESIGN.md §84）。
+ * 「Claude 上游代理」的节点分享链接（docs/cloud-claude-code.md「节点链接（sing-box 转换）」，DESIGN.md §85）。
  *
  * 支持 trojan:// · vless:// · vmess://（base64 JSON）· ss://（SIP002 + 旧式整段 base64）· hysteria2:// / hy2:// · tuic://。
  * 服务器用这里把链接解析成 sing-box 的出站配置（toSingBoxOutbound）发给云端节点；节点在容器里起 sing-box，

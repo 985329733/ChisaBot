@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { decodeBase64, maskShareLink, parseShareLink, shareScheme, shareSecrets, toSingBoxOutbound, type ShareLink } from "./proxy-links";
 
-/** 「Claude 上游代理」的节点链接解析（shared/proxy-links.ts，DESIGN.md §84）。所有链接都是编的，不是真节点。 */
+/** 「Claude 上游代理」的节点链接解析（shared/proxy-links.ts，DESIGN.md §85）。所有链接都是编的，不是真节点。 */
 
 const UUID = "b831381d-6324-4d53-ad4f-8cda48b30811";
 

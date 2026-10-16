@@ -8,7 +8,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 process.env.CHISABOT_CLAUDE_HOSTS_EXTRA = "127.0.0.1";
-const { createForwarder, maskProxy, parseProxy, isClaudeHost } = require("../src/cloud-cc/proxy");
+const { createForwarder, maskProxy, parseProxy, isClaudeHost, httpsGet } = require("../src/cloud-cc/proxy");
 const { codeFromCallback, unheadless } = require("../src/cloud-cc/browser");
 
 const MOCK = path.resolve(__dirname, "../../tests/cloud-cc/mock-claude-auth.cjs");
@@ -116,4 +116,19 @@ test("socks5 上游（带认证）", async () => {
   f.close();
   socks.close();
   process.env.CHISABOT_CLAUDE_HOSTS_EXTRA = "127.0.0.1";
+});
+
+test("测试连接真的经过上游：上游接了 CONNECT 就断开 → 必须失败，不能悄悄直连（2026-10-16 修）", async () => {
+  const seen = [];
+  const bad = net.createServer((sock) => {
+    sock.once("data", (d) => {
+      seen.push(String(d).split("\r\n")[0]);
+      sock.end("HTTP/1.1 200 Connection Established\r\n\r\n");
+    });
+  });
+  await new Promise((r) => bad.listen(0, "127.0.0.1", r));
+  const p = parseProxy(`http://127.0.0.1:${bad.address().port}`);
+  await assert.rejects(httpsGet("https://claude.ai/cdn-cgi/trace", p, 8000));
+  assert.deepEqual(seen, ["CONNECT claude.ai:443 HTTP/1.1"]);
+  bad.close();
 });

@@ -6862,7 +6862,7 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .cc-proxy-chk.is-ok svg { color: var(--success); }
 .cc-proxy-chk.is-bad svg { color: var(--danger); }
 .cc-proxy-chk-s { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
-/* §84 节点链接：识别结果 + 「用 sing-box 转换此链接」开关 + 一句风险提醒（输入框下方原地出现，不挤动上面） */
+/* §85 节点链接：识别结果 + 「用 sing-box 转换此链接」开关 + 一句风险提醒（输入框下方原地出现，不挤动上面） */
 .cc-proxy-conv { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-2); animation: list-enter var(--dur-2) ease-out both; }
 .cc-proxy-kind { display: flex; align-items: center; gap: 8px; min-width: 0; font-family: var(--font-code); font-size: 13px; color: var(--ink-1); overflow-wrap: anywhere; }
 .cc-proxy-kind svg { flex: none; color: var(--accent-blue); }

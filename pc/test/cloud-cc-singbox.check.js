@@ -1,5 +1,5 @@
 "use strict";
-// 「Claude 上游代理」的节点链接转换（pc/src/cloud-cc/singbox.js，DESIGN.md §84）。
+// 「Claude 上游代理」的节点链接转换（pc/src/cloud-cc/singbox.js，DESIGN.md §85）。
 // 需要 sing-box（CHISABOT_SINGBOX 或 /usr/local/bin/sing-box）；没有就跳过（CI 的 PC 检查里没有，云端节点镜像 / 预览里有）。
 // 本机起一个 sing-box trojan 服务端（自签证书），节点那边起转换器，转发器经它连到本机的 http 测试服务。
 const test = require("node:test");

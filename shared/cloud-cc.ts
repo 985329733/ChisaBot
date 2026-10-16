@@ -31,7 +31,7 @@ export type CloudWorkspaceView = {
 };
 
 /**
- * 「Claude 上游代理」的现状（DESIGN.md §73.8、§84）。kind = url：http / https / socks5 代理；link：节点链接，经 sing-box 转换。
+ * 「Claude 上游代理」的现状（DESIGN.md §73.8、§85）。kind = url：http / https / socks5 代理；link：节点链接，经 sing-box 转换。
  * converter：云端节点里的 sing-box（available = 节点镜像里有；lastError = 最近一次启动 sing-box 的错误）。
  */
 export type CcProxyView = {
