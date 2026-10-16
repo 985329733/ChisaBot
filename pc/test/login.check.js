@@ -65,15 +65,13 @@ test("login: 401 → 账号或密码错误, 429 → 尝试次数过多", async (
   await assert.rejects(auth.login({ serverUrl: "x.example", username: "a", password: "b", fetchImpl: async () => res(429, {}) }), (e) => e.kind === "rate");
 });
 
-test("login page: CSP-clean, has the four fields, and the Android copy is identical", () => {
+test("login page: CSP-clean, has the four fields", () => {
   const UI = path.join(__dirname, "..", "src", "ui");
   const html = fs.readFileSync(path.join(UI, "login.html"), "utf8");
   for (const id of ['id="server"', 'id="user"', 'id="pass"', 'id="remember"', 'id="toggle"', 'id="history"']) assert.ok(html.includes(id), id);
-  assert.ok(!html.includes("../../assets"), "不能引用 PC 专有路径（Android 共用）");
-  const android = path.join(__dirname, "..", "..", "android", "app", "src", "main", "assets", "login");
-  for (const file of ["login.html", "login.css", "login.js", "ui.css", "ui.js", "sky.js", "skyglass-tokens.css", "logo.png"]) {
-    assert.ok(fs.readFileSync(path.join(android, file)).equals(fs.readFileSync(path.join(UI, file))), `android/…/assets/login/${file} 过期：运行 node scripts/sync-login-android.mjs`);
-  }
+  assert.ok(!html.includes("../../assets"), "不能引用 PC 专有路径");
+  // Android 0.1.13 起是原生登录页（Compose，DESIGN §80），不再拷这份网页登录页。
+  assert.ok(!fs.existsSync(path.join(__dirname, "..", "..", "android", "app", "src", "main", "assets", "login")), "Android 不再带网页登录页");
 });
 
 test("main process: no setup wizard left, login channels go through the local-page check", () => {

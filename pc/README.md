@@ -21,7 +21,7 @@ node src/cli.js run --server https://chisabot.example.com:8443 --token-file devi
 npx electron-builder --win nsis zip --x64 --publish never   # → dist/ChisaBot-PC-<版本>-x64-setup.exe / -portable.zip
 ```
 
-构建期默认值在 `src/build-config.json`（仓库里为空 = 通用版：首次运行在本机登录页里填自己的服务器地址）。登录页 `src/ui/login.*` 和 Android 共用，改完运行 `node scripts/sync-login-android.mjs`。
+构建期默认值在 `src/build-config.json`（仓库里为空 = 通用版：首次运行在本机登录页里填自己的服务器地址）。登录页 `src/ui/login.*`（Android 0.1.13 起是原生登录页，不再共用）。
 CI 从仓库变量 `CHISABOT_SERVER_URL`、`CHISABOT_UPDATE_FEED` 写入；自建打包可以手动改这个文件，或
 `npx electron-builder ... -c.publish.url=<你的更新目录>`。
 
