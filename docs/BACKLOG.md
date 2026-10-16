@@ -83,6 +83,7 @@
 | [CB-077](#cb-077) | 中途说明文字没折叠进步骤；断线重接同一段话出现两遍 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-075](#cb-075) | 每个机器人记住我的操作状态；消息记录仍会往回跳 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-076](#cb-076) | 「模型老断」：长命令 / 断线 / 部署重启时这一轮被误报成「连不上模型服务」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
+| [CB-078](#cb-078) | 窄窗口里输入框两边没有间距 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 
 ## CB-001
 
@@ -1165,6 +1166,20 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 预取对面的分包和数据；分包未到时旧画面留着，直接打开 `/cc` 只画左栏骨架
 - [x] 切回机器人回到上次的对话，切到 Claude Code 回到上次的会话
 - [x] 回归：`app/tests/left-mode-switch.test.tsx`、`tests/mode-switch/mode-switch.mjs`
+
+## CB-078
+
+**窄窗口里输入框两边没有间距**  
+里程碑：成熟度 Maturity · 标签：`type: bug` `area: web` `P1` `status: done`
+
+用户 2026-10-16（PC 客户端约 884px 宽，左栏展开）：「当比较窄的时候，输入框两边没有间距了」。DESIGN.md §92。
+根因：频道聊天的输入框列是上游的 `max-w-2xl px-0`，主区窄于 42rem 时满宽、左右 0px；Claude Code 会话页左边 4px。
+
+#### 验收标准
+- [x] 输入框卡片到左栏卡 / 右栏卡 / 窗口边左右 ≥ 16px、底边 16px（390 / 700 / 800 / 884 / 1000 / 1100 / 1280 / 1440，亮 + 暗，右栏开 / 关，左栏收起，新话题，Claude Code 会话）
+- [x] 有「面板」把手时输入框右沿让开把手（≥ 4px），窄窗口里和消息列内容边对齐
+- [x] 宽屏尺寸不变（672px 居中）
+- [x] 回归：`app/tests/ui-align.test.ts`、`tests/composer-gutter/gutter.mjs`
 
 ## CB-077
 

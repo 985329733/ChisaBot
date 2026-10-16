@@ -7369,3 +7369,22 @@ body:has(.rail-tab.is-narrow) [data-testid="chat-transcript"] {
 /* §82.7 字体没有 halt（文泉驿正黑…）时，标签首尾的全角括号 / 引号收掉空着的半个字宽（lib/halt.ts 量，button.tsx edgePunct 包）。 */
 html[data-no-halt] .t-close { margin-inline-end: -0.5em; }
 html[data-no-halt] .t-open { margin-inline-start: -0.5em; }
+
+/* ---------- §92 输入框两边留白：窄窗口也不贴左栏 / 窗口边 / 右栏 / 把手 ---------- */
+/* 以前输入框列是 `max-w-2xl px-0`：主区比 42rem 窄（左栏展开的 700–1100px 窗口、手机）时，输入框卡片左右各 0px，
+   贴着左栏卡和窗口右边，消息却有 16px。现在 = `min(42rem, 100% - 32px)` 居中（§24 原话）：宽屏和以前一样 672px，
+   窄了就左右各留 16px、底边 16px；「面板」把手在的时候右边和消息列一样让开把手（§82.10 同一个式子，
+   这里列宽算上两边 16px 是 44rem），窄窗口里输入框左右沿正好对齐消息列。 */
+.chat-composer-box {
+  width: 100%;
+  max-width: calc(42rem + 2rem);
+  margin-inline: auto;
+  padding: 0 1rem 1rem;
+}
+body:has(.rail-tab.is-narrow) .chat-composer-box {
+  padding-right: max(1rem, calc(var(--rail-tab-clear) - max(0px, (100% - 44rem) / 2)));
+}
+html[data-phone] .chat-composer-box { padding-bottom: calc(1rem + var(--safe-b, 0px)); }
+/* Claude Code 会话页：左边原来只有 4px（贴左栏卡），手机 10px。改成左右底都 16px，和机器人聊天一样。 */
+.cc-session { padding: 0 16px 16px; }
+.cc-session.is-phone { padding: 0 16px calc(16px + var(--safe-b, 0px)); }
