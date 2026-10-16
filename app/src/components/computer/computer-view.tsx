@@ -759,6 +759,8 @@ export function ComputerView({
                       ) : null}
                     </LiveScreen>
                   ) : (
+                    <div className="flex flex-col gap-2">
+                    {settled ? null : <TabStrip computerId={computerId} driving={driving} poll />}
                     <div className="computer-frame relative w-full rounded-xl" style={{ aspectRatio }}>
                       <NothingToSee
                         blankBrowser={blankBrowser}
@@ -766,6 +768,7 @@ export function ComputerView({
                         problem={problem}
                         settled={settled}
                       />
+                    </div>
                     </div>
                   )}
                 </div>
