@@ -44,3 +44,18 @@ test("settings rail group toggles have symmetric vertical padding (§82.2)", () 
 test("control labels use half-width CJK punctuation so a trailing 「）」 doesn't push the label off-centre (§82.2)", () => {
   expect(css).toMatch(/\[data-slot="button"\][^{]*\{ font-feature-settings: "halt"; \}/);
 });
+
+test("chat composer keeps 16px side gutters and clears the panel handle at narrow widths (§24 / §92)", () => {
+  // 以前输入框列是 `max-w-2xl px-0`：主区窄于 42rem 时输入框卡片左右 0px，贴左栏卡和窗口边。
+  const view = readFileSync(path.join(import.meta.dir, "../src/components/channels/conversation-view.tsx"), "utf8");
+  expect(view).toContain('className="chat-composer-box shrink-0"');
+  expect(view).not.toContain("px-0 pb-4");
+  const box = css.match(/\n\.chat-composer-box\s*\{([^}]*)\}/)?.[1] ?? "";
+  expect(box).toMatch(/max-width:\s*calc\(42rem \+ 2rem\)/);
+  expect(box).toMatch(/padding:\s*0 1rem 1rem/);
+  const handle = css.match(/body:has\(\.rail-tab\.is-narrow\) \.chat-composer-box\s*\{([^}]*)\}/)?.[1] ?? "";
+  expect(handle).toContain("var(--rail-tab-clear)");
+  // Claude Code 会话页：左右底至少 16px（以前左边 4px，手机 10px）。
+  const cc = [...css.matchAll(/\n\.cc-session\s*\{([^}]*)\}/g)].map((m) => m[1]).pop() ?? "";
+  expect(cc).toMatch(/padding:\s*0 16px 16px/);
+});

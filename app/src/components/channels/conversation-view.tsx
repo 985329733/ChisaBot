@@ -495,7 +495,8 @@ export function ConversationView({
           {...(stopped ? { stopped, onRetry: retry } : {})}
         />
       </div>
-      <div className="max-w-2xl mx-auto w-full px-0 pb-4 shrink-0" ref={composerBoxRef}>
+      {/* 输入框列：和消息列同宽同心，左右至少 16px、窄窗口有「面板」把手时右边让开把手（DESIGN.md §24 / §92，styles.css `.chat-composer-box`）。 */}
+      <div className="chat-composer-box shrink-0" ref={composerBoxRef}>
         {notice}
         <Composer
           modelControl={modelControl}
