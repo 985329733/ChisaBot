@@ -5061,6 +5061,11 @@ a.live-panel-src:hover { color: var(--ink-1); text-decoration: underline; text-u
 
 /* ── 第四轮（2026-10-13）：有了结果就收起过程话；用户停掉的那一轮末尾挂「已停止」 ── */
 
+/* §94.6：最下面那一格（留白、「思考中」、排队的消息）不当滚动锚点，见 chat-transcript.tsx chat-tail。 */
+.chat-tail > * {
+  overflow-anchor: none;
+}
+
 .chat-stopped-mark {
   content: "已停止"; display: flex; align-items: center; gap: 6px; width: fit-content; margin: 6px 0 0 4px; padding: 2px 10px 2px 8px;
   border: 1px solid var(--line); border-radius: 999px; background: var(--glass-1); font-size: 12px; line-height: 20px; color: var(--ink-3);

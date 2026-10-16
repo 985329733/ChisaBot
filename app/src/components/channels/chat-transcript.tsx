@@ -1019,7 +1019,8 @@ function SettleAtEnd({
       if (!active() && !s.restore && content.offsetHeight !== lastHeight) pinNow();
       pin();
     });
-    mutations.observe(content, { childList: true, subtree: true });
+    // characterData：回答一个字一个字往外冒时改的是文字节点本身（不是加减节点）——多出一行也要当场吃留白（§94.6，390 实测 20px）。
+    mutations.observe(content, { childList: true, subtree: true, characterData: true });
     const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pinNow);
     sizes?.observe(content);
     /*
@@ -2598,7 +2599,12 @@ export function ChatTranscript({
              * Paying it properly means the scroller identifying new rows by identity rather than by
              * position, which is the library's to change and is worth asking for.
              */}
-            <div className="contents [&>*]:order-1">
+            {/*
+             * chat-tail：这一格在 DOM 里排在所有消息前面、画在最下面（order-1）。浏览器的滚动锚定（overflow-anchor）按 DOM 顺序
+             * 挑第一个看得见的元素当锚——总挑中这里的留白 /「思考中」。上面的行一长，浏览器为了让锚不动先把 scrollTop 往下推，
+             * 下一帧留白吃掉了再夹回来 = 往回挪一下（§94.6，1280 实测 5–8px）。这一格不参与锚定，锚落在看得见的第一条消息上。
+             */}
+            <div className="chat-tail contents [&>*]:order-1">
               {stopped ? (
                 <Stopped onRetry={onRetry} reason={stopped} />
               ) : waitingOnFirstToken ? (
