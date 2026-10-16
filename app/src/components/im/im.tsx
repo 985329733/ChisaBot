@@ -88,7 +88,7 @@ export function ImStatusBadge({ connection }: { connection: Pick<ImConnectionVie
   return (
     <span aria-live="polite" className={cn("device-badge", tone)}>
       <span aria-hidden className={cn("device-dot", connection.status === "connected" && "is-ok")} />
-      {IM_STATUS_LABEL[connection.status]}
+      <T>{IM_STATUS_LABEL[connection.status]}</T>
     </span>
   );
 }

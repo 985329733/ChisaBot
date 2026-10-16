@@ -31,7 +31,7 @@ import {
 } from "../../../../../shared/system-update";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Card, EmptyState, ErrorCard, SettingRow, StatTile } from "@/components/ui/skyglass";
@@ -411,7 +411,7 @@ function Overview({ data }: { data: SystemUpdateOverview }) {
                         {[entry.actor, entry.durationSec ? `用时 ${durationText(entry.durationSec)}` : "", entry.error].filter(Boolean).join(" · ")}
                       </div>
                     </div>
-                    <span className={cn("device-badge is-sm", `is-${status.tone}`)}>{status.text}</span>
+                    <span className={cn("device-badge is-sm", `is-${status.tone}`)}><T>{status.text}</T></span>
                   </li>
                 );
               })}
@@ -573,7 +573,7 @@ function JobCard({
         : "";
   return (
     <PageSection
-      action={<span className={cn("device-badge", `is-${badge.tone}`)}>{badge.text}</span>}
+      action={<span className={cn("device-badge", `is-${badge.tone}`)}><T>{badge.text}</T></span>}
       description={
         queued
           ? "已提交，等待宿主机更新程序开始（几秒内）。"

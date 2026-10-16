@@ -18,7 +18,7 @@ import { ApprovalsCard, AuditList, DeviceIcon, DevicePermissions, StatusBadge, T
 import { PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { DeviceAgentsPanel, DeviceProfileBadge } from "@/components/local-agents/device-agents-panel";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Card, ErrorCard, SettingRow } from "@/components/ui/skyglass";
 import { toast } from "@/components/ui/toast";
@@ -136,8 +136,8 @@ function DevicePage() {
             {isThisPc ? <ThisPcBadge /> : null}
             <StatusBadge device={d} />
             <FullAccessBadge device={d} />
-            <span className="device-badge">{platformLabel(d.platform)}</span>
-            {d.clientVersion ? <span className="device-badge">{`客户端 ${d.clientVersion}`}</span> : null}
+            <span className="device-badge"><T>{platformLabel(d.platform)}</T></span>
+            {d.clientVersion ? <span className="device-badge"><T>{`客户端 ${d.clientVersion}`}</T></span> : null}
             {!mobile && !d.revoked ? <DeviceProfileBadge device={d} /> : null}
           </div>
           <p className="device-hero-s">

@@ -122,23 +122,23 @@ export function DeviceIcon({
 }
 
 export function StatusBadge({ device }: { device: Pick<DeviceView, "online" | "paused" | "revoked"> }) {
-  if (device.revoked) return <span className="device-badge is-muted">{"已撤销"}</span>;
+  if (device.revoked) return <span className="device-badge is-muted"><T>{"已撤销"}</T></span>;
   if (device.paused)
     return (
       <span className="device-badge is-danger">
         <IconPlayerStopFilled className="size-3" />
-        {"已紧急停止"}
+        <T>{"已紧急停止"}</T>
       </span>
     );
   return device.online ? (
     <span className="device-badge is-ok">
       <span aria-hidden className="device-dot is-ok" />
-      {"在线"}
+      <T>{"在线"}</T>
     </span>
   ) : (
     <span className="device-badge">
       <span aria-hidden className="device-dot" />
-      {"离线"}
+      <T>{"离线"}</T>
     </span>
   );
 }
@@ -147,7 +147,7 @@ export function ThisPcBadge() {
   return (
     <span className="device-badge is-accent">
       <IconDeviceDesktop className="size-3" />
-      {"这台电脑"}
+      <T>{"这台电脑"}</T>
     </span>
   );
 }
@@ -207,7 +207,7 @@ export function DeviceRow({ device, showOwner, isThisPc }: { device: DeviceView;
               {busy ? null : <FullAccessBadge device={device} size="sm" />}
               {busy ? (
                 <span aria-live="polite" className={cn("device-badge", busy.startsWith("已") ? "is-muted" : "is-warn")}>
-                  {busy}
+                  <T>{busy}</T>
                 </span>
               ) : (
                 <StatusBadge device={device} />
@@ -550,7 +550,7 @@ export function ConnectionCard({
       <SettingRow description={summary} title="机器人能用的设备">
         <span className={cn("device-badge", online.length ? "is-ok" : "is-warn")}>
           <span aria-hidden className={cn("device-dot", online.length && "is-ok")} />
-          {online.length ? `${online.length} 台在线` : "没有在线设备"}
+          <T>{online.length ? `${online.length} 台在线` : "没有在线设备"}</T>
         </span>
       </SettingRow>
       {allOff ? (
@@ -609,7 +609,7 @@ export function ConnectionCard({
           ) : (
             <span className={cn("device-badge", pcConnected ? "is-ok" : local.localPaused ? "is-danger" : "is-warn")}>
               {pcConnected ? <span aria-hidden className="device-dot is-ok" /> : null}
-              {pcConnected ? "在线" : local.statusText}
+              <T>{pcConnected ? "在线" : local.statusText}</T>
             </span>
           )}
         </SettingRow>
@@ -789,7 +789,7 @@ export function DevicePermissions({ device, isThisPc = false }: { device: Device
                   <span className="device-cap-t">
                     <Icon className="size-4" />
                     {info.label}
-                    {info.dangerous ? <span className="device-badge is-warn is-sm">{"高风险"}</span> : null}
+                    {info.dangerous ? <span className="device-badge is-warn is-sm"><T>{"高风险"}</T></span> : null}
                   </span>
                 }
               >
@@ -887,7 +887,7 @@ export function DevicePermissions({ device, isThisPc = false }: { device: Device
               </span>
             }
           >
-            <span className="device-badge is-accent">{"共用"}</span>
+            <span className="device-badge is-accent"><T>{"共用"}</T></span>
           </SettingRow>
         </Card>
       </section>
@@ -959,7 +959,7 @@ export function AuditList({ entries }: { entries: DeviceAuditEntry[] }) {
               {entry.detail ? <div className="device-audit-d">{entry.detail}</div> : null}
             </div>
             <div className="device-audit-r">
-              <span className={cn("device-badge is-sm", `is-${outcome.tone}`)}>{outcome.text}</span>
+              <span className={cn("device-badge is-sm", `is-${outcome.tone}`)}><T>{outcome.text}</T></span>
               {entry.durationMs !== null ? <span className="device-audit-ms">{`${entry.durationMs} ms`}</span> : null}
             </div>
           </div>
@@ -1087,7 +1087,7 @@ export function ThisPcPanel({ local, onLocal }: { local: PcLocalState; onLocal: 
           >
             <span className={cn("device-badge", online ? "is-ok" : local.localPaused ? "is-danger" : local.agentState === "revoked" ? "is-muted" : "is-warn")}>
               {online ? <span aria-hidden className="device-dot is-ok" /> : null}
-              {local.statusText}
+              <T>{local.statusText}</T>
             </span>
           </SettingRow>
           <SettingRow
@@ -1112,7 +1112,7 @@ export function ThisPcPanel({ local, onLocal }: { local: PcLocalState; onLocal: 
               <span className="device-cap-t">
                 <IconShieldCheck className="size-4" />
                 {"高风险操作始终在本机确认"}
-                <span className="device-badge is-ok is-sm">{"推荐"}</span>
+                <span className="device-badge is-ok is-sm"><T>{"推荐"}</T></span>
               </span>
             }
           >
@@ -1144,7 +1144,7 @@ export function ThisPcPanel({ local, onLocal }: { local: PcLocalState; onLocal: 
             description={local.tokenProtected ? "已用 Windows 数据保护（DPAPI）加密，只有当前 Windows 用户能解开。" : "这台电脑不支持系统加密，令牌以普通文件保存。"}
             title="设备令牌"
           >
-            <span className={cn("device-badge", local.tokenProtected ? "is-ok" : "is-warn")}>{local.tokenProtected ? "已加密" : "未加密"}</span>
+            <span className={cn("device-badge", local.tokenProtected ? "is-ok" : "is-warn")}><T>{local.tokenProtected ? "已加密" : "未加密"}</T></span>
           </SettingRow>
         </Card>
       </section>

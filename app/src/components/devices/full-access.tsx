@@ -46,7 +46,7 @@ export function FullAccessBadge({ device, size }: { device: Pick<DeviceView, "fu
   return (
     <span className={cn("device-badge is-full", size === "sm" && "is-sm")}>
       <IconBolt className="size-3" />
-      {"完全访问"}
+      <T>{"完全访问"}</T>
     </span>
   );
 }
