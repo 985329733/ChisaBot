@@ -74,7 +74,7 @@ React + TanStack Router + CopilotKit。一个应用覆盖聊天、设置、管�
 
 ### 2.6 Android（`android/`）
 
-Kotlin WebView 外壳，基本不做原生功能：自带登录页，扫码绑定（§33）后用设备令牌换会话；手机只用来
+Kotlin + Jetpack Compose 原生应用（2026-10-16 起，DESIGN §80、docs/android-native.md）：登录、机器人列表、聊天、面板原生，其余页面应用内网页兜底；自带登录页，扫码绑定（§33）后用设备令牌换会话；手机只用来
 登录聊天，不是机器人的设备节点。更新源是 `latest.json`（GitHub Releases 或自建静态目录）。
 
 ### 2.7 云端浏览器（`agent-computer/`）

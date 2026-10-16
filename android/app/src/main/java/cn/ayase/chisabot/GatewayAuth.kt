@@ -36,9 +36,12 @@ object GatewayAuth {
         } catch (_: Exception) {
             throw LoginError("invalid", "服务器地址格式不对，例如 chisabot.example.com:8443")
         }
-        if (!url.protocol.equals("https", true)) throw LoginError("invalid", "服务器地址必须是 https。")
+        // 调试包：模拟器连宿主机上的预览（http://10.0.2.2:端口）。正式包一律 https。
+        val localHttp = BuildConfig.ALLOW_LOCAL_HTTP && url.protocol.equals("http", true) && url.host == "10.0.2.2"
+        if (!localHttp && !url.protocol.equals("https", true)) throw LoginError("invalid", "服务器地址必须是 https。")
         if (url.host.isNullOrBlank()) throw LoginError("invalid", "服务器地址格式不对，例如 chisabot.example.com:8443")
         if (url.userInfo != null) throw LoginError("invalid", "服务器地址里不能包含账号密码。")
+        if (localHttp) return "http://" + url.host + (if (url.port == -1) "" else ":" + url.port)
         return "https://" + url.host + (if (url.port == -1 || url.port == 443) "" else ":" + url.port)
     }
 
