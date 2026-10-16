@@ -332,6 +332,8 @@ export function agentPluginsQueryOptions(agentId: string) {
     queryKey: pluginKeys.forAgent(agentId),
     enabled: agentId.length > 0,
     refetchInterval: 15_000,
+    // 切机器人再切回来不立刻重读（DESIGN.md §83）：轮询本来就每 15 秒读一次。
+    staleTime: 15_000,
     queryFn: async (): Promise<GrantedPlugins> => {
       const response = await client(
         `/api/plugins/for/${encodeURIComponent(agentId)}`,

@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { type QueryClient, infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { client } from "@/lib/client";
 
 /**
@@ -96,4 +96,22 @@ export function channelQueryOptions(channelId: string) {
       });
     },
   });
+}
+
+/**
+ * 左栏列表里已有的这一行，当作对话详情先用（DESIGN.md §83）：`AgentChannel` 的字段列表里都有。
+ * 列表还没读到、或者不在已读的那几页里，就是 undefined（照旧等详情）。
+ */
+export function channelFromRoster(queryClient: QueryClient, channelId: string): AgentChannel | undefined {
+  const cache = queryClient.getQueryData<{ pages: ChannelPage[] }>(channelKeys.list());
+  const row = cache?.pages.flatMap((page) => page.channels).find((channel) => channel.id === channelId);
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    name: row.name,
+    agentIds: row.agentIds,
+    threadId: row.threadId,
+    active: row.active,
+    lastMessageAt: row.lastMessageAt,
+  };
 }

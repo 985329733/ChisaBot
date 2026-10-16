@@ -157,6 +157,8 @@ export function agentQueryOptions(agentId: string) {
       client(agentApiPath(agentId), "agent", {
         fallback: "无法加载这个机器人",
       }),
+    // 切机器人再切回来不立刻重读（DESIGN.md §83）；改资料的 mutation 会让它失效。
+    staleTime: 30_000,
   });
 }
 

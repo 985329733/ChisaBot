@@ -57,8 +57,10 @@ import { reportChatRunning } from "@/lib/copilot/computer-activity";
 import {
   HISTORY_RETRY_DELAYS_MS,
   readThreadMessages,
+  type StoredThread,
   THREAD_MESSAGES_RETRY_DEADLINE_MS,
 } from "@/lib/copilot/thread-messages";
+import { cachedTranscript, rememberTranscript } from "@/lib/copilot/transcript-cache";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button } from "@/components/ui/button";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
@@ -97,6 +99,9 @@ function sameActivity(
     left.text === right.text
   );
 }
+
+/** 恢复中、手里还什么都没有时画的（骨架）。模块级，免得每次渲染一个新数组。 */
+const EMPTY_MESSAGES: readonly Message[] = [];
 
 export const HISTORY_UNAVAILABLE_NOTICE = "较早的消息暂时无法加载。";
 
@@ -149,6 +154,21 @@ function messageText(message: Message): string {
         : [],
     )
     .join("\n");
+}
+
+/** 左栏「最后一句」（可能被截短、空白被压过）是不是已经在这段对话里了：比较最后几条机器人消息的开头。 */
+function saysActivity(messages: readonly Message[], text: string): boolean {
+  const squash = (value: string) => value.replace(/\s+/g, " ").trim();
+  const head = squash(text).replace(/[…\.]+$/, "").slice(0, 24);
+  if (!head) return false;
+  let seen = 0;
+  for (let index = messages.length - 1; index >= 0 && seen < 3; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "assistant") continue;
+    seen += 1;
+    if (squash(messageText(message)).startsWith(head)) return true;
+  }
+  return false;
 }
 
 /**
@@ -308,6 +328,31 @@ export function ChannelChat({
     return pending ? seedMessage(pending, newId()) : null;
   });
 
+  /*
+   * 打开时先画什么（DESIGN.md §83）：恢复（接入 + 读存储）完成之前，不把接入回放一段段长出来的样子画出来
+   * （那会让滚动容器把每一段当成「刚发的一轮」对齐到顶上，停在半截历史）。先画这台设备上次看到的样子
+   * （`transcript-cache`），没有就等存储读到——存储读和接入同时开始，谁也不等谁——再没有就是骨架。
+   */
+  const [cached] = useState(() => (seed === null ? cachedTranscript(channel.threadId) : null));
+  const [early, setEarly] = useState<readonly Message[] | null>(null);
+  const earlyRead = useRef<Promise<StoredThread> | null | undefined>(undefined);
+  if (earlyRead.current === undefined) {
+    earlyRead.current = seed === null ? readThreadMessages(channel.threadId, runtimeAgentId) : null;
+  }
+  /** 打开时那次读存储读到了：接入之后不用为「最后一句是机器人说的」再读一遍。 */
+  const mountReadOk = useRef(false);
+  useEffect(() => {
+    const read = earlyRead.current;
+    if (!read) return;
+    let alive = true;
+    void read.then((stored) => {
+      if (alive && stored.availability === "ready" && stored.messages.length > 0) setEarly(stored.messages);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /** Cleared by the send-on-mount effect without restarting it. */
   const seedRef = useRef(seed);
   seedRef.current = seed;
@@ -411,11 +456,13 @@ export function ChannelChat({
       }
 
       try {
-        const stored = await readThreadMessages(
-          channel.threadId,
-          runtimeAgentId,
-        );
+        // 打开时已经开始读了（和接入同时）；只用一次，之后重跑这段（agent 换了）照旧重新读。
+        const pendingRead = earlyRead.current;
+        earlyRead.current = null;
+        const stored = await (pendingRead ??
+          readThreadMessages(channel.threadId, runtimeAgentId));
         const isCurrent = current && version === historyReadVersion.current;
+        if (isCurrent) mountReadOk.current = stored.availability === "ready";
         if (isCurrent) {
           // The gateway snapshot can lag the store. Keep its valid local rows even when the
           // corresponding stored row is unreadable, while restoring other readable additions.
@@ -618,7 +665,10 @@ export function ChannelChat({
       if (
         !cancelled &&
         initialActivity &&
-        !sameActivity(selfReportedBotActivity.current, initialActivity)
+        !sameActivity(selfReportedBotActivity.current, initialActivity) &&
+        // 打开时读存储已经读到了左栏说的那一句（DESIGN.md §83）：不再连读三遍。存储落后（还没有这一句）
+        // 时照旧重试，等它写进来。之后的新动静照旧由上面的订阅拉。
+        !(mountReadOk.current && saysActivity(agentRef.current.messages, initialActivity.text))
       ) {
         pull();
       }
@@ -633,6 +683,24 @@ export function ChannelChat({
   useActiveBot(runtimeAgentId);
 
   const skillCommands = useSkillCommands(runtimeAgentId);
+  /*
+   * 记下这段对话的样子，下次切回来先画它（DESIGN.md §83）：恢复完成时记一次，离开（切机器人 / 换对话）时
+   * 再记一次最新的。agent 会原地改它的数组，所以 `rememberTranscript` 存的是一份拷贝。
+   */
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoring) return;
+    restoredRef.current = true;
+    rememberTranscript(channel.threadId, agentRef.current.messages);
+  }, [restoring, channel.threadId]);
+  useEffect(() => {
+    const threadId = channel.threadId;
+    // 恢复没完成就离开：手里只有回放的一部分，不记（下次会先画出半截）。
+    return () => {
+      if (restoredRef.current) rememberTranscript(threadId, agentRef.current.messages);
+    };
+  }, [channel.threadId]);
+
   const historyNotice = channelHistoryNotice({
     restoring: restoring || retryingHistory,
     messageCount: agent.messages.length,
@@ -1107,7 +1175,10 @@ export function ChannelChat({
             commands={skillCommands}
             // Readiness is handled by `say`; deletion is the only disabled-chat state.
             disabled={!channel.active}
-            messages={transcriptMessages(agent.messages, seed)}
+            messages={transcriptMessages(
+              restoring ? (early ?? cached ?? EMPTY_MESSAGES) : agent.messages,
+              seed,
+            )}
             transcriptNotice={
               historyNotice ? (
                 <HistoryNotice
@@ -1190,6 +1261,7 @@ export function ChannelChat({
              */
             queueWhileBusy
             restoring={restoring || retryingHistory}
+            hydrating={restoring}
             /*
              * The run, not the turn. Stop reaches a run through the core's abort controller, and that
              * controller does not exist until `say` has finished waiting for the runtime agent — so
