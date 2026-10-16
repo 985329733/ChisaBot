@@ -199,7 +199,7 @@ export function ConfirmRequestCard({ request, threadId }: { request: ConfirmRequ
       onAlways={async () => {
         await setConfirmPref(request.category, "auto", "在确认卡片上选了「以后这类直接做」");
         await decide("approve");
-        toast.success(`以后「${CONFIRM_CATEGORY_INFO[request.category].label}」直接做，可在 设置 → 审批偏好 改回`);
+        toast.success(`以后「${CONFIRM_CATEGORY_INFO[request.category].label}」直接做，可在 设置 → 权限与审批 改回`);
       }}
       onApprove={() => decide("approve")}
       onDeny={() => decide("deny")}

@@ -176,15 +176,18 @@ export function PageSection({
   className,
   description,
   title,
+  id,
 }: {
   action?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
   description?: React.ReactNode;
   title?: string;
+  /** 页内锚点（设置搜索跳转、「了解更多」，DESIGN.md §XX）。 */
+  id?: string;
 }) {
   return (
-    <section className={cn("page-section", className)} data-slot="page-section">
+    <section className={cn("page-section", className)} data-slot="page-section" id={id}>
       {title || description || action ? (
         <div className="sh">
           <div className="min-w-0 flex-1">

@@ -16,7 +16,7 @@ import { agoText } from "@/lib/im";
 /**
  * 「待处理」（账号菜单 → 待处理，`/approvals`，DESIGN.md §71.1）：只放等你点头的事——
  * 聊天里没来得及点的确认卡片（§58）、要你亲自完成的操作、机器人在等你回答的问题。
- * 偏好（哪些事先问我）只在 设置 → 审批偏好；这里不再放上游的开关和规则表（生产 0 行，§58 取代）。
+ * 偏好（哪些事先问我）只在 设置 → 权限与审批；这里不再放上游的开关和规则表（生产 0 行，§58 取代）。
  */
 export function PendingInbox() {
   const cache = useQueryClient();
@@ -91,7 +91,7 @@ export function PendingInbox() {
       <Link className="pending-prefs-link" to="/settings/approvals">
         <span>
           <span className="pending-prefs-t">{"哪些事先问我"}</span>
-          <span className="pending-prefs-s">{"设置 → 审批偏好：按类别选「先问我 / 直接做」，或用自己的话写规则"}</span>
+          <span className="pending-prefs-s">{"设置 → 权限与审批：按类别选「先问我 / 直接做」，或用自己的话写规则"}</span>
         </span>
         <IconChevronRight aria-hidden className="size-4 shrink-0" />
       </Link>
