@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
+import { parseShareLink, shareScheme, toSingBoxOutbound } from "../../../shared/proxy-links";
 import {
   type CcApprovalState,
   type CcBrowserOp,
   type CcProxyTest,
-  maskProxyUrl,
+  type CcProxyView,
+  maskProxyValue,
   parseProxyUrl,
   type CcChangedFile,
   type CcCloneState,
@@ -42,6 +44,8 @@ import { type Github, GithubError } from "../github/service";
  * - 在云端完成登录：节点容器里的无头 Chromium 打开授权页，画面（CDP screencast）经设备 WSS → 这里 → 设置页（SSE）；
  *   点击 / 键盘反过来走。授权页跳到回调地址时节点自己拿到授权码交给 `claude auth login`，授权码不经过这里。
  * - Claude 上游代理：地址存在保险箱保留名 `claude-proxy`（加密），节点连上 / 改设置时下发给节点（只在节点内存里）。
+ *   节点链接（trojan / vless / vmess / ss / hysteria2 / tuic，DESIGN §84）：保险箱里存原链接；下发给节点的是解析好的
+ *   sing-box 出站（shared/proxy-links.ts），节点在容器里起 sing-box 转成本机 socks5。保存要带 convert: true（网页上的开关）。
  * - GitHub 工作区（P3，§3.4）：新建时服务器从保险箱取出 GitHub 令牌，随 ws_clone 发给节点（只在那一次 git 进程里用）；
  *   每个会话一个工作树 + 分支 cc/…；「合入工作目录」把会话分支合进 work/（冲突时不动）；「推送并开 PR」令牌再下发一次推送，
  *   PR 由服务器用已有的 GitHub 连接开。
@@ -364,6 +368,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       claudeVersion: typeof info.claudeVersion === "string" ? info.claudeVersion.slice(0, 120) : null,
       root: typeof info.root === "string" ? info.root.slice(0, 200) : null,
       browser: info.browser === true,
+      singbox: typeof info.singbox === "string" ? info.singbox.slice(0, 40) : null,
     };
     await sql.unsafe(
       `INSERT INTO chisabot_cloud_workspaces (device_id, owner_user_id, info) VALUES ($1, $2, $3::text::jsonb)
@@ -376,7 +381,19 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     // 上游代理先下发（节点重启后内存里没有），再顺手查一次登录状态（不阻塞）
     void (async () => {
       const proxy = await proxyValue(record.ownerUserId).catch(() => null);
-      if (proxy || info.proxy === true) await rpc(record.id, "proxy_set", { url: proxy }, 15_000).catch(() => {});
+      if (proxy || info.proxy === true) {
+        let args: Json;
+        try {
+          args = proxyArgs(proxy);
+        } catch {
+          args = { url: null };
+        }
+        const r = await rpc(record.id, "proxy_set", args, 30_000).then(
+          () => null,
+          (e: unknown) => (e instanceof Error ? e.message : String(e)),
+        );
+        if (shareScheme(proxy ?? "")) converterErrors.set(record.id, r ? r.slice(0, 300) : null);
+      }
       const auth = await rpc<ClaudeAuth>(record.id, "status", {}, 25_000);
       await saveAuth(record.id, auth);
     })().catch(() => {});
@@ -946,36 +963,100 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     return secret?.value ?? null;
   }
 
-  async function proxyView(ownerUserId: string) {
-    const value = await proxyValue(ownerUserId);
-    return { configured: !!value, masked: value ? maskProxyUrl(value) : null };
+  /** 节点链接最近一次在节点上起 sing-box 的错误（deviceId → 错误；null = 好的）。只在内存里。 */
+  const converterErrors = new Map<string, string | null>();
+
+  /** 发给节点的参数：普通代理给地址；节点链接给解析好的 sing-box 出站（不发原链接）。 */
+  function proxyArgs(value: string | null): Json {
+    if (!value) return { url: null };
+    if (shareScheme(value)) {
+      const r = parseShareLink(value);
+      if (!r.ok) throw new CcError(r.error);
+      return { outbound: toSingBoxOutbound(r.link) };
+    }
+    return { url: value };
   }
 
-  async function setProxy(ownerUserId: string, url: string | null) {
+  async function proxyView(ownerUserId: string): Promise<CcProxyView> {
+    const value = await proxyValue(ownerUserId);
+    const row = await nodeFor(ownerUserId).catch(() => null);
+    const info = (row?.info ?? {}) as { singbox?: string | null };
+    const link = !!value && !!shareScheme(value);
+    const parsed = link ? parseShareLink(value!) : null;
+    return {
+      configured: !!value,
+      masked: value ? maskProxyValue(value) : null,
+      kind: value ? (link ? "link" : "url") : null,
+      protocol: parsed?.ok ? parsed.link.protocol : null,
+      converter: { available: typeof info.singbox === "string" && !!info.singbox, version: info.singbox ?? null, lastError: row && link ? (converterErrors.get(row.device_id) ?? null) : null },
+    };
+  }
+
+  const NEED_CONVERT = "这是节点链接，要先打开「用 sing-box 转换此链接」才能保存。";
+  const BAD_URL = "代理地址不对：写成 http://、https:// 或 socks5://主机:端口（可以带 用户名:密码@），或者填 trojan / vless / vmess / ss / hysteria2 / tuic 节点链接。";
+
+  async function setProxy(ownerUserId: string, url: string | null, convert = false) {
     if (!vault) throw new CcError("保险箱不可用。", 503);
-    if (url) {
-      if (!parseProxyUrl(url)) throw new CcError("代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@。");
-      await vault.internal.save(ownerUserId, { name: PROXY_SECRET, label: "Claude 上游代理", domains: PROXY_DOMAINS, value: url.trim() });
-    } else await vault.internal.remove(ownerUserId, PROXY_SECRET);
+    const value = url ? url.trim() : null;
+    const link = !!value && !!shareScheme(value);
+    if (value) {
+      if (link) {
+        const r = parseShareLink(value);
+        if (!r.ok) throw new CcError(r.error);
+        if (!convert) throw new CcError(NEED_CONVERT);
+      } else if (!parseProxyUrl(value)) throw new CcError(BAD_URL);
+    }
     const node = await nodeFor(ownerUserId);
+    const online = !!node && hub.isOnline(node.device_id);
     let applied = false;
     let running = 0;
-    if (node && hub.isOnline(node.device_id)) {
-      const r = await rpc<{ running?: number }>(node.device_id, "proxy_set", { url: url ? url.trim() : null }, 15_000).catch(() => null);
+    if (link && online) {
+      // 节点链接：先在节点上把 sing-box 起好，起不来就不保存（旧设置照常用）
+      const info = (node!.info ?? {}) as { singbox?: string | null };
+      if (!info.singbox) throw new CcError("云端节点镜像里还没有 sing-box，更新云端节点镜像后才能用节点链接（普通 http / socks5 代理不受影响）。", 409);
+      const r = await rpc<{ running?: number }>(node!.device_id, "proxy_set", proxyArgs(value), 30_000).catch((e: unknown) => {
+        const msg = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+        throw new CcError(`sing-box 没能连上这个节点：${msg}`);
+      });
+      applied = true;
+      running = Number(r?.running ?? 0);
+      converterErrors.set(node!.device_id, null);
+    }
+    if (value) await vault.internal.save(ownerUserId, { name: PROXY_SECRET, label: "Claude 上游代理", domains: PROXY_DOMAINS, value });
+    else await vault.internal.remove(ownerUserId, PROXY_SECRET);
+    if (!link && online) {
+      const r = await rpc<{ running?: number }>(node!.device_id, "proxy_set", { url: value }, 15_000).catch(() => null);
       applied = !!r;
       running = Number(r?.running ?? 0);
+      converterErrors.delete(node!.device_id);
     }
-    await audit(ownerUserId, null, url ? "claude_proxy_set" : "claude_proxy_cleared", url ? { proxy: maskProxyUrl(url) } : null);
+    await audit(ownerUserId, null, value ? "claude_proxy_set" : "claude_proxy_cleared", value ? { proxy: maskProxyValue(value), converter: link } : null);
     return { ...(await proxyView(ownerUserId)), applied, running };
   }
 
   async function testProxy(ownerUserId: string, url: string | null | undefined): Promise<CcProxyTest> {
     const node = await onlineNode(ownerUserId);
-    if (url && !parseProxyUrl(url)) throw new CcError("代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@。");
-    // url 没给：测已保存的（没保存就是机房默认出口）
-    const target = url ? url.trim() : await proxyValue(ownerUserId);
-    const r = await rpc<CcProxyTest>(node.device_id, "proxy_test", { url: target ?? null }, 45_000);
-    return { ok: !!r.ok, ip: r.ip ?? null, claudeAi: r.claudeAi ?? null, anthropicApi: r.anthropicApi ?? null, ms: r.ms ?? null, error: r.error ?? null };
+    const given = url ? url.trim() : null;
+    if (given && !shareScheme(given) && !parseProxyUrl(given)) throw new CcError(BAD_URL);
+    // url 没给：测已保存的（节点上正在用的；没保存就是机房默认出口）
+    let args: Json;
+    if (given) {
+      args = proxyArgs(given);
+      if (args.outbound && !((node.info ?? {}) as { singbox?: string | null }).singbox) throw new CcError("云端节点镜像里还没有 sing-box，更新云端节点镜像后才能测试节点链接。", 409);
+    } else {
+      const saved = await proxyValue(ownerUserId);
+      args = saved && shareScheme(saved) ? {} : { url: saved ?? null };
+    }
+    const r = await rpc<CcProxyTest>(node.device_id, "proxy_test", args, 60_000);
+    return {
+      ok: !!r.ok,
+      ip: r.ip ?? null,
+      country: typeof r.country === "string" ? r.country.slice(0, 4) : null,
+      claudeAi: r.claudeAi ?? null,
+      anthropicApi: r.anthropicApi ?? null,
+      ms: r.ms ?? null,
+      error: r.error ?? null,
+    };
   }
 
   // ── GitHub 工作区（P3，§3.4） ─────────────────────────────────────────
@@ -1219,7 +1300,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
 
   async function status(ownerUserId: string): Promise<CloudWorkspaceView> {
     const row = await nodeFor(ownerUserId);
-    if (!row) return { node: null, claude: EMPTY_AUTH, running: 0, maxConcurrent: MAX_CONCURRENT, browserLogin: false, proxy: { configured: false, masked: null } };
+    if (!row) return { node: null, claude: EMPTY_AUTH, running: 0, maxConcurrent: MAX_CONCURRENT, browserLogin: false, proxy: await proxyView(ownerUserId) };
     const device = await deviceStore.get(row.device_id).catch(() => null);
     const info = (row.info ?? {}) as { claudeVersion?: string | null; browser?: boolean };
     return {
@@ -1304,8 +1385,8 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
   const codeBody = z.object({ code: z.string().trim().min(1, "粘贴授权码。").max(4000) });
   const browserBody = z.object({ width: z.number().int().min(320).max(1280).optional(), height: z.number().int().min(400).max(1000).optional(), mobile: z.boolean().optional() });
   const inputBody = z.object({ events: z.array(z.record(z.string(), z.unknown())).max(200) });
-  const proxyBody = z.object({ url: z.string().trim().min(1, "填代理地址。").max(500) });
-  const proxyTestBody = z.object({ url: z.string().trim().max(500).nullable().optional() });
+  const proxyBody = z.object({ url: z.string().trim().min(1, "填代理地址。").max(8000, "链接太长。"), convert: z.boolean().optional() });
+  const proxyTestBody = z.object({ url: z.string().trim().max(8000, "链接太长。").nullable().optional() });
   const workspaceBody = z.object({
     source: z.literal("github"),
     repo: z.string().trim().min(1, "选一个仓库。").max(300),
@@ -1393,7 +1474,10 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no", connection: "keep-alive" } });
     });
     app.get("/claude/proxy", async (c) => c.json(await proxyView(c.var.actor.id)));
-    app.put("/claude/proxy", async (c) => c.json(await setProxy(c.var.actor.id, proxyBody.parse(await c.req.json().catch(() => ({}))).url)));
+    app.put("/claude/proxy", async (c) => {
+      const body = proxyBody.parse(await c.req.json().catch(() => ({})));
+      return c.json(await setProxy(c.var.actor.id, body.url, body.convert === true));
+    });
     app.delete("/claude/proxy", async (c) => c.json(await setProxy(c.var.actor.id, null)));
     app.post("/claude/proxy/test", async (c) => c.json(await testProxy(c.var.actor.id, proxyTestBody.parse(await c.req.json().catch(() => ({}))).url)));
     app.post("/claude/logout", async (c) => c.json(await logout(c.var.actor.id)));

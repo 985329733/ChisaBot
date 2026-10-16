@@ -59,3 +59,5 @@ jobs:
         run: bun test tests/no-group-has.test.ts tests/stopped-turn.test.ts tests/bot-message-list.test.tsx tests/link-cards.test.tsx tests/rich-previews-extract.test.ts tests/ui-align.test.ts
       - name: Login gateway checks
         run: bun test deploy/public/auth/server.test.ts deploy/public/auth/startup-report.test.ts
+      - name: Claude upstream proxy share-link parser
+        run: bun test shared/proxy-links.test.ts

@@ -78,6 +78,8 @@
 | [CB-070](#cb-070) | 全站 UI 文字对齐 + 干活卡上下间距 | 成熟度 Maturity | `type: fix` · `area: web` · `P1` |
 | [CB-071](#cb-071) | 打开对话落在最新一条、不跳；切机器人秒开；接入回放瘦身 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-072](#cb-072) | 机器人 ↔ Claude Code 切换整屏刷新 → 原地切换 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
+| [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
+
 
 ## CB-001
 
@@ -1170,3 +1172,17 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 ## 已完成
 
 最近合并的见 [ROADMAP「最近完成」](ROADMAP.md#最近完成) 和 [CHANGELOG](../CHANGELOG.md)。
+
+## CB-073
+
+**Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换）**  
+标签：`type: feature` `area: cloud-cc` `P1` `status: done`
+
+用户 2026-10-16 12:43：「Claude 上游代理」也要能填 trojan:// / vless:// / vmess:// / ss:// / hysteria2:// / tuic:// 分享链接，填了这类链接时要清楚地提示需要开启 sing-box 转换。DESIGN.md §85，docs/cloud-claude-code.md。
+
+#### 验收标准
+- [x] 解析器 `shared/proxy-links.ts`：六种协议、tls / reality（pbk、sid、fp）/ vision、ws / grpc / h2 / httpupgrade、ws `?ed=`、IPv6、url 编码 / 中文 / emoji 节点名、ss SIP002 + 旧式；不支持的写清楚原因（单测 `shared/proxy-links.test.ts`，有 sing-box 时每种出站都过 `sing-box check`）
+- [x] 云端节点镜像带固定版本 sing-box（1.14.3，sha256 校验）；节点起 sing-box（127.0.0.1 随机端口 + 随机账号密码的 socks5），转发器把它当 socks5 上游，覆盖的流量和 http / socks5 代理一样；意外退出自动重启；日志不带密码
+- [x] 网页：链接时显示识别结果 +「用 sing-box 转换此链接」开关（开了才能测试 / 保存）+ 一句机场节点风险提醒；保存后自动测，显示出口 IP 和国家
+- [x] 预览 e2e：本机起的 trojan / vless reality / vmess ws / ss 测试服务端（不用真实节点），经节点 sing-box 测通 claude.ai + api.anthropic.com，杀掉 sing-box 后自动恢复，密码 / UUID 不出现在日志、数据库、接口里
+

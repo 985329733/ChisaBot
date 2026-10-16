@@ -56,6 +56,19 @@ ChisaBot 网页：设置 → 云端工作区 →「**在云端完成登录**」�
 - 改了以后正在跑的那一轮不打断：它新建的连接马上按新设置走，下一轮整轮都用新设置。
 - 服务器自己不直接连 Anthropic（模型走 Magpie，不受这个设置影响）。
 
+### 节点链接（sing-box 转换）
+
+也可以直接粘贴 `trojan://`、`vless://`（含 Reality / Vision）、`vmess://`（v2rayN base64 JSON）、`ss://`（SIP002 和旧式）、
+`hysteria2://` / `hy2://`、`tuic://` 节点链接，打开「用 sing-box 转换此链接」后保存（DESIGN.md §84）。
+
+- 镜像里装了固定版本的 sing-box（`SINGBOX_VERSION`，构建时按官方发布页的 sha256 校验，`/usr/local/bin/sing-box`）。
+  旧镜像没有 sing-box：页面会提示更新镜像，普通 http / socks5 代理照常能用。
+- 服务器把链接解析成 sing-box 出站（`shared/proxy-links.ts`）发给节点；节点起一个 sing-box 子进程，入站是只听容器 127.0.0.1
+  随机端口、随机账号密码的 socks5，出站就是这个节点。上面的转发器把它当 socks5 上游，分流规则完全一样（只有 Claude 的域名走它）。
+- 配置经标准输入给 sing-box，不落盘；sing-box 意外退出时节点进程按 1→30 秒退避重启；日志只转 warn 以上并抹掉密码 / UUID。
+- 保存前先在节点上把 sing-box 起好，起不来就不保存、旧设置照常用。保存后网页自动测一次，显示出口 IP 和国家 / 地区。
+- 节点服务器要在公网（`firewall.sh` 丢私有网段）；UDP 协议（hysteria2 / tuic）需要主机允许出站 UDP。
+
 ## 电脑文件夹同步的边车（cloudnode-sync）
 
 ```sh
