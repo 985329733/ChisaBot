@@ -141,6 +141,8 @@ export function BookmarksBar({
     if (!menu && !dropdown) return;
     const close = (event: MouseEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      // 菜单开着时 Esc 只关菜单（大屏的 Esc 看 defaultPrevented）。
+      if (event instanceof KeyboardEvent) event.preventDefault();
       if (event instanceof MouseEvent && box.current?.contains(event.target as Node)) {
         const inside = (event.target as HTMLElement).closest?.(".bm-pop");
         if (inside) return;
@@ -346,14 +348,16 @@ function BookmarkManager({ botId, onClose }: { botId: string; onClose: () => voi
   const list = bookmarks ?? [];
 
   useEffect(() => {
+    // Esc 只关这个面板，不关大屏、不交还控制权：窗口捕获阶段最先拿到，标记 defaultPrevented 并截住。
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        event.stopPropagation();
+        event.preventDefault();
+        event.stopImmediatePropagation();
         onClose();
       }
     };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
   const guarded = async (key: string, work: () => Promise<unknown>) => {

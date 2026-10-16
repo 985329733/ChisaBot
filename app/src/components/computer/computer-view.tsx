@@ -412,6 +412,8 @@ export function ComputerView({
     if (!expanded) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // 收藏夹的菜单 / 管理面板先处理了这次 Esc（只关它自己）。
+      if (event.defaultPrevented) return;
       // 关掉大屏 = 我弄完了：手里有控制权就顺手交还（Hark 的做法）。以前 Esc 只关窗口、控制权
       // 还留在人手里，机器人下一步全部卡在「等待交还」，而人已经看不到交还按钮了。
       if (driving && !settled) void changeControl?.("release");
