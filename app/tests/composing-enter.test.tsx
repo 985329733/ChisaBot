@@ -1,7 +1,6 @@
 import {
   afterAll,
   afterEach,
-  beforeAll,
   beforeEach,
   expect,
   test,
@@ -17,8 +16,6 @@ import {
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
-import { AgentDialog } from "@/components/agents/agent-dialog";
-import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { type AgentProfile, agentKeys } from "@/lib/agents/queries";
 import { computerKeys } from "@/lib/computers/queries";
 import { Route as BoundariesRoute } from "@/routes/_authed/admin/boundaries";
@@ -40,7 +37,13 @@ import { Route as BoundariesRoute } from "@/routes/_authed/admin/boundaries";
  * route singleton, so nothing here is left pointing another file's router at a decoy.
  */
 
-beforeAll(() => GlobalRegistrator.register());
+/*
+ * 先注册 happy-dom 再加载组件（DESIGN.md §81 起表单里多了头像窗）：Base UI 在模块加载时就判断有没有 document，
+ * 静态 import 会早于 beforeAll，弹窗就画不出来。
+ */
+GlobalRegistrator.register();
+const { AgentDialog } = await import("@/components/agents/agent-dialog");
+const { CreateAgentDialog } = await import("@/components/agents/create-agent-dialog");
 afterEach(cleanup);
 afterAll(() => GlobalRegistrator.unregister());
 
@@ -145,7 +148,8 @@ test("a coworker's name is not saved by the Enter that confirms a composed chara
     (client) => client.setQueryData(agentKeys.detail(PROFILE.id), PROFILE),
   );
 
-  fireEvent.click(await view.findByRole("button", { name: "编辑 名称" }));
+  // 资料是和新建同一张表（DESIGN.md §81）：点「编辑」，名称在第一格。
+  fireEvent.click(await view.findByRole("button", { name: "编辑" }));
   const field = view.getByDisplayValue(PROFILE.name);
   await type(field, "経費");
 
@@ -172,7 +176,7 @@ test("the new-bot form does not create from the Enter that confirms a composed c
 
   const name = await view.findByLabelText("名称");
   await type(name, "経費");
-  await type(view.getByLabelText("它做什么"), "你负责整理票据。");
+  await type(view.getByLabelText(/它做什么/), "你负责整理票据。");
 
   await confirmComposedCharacter(name);
   await settle();

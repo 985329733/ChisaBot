@@ -181,7 +181,7 @@ export function RunWorkflowDialog({
                         {roster.map((bot) => (
                           <SelectItem key={bot.id} value={bot.id}>
                             <span className="flex items-center gap-2">
-                              <AbstractAvatar name={bot.name} seed={bot.avatarSeed} size={18} />
+                              <AbstractAvatar agentId={bot.id} name={bot.name} seed={bot.avatarSeed} size={18} />
                               {bot.name}
                             </span>
                           </SelectItem>

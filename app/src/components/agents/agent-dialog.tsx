@@ -7,10 +7,10 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import type { ZodType } from "zod";
+import { useRef, useState } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
+import { IdentityCard } from "@/components/bot-profile/profile";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,6 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import {
   Item,
   ItemActions,
@@ -44,20 +43,12 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  type AgentFormValues,
-  agentFormSchema,
-  agentInputFrom,
-} from "@/lib/agents/form";
 import {
   duplicateAgentMutationOptions,
   setAgentHiddenMutationOptions,
   setAgentPinnedMutationOptions,
-  updateAgentMutationOptions,
 } from "@/lib/agents/mutations";
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
-import { isComposing } from "@/lib/composing";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 
@@ -133,7 +124,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
         <Sidebar className="hidden md:flex" collapsible="none">
           {/* Who this dialog is about, said once here rather than repeated per section. */}
           <SidebarHeader className="flex-row items-center gap-3 p-4">
-            <AbstractAvatar
+            <AbstractAvatar agentId={profile.id}
               name={profile.name}
               seed={profile.avatarSeed}
               size={36}
@@ -176,7 +167,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
            */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-border p-3 pr-12 md:hidden">
             <div className="flex items-center gap-2">
-              <AbstractAvatar
+              <AbstractAvatar agentId={profile.id}
                 name={profile.name}
                 seed={profile.avatarSeed}
                 size={28}
@@ -227,60 +218,30 @@ function GeneralSection({
   agentId: string;
   profile: AgentProfile;
 }) {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const updateAgent = useMutation(updateAgentMutationOptions(queryClient));
-
-  /*
-   * One field at a time, over the whole update endpoint: the API takes the full profile, so the
-   * unchanged fields ride along as they are on screen. The empty key means "keep the current one".
-   */
-  const save = (patch: Partial<AgentFormValues>) =>
-    updateAgent.mutateAsync({
-      agentId,
-      input: agentInputFrom({
-        name: profile.name,
-        title: profile.title,
-        roleDescription: profile.roleDescription,
-        // 一律私有（DESIGN.md §46）。
-        visibility: "private",
-        /*
-         * Not a built-in coworker's endpoint. That is the managed Bot's own address, which nobody
-         * typed, and the route checks any endpoint it is sent as one somebody did: on a deployment
-         * whose Bot is on localhost it refused every edit. Empty leaves the stored one where it is.
-         */
-        endpoint: profile.builtIn ? "" : (profile.endpoint ?? ""),
-        authValue: "",
-        ...patch,
-      }),
-    });
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const identityFieldRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <>
       {/* Each stands on its own — muted, not bg-card, which is invisible against a popup — and
           each edits in place: the field somebody wants to change is the only one that opens. */}
       <div className="flex flex-col gap-2">
-        <EditableTextItem
-          canManage={profile.canManage}
-          label={"名称"}
-          onSave={(name) => save({ name })}
-          schema={agentFormSchema.shape.name}
-          value={profile.name}
-        />
-        <EditableTextItem
-          canManage={profile.canManage}
-          label={"标题"}
-          onSave={(title) => save({ title })}
-          schema={agentFormSchema.shape.title}
-          value={profile.title}
-        />
-        <EditableTextItem
-          canManage={profile.canManage}
-          label={"角色"}
-          multiline
-          onSave={(roleDescription) => save({ roleDescription })}
-          schema={agentFormSchema.shape.roleDescription}
-          value={profile.roleDescription}
+        {/* 和新建、资料页同一张表（头像 · 名称 · 职责 · 它做什么，DESIGN.md §81）；以前这里叫「标题」「角色」，一格一格改。 */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-muted-foreground">{"资料"}</span>
+          {profile.canManage && !editingIdentity ? (
+            <Button onClick={() => setEditingIdentity(true)} size="xs" variant="ghost">
+              {"编辑"}
+            </Button>
+          ) : null}
+        </div>
+        <IdentityCard
+          agent={profile}
+          editing={editingIdentity}
+          firstFieldRef={identityFieldRef}
+          key={`${profile.name}\u0000${profile.title}\u0000${profile.roleDescription}`}
+          setEditing={setEditingIdentity}
         />
         <Item variant="muted"><ItemContent><ItemTitle>模型设置</ItemTitle><BotModelSelector agentId={agentId} /></ItemContent></Item>
         {profile.systemOwned ? (
@@ -315,131 +276,6 @@ function GeneralSection({
         </ItemActions>
       </Item>
     </>
-  );
-}
-
-/**
- * One fact about the coworker, edited in place.
- *
- * Only the field somebody wants to change opens: Edit swaps this item — and this item alone — for
- * its input, validated against the same limits the server enforces, and Save writes just it back.
- */
-function EditableTextItem({
-  label,
-  value,
-  canManage,
-  multiline = false,
-  schema,
-  onSave,
-}: {
-  label: string;
-  value: string;
-  canManage: boolean;
-  /** A textarea rather than an input, for the field that is a paragraph. */
-  multiline?: boolean;
-  /** The field's slice of the shared form contract, so errors match the server's limits. */
-  schema: ZodType<string>;
-  onSave: (draft: string) => Promise<unknown>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const close = () => {
-    setEditing(false);
-    setError(null);
-  };
-  const submit = async () => {
-    const parsed = schema.safeParse(draft);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "该值不合适。");
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(parsed.data);
-      close();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "无法保存。");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <Item variant="muted">
-        <ItemContent>
-          <ItemTitle>{label}</ItemTitle>
-        </ItemContent>
-        <ItemActions className="min-w-0">
-          <span
-            className={`text-right text-sm text-muted-foreground ${
-              multiline ? "line-clamp-2 whitespace-pre-wrap" : "truncate"
-            }`}
-          >
-            {value}
-          </span>
-          {canManage ? (
-            <Button
-              aria-label={`编辑 ${label.toLowerCase()}`}
-              onClick={() => {
-                setDraft(value);
-                setEditing(true);
-              }}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <IconPencil />
-            </Button>
-          ) : null}
-        </ItemActions>
-      </Item>
-    );
-  }
-
-  return (
-    <Item variant="muted">
-      <ItemContent>
-        <ItemTitle>{label}</ItemTitle>
-        {multiline ? (
-          <Textarea
-            autoFocus
-            onChange={(event) => setDraft(event.target.value)}
-            rows={4}
-            value={draft}
-          />
-        ) : (
-          <Input
-            autoFocus
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              // Not the Enter that confirms a composed character: that one would save the value
-              // before the person has finished typing it.
-              if (event.key === "Enter" && !isComposing(event)) {
-                event.preventDefault();
-                void submit();
-              }
-            }}
-            value={draft}
-          />
-        )}
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <div className="mt-1 flex gap-2">
-          <Button disabled={saving} onClick={() => void submit()} size="sm">
-            {saving ? "正在保存…" : "保存"}
-          </Button>
-          <Button disabled={saving} onClick={close} size="sm" variant="outline">
-            {"取消"}
-          </Button>
-        </div>
-      </ItemContent>
-    </Item>
   );
 }
 

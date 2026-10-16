@@ -4,11 +4,12 @@ import {
   IconRefresh,
   IconTrash,
 } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Fragment, useRef, useState } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
+import { BotProfileForm } from "@/components/agents/bot-profile-form";
 import { DeleteBotDialog } from "@/components/agents/delete-bot-dialog";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -21,14 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { runWithPageLoader } from "@/components/ui/page-loader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, SettingRow } from "@/components/ui/skyglass";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { agentFormSchema, agentInputFrom } from "@/lib/agents/form";
-import { updateAgentMutationOptions } from "@/lib/agents/mutations";
 import type { AgentProfile } from "@/lib/agents/queries";
 import {
   resetBotMutationOptions,
@@ -43,7 +40,6 @@ import {
   botResetPlanQueryOptions,
   type ResetPlan,
 } from "@/lib/bot-lifecycle/queries";
-import { isComposing } from "@/lib/composing";
 import { agentModelQueryOptions, modelCatalogQueryOptions } from "@/lib/model-selection/queries";
 import { queryClient as sharedQueryClient } from "@/query-client";
 import { ActivityRow } from "./activity";
@@ -52,7 +48,7 @@ import { ActivityRow } from "./activity";
  * 机器人资料页（/bots/:id，DESIGN.md §47，2026-10-14 用户：「机器人资料页做的太垃圾了。要简洁高效」）。
  *
  *   头部：头像 · 名字 · 一行状态（职责 · 模型 · 运行中/已暂停）· 右边 开始聊天 / 编辑 / 删除
- *   资料：名称 · 职责 · 提示词，原地编辑（一次改完一起保存）
+ *   资料：名称 · 职责 · 它做什么，点「编辑」原地变成和新建同一张表（头像 · 名称 · 职责 · 它做什么，§81），一次保存
  *   运行：模型 · 暂停 · 通知
  *   任务：只在有任务时出现（进行中 / 已计划 / 最近完成合成一张卡）
  *   底部一行：重置…
@@ -198,11 +194,8 @@ function StatusLine({ agent }: { agent: AgentProfile }) {
   );
 }
 
-type Draft = { name: string; title: string; roleDescription: string };
-const FIELD_SCHEMA = agentFormSchema.pick({ name: true, title: true, roleDescription: true });
-
-/** 资料：看的时候是三行，点「编辑」就地变成表单，一次保存。 */
-function IdentityCard({
+/** 资料：看的时候是三行，点「编辑」就地变成和新建一样的表单（BotProfileForm，DESIGN.md §81），一次保存。 */
+export function IdentityCard({
   agent,
   editing,
   setEditing,
@@ -213,119 +206,18 @@ function IdentityCard({
   setEditing: (editing: boolean) => void;
   firstFieldRef: React.RefObject<HTMLInputElement | null>;
 }) {
-  const client = useQueryClient();
-  const update = useMutation(updateAgentMutationOptions(client));
-  const [draft, setDraft] = useState<Draft>({
-    name: agent.name,
-    title: agent.title,
-    roleDescription: agent.roleDescription,
-  });
-  const [errors, setErrors] = useState<Partial<Record<keyof Draft, string>>>({});
   const [expanded, setExpanded] = useState(false);
-
-  const cancel = () => {
-    setDraft({ name: agent.name, title: agent.title, roleDescription: agent.roleDescription });
-    setErrors({});
-    update.reset();
-    setEditing(false);
-  };
-  const save = async () => {
-    const parsed = FIELD_SCHEMA.safeParse(draft);
-    if (!parsed.success) {
-      const next: Partial<Record<keyof Draft, string>> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0] as keyof Draft;
-        if (!next[key]) next[key] = issue.message;
-      }
-      setErrors(next);
-      return;
-    }
-    setErrors({});
-    await update.mutateAsync({
-      agentId: agent.id,
-      input: agentInputFrom({
-        ...parsed.data,
-        // 一律私有（DESIGN.md §45）；内置机器人不发端点（存着的那个不是用户填的）。
-        visibility: "private",
-        endpoint: agent.builtIn ? "" : (agent.endpoint ?? ""),
-        authValue: "",
-      }),
-    });
-    setEditing(false);
-  };
 
   if (editing) {
     return (
       <Card className="bp-card">
-        <form
-          className="bp-form"
-          noValidate
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              cancel();
-            }
-            if (
-              event.key === "Enter" &&
-              !event.shiftKey &&
-              !isComposing(event) &&
-              event.target instanceof HTMLInputElement
-            ) {
-              event.preventDefault();
-              void save().catch(() => undefined);
-            }
-          }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save().catch(() => undefined);
-          }}
-        >
-          <label className="bp-field">
-            <span className="bp-label">{"名称"}</span>
-            <Input
-              aria-invalid={errors.name ? true : undefined}
-              autoComplete="off"
-              onChange={(event) => setDraft((d) => ({ ...d, name: event.target.value }))}
-              ref={firstFieldRef}
-              value={draft.name}
-            />
-            {errors.name ? <span className="bp-error">{errors.name}</span> : null}
-          </label>
-          <label className="bp-field">
-            <span className="bp-label">{"职责"}</span>
-            <Input
-              aria-invalid={errors.title ? true : undefined}
-              autoComplete="off"
-              onChange={(event) => setDraft((d) => ({ ...d, title: event.target.value }))}
-              value={draft.title}
-            />
-            {errors.title ? <span className="bp-error">{errors.title}</span> : null}
-          </label>
-          <label className="bp-field">
-            <span className="bp-label">{"提示词"}</span>
-            <Textarea
-              aria-invalid={errors.roleDescription ? true : undefined}
-              className="min-h-32"
-              onChange={(event) => setDraft((d) => ({ ...d, roleDescription: event.target.value }))}
-              rows={6}
-              value={draft.roleDescription}
-            />
-            {errors.roleDescription ? <span className="bp-error">{errors.roleDescription}</span> : null}
-          </label>
-          {update.error ? (
-            <p className="bp-error" role="alert">
-              {update.error.message}
-            </p>
-          ) : null}
-          <div className="bp-form-actions">
-            <Button onClick={cancel} size="sm" type="button" variant="outline">
-              {"取消"}
-            </Button>
-            <Button feedback="save" mutation={update} size="sm" type="submit">
-              {"保存"}
-            </Button>
-          </div>
-        </form>
+        <BotProfileForm
+          agent={agent}
+          firstFieldRef={firstFieldRef}
+          onCancel={() => setEditing(false)}
+          onSaved={() => setEditing(false)}
+          variant="card"
+        />
       </Card>
     );
   }
@@ -342,7 +234,7 @@ function IdentityCard({
         <span className="bp-value">{agent.title}</span>
       </div>
       <div className="bp-row is-block">
-        <span className="bp-label">{"提示词"}</span>
+        <span className="bp-label">{"它做什么"}</span>
         <p className={expanded || !long ? "bp-prompt" : "bp-prompt is-clamped"}>{agent.roleDescription}</p>
         {long ? (
           <button className="bp-more" onClick={() => setExpanded((v) => !v)} type="button">
@@ -525,7 +417,7 @@ export function BotProfilePage({ agent }: { agent: AgentProfile }) {
       backButton={{ label: "机器人", linkProps: { to: "/bots" } }}
       className="bot-profile"
       description={<StatusLine agent={agent} />}
-      media={<AbstractAvatar name={agent.name} seed={agent.avatarSeed} size={56} />}
+      media={<AbstractAvatar agentId={agent.id} name={agent.name} seed={agent.avatarSeed} size={56} />}
       title={agent.name}
     >
       <div ref={identityRef}>

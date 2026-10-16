@@ -1,7 +1,6 @@
 import {
   afterAll,
   afterEach,
-  beforeAll,
   beforeEach,
   expect,
   test,
@@ -16,7 +15,6 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AgentDialog } from "@/components/agents/agent-dialog";
 import type { AgentProfileStore } from "../../server/src/agents/profile-store";
 import type { AgentProfile } from "../../server/src/agents/profile-types";
 import { createAgentRoutes } from "../../server/src/agents/routes";
@@ -38,7 +36,12 @@ import { createAgentRoutes } from "../../server/src/agents/routes";
  * `useNavigate` its General section holds.
  */
 
-beforeAll(() => GlobalRegistrator.register());
+/*
+ * 先注册 happy-dom 再加载组件（DESIGN.md §81 起表单里多了头像窗）：Base UI 在模块加载时就判断有没有 document，
+ * 静态 import 会早于 beforeAll，弹窗就画不出来。
+ */
+GlobalRegistrator.register();
+const { AgentDialog } = await import("@/components/agents/agent-dialog");
 afterEach(cleanup);
 afterAll(() => GlobalRegistrator.unregister());
 
@@ -112,6 +115,8 @@ function serve(endpoint: string) {
       path: Parameters<typeof fetch>[0],
       init?: Parameters<typeof fetch>[1],
     ) => {
+      // 头像（DESIGN.md §81）：这里不测，答「都没设置」。
+      if (path === "/api/bot-avatars") return Response.json({ avatars: {} });
       if (typeof path !== "string" || !path.startsWith("/api/agents/")) {
         throw new Error(`unexpected ${String(path)}`);
       }
@@ -145,9 +150,13 @@ function draw() {
   );
 }
 
+/** 资料表单里的报错（同一页的模型设置在这个测试里没有接口，会有自己的一条，不算）。 */
+const formAlerts = (view: ReturnType<typeof draw>) =>
+  view.queryAllByRole("alert").filter((node) => node.closest('[data-testid="bot-profile-form"]'));
+
 async function rename(view: ReturnType<typeof draw>, to: string) {
   const user = userEvent.setup({ document: view.baseElement.ownerDocument });
-  await user.click(await view.findByRole("button", { name: "编辑 名称" }));
+  await user.click(await view.findByRole("button", { name: "编辑" }));
   const field = view.getByDisplayValue("Expenses");
   await user.clear(field);
   await user.type(field, to);
@@ -162,9 +171,9 @@ test("a built-in coworker can be renamed on a deployment whose own Bot lives on 
 
   // Settled one way or the other: saved, or refused with a sentence under the field.
   await waitFor(() =>
-    expect(updates.length + view.queryAllByRole("alert").length).toBe(1),
+    expect(updates.length + formAlerts(view).length).toBe(1),
   );
-  expect(view.queryByRole("alert")?.textContent ?? null).toBeNull();
+  expect(formAlerts(view)[0]?.textContent ?? null).toBeNull();
   expect(updates[0]).toMatchObject({ name: "Receipts" });
   // The managed address is left where the store keeps it, not sent back as if somebody typed it.
   expect(updates[0]?.endpoint).toBeUndefined();

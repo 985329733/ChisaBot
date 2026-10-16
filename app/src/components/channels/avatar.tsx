@@ -1,9 +1,10 @@
-import Avatar from "boring-avatars";
 import { memo } from "react";
+import { BotAvatar } from "@/components/agents/bot-avatar";
 import { cn } from "@/lib/utils";
 
 /**
- * Memoized roster avatar. Row updates usually change preview/timestamp only, and
+ * Memoized roster avatar. Each face is the shared round `BotAvatar` (uploaded image / emoji / monogram,
+ * else the default pattern seeded by the id — DESIGN.md §81). Row updates usually change preview/timestamp only, and
  * `use-channel-events` preserves participant id arrays for unchanged rows.
  *
  * `size-full` opts the generated SVG out of ancestor icon selectors such as
@@ -25,7 +26,7 @@ export const ChannelAvatar = memo(function ChannelAvatar({
 
   const avatar =
     channelSize === 1 ? (
-      <Avatar className="size-full" name={participantIds[0]} size={size} />
+      <BotAvatar agentId={participantIds[0]} decorative size={size} />
     ) : (
       <div className="flex flex-row items-center size-full">
         {participantIds.slice(0, 3).map((c, i, shown) => (
@@ -38,11 +39,7 @@ export const ChannelAvatar = memo(function ChannelAvatar({
               transform: `translateX(${i * -75}%)`,
             }}
           >
-            <Avatar
-              className="size-full"
-              name={c}
-              size={size / (shown.length / 2)}
-            />
+            <BotAvatar agentId={c} decorative size={size / (shown.length / 2)} />
           </div>
         ))}
       </div>

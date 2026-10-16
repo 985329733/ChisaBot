@@ -51,42 +51,43 @@ export const emptyAgentForm: AgentFormValues = {
   authValue: "",
 };
 
-/** 新建时没写「它做什么」的机器人，左栏副标题写这个。 */
+/** 没写职责、也没写「它做什么」的机器人，左栏副标题写这个。 */
 export const DEFAULT_BOT_TITLE = "私人助手";
 
-const BASELINE = "默认用简体中文，回答清晰、简洁、准确；不确定的事先说明，需要时用工具查证。";
+/** 「它做什么」留空时存这句（它就是提示词；名字、说话方式、简体中文由服务器每轮另外加，见 shared/bot-prompt.ts）。 */
+export const DEFAULT_PURPOSE = "我的私人助手：回答问题、查资料、帮我把事情办好。";
 
 /**
  * 从「它做什么」取一个短职责（左栏副标题）：第一句、去掉开头的「你是 / 你负责 / 负责 / 帮我」，最多 18 个字。
  * 例：「你是我的英语老师，帮我纠正语法」→「我的英语老师」；「帮我记账」→「记账」。
  */
 export function titleFromPurpose(purpose: string): string {
-  const first = purpose.trim().split(/[。！？!?\n；;，,.]/)[0]?.trim() ?? "";
+  const first = purpose.trim().split(/[。！？!?\n；;，,.：:]/)[0]?.trim() ?? "";
   const bare = first.replace(/^(你是|你负责|你要|负责|帮我|请)\s*/, "").trim();
   if (!bare) return DEFAULT_BOT_TITLE;
   return bare.length > 18 ? `${bare.slice(0, 17)}…` : bare;
 }
 
 /**
- * 新建机器人（DESIGN.md §74.2，2026-10-16 功能精简）：表单只有「名称」和可不填的「它做什么」。
- * - 职责（副标题）从「它做什么」的第一句取，没写就是「私人助手」；
- * - 提示词：写了「你是…」开头的整段话，原样用；只写了一句要做的事，前面补「你是「名称」。」、后面补一句基本要求；
- *   什么都没写，就是「你是「名称」。」+ 基本要求。之后都能在机器人资料里改。
- * 输入框保持空白、不放模板（§46）。
+ * 机器人资料表单（新建和编辑是同一张，DESIGN.md §81）：头像 · 名称（必填）· 职责 · 它做什么。
+ * - 职责留空 = 从「它做什么」的第一句取（表单里直接显示这个建议，可以改）；两样都没写是「私人助手」。
+ * - 「它做什么」就是提示词，原样保存，新建和编辑看到的是同一段字；留空存 DEFAULT_PURPOSE。
+ *   以前（§74.2）新建时会在前后补「你是「名称」。」和一句基本要求，编辑时就多出用户没写过的字——不再补：
+ *   名字和说话方式服务器每轮都会加（botIdentityGuidance / WORK_STYLE_GUIDANCE）。
  */
-export function withCreateDefaults(values: AgentFormValues): AgentFormValues {
-  const name = values.name.trim();
+export function withProfileDefaults(values: AgentFormValues): AgentFormValues {
   const purpose = values.roleDescription.trim();
   const title = values.title.trim() || (purpose ? titleFromPurpose(purpose) : DEFAULT_BOT_TITLE);
-  let roleDescription: string;
-  if (!purpose) roleDescription = `你是「${name}」。${BASELINE}`;
-  else if (/^你是/.test(purpose)) roleDescription = purpose;
-  else {
-    const wrapped = `你是「${name}」。${purpose}${/[。！？.!?]$/.test(purpose) ? "" : "。"}\n${BASELINE}`;
-    roleDescription = wrapped.length <= 1000 ? wrapped : purpose;
-  }
-  return { ...values, title, roleDescription };
+  return { ...values, name: values.name.trim(), title, roleDescription: purpose || DEFAULT_PURPOSE };
 }
+
+/** 资料表单只校验这三格；职责、它做什么可以空（保存时补，见 withProfileDefaults）。 */
+export const profileFormSchema = agentFormSchema
+  .pick({ name: true, title: true, roleDescription: true })
+  .extend({
+    title: z.string().trim().max(120, "职责最多 120 个字。"),
+    roleDescription: z.string().trim().max(1000, "「它做什么」最多 1000 个字。"),
+  });
 
 /** Convert form values to API input; omit an empty key so editing preserves the current credential. */
 export function agentInputFrom(values: AgentFormValues) {
