@@ -191,6 +191,7 @@ import { createImService, type ImService, imConnectionOf } from "./im/service";
 import { createLinkPreviews } from "./link-preview/service";
 import { createMemoryNotes } from "./memory-notes/service";
 import { createBotAvatars } from "./bot-avatars/service";
+import { createBrowserBookmarks } from "./browser-bookmarks/service";
 import { createChisaSkills } from "./skills-chisa/tools";
 import { createVault, VAULT_GUIDANCE } from "./vault/service";
 import { createGithub } from "./github/service";
@@ -1261,6 +1262,14 @@ await memoryNotes.ensure();
 /** 机器人头像（DESIGN.md §81）：上传的图片 / 表情 / 首字；没有 = 花纹头像。 */
 const botAvatars = createBotAvatars(database, agentProfileStore);
 await botAvatars.ensure();
+// 浏览器收藏夹（DESIGN §95）：每个用户一份，推给机器人浏览器的起始页。
+const browserBookmarks = createBrowserBookmarks(database, {
+  agents: agentProfileStore,
+  ...(computerGateway?.startLinks
+    ? { pushStartLinks: (botId: string, links: { title: string; url: string }[]) => computerGateway.startLinks!(botId, links) }
+    : {}),
+});
+await browserBookmarks.ensure();
 /** 密钥保险箱（DESIGN.md §52）：API 密钥 / 令牌，值不进模型；api_request 按域名替换。 */
 const vault = createVault(database, { encryptionKey: config.keyEncryptionKey });
 await vault.ensure();
@@ -3656,6 +3665,7 @@ const app = createApp(
       ["/api/im", imService!.routes(requireUser)],
       ["/api/memory-notes", memoryNotes.routes(requireUser)],
       ["/api/bot-avatars", botAvatars.routes(requireUser)],
+      ["/api/browser-bookmarks", browserBookmarks.routes(requireUser)],
       ["/api/chisa-skills", chisaSkills.routes(requireUser)],
       ["/api/vault", vault.routes(requireUser)],
       ["/api/github", github.routes(requireUser)],

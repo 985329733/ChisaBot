@@ -500,6 +500,47 @@ export function createComputerRoutes(
    * The takeover is the audited event; what the person typed during it is deliberately unrecorded,
    * because the reason a takeover exists is to let them enter the thing nothing else should keep.
    */
+  /* ---------- 浏览器标签（DESIGN.md §95） ---------- */
+
+  routes.get("/:botId/tabs", async (context) => {
+    if (!gateway.tabs) return context.json({ error: "这个计算机不支持标签页。" }, 404);
+    try {
+      return context.json(await gateway.tabs(context.req.param("botId")));
+    } catch (error) {
+      return context.json(errorBody(error), statusFor(error));
+    }
+  });
+
+  /** 机器人开 / 切 / 关标签（computer_tabs 工具）。人接管时被计算机拒绝。 */
+  routes.post("/:botId/tabs", (context) =>
+    act(context, (botId, actor, body) => {
+      if (!gateway.tabAction) return { error: "这个计算机不支持标签页。" };
+      const action = body?.action;
+      if (action !== "new" && action !== "activate" && action !== "close")
+        return { error: "action 只能是 new / activate / close。" };
+      return gateway.tabAction(botId, actor, {
+        action,
+        ...(typeof body?.id === "string" ? { id: body.id } : {}),
+        ...(typeof body?.url === "string" && body.url.trim() ? { url: body.url.trim() } : {}),
+        ...(typeof body?.toolCallId === "string" ? { toolCallId: body.toolCallId } : {}),
+      });
+    }),
+  );
+
+  /** 人接管时自己的标签操作（标签栏上的 + / × / 点击）。 */
+  routes.post("/:botId/human/tab", (context) =>
+    act(context, (botId, _actor, body) => {
+      if (!gateway.humanTab) return { error: "这个计算机不支持标签页。" };
+      const action = body?.action;
+      if (action !== "new" && action !== "activate" && action !== "close")
+        return { error: "action 只能是 new / activate / close。" };
+      return gateway.humanTab(botId, {
+        action,
+        ...(typeof body?.id === "string" ? { id: body.id } : {}),
+      });
+    }),
+  );
+
   routes.post("/:botId/human/:kind", async (context) => {
     const kind = context.req.param("kind");
     if (

@@ -6,6 +6,7 @@ import { keepShot, ScreenshotCard, shrinkPng } from "@/components/computer/scree
 import { readScreenshot } from "@/lib/computers/screen";
 import { reportComputerActivity } from "@/lib/copilot/computer-activity";
 import { tryClient } from "@/lib/client";
+import { syncStartLinks } from "@/lib/browser-bookmarks";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { callComputer, type ToolOutcome } from "@/lib/computers/call";
 import { type ControlState, readControl } from "@/lib/computers/control";
@@ -58,6 +59,8 @@ type ComputerOutcome = {
   stopped?: boolean;
   humanHasControl?: boolean;
   entries?: unknown[];
+  /** computer_tabs action=new 带网址时，新标签里打开的那页。 */
+  page?: { url?: string; title?: string };
   refused?: boolean;
   reason?: string;
   staleRefs?: boolean;
@@ -274,6 +277,151 @@ export function ComputerTools() {
       }: { signal?: AbortSignal; toolCall?: { id?: string } } = {},
     ) => runBrowserRead(bot.current, "/read", toolCall?.id, signal),
     render: () => null,
+  });
+
+  // 浏览器多标签（DESIGN.md §95）：列出 / 新开 / 切换 / 关闭。机器人总是在「当前标签」上操作。
+  useFrontendTool({
+    available,
+    name: "computer_tabs",
+    description:
+      "Manage the tabs of your browser (the person sees the same tabs). Every other computer_ tool acts on the " +
+      "ACTIVE tab. action=list shows the open tabs (id, title, url, which is active). action=new opens a new tab " +
+      "and makes it active; pass url to open a page in it (use this when you want to keep the current page open, " +
+      "e.g. to compare two pages). action=switch makes tab `id` active. action=close closes tab `id`. " +
+      "At most 8 tabs; close ones you no longer need. If a person has taken control, wait for them.",
+    parameters: z.object({
+      action: z.enum(["list", "new", "switch", "close"]).describe("What to do."),
+      id: z.string().optional().describe("Tab id from action=list, for switch / close."),
+      url: z.string().optional().describe("For action=new: the page to open in the new tab (full https:// address)."),
+    }),
+    handler: async (
+      { action, id, url }: { action: "list" | "new" | "switch" | "close"; id?: string; url?: string },
+      { signal, toolCall }: { signal?: AbortSignal; toolCall?: { id?: string } } = {},
+    ) => {
+      const computerId = bot.current;
+      if (action === "list") return callComputer(computerId, "/tabs", undefined, signal);
+      if ((action === "switch" || action === "close") && !id)
+        return { ok: false, reason: "Pass the tab id from computer_tabs action=list." };
+      const result = await callComputer(
+        computerId,
+        "/tabs",
+        {
+          method: "POST",
+          body: {
+            action: action === "switch" ? "activate" : action,
+            ...(id ? { id } : {}),
+            ...(url ? { url, ...(toolCall?.id ? { toolCallId: toolCall.id } : {}) } : {}),
+          },
+        },
+        signal,
+      );
+      if (result.ok && url) noteBrowsed(computerId);
+      return result;
+    },
+    render: ({ args, status, result }) => {
+      const a = (args ?? {}) as { action?: string; url?: string };
+      const finished = status === "complete" || result !== undefined;
+      const outcome = finished ? outcomeOf(result) : {};
+      // 只有「新开标签并打开网页」出一行小条；列出 / 切换 / 关闭不占对话。
+      if (a.action !== "new" || !a.url) return null;
+      return (
+        <BrowseChip
+          state={!finished ? "running" : outcome.ok === false ? "failed" : "done"}
+          url={a.url}
+          {...(typeof outcome.page === "object" && outcome.page && typeof (outcome.page as { title?: unknown }).title === "string"
+            ? { title: (outcome.page as { title: string }).title }
+            : {})}
+        />
+      );
+    },
+  });
+
+  // 收藏夹（DESIGN.md §95）：读、打开；只有用户明确要求时才收藏 / 删除。
+  useFrontendTool({
+    available,
+    name: "computer_bookmarks",
+    description:
+      "The person's browser bookmarks (收藏夹), shared by all their bots. action=list returns them (id, title, url). " +
+      "action=open opens bookmark `id` in your browser (newTab=true keeps the current page in its own tab). " +
+      "action=add bookmarks `url` (or the active page when url is omitted) and action=remove deletes bookmark `id` — " +
+      "ONLY do add/remove when the person explicitly asks you to bookmark (收藏) or un-bookmark something.",
+    parameters: z.object({
+      action: z.enum(["list", "open", "add", "remove"]),
+      id: z.string().optional().describe("Bookmark id from action=list, for open / remove."),
+      url: z.string().optional().describe("For add: the address to bookmark. Omit to bookmark the active tab."),
+      title: z.string().optional().describe("For add: a short name."),
+      newTab: z.boolean().optional().describe("For open: open in a new tab."),
+    }),
+    handler: async (
+      input: { action: "list" | "open" | "add" | "remove"; id?: string; url?: string; title?: string; newTab?: boolean },
+      { signal, toolCall }: { signal?: AbortSignal; toolCall?: { id?: string } } = {},
+    ) => {
+      const computerId = bot.current;
+      const listed = await tryClient("/api/browser-bookmarks", signal ? { signal } : {}).catch(() => null);
+      const listBody = (await listed?.json().catch(() => null)) as { bookmarks?: { id: string; title: string; url: string }[] } | null;
+      if (!listed?.ok || !listBody?.bookmarks) return { ok: false, reason: "The bookmarks could not be read." };
+      const bookmarks = listBody.bookmarks.map(({ id, title, url }) => ({ id, title, url }));
+      if (input.action === "list") return { ok: true, bookmarks };
+      if (input.action === "open") {
+        const found = bookmarks.find((bookmark) => bookmark.id === input.id);
+        if (!found) return { ok: false, reason: "No bookmark with that id; call action=list first." };
+        if (input.newTab) {
+          const result = await callComputer(
+            computerId,
+            "/tabs",
+            { method: "POST", body: { action: "new", url: found.url, ...(toolCall?.id ? { toolCallId: toolCall.id } : {}) } },
+            signal,
+          );
+          if (result.ok) noteBrowsed(computerId);
+          return result;
+        }
+        const result = await runNavigation(computerId, found.url, toolCall?.id, signal);
+        if (result.ok) noteBrowsed(computerId);
+        return result;
+      }
+      if (input.action === "remove") {
+        if (!input.id) return { ok: false, reason: "Pass the bookmark id." };
+        const response = await tryClient(`/api/browser-bookmarks/${encodeURIComponent(input.id)}`, { method: "DELETE" }).catch(() => null);
+        if (response?.ok) syncStartLinks(computerId);
+        return response?.ok ? { ok: true, removed: input.id } : { ok: false, reason: "That bookmark could not be removed." };
+      }
+      let url = input.url;
+      if (!url) {
+        const tabs = await callComputer(computerId, "/tabs", undefined, signal);
+        const active = Array.isArray(tabs.tabs)
+          ? (tabs.tabs as { active?: boolean; url?: string }[]).find((tab) => tab.active)
+          : undefined;
+        url = active?.url;
+        if (!url || !/^https?:\/\//i.test(url)) return { ok: false, reason: "The active tab is not a web page; pass url." };
+      }
+      const response = await tryClient("/api/browser-bookmarks", {
+        method: "POST",
+        body: { url, ...(input.title ? { title: input.title } : {}) },
+      }).catch(() => null);
+      const body = (await response?.json().catch(() => null)) as { bookmark?: unknown; error?: string } | null;
+      if (!response?.ok) return { ok: false, reason: body?.error ?? "That page could not be bookmarked." };
+      syncStartLinks(computerId);
+      return { ok: true, bookmark: body?.bookmark };
+    },
+    render: ({ args, status, result }) => {
+      const a = (args ?? {}) as { action?: string; url?: string };
+      if (a.action !== "open") return null;
+      const finished = status === "complete" || result !== undefined;
+      const outcome = finished ? outcomeOf(result) : {};
+      const opened =
+        typeof outcome.url === "string"
+          ? outcome.url
+          : typeof outcome.page === "object" && outcome.page
+            ? (outcome.page as { url?: string }).url
+            : undefined;
+      return (
+        <BrowseChip
+          state={!finished ? "running" : outcome.ok === false ? "failed" : "done"}
+          {...(opened ? { url: opened } : {})}
+          {...(typeof outcome.title === "string" ? { title: outcome.title } : {})}
+        />
+      );
+    },
   });
 
   // 用户要「截个图」：截当前画面，对话里放缩略图（图片只存本机，不进模型上下文）。

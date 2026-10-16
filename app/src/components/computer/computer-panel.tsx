@@ -44,7 +44,7 @@ export function ComputerViewPanel({
           <span className="computer-status-text is-idle">{"机器人用浏览器时，这里会实时显示画面和它在做什么"}</span>
         )}
       </div>
-      <ComputerView active computerId={agentId} name={name} minWidth={0} minHeight={0} />
+      <ComputerView active browserChrome computerId={agentId} name={name} minWidth={0} minHeight={0} />
       <div className={variant === "rail" ? "computer-rail-activity" : "mt-8"}>
         <h3 className="mb-2 font-medium text-sm">{"活动"}</h3>
         <ActivityLog computerId={agentId} />

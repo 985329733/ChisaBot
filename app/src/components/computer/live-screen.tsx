@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import {
   type FormEvent,
+  type MutableRefObject,
   type ReactNode,
   useCallback,
   useEffect,
@@ -14,6 +15,7 @@ import {
   useState,
 } from "react";
 import { readControl } from "@/lib/computers/control";
+import { setTabsView } from "@/lib/computers/tabs";
 import {
   connectScreen,
   type ScreenSocket,
@@ -111,6 +113,19 @@ type Props = {
   aspectRatio?: number;
   /** Drawn over the screen (for example the "disconnected, retry" sheet). */
   children?: ReactNode;
+  /** 地址栏上面（标签栏，DESIGN §95）。 */
+  aboveUrlbar?: ReactNode;
+  /** 地址栏下面（收藏栏）。看着和接管时都显示。 */
+  belowUrlbar?: ReactNode;
+  /** 地址栏右端（收藏星标），拿到当前页网址。 */
+  urlbarEnd?: (pageUrl: string) => ReactNode;
+  /** 让外面（收藏栏）也能打开网址：接管中才生效，返回是否发出去了。 */
+  controllerRef?: MutableRefObject<LiveScreenController | null>;
+};
+
+export type LiveScreenController = {
+  openUrl: (url: string) => boolean;
+  ready: () => boolean;
 };
 
 type FrameMessage = {
@@ -181,6 +196,10 @@ export function LiveScreen({
   retryKey = 0,
   aspectRatio = 1280 / 800,
   children,
+  aboveUrlbar,
+  belowUrlbar,
+  urlbarEnd,
+  controllerRef,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -311,6 +330,11 @@ export function LiveScreen({
         ok?: unknown;
       };
       if (typeof message.type !== "string") return;
+      // 标签列表（DESIGN §95）：直播 socket 每次有变化就推一次，写进标签栏读的那份仓库。
+      if (message.type === "tabs") {
+        setTabsView(computerId, parsed);
+        return;
+      }
       if (typeof message.url === "string" && message.url.length < 4096) {
         // 打不开时 Chrome 停在 chrome-error://，地址栏留着用户刚输入的网址，方便改了再试。
         if (
@@ -641,9 +665,29 @@ export function LiveScreen({
     navigate({ type: "navigate", url });
   };
   const toolbarDisabled = !driving || !connected;
+  const openUrlRef = useRef<(url: string) => boolean>(() => false);
+  openUrlRef.current = (url: string) => {
+    if (!driving || !inputReady.current) return false;
+    setDraft(null);
+    lastAttempt.current = url;
+    setPageUrl(url);
+    navigate({ type: "navigate", url });
+    return true;
+  };
+  useEffect(() => {
+    if (!controllerRef) return;
+    controllerRef.current = {
+      openUrl: (url) => openUrlRef.current(url),
+      ready: () => inputReady.current,
+    };
+    return () => {
+      controllerRef.current = null;
+    };
+  }, [controllerRef]);
 
   return (
     <div className="computer-live flex flex-col gap-2">
+      {aboveUrlbar}
       {driving ? (
         <form
           aria-label={"浏览器地址栏"}
@@ -702,8 +746,10 @@ export function LiveScreen({
               value={draft ?? pageUrl}
             />
           </label>
+          {urlbarEnd?.(pageUrl)}
         </form>
       ) : null}
+      {belowUrlbar}
       {driving && navProblem ? (
         <p className="computer-urlbar-problem" role="alert">
           {navProblem}

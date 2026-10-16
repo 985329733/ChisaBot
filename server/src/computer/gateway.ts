@@ -73,6 +73,9 @@ import type {
   ReadFileInput,
   ReadFileResult,
   ReadResult,
+  StartLink,
+  TabAction,
+  TabsView,
   RunCommandInput,
   RunCommandResult,
   ScreenshotResult,
@@ -150,6 +153,18 @@ export interface ComputerGateway {
   screenshot(botId: string): Promise<ScreenshotResult>;
   snapshot(botId: string): Promise<SnapshotResult>;
   read(botId: string): Promise<ReadResult>;
+  /** 标签列表（不拉起浏览器）。可选：测试里的假网关不用实现。 */
+  tabs?(botId: string): Promise<TabsView>;
+  /** 机器人开 / 切 / 关标签；新开时带网址就在新标签里打开（打开这一步照常经过策略和审计）。 */
+  tabAction?(
+    botId: string,
+    actor: ActionActor,
+    input: { action: TabAction; id?: string; url?: string; toolCallId?: string },
+  ): Promise<TabsView & { page?: NavigateResult }>;
+  /** 人接管时自己的标签操作。 */
+  humanTab?(botId: string, input: { action: TabAction; id?: string }): Promise<TabsView>;
+  /** 把收藏夹推给这个机器人的浏览器，起始页上的常用网站跟着变。 */
+  startLinks?(botId: string, links: StartLink[]): Promise<{ ok: boolean; count: number }>;
   navigate(
     botId: string,
     actor: ActionActor,
@@ -738,12 +753,53 @@ export function createComputerGateway(
       : result;
   }
 
+  const TAB_ACTIONS = new Set<TabAction>(["new", "activate", "close"]);
+  async function navigateGoverned(
+    botId: string,
+    actor: ActionActor,
+    url: string,
+    toolCallId?: string,
+  ): Promise<NavigateResult> {
+    const target = workspaceUrlFor(url);
+    return govern(
+      "computer_navigate",
+      botId,
+      actor,
+      { targetUrl: target },
+      async () => transport.navigate(await locate(botId), botId, target, toolCallId),
+    ).then((result) => withUntrustedNotice(result, "web page", PAGE_FIELDS));
+  }
+
   return {
     provider,
     locate,
     screenshot,
     snapshot,
     read,
+
+    tabs(botId: string) {
+      return get<TabsView>(botId, "/tabs");
+    },
+
+    async tabAction(botId, actor, input) {
+      if (!TAB_ACTIONS.has(input.action)) throw new Error("标签页操作只能是 new / activate / close。");
+      if (input.action === "new") {
+        const view = await post<TabsView>(botId, "/tabs/new", {});
+        if (!input.url) return view;
+        const page = await navigateGoverned(botId, actor, input.url, input.toolCallId);
+        return { ...(await get<TabsView>(botId, "/tabs")), page };
+      }
+      return post<TabsView>(botId, `/tabs/${input.action}`, { id: input.id });
+    },
+
+    humanTab(botId, input) {
+      if (!TAB_ACTIONS.has(input.action)) throw new Error("标签页操作只能是 new / activate / close。");
+      return post<TabsView>(botId, "/human/tab", { action: input.action, id: input.id });
+    },
+
+    startLinks(botId, links) {
+      return post<{ ok: boolean; count: number }>(botId, "/start-links", { links });
+    },
 
     status(botId: string): Promise<ComputerStatus> {
       return provider.status(botId);

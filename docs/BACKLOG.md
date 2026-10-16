@@ -85,6 +85,7 @@
 | [CB-076](#cb-076) | 「模型老断」：长命令 / 断线 / 部署重启时这一轮被误报成「连不上模型服务」 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-078](#cb-078) | 窄窗口里输入框两边没有间距 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-079](#cb-079) | 简单回合隐藏步骤卡；回答下面的空气泡和多余空白 | 成熟度 Maturity | `type: bug` · `area: chat` · `P1` · `status: done` |
+| [CB-081](#cb-081) | 机器人浏览器多标签 + 收藏夹 | 成熟度 Maturity | `type: feat` · `area: computer` · `P1` · `status: done` |
 
 ## CB-001
 
@@ -1232,6 +1233,23 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 
 #### 验收标准
 - [ ] P4 上线两周后按使用情况给出建议；动 ChisaCloudCode 之前问用户
+
+## CB-081
+
+**机器人浏览器多标签 + 收藏夹**  
+里程碑：成熟度 Maturity · 标签：`type: feat` `area: computer` `P1` `status: done`
+
+用户 2026-10-16（「ChisaBot 浏览器」截图）：「这个浏览器。需要增加标签，可以多个浏览器，还需要增加一个收藏夹。」DESIGN.md §95，docs/browser-tabs.md。
+
+#### 验收标准
+- [x] 大屏 / 右栏 / 手机都有标签栏：多个真标签（机器人和人看到同一组），+ 新开、× 关、点击切换、标题 + 图标、当前高亮、放不下横向滚动
+- [x] 只看着时标签栏显示机器人在哪个标签上；接管后才能切 / 关 / 开
+- [x] 机器人工具 `computer_tabs`（list / new / switch / close），其余电脑工具跟着当前标签；直播跟着当前标签
+- [x] 上限 8 个，超出有明确提示；浏览器重启后恢复标签
+- [x] 收藏夹：星标收藏 / 取消、收藏栏（窄屏下拉）、改名 / 改网址 / 排序 / 删除；每用户一份、所有机器人共用；新表只新增；第一次使用放进起始页原来的五个；起始页常用网站 = 收藏夹
+- [x] 机器人能读收藏、打开收藏；只有用户要求时才增删
+- [x] 「多个浏览器」：按多标签做（理由见 DESIGN §95.1）
+- [x] 回归：`agent-computer/tests/tabs.test.ts`、`server/tests/browser-bookmarks.test.ts`、`server/tests/computer-tabs-routes.test.ts`、`app/tests/browser-tabs.test.tsx`、预览 e2e
 
 ## 已完成
 

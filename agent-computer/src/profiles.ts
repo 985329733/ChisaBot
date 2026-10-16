@@ -42,6 +42,26 @@ import { browserRuntimeFromEnv } from "./browser-runtime";
 import { egressFor, egressLabel } from "./egress";
 import { numberFromEnv, settleWithin } from "./env";
 import { chooseLivePage } from "./live-page";
+import { whileNavigating } from "./start-page";
+import {
+  findTab,
+  MAX_TABS,
+  neighbourAfterClose,
+  openTabs,
+  RESTORE_TABS,
+  readSavedTabs,
+  restorableUrl,
+  type SavedTabs,
+  savedTabsFrom,
+  TAB_LIMIT_MESSAGE,
+  TabError,
+  type TabInfo,
+  type TabsView,
+  tabIdOf,
+  tabTitle,
+  within,
+  writeSavedTabs,
+} from "./tabs";
 import { botIdsIn } from "./profile-listing";
 import {
   type SessionCookieKeeper,
@@ -279,6 +299,13 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
     usedAt: number;
     /** Point `page` at whatever is open now. Called on every page opening and closing. */
     retarget: () => void;
+    /**
+     * 明确选中的标签（人或机器人切过去的、刚新开的）。关掉了就回到「最新打开的那页」。
+     * 网站弹出的窗口也会成为 pinned，和以前「跟着弹窗走」一样。
+     */
+    pinned?: Page;
+    /** 标签有变化（开 / 关 / 切 / 跳转）时调用：防抖写盘。 */
+    tabsChanged: () => void;
     /** Keeps this browser's session cookies on the profile volume. Absent for a native Chrome. */
     sessionCookies?: SessionCookieKeeper;
   };
@@ -419,7 +446,104 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
     );
   };
 
-  return {
+
+  /** 恢复保存的标签：第一页用启动时那张空白页，其余新开；最后切到上次的当前标签。 */
+  async function restoreTabs(record: LiveBrowser, saved: SavedTabs): Promise<void> {
+    const go = (target: Page, url: string) =>
+      void whileNavigating(target, () =>
+        target.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 }),
+      ).catch(() => undefined);
+    // 在启动里等页面建好（不等加载），这样启动返回时当前标签已经定了，机器人第一下操作不会被后建的标签抢走。
+    await (async () => {
+      const opened: Page[] = [];
+      const first = record.page;
+      if (first.url() === "about:blank" && saved.tabs[0]) {
+        opened.push(first);
+        go(first, saved.tabs[0].url);
+      }
+      for (const tab of saved.tabs.slice(opened.length)) {
+        if (openTabs(record.context.pages()).length >= MAX_TABS) break;
+        const created = await record.context.newPage().catch(() => undefined);
+        if (!created) break;
+        opened.push(created);
+        go(created, tab.url);
+      }
+      const wanted = opened[saved.active] ?? opened[0];
+      if (wanted && !wanted.isClosed()) {
+        record.pinned = wanted;
+        record.retarget();
+      }
+    })().catch(() => undefined);
+  }
+
+  async function describeTab(page: Page, active: boolean): Promise<TabInfo> {
+    const url = page.url();
+    const title = await within(page.title(), 800, "");
+    return {
+      id: tabIdOf(page),
+      url,
+      title: tabTitle(url, title),
+      active,
+      ...(await faviconOf(page)),
+    };
+  }
+
+  /** 网页自己声明的图标，经浏览器自己的网络（同一个代理）取回，转成 data:，按地址缓存。 */
+  const icons = new Map<string, string | null>();
+  async function faviconOf(page: Page): Promise<{ favicon?: string }> {
+    const url = page.url();
+    if (!restorableUrl(url)) return {};
+    let href: string | null = null;
+    try {
+      href = await within(
+        page.evaluate(() => {
+          const link = document.querySelector<HTMLLinkElement>(
+            'link[rel~="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]',
+          );
+          return link?.href || new URL("/favicon.ico", location.href).href;
+        }),
+        600,
+        null as string | null,
+      );
+    } catch {
+      href = null;
+    }
+    if (!href || !/^https?:\/\//i.test(href)) return {};
+    if (icons.has(href)) {
+      const known = icons.get(href);
+      return known ? { favicon: known } : {};
+    }
+    if (icons.size > 400) icons.clear();
+    icons.set(href, null);
+    void (async () => {
+      try {
+        const response = await page.context().request.get(href as string, { timeout: 4_000, maxRedirects: 3 });
+        if (!response.ok()) return;
+        const body = await response.body();
+        if (body.length === 0 || body.length > 64 * 1024) return;
+        const type = (response.headers()["content-type"] ?? "").split(";")[0]?.trim() ?? "";
+        const mime = /^image\/(png|x-icon|vnd\.microsoft\.icon|svg\+xml|gif|jpeg|webp)$/.test(type)
+          ? type
+          : body[0] === 0x89
+            ? "image/png"
+            : "image/x-icon";
+        icons.set(href as string, `data:${mime};base64,${body.toString("base64")}`);
+      } catch {
+        // 拿不到就画首字母。
+      }
+    })();
+    return {};
+  }
+
+  /** 正在运行的浏览器；没在运行就拉起来（开 / 切 / 关标签都要真的浏览器）。 */
+  async function running(botId: string): Promise<LiveBrowser> {
+    await api.page(botId);
+    const record = live.get(botId);
+    if (!record) throw new TabError("浏览器没有在运行。", 409);
+    return record;
+  }
+
+  const api = {
     /**
      * The Bot's page, starting its browser if it is not running.
      *
@@ -524,10 +648,34 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
           startedAt: new Date().toISOString(),
           usedAt: Date.now(),
           retarget: () => {},
+          tabsChanged: () => {},
           ...(sessionCookies ? { sessionCookies } : {}),
         };
+        let saveTimer: ReturnType<typeof setTimeout> | undefined;
+        record.tabsChanged = () => {
+          if (LOCAL_CHROME) return;
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => {
+            saveTimer = undefined;
+            if (live.get(botId) !== record) return;
+            const pages = openTabs(context.pages());
+            const saved = savedTabsFrom(
+              pages.map((p) => ({ url: p.url(), title: "", active: p === record.page })),
+            );
+            void writeSavedTabs(dir, saved).catch(() => undefined);
+          }, 800);
+        };
+        const watchPage = (watched: Page) => {
+          watched.on("framenavigated", (frame) => {
+            if (frame === watched.mainFrame()) record.tabsChanged();
+          });
+        };
+        watchPage(page);
         record.retarget = () => {
-          const next = chooseLivePage(context.pages());
+          const pinned =
+            record.pinned && !record.pinned.isClosed() ? record.pinned : undefined;
+          if (!pinned) record.pinned = undefined;
+          const next = pinned ?? chooseLivePage(context.pages());
           if (!next || next === record.page) return;
           record.page = next;
           console.info(
@@ -541,13 +689,29 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
         // Without this the Bot stays pinned to the page it launched with, so a sign-in the site opens
         // in a new window is neither shown to the person taking the wheel nor reachable by input.
         context.on("page", (opened) => {
+          // 新开的标签、网站弹出的窗口：成为当前标签（和以前跟着弹窗走一样）。
+          record.pinned = opened;
           record.retarget();
+          watchPage(opened);
+          record.tabsChanged();
           // A popup closes itself when it succeeds, and the record must move back to the opener
           // rather than leave a closed page to be read as a dead browser.
-          opened.on("close", () => record.retarget());
+          opened.on("close", () => {
+            record.retarget();
+            record.tabsChanged();
+          });
         });
-        page.on("close", () => record.retarget());
+        page.on("close", () => {
+          record.retarget();
+          record.tabsChanged();
+        });
         live.set(botId, record);
+        // 上次关浏览器时开着的标签（重启、部署、空闲关闭之后）。不等它们加载完。
+        if (RESTORE_TABS && !LOCAL_CHROME) {
+          const saved = await readSavedTabs(dir);
+          if (saved && saved.tabs.length > 0)
+            await within(restoreTabs(record, saved), 10_000, undefined);
+        }
         // After the new one is in the map, so the cap counts what is really running and the Bot that
         // just asked is the most recently used and therefore never the one closed.
         await enforceCap();
@@ -660,7 +824,89 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
     sweepIdleNow(): Promise<void> {
       return sweepIdle();
     },
+
+    /**
+     * 这个机器人的标签。浏览器没在运行时不去拉起它，只列出上次保存的（running: false），
+     * 所以界面轮询标签不会把一个已经关掉的浏览器重新打开。
+     */
+    async tabs(botId: string): Promise<TabsView> {
+      const record = live.get(botId);
+      if (!record || !record.context.browser()?.isConnected()) {
+        const saved = LOCAL_CHROME ? null : await readSavedTabs(directoryFor(botId));
+        return {
+          running: false,
+          max: MAX_TABS,
+          activeId: null,
+          tabs: (saved?.tabs ?? []).map((tab, index) => ({
+            id: `saved-${index}`,
+            url: tab.url,
+            title: tabTitle(tab.url, tab.title),
+            active: index === saved?.active,
+          })),
+        };
+      }
+      record.retarget();
+      const pages = openTabs(record.context.pages());
+      const tabs = await Promise.all(pages.map((p) => describeTab(p, p === record.page)));
+      return {
+        running: true,
+        max: MAX_TABS,
+        activeId: record.page.isClosed() ? null : tabIdOf(record.page),
+        tabs,
+      };
+    },
+
+    /** 正在运行的浏览器里所有打开着的页面（不拉起浏览器）。 */
+    async pagesOf(botId: string): Promise<Page[]> {
+      const record = live.get(botId);
+      return record ? openTabs(record.context.pages()) : [];
+    },
+
+    /** 新开一个标签并切过去（空白页，起始页由 ensureStartPage 画上）。 */
+    async openTab(botId: string): Promise<Page> {
+      const record = await running(botId);
+      if (openTabs(record.context.pages()).length >= MAX_TABS)
+        throw new TabError(TAB_LIMIT_MESSAGE, 409);
+      const created = await record.context.newPage();
+      record.pinned = created;
+      record.retarget();
+      record.usedAt = Date.now();
+      return created;
+    },
+
+    async activateTab(botId: string, id: string): Promise<Page> {
+      const record = await running(botId);
+      const target = findTab(record.context.pages(), id);
+      if (!target) throw new TabError("这个标签页已经关掉了。", 404);
+      record.pinned = target;
+      record.retarget();
+      record.usedAt = Date.now();
+      record.tabsChanged();
+      await target.bringToFront().catch(() => undefined);
+      return target;
+    },
+
+    /** 关掉一个标签。只剩这一个时换成一张新的空白页，浏览器本身不关。 */
+    async closeTab(botId: string, id: string): Promise<Page> {
+      const record = await running(botId);
+      const pages = record.context.pages();
+      const target = findTab(pages, id);
+      if (!target) throw new TabError("这个标签页已经关掉了。", 404);
+      if (openTabs(pages).length <= 1) {
+        const fresh = await record.context.newPage();
+        record.pinned = fresh;
+      } else {
+        record.pinned = neighbourAfterClose(pages, target, record.page);
+      }
+      await target.close().catch(() => undefined);
+      record.retarget();
+      record.usedAt = Date.now();
+      record.tabsChanged();
+      if (!record.page.isClosed()) await record.page.bringToFront().catch(() => undefined);
+      return record.page;
+    },
   };
+  return api;
 }
 
 export type Profiles = ReturnType<typeof createProfiles>;
