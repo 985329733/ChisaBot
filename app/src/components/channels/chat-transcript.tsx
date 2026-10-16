@@ -1170,7 +1170,9 @@ export function sameAttachmentRow(
       attachment.attachmentId === other.attachmentId &&
       attachment.url === other.url &&
       attachment.filename === other.filename &&
-      attachment.modality === other.modality
+      attachment.modality === other.modality &&
+      attachment.width === other.width &&
+      attachment.height === other.height
     );
   });
 }
@@ -1231,6 +1233,7 @@ function AttachmentTiles({
             images={pictures.map((picture) => ({
               src: picture.url,
               ...(picture.filename ? { name: picture.filename, alt: `附件：${picture.filename}` } : { alt: "附件" }),
+              ...(picture.width && picture.height ? { width: picture.width, height: picture.height } : {}),
             }))}
           />
         </li>

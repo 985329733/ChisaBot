@@ -1,3 +1,4 @@
+import { readImageDims } from "@/lib/image-dims";
 import type { ActivityMessage, Message, ToolCall } from "@ag-ui/core";
 import { classifyAttachment } from "@/lib/channels/attachments";
 
@@ -48,6 +49,9 @@ export type SentAttachment = {
   url: string;
   filename?: string;
   modality: "image" | "document";
+  /** 图片的像素宽高（part 的 metadata，DESIGN.md §83.2）；没有就画的时候不留框。 */
+  width?: number;
+  height?: number;
 };
 
 /**
@@ -137,15 +141,20 @@ function attachmentIdFromUrl(url: string): string {
 function readAttachmentMetadata(part: { type: string }): {
   attachmentId?: string;
   filename?: string;
+  width?: number;
+  height?: number;
 } {
   const raw = (part as { metadata?: unknown }).metadata;
   if (typeof raw !== "object" || raw === null) return {};
-  const { attachmentId, filename } = raw as {
+  const { attachmentId, filename, width, height } = raw as {
     attachmentId?: unknown;
     filename?: unknown;
+    width?: unknown;
+    height?: unknown;
   };
 
   return {
+    ...readImageDims(width, height),
     ...(typeof attachmentId === "string" && attachmentId
       ? { attachmentId }
       : {}),
@@ -520,6 +529,7 @@ export function toVisibleChatItems(
         url,
         // Already narrowed to a non-empty string, or absent: see `readAttachmentMetadata`.
         ...(metadata.filename ? { filename: metadata.filename } : {}),
+        ...(metadata.width && metadata.height ? { width: metadata.width, height: metadata.height } : {}),
         /*
          * `source.mimeType` IS ALWAYS ABSENT HERE, AND THAT IS NO LONGER THE PROBLEM IT WAS.
          *

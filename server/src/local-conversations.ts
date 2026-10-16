@@ -6,6 +6,7 @@ import { estimateTokens, readingFromRunFinished, type ThreadContextReading } fro
 import { withConfirmTurn } from "./confirmations/context";
 import { anchorsPresent, INBOX_TEXT_LIMIT, newSteerSession, ThreadInbox, type TranscriptInjection, weaveMessages, withSteering } from "./thread-inbox";
 import type { Database } from "./db/client";
+import { imageDimsFor } from "./image-dims";
 import { afterTruncate, dropTombstoned, ensureTruncationTable, tombstones, TruncateError, truncateThread, workersSince } from "./thread-truncate";
 
 /**
@@ -582,7 +583,8 @@ class PostgresAgentRunner extends AgentRunner {
         if (request.agentId && row.agent_id !== request.agentId) throw new LocalConversationError("Thread not found", 404);
         const saved = await this.store.events(request.threadId);
         lastSequence = saved.length ? BigInt(saved[saved.length - 1]!.sequence) : 0n;
-        for (const event of slimReplay(compactEvents(saved.map((item) => item.event)))) subscriber.next(event);
+        const replay = await imageDimsFor(this.store.database).annotateEvents(slimReplay(compactEvents(saved.map((item) => item.event))));
+        for (const event of replay) subscriber.next(event);
         ready = true;
         for (const item of pending) if (item.sequence > lastSequence) {
           lastSequence = item.sequence;
@@ -800,7 +802,8 @@ export async function createLocalConversations(database: Database): Promise<Loca
       const requestedAgent = url.searchParams.get("agentId");
       if (requestedAgent && requestedAgent !== row.agent_id) throw new LocalConversationError("Thread not found", 404);
       if (request.method === "GET") {
-        if (operation === "messages") return Response.json({ messages: row.messages });
+        // 图片带上宽高，网页先按比例留框（DESIGN.md §83.2）。只改回给浏览器的这份，不改存储。
+        if (operation === "messages") return Response.json({ messages: await imageDimsFor(database).annotateMessages(row.messages) });
         if (operation === "state") return Response.json({ state: row.state });
         if (operation === "context") return Response.json({ context: await contextReading(threadId, row.messages) });
         if (operation === "stopped") return Response.json({ userMessageIds: await stoppedTurns(threadId, row.messages) });
