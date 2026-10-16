@@ -1,179 +1,62 @@
-import {
-  IconAdjustmentsHorizontal,
-  IconAlarm,
-  IconBookmark,
-  IconBrain,
-  IconCloudComputing,
-  IconCloudDownload,
-  IconDeviceDesktop,
-  IconListDetails,
-  IconLock,
-  IconMessageChatbot,
-  IconPhoto,
-  IconMessageCircle,
-  IconPlug,
-  IconPuzzle,
-  IconRoute,
-  IconShieldCheck,
-  IconSparkles,
-  IconUsers,
-  IconWorld,
-  IconWorldWww,
-} from "@tabler/icons-react";
+import { IconMessageCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import type { LinkOptions } from "@tanstack/react-router";
+import { useMemo } from "react";
 import type * as React from "react";
 import { type RailGroup, SectionRail } from "@/components/layout/section-rail";
+import { SettingsFind, SettingsSearchBox, SettingsSearchResults, useSettingsSearch } from "@/components/settings/settings-search";
 import type { Sidebar } from "@/components/ui/sidebar";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
+import { type SettingsViewer, visibleGroups } from "@/lib/settings/registry";
 
 /**
- * 「设置」— 偏好设置与管理后台合并后的唯一左栏。
+ * 「设置」左栏（偏好设置和管理后台共用，DESIGN.md §97 重新整合）。
  *
- * 导航收敛（2026-10-14，DESIGN.md §57）后分三组：
- * - 个人：通用 · 记忆 · 技能 · 定时任务 · 页面 · 账号连接 · 生图与识图 · 密钥 · 审批偏好 · 设备 · IM 接入（后续功能页也放这里）；
- * - 管理（仅管理员）：账号（CB-040 朋友账号；默认隐藏，/api/capabilities 的 accountsUi 打开才显示）· 模型（凭据并入模型页；生图 / 识图默认也在模型页，§59）· 云端浏览器 · 权限规则（审批与权限合并前暂放）· 系统更新 · 活动记录；
- * - 高级（默认折叠）：工作流 · 插件与 MCP。
- * 功能精简（2026-10-16，§74）：工作流、插件与 MCP、权限规则默认不显示（CHISABOT_EXTRAS 打开），所以「高级」组默认整组不显示。
- * 管理员三组都能折叠（CB-058，DESIGN.md §71.7）：没记过开关时只展开当前页所在的组，1280×800 也不用滚；手机抽屉照常全列。
- * 技能管理并入 设置 → 技能（管理员在页内进入），UI 组件不再出现在导航里。路由都还在，旧地址会重定向。
- * 左栏底部「返回聊天」是从设置回到对话的路（顶栏不再有分段导航）。
+ * 导航和设置搜索都从 lib/settings/registry.ts 一张登记表来：
+ * 通用 · 机器人（权限与审批、记忆、技能、定时任务、页面）· 电脑与设备（设备、云端工作区、云端浏览器）·
+ * 账号与连接（账号连接、密钥、IM 接入、账号）· 模型（模型、我的生图与识图）· 系统（系统更新、活动记录、权限规则）· 高级（工作流、插件与 MCP）。
+ * 管理员才有的页、部署开关（CHISABOT_EXTRAS / CHISABOT_ACCOUNTS_UI）关着的页不显示；一组一项都不剩就整组不显示。
+ * 管理员看到的组多，桌面左栏里除「通用」外每组都能折叠（没记过开关时只展开当前页所在的组，CB-058 / §71.7）；手机抽屉照常全列。
+ * 路由都没变，旧地址照常能打开；标题下面是设置搜索（Ctrl/⌘ K 或 /）。
  */
-const PERSONAL: RailGroup[] = [
-  {
-    label: "个人",
-    items: [
-      {
-        title: "通用",
-        sub: "外观、常驻指令",
-        icon: IconAdjustmentsHorizontal,
-        /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
-        exact: true,
-        linkOptions: { to: "/settings" },
-      },
-      {
-        title: "记忆",
-        sub: "机器人记住的关于你的事",
-        icon: IconBookmark,
-        linkOptions: { to: "/settings/memory" },
-      },
-      {
-        title: "技能",
-        sub: "机器人照着做的方法",
-        icon: IconSparkles,
-        linkOptions: { to: "/settings/skills" },
-      },
-      {
-        title: "定时任务",
-        sub: "提醒和按时间自动做的事",
-        icon: IconAlarm,
-        linkOptions: { to: "/settings/schedules" },
-      },
-      {
-        title: "页面",
-        sub: "机器人做的网页，链接可分享",
-        icon: IconWorldWww,
-        linkOptions: { to: "/settings/pages" },
-      },
-      {
-        title: "账号连接",
-        sub: "GitHub、已连接的应用、保存的登录",
-        icon: IconPlug,
-        linkOptions: { to: "/settings/connected-accounts" },
-      },
-      {
-        title: "生图与识图",
-        sub: "自己的画图、看图模型（可选）",
-        icon: IconPhoto,
-        linkOptions: { to: "/settings/media" },
-      },
-      {
-        title: "密钥",
-        sub: "API 密钥和令牌，机器人用但看不到",
-        icon: IconLock,
-        linkOptions: { to: "/settings/vault" },
-      },
-      {
-        title: "审批偏好",
-        sub: "哪些事先问你、哪些直接做",
-        icon: IconShieldCheck,
-        linkOptions: { to: "/settings/approvals" },
-      },
-      {
-        title: "设备",
-        sub: "已关联的设备、能力与审批",
-        icon: IconDeviceDesktop,
-        linkOptions: { to: "/settings/devices" },
-      },
-      {
-        title: "IM 接入",
-        sub: "QQ、微信、飞书等接到机器人",
-        icon: IconMessageChatbot,
-        linkOptions: { to: "/settings/im" },
-      },
-    ],
-  },
-];
-
-const ADMIN: RailGroup[] = [
-  {
-    label: "管理",
-    collapsible: { storageKey: "chisabot-settings-admin", desktopOnly: true },
-    items: [
-      { title: "账号", sub: "邀请朋友、停用、重置密码", icon: IconUsers, linkOptions: { to: "/admin/accounts" } },
-      { title: "模型", sub: "接口、默认模型、模型密钥", icon: IconBrain, linkOptions: { to: "/admin/models" } },
-      { title: "云端浏览器", sub: "机器人的浏览器与登录状态", icon: IconWorld, linkOptions: { to: "/admin/computers" } },
-      { title: "云端工作区", sub: "Claude Code 的云端节点与 Claude 账号", icon: IconCloudComputing, linkOptions: { to: "/settings/cloud-workspace" } },
-      { title: "权限规则", sub: "机器人永远不能做的事", icon: IconShieldCheck, linkOptions: { to: "/admin/boundaries" } },
-      { title: "系统更新", sub: "版本、升级与自检", icon: IconCloudDownload, linkOptions: { to: "/admin/system-update" } },
-      { title: "活动记录", sub: "所有操作记录", icon: IconListDetails, linkOptions: { to: "/admin/audit" } },
-    ],
-  },
-  {
-    label: "高级",
-    collapsible: { storageKey: "chisabot-settings-advanced" },
-    items: [
-      { title: "工作流", sub: "多步骤的固定流程", icon: IconRoute, linkOptions: { to: "/workflows" } },
-      { title: "插件与 MCP", sub: "接入外部服务和 MCP 服务器", icon: IconPuzzle, linkOptions: { to: "/admin/plugins" } },
-    ],
-  },
-];
-
-/** 默认隐藏的入口 → 打开它的 CHISABOT_EXTRAS 名字（DESIGN.md §74）。 */
-const EXTRA_ROUTES: Record<string, string> = {
-  "/workflows": "workflows",
-  "/admin/plugins": "plugins",
-  "/admin/boundaries": "boundaries",
-};
-
-/** 管理员看到三组时，个人 / 管理也能折叠（只在桌面左栏）。普通账号只有「个人」一组，不折叠。 */
-const PERSONAL_FOLDABLE: RailGroup[] = PERSONAL.map((group) => ({
-  ...group,
-  collapsible: { storageKey: "chisabot-settings-personal", defaultOpen: true, desktopOnly: true },
-}));
-
 export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { data: user } = useQuery(currentUserQueryOptions());
   const { data: capabilities } = useQuery(deploymentCapabilitiesQueryOptions());
-  // 多用户以后再做（2026-10-15）：「账号」入口默认隐藏，部署设 CHISABOT_ACCOUNTS_UI=1 才出现。
-  // 功能精简（2026-10-16，DESIGN.md §74）：工作流、插件与 MCP、权限规则默认隐藏，CHISABOT_EXTRAS 打开才出现；
-  // 一组里一项都不剩（「高级」）就整组不显示。
-  const extras = capabilities?.extras ?? [];
-  const shown = (to: string | undefined) => {
-    if (to === "/admin/accounts") return capabilities?.accountsUi === true;
-    const extra = EXTRA_ROUTES[to ?? ""];
-    return extra === undefined || extras.includes(extra);
-  };
-  const admin = ADMIN.map((group) => ({ ...group, items: group.items.filter((item) => shown(item.linkOptions?.to)) })).filter(
-    (group) => group.items.length > 0,
+  const viewer: SettingsViewer = useMemo(
+    () => ({ admin: user?.role === "admin", extras: capabilities?.extras ?? [], accountsUi: capabilities?.accountsUi === true }),
+    [user?.role, capabilities?.extras, capabilities?.accountsUi],
   );
+  const groups: RailGroup[] = useMemo(
+    () =>
+      visibleGroups(viewer).map(({ group, pages }) => ({
+        ...(group.label ? { label: group.label } : {}),
+        ...(viewer.admin && group.label
+          ? { collapsible: { storageKey: `chisabot-settings-g-${group.id}`, defaultOpen: group.id === "bots", desktopOnly: true } }
+          : {}),
+        items: pages.map((page) => ({
+          title: page.title,
+          sub: page.sub,
+          icon: page.icon,
+          ...(page.exact ? { exact: true } : {}),
+          linkOptions: { to: page.to } as LinkOptions,
+        })),
+      })),
+    [viewer],
+  );
+  const search = useSettingsSearch(viewer);
   return (
-    <SectionRail
-      ariaLabel={"设置分区"}
-      title={"设置"}
-      footerLink={{ label: "返回聊天", to: "/", icon: IconMessageCircle }}
-      groups={user?.role === "admin" ? [...PERSONAL_FOLDABLE, ...admin] : PERSONAL}
-      {...props}
-    />
+    <>
+      <SettingsFind />
+      <SectionRail
+        ariaLabel={"设置分区"}
+        title={"设置"}
+        footerLink={{ label: "返回聊天", to: "/", icon: IconMessageCircle }}
+        groups={groups}
+        header={<SettingsSearchBox search={search} />}
+        body={search.query.trim() ? <SettingsSearchResults search={search} /> : undefined}
+        {...props}
+      />
+    </>
   );
 }

@@ -75,7 +75,7 @@ describe.skipIf(!url)("confirmations service", () => {
     });
   });
   afterAll(async () => {
-    for (const table of ["chisabot_confirm_prefs", "chisabot_confirm_rules", "chisabot_confirm_requests"])
+    for (const table of ["chisabot_confirm_prefs", "chisabot_confirm_rules", "chisabot_confirm_requests", "chisabot_bot_permissions"])
       await database.$client.unsafe(`DELETE FROM ${table} WHERE owner_user_id = $1`, [owner]);
   });
   const executed: unknown[] = [];
@@ -272,5 +272,39 @@ describe.skipIf(!url)("confirmations service", () => {
     const editCard = await pendingFor("call-edit");
     const diffRow = editCard.details.find((d: { diff?: boolean }) => d.diff);
     expect(diffRow?.value).toContain("+let i = 0;");
+  });
+
+  test("bot permission (§97): inherit → ask overrides auto pref → full needs acknowledgement, audits, auto-approves device, keeps ask rules", async () => {
+    const audits: unknown[] = [];
+    const audited = createConfirmations(database, { auditStore: { insert: async (event) => void audits.push(event) } });
+    let allowed = true;
+    audited.setBotAccess(async () => allowed);
+    const actor = { id: owner, role: "user" };
+    const op = { ownerUserId: owner, botId: "bot-p", operation: "shell", operationLabel: "运行命令", summary: "npm install", args: { command: "npm install" } };
+    // 上一个测试把「操作你的电脑」设成了直接做：没单独设过的机器人沿用它，显示成完全访问。
+    expect(await audited.botPermission(owner, "bot-p")).toMatchObject({ mode: "full", stored: null });
+    expect(await audited.deviceHook.before(op)).toBe("auto");
+    // 请求批准：始终问，不管审批偏好。
+    expect(await audited.setBotPermission(actor, "bot-p", { mode: "ask" })).toMatchObject({ mode: "ask", stored: "ask" });
+    expect(await audited.deviceHook.before(op)).toBe("ask");
+    // 完全访问：不带确认 → 拒绝；带上 → 存下、写审计。
+    await expect(audited.setBotPermission(actor, "bot-p", { mode: "full" })).rejects.toThrow("确认");
+    expect(await audited.setBotPermission(actor, "bot-p", { mode: "full", acknowledged: true })).toMatchObject({ mode: "full", stored: "full" });
+    expect(audits.at(-1)).toMatchObject({ eventType: "configuration.changed", targetType: "bot", targetId: "bot-p", payload: { change: "bot_permission", from: "ask", to: "full" } });
+    expect(await audited.deviceHook.before(op)).toBe("full");
+    // 只对这个机器人：别的机器人照旧沿用偏好。
+    expect(await audited.deviceHook.before({ ...op, botId: "bot-other" })).toBe("auto");
+    // confirm_action 的「操作你的电脑」也直接放行。
+    expect(await audited.check({ ownerUserId: owner, agentId: "bot-p", category: "device", tool: "confirm_action", title: "装软件", matchText: "装软件", digest: "d" })).toMatchObject({ ok: true, via: "bot" });
+    // 付款照旧要问（完全访问放不开）：非网页回合 → 不执行。
+    expect(await audited.check({ ownerUserId: owner, agentId: "bot-p", category: "purchase", tool: "confirm_action", title: "买", matchText: "买", digest: "e", initiator: { kind: "routine", id: "schedule:x" } })).toMatchObject({ ok: false });
+    // 用户写的带关键词「先问我」规则仍然算。
+    await audited.addRule(owner, { text: "动 C 盘系统目录要先问我", category: "device", mode: "ask", keywords: ["windows\\system32"] });
+    expect(await audited.deviceHook.before({ ...op, summary: "删除 C:\\Windows\\System32\\x.dll", args: {} })).toBe("ask");
+    // 看不到的机器人：404。
+    allowed = false;
+    await expect(audited.setBotPermission(actor, "bot-p", { mode: "ask" })).rejects.toThrow("找不到");
+    allowed = true;
+    expect((await audited.botPermissions(owner)).map((p) => p.agentId)).toContain("bot-p");
   });
 });

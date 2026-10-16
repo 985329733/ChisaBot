@@ -8,6 +8,7 @@ import { LandingRedirect } from "@/components/agents/landing-redirect";
 import { channelListQueryOptions } from "@/lib/channels/queries";
 import { latestChannelFor } from "@/lib/channels/latest";
 import { ChannelAvatar } from "@/components/channels/avatar";
+import { PermissionChip } from "@/components/chat/permission-chip";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
 import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
@@ -199,6 +200,7 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
       ) : null}
       <ConversationView
         modelControl={chosen ? <BotModelSelector agentId={chosen.id} compact /> : null}
+        leadingControl={chosen ? <PermissionChip agentId={chosen.id} /> : null}
         sendBlocked={modelSaving}
         // Choosing a coworker answers the "To:" field, so the message is what remains: the caret
         // lands in the composer the moment a recipient exists, whether picked here or in the URL.

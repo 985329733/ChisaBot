@@ -15,7 +15,8 @@ import {
   type ConfirmRuleView,
   type ConfirmStatus,
 } from "../../../shared/confirmations";
-import type { AuditInitiator } from "../audit";
+import { type AuditInitiator, type AuditStore, recordAuditEvent } from "../audit";
+import { BOT_PERMISSION_INFO, BOT_PERMISSION_MODES, type BotPermissionMode, type BotPermissionView } from "../../../shared/bot-permission";
 import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
 import type { DeviceConfirmLink } from "../devices/hub";
@@ -51,7 +52,7 @@ export const TIMED_OUT =
   "等了 10 分钟用户没有在确认卡片上回应，这一步没有执行。卡片还留着：用户之后点「确认」，会自动叫你接着做。一句话告诉用户在等他确认。";
 export const STOPPED = "用户停止了这一轮，确认卡片已关闭，这一步没有执行。";
 export const NOT_INTERACTIVE = (label: string) =>
-  `这一步属于「${label}」，用户的审批偏好是「先问我」，但这一轮不在网页聊天里，弹不出确认卡片，所以没有执行。告诉用户：在 ChisaBot 网页聊天里让你再做一次（会出确认卡片），或在 设置 → 审批偏好 把这一类改成「直接做」。`;
+  `这一步属于「${label}」，用户的审批偏好是「先问我」，但这一轮不在网页聊天里，弹不出确认卡片，所以没有执行。告诉用户：在 ChisaBot 网页聊天里让你再做一次（会出确认卡片），或在 设置 → 权限与审批 把这一类改成「直接做」。`;
 
 type PrefRow = { category: ConfirmCategory; mode: ConfirmMode; note: string | null; updated_at: Date | string };
 type RuleRow = {
@@ -158,7 +159,7 @@ export type ConfirmCheck = {
   digest: string;
   initiator?: AuditInitiator;
 };
-export type ConfirmOutcome = { ok: true; via: "preference" | "rule" | "grant" | "confirmed" } | { ok: false; message: string };
+export type ConfirmOutcome = { ok: true; via: "preference" | "rule" | "grant" | "confirmed" | "bot" } | { ok: false; message: string };
 
 export type ConfirmResume = (input: {
   ownerUserId: string;
@@ -170,8 +171,24 @@ export type ConfirmResume = (input: {
 
 export type DeviceConfirmHook = DeviceConfirmLink;
 
-export function createConfirmations(database: Database) {
+/** 设备「询问」能力这一次怎么处理：auto = 按审批偏好直接做；full = 机器人完全访问（连允许文件夹以外也直接加）；ask = 问。 */
+export type DeviceDecision = "auto" | "ask" | "full";
+
+/** 机器人权限（输入框的「请求批准 / 完全访问」）：这个人能不能改这个机器人。由 index.ts 接上机器人资料（看得到 = 能改自己的那份）。 */
+export type BotAccess = (actor: { id: string; role?: string }, agentId: string) => Promise<boolean>;
+
+export class BotPermissionError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 404 = 400,
+  ) {
+    super(message);
+  }
+}
+
+export function createConfirmations(database: Database, options: { auditStore?: AuditStore } = {}) {
   const sql = database.$client;
+  let botAccess: BotAccess | undefined;
   /** 这个进程里正在等结果的卡片（工具还在等）。不在这里的 = 工具已经不等了，确认要走「接着做」。 */
   const waiting = new Set<string>();
   const wake = new Map<string, () => void>();
@@ -201,6 +218,86 @@ export function createConfirmations(database: Database) {
     await sql.unsafe("CREATE INDEX IF NOT EXISTS chisabot_confirm_requests_thread ON chisabot_confirm_requests(owner_user_id, thread_id, created_at)");
     await sql.unsafe("CREATE INDEX IF NOT EXISTS chisabot_confirm_requests_owner ON chisabot_confirm_requests(owner_user_id, created_at)");
     await sql.unsafe("CREATE INDEX IF NOT EXISTS chisabot_confirm_requests_external ON chisabot_confirm_requests(external) WHERE external IS NOT NULL");
+    // 机器人权限（§97）：每人每个机器人一行，只加表，回滚安全（旧镜像不读它 = 回到审批偏好）。
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS chisabot_bot_permissions (
+      owner_user_id text NOT NULL, agent_id text NOT NULL, mode text NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(), updated_by text,
+      PRIMARY KEY (owner_user_id, agent_id)
+    )`);
+  }
+
+  // ── 机器人权限（请求批准 / 完全访问）─────────────────────────────
+  async function storedBotMode(owner: string, agentId: string): Promise<{ mode: BotPermissionMode; updatedAt: string } | null> {
+    if (!agentId) return null;
+    const rows = await sql.unsafe<{ mode: string; updated_at: Date | string }[]>(
+      "SELECT mode, updated_at FROM chisabot_bot_permissions WHERE owner_user_id = $1 AND agent_id = $2",
+      [owner, agentId],
+    );
+    const row = rows[0];
+    if (!row || !(BOT_PERMISSION_MODES as readonly string[]).includes(row.mode)) return null;
+    return { mode: row.mode as BotPermissionMode, updatedAt: iso(row.updated_at) };
+  }
+  async function botPermission(owner: string, agentId: string): Promise<BotPermissionView> {
+    const stored = await storedBotMode(owner, agentId);
+    if (stored) return { agentId, mode: stored.mode, stored: stored.mode, updatedAt: stored.updatedAt };
+    const pref = (await prefRows(owner)).find((p) => p.category === "device")?.mode;
+    return { agentId, mode: pref === "auto" ? "full" : "ask", stored: null, updatedAt: null };
+  }
+  async function botPermissions(owner: string): Promise<BotPermissionView[]> {
+    const rows = await sql.unsafe<{ agent_id: string; mode: string; updated_at: Date | string }[]>(
+      "SELECT agent_id, mode, updated_at FROM chisabot_bot_permissions WHERE owner_user_id = $1 ORDER BY updated_at DESC LIMIT 500",
+      [owner],
+    );
+    return rows
+      .filter((row) => (BOT_PERMISSION_MODES as readonly string[]).includes(row.mode))
+      .map((row) => ({ agentId: row.agent_id, mode: row.mode as BotPermissionMode, stored: row.mode as BotPermissionMode, updatedAt: iso(row.updated_at) }));
+  }
+  async function setBotPermission(
+    actor: { id: string; role?: string },
+    agentId: string,
+    input: { mode: BotPermissionMode; acknowledged?: boolean },
+  ): Promise<BotPermissionView> {
+    if (!(BOT_PERMISSION_MODES as readonly string[]).includes(input.mode)) throw new BotPermissionError("没有这个档位。");
+    if (!botAccess || !(await botAccess(actor, agentId).catch(() => false))) throw new BotPermissionError("找不到这个机器人。", 404);
+    // 打开完全访问必须是用户在网页上的确认框里点过「开启」（不靠前端自觉）。
+    if (input.mode === "full" && input.acknowledged !== true) throw new BotPermissionError("打开完全访问需要先确认。");
+    const before = await botPermission(actor.id, agentId);
+    await sql.unsafe(
+      `INSERT INTO chisabot_bot_permissions (owner_user_id, agent_id, mode, updated_at, updated_by) VALUES ($1, $2, $3, now(), $1)
+       ON CONFLICT (owner_user_id, agent_id) DO UPDATE SET mode = EXCLUDED.mode, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+      [actor.id, agentId, input.mode],
+    );
+    const after = await botPermission(actor.id, agentId);
+    if (options.auditStore && (before.mode !== after.mode || before.stored !== after.stored)) {
+      await recordAuditEvent(options.auditStore, {
+        eventType: "configuration.changed",
+        targetType: "bot",
+        targetId: agentId,
+        actorUserId: actor.id,
+        payload: {
+          change: "bot_permission",
+          from: before.stored ?? `inherit:${before.mode}`,
+          to: after.mode,
+          summary: `机器人权限：${BOT_PERMISSION_INFO[before.mode].label}${before.stored ? "" : "（沿用审批偏好）"} → ${BOT_PERMISSION_INFO[after.mode].label}`,
+        },
+      }).catch((error) => console.warn(JSON.stringify({ type: "bot-permission-audit-failed", reason: error instanceof Error ? error.message : String(error) })));
+    }
+    return after;
+  }
+  /**
+   * 设备「询问」的事这一次怎么办（hub 的 before 和 confirm_action 的 device 类都走这里）：
+   * - 机器人设成完全访问 → full（用户写的带关键词的「先问我」规则仍然算）；
+   * - 机器人设成请求批准 → ask（始终问，审批偏好里的「直接做」不再放行这个机器人）；
+   * - 没设过 → 审批偏好（旧行为）。
+   */
+  async function deviceDecision(owner: string, agentId: string, text: string): Promise<DeviceDecision> {
+    const stored = await storedBotMode(owner, agentId);
+    if (stored?.mode === "ask") return "ask";
+    if (stored?.mode === "full") {
+      const decision = decideMode({ category: "device", text, pref: "auto", rules: (await rules(owner)).filter((r) => r.mode === "ask") });
+      return decision.mode === "ask" && decision.source === "rule" ? "ask" : "full";
+    }
+    return (await modeFor(owner, "device", text)).mode;
   }
 
   // ── 偏好与规则 ─────────────────────────────────────────────
@@ -370,8 +467,14 @@ export function createConfirmations(database: Database) {
   }
 
   async function check(input: ConfirmCheck): Promise<ConfirmOutcome> {
-    const decision = await modeFor(input.ownerUserId, input.category, input.matchText);
-    if (decision.mode === "auto") return { ok: true, via: decision.source === "rule" ? "rule" : "preference" };
+    if (input.category === "device") {
+      const device = await deviceDecision(input.ownerUserId, input.agentId, input.matchText);
+      if (device === "full") return { ok: true, via: "bot" };
+      if (device === "auto") return { ok: true, via: "preference" };
+    } else {
+      const decision = await modeFor(input.ownerUserId, input.category, input.matchText);
+      if (decision.mode === "auto") return { ok: true, via: decision.source === "rule" ? "rule" : "preference" };
+    }
     const turn = currentConfirmTurn();
     const call = currentConfirmToolCall();
     if (turn?.threadId && (await consumeGrant(input.ownerUserId, turn.threadId, { digest: input.digest }))) return { ok: true, via: "grant" };
@@ -493,8 +596,7 @@ export function createConfirmations(database: Database) {
   const deviceHook: DeviceConfirmHook = {
     linkable: () => Boolean(currentConfirmTurn()?.threadId) && currentConfirmInteractive(),
     async before(input) {
-      const decision = await modeFor(input.ownerUserId, "device", [input.operation, input.operationLabel, input.summary, flattenForMatch(input.args)].join(" "));
-      return decision.mode;
+      return deviceDecision(input.ownerUserId, input.botId, [input.operation, input.operationLabel, input.summary, flattenForMatch(input.args)].join(" "));
     },
     async opened(input) {
       const turn = currentConfirmTurn();
@@ -575,7 +677,9 @@ export function createConfirmations(database: Database) {
           if (outcome.ok)
             return outcome.via === "confirmed" || outcome.via === "grant"
               ? `已确认：用户确认了「${input.title}」。现在去做，不用再问。`
-              : `已确认：按用户的审批偏好，「${CONFIRM_CATEGORY_INFO[input.category].label}」这类事不用问，直接做。`;
+              : outcome.via === "bot"
+                ? "已确认：用户给你开了「完全访问」，操作电脑的事不用问，直接做。"
+                : `已确认：按用户的审批偏好，「${CONFIRM_CATEGORY_INFO[input.category].label}」这类事不用问，直接做。`;
           return outcome.message;
         },
       ),
@@ -594,10 +698,10 @@ export function createConfirmations(database: Database) {
           const label = CONFIRM_CATEGORY_INFO[input.category].label;
           if (!input.keywords?.length) {
             await setPref(owner, input.category, input.mode, input.text);
-            return `记下了：「${label}」以后${CONFIRM_MODE_LABEL[input.mode]}（用户原话：${input.text}）。用户可以在 设置 → 审批偏好 改。一句话告诉用户。`;
+            return `记下了：「${label}」以后${CONFIRM_MODE_LABEL[input.mode]}（用户原话：${input.text}）。用户可以在 设置 → 权限与审批 改。一句话告诉用户。`;
           }
           const rule = await addRule(owner, input, { source: "bot", agentId });
-          return `记下了规则：「${rule.text}」→ ${CONFIRM_MODE_LABEL[rule.mode]}（${label}，关键词：${rule.keywords.join("、")}）。用户可以在 设置 → 审批偏好 改或删。一句话告诉用户。`;
+          return `记下了规则：「${rule.text}」→ ${CONFIRM_MODE_LABEL[rule.mode]}（${label}，关键词：${rule.keywords.join("、")}）。用户可以在 设置 → 权限与审批 改或删。一句话告诉用户。`;
         },
       ),
     ];
@@ -635,15 +739,19 @@ export function createConfirmations(database: Database) {
     });
   }
 
-  /** 每轮开头给机器人的：用法 + 这个人现在的偏好和规则。 */
-  async function context(owner: string) {
-    const [prefList, ruleList] = await Promise.all([prefs(owner), rules(owner)]);
+  /** 每轮开头给机器人的：用法 + 这个人现在的偏好和规则（给了 agentId 就带上这个机器人的权限档位）。 */
+  async function context(owner: string, agentId?: string) {
+    const [prefList, ruleList, bot] = await Promise.all([prefs(owner), rules(owner), agentId ? storedBotMode(owner, agentId).catch(() => null) : null]);
     const lines = [
       "【审批偏好 · 确认卡片】做有后果的事（对外发消息、删除、付款购买、操作用户的电脑）时，系统按下面的偏好自动处理：「先问我」的，工具会在聊天里出一张确认卡片并等用户点「确认 / 取消」；「直接做」的不问。",
       "所以：直接调用要用的工具即可，不要先在聊天里用文字问「要我做吗」（卡片就是在问）；在浏览器里付款下单、在网页上替用户发消息 / 发帖 / 发邮件、删除网页上的东西这类不经过专门工具的事，**动手前第一步先调用 confirm_action**（它就是聊天里那张确认卡片，会等用户点完才返回）；用户让你调用 confirm_action 时也直接调用，不要先回文字。返回「已确认」再做；被取消就如实说没做，不要换办法绕过。",
       "用户说「以后 X 不用问我」或「X 要先问我」时，调用 approval_preference_save（text 用原话），然后一句话告诉用户记下了。付款购买一律先问，不能改。",
       `当前偏好：${prefList.map((p) => `${p.label}=${CONFIRM_MODE_LABEL[p.mode]}${p.locked ? "（固定）" : ""}`).join("；")}。`,
     ];
+    if (bot?.mode === "full")
+      lines.push("【你的权限：完全访问】用户在输入框里给你开了完全访问：在用户电脑上运行命令、读写文件这类「操作你的电脑」的事不再问，直接做（付款购买、对外发消息、删除照上面的偏好）。用户想收回时让他在输入框左下角改回「请求批准」。");
+    else if (bot?.mode === "ask")
+      lines.push("【你的权限：请求批准】用户把你设成了请求批准：在用户电脑上运行命令、改写文件、安装软件这类事，每次都会出确认卡片等用户点头（上面「操作你的电脑」的偏好对你不生效）。");
     if (ruleList.length)
       lines.push(
         `用户的规则（新的在前）：\n${ruleList
@@ -664,6 +772,23 @@ export function createConfirmations(database: Database) {
       return c.json({ error: "审批暂时不可用，请重试。" }, 503);
     });
     app.get("/prefs", async (c) => c.json({ prefs: await prefs(c.var.actor.id), rules: await rules(c.var.actor.id) }));
+    // 机器人权限（输入框的「请求批准 / 完全访问」，§97）。
+    app.get("/bot-permissions", async (c) => c.json({ permissions: await botPermissions(c.var.actor.id) }));
+    app.get("/bots/:agentId/permission", async (c) => {
+      const agentId = c.req.param("agentId");
+      if (!botAccess || !(await botAccess(c.var.actor, agentId).catch(() => false))) return c.json({ error: "找不到这个机器人。" }, 404);
+      c.header("Cache-Control", "no-store");
+      return c.json({ permission: await botPermission(c.var.actor.id, agentId) });
+    });
+    app.put("/bots/:agentId/permission", async (c) => {
+      const body = z.object({ mode: z.enum(BOT_PERMISSION_MODES), acknowledged: z.boolean().optional() }).strict().parse(await c.req.json());
+      try {
+        return c.json({ permission: await setBotPermission(c.var.actor, c.req.param("agentId"), body) });
+      } catch (error) {
+        if (error instanceof BotPermissionError) return c.json({ error: error.message }, error.status);
+        throw error;
+      }
+    });
     app.put("/prefs/:category", async (c) => {
       const category = z.enum(CONFIRM_CATEGORIES).parse(c.req.param("category"));
       const body = z.object({ mode: z.enum(["ask", "auto"]), note: z.string().max(300).nullable().optional() }).strict().parse(await c.req.json());
@@ -702,6 +827,13 @@ export function createConfirmations(database: Database) {
     routes,
     deviceHook,
     insertRequest,
+    botPermission,
+    botPermissions,
+    setBotPermission,
+    deviceDecision,
+    setBotAccess(fn: BotAccess) {
+      botAccess = fn;
+    },
     setResume(fn: ConfirmResume) {
       resume = fn;
     },

@@ -209,4 +209,50 @@ describe("device hub", () => {
       "\\\\nas\\share",
     ]);
   });
+
+  test("bot full access (§97): ask capability runs without a prompt, outside folder is added; off / elevated still refused", async () => {
+    const fake = fakeStore(record({ capabilities: { ...defaultCapabilities(), shell: "ask", files_write: "ask", clipboard: "off" }, allowedRoots: ["C:\\Work"] }));
+    const decisions: Array<"auto" | "ask" | "full"> = [];
+    let mode: "auto" | "ask" | "full" = "full";
+    const confirm = {
+      linkable: () => false,
+      before: async () => {
+        decisions.push(mode);
+        return mode;
+      },
+      opened: async () => {},
+      closed: async () => {},
+    };
+    const hub = createDeviceHub({ store: fake.store as never, confirm });
+    const s = fakeSocket();
+    const handlers = hub.attach(record(), s.socket, null);
+    const device = () => record({ capabilities: { ...defaultCapabilities(), shell: "ask", files_write: "ask", clipboard: "off" }, allowedRoots: ["C:\\Work"] });
+    const answer = async () => {
+      await tick();
+      const call = s.sent.filter((m) => m.type === "call").at(-1) as { id: string };
+      await handlers.onMessage(JSON.stringify({ type: "result", id: call.id, ok: true, result: { ok: 1 } }));
+    };
+    // 「询问」的运行命令：不弹审批，直接发给 PC。
+    const run = hub.invoke({ device: device(), operation: "shell", args: { command: "npm i" }, bot: { id: "bot1", name: "B" }, summary: "运行命令：npm i" });
+    await answer();
+    expect(await run).toEqual({ ok: 1 });
+    expect(s.sent.some((m) => m.type === "approval_request")).toBe(false);
+    expect(fake.audits.at(-1)?.detail).toContain("机器人完全访问");
+    // 允许的文件夹以外：先把文件夹加进去（写审计、推配置），再执行。
+    const write = hub.invoke({ device: device(), operation: "write_file", args: { path: "D:\\Other\\a.txt", content: "x" }, bot: { id: "bot1", name: "B" }, summary: "写文件" });
+    await answer();
+    expect(await write).toEqual({ ok: 1 });
+    expect(s.sent.some((m) => m.type === "approval_request")).toBe(false);
+    expect(fake.audits.some((a) => a.action === "roots_added" && String(a.summary).includes("完全访问"))).toBe(true);
+    expect(s.sent.some((m) => m.type === "config")).toBe(true);
+    // 关闭的能力、管理员身份运行：完全访问放不开。
+    await expect(hub.invoke({ device: device(), operation: "clipboard_read", args: {}, bot: { id: "bot1", name: "B" }, summary: "x" })).rejects.toThrow("关闭");
+    await expect(hub.invoke({ device: device(), operation: "shell", args: { command: "x", elevated: true }, bot: { id: "bot1", name: "B" }, summary: "x" })).rejects.toThrow("管理员");
+    // 请求批准：弹审批。
+    mode = "ask";
+    void hub.invoke({ device: device(), operation: "shell", args: { command: "dir" }, bot: { id: "bot1", name: "B" }, summary: "运行命令：dir" }).catch(() => {});
+    await tick();
+    expect(s.sent.some((m) => m.type === "approval_request")).toBe(true);
+    for (const approval of hub.listApprovals(null)) hub.decide(approval.id, false, "web");
+  });
 });

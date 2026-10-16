@@ -686,8 +686,13 @@ const retentionSweeps = startRetentionSweeps(
  * 确认卡片 + 审批偏好（server/src/confirmations，DESIGN.md §58）。云端浏览器：用户在聊天里确认过付款
  * （confirm_action 类别 purchase）之后，这段对话 20 分钟内的浏览器操作不再被上游的付款安全规则交还给人。
  */
-const confirmations = createConfirmations(database);
+const confirmations = createConfirmations(database, { auditStore: bootAuditStore });
 await confirmations.ensure();
+// 机器人权限（输入框「请求批准 / 完全访问」，§97）：看得到这个机器人（自己的或共享给自己的）就能改自己那一份。
+confirmations.setBotAccess(async (actor, agentId) => {
+  const profile = await agentProfileStore.get({ id: actor.id, role: actor.role === "admin" ? "admin" : "user" }, agentId);
+  return Boolean(profile && profile.deletedAt === null);
+});
 const confirmAwareGate: typeof approvalService.gate = async (candidate) => {
   // 网页上点「发送 / 发布 / 删除」这类按钮：服务器自己判断，按审批偏好出确认卡片（不靠机器人先调用 confirm_action）。
   if (!isApprovalRecheck() && candidate.toolRef === "computer_click") {
@@ -1348,7 +1353,7 @@ const loadPersonalMemoryForActor = (ownerUserId: string) => async (botId: string
     VAULT_GUIDANCE,
     await github.guidance(ownerUserId).catch(() => ""),
     await chatFiles.guidance(ownerUserId, botId).catch(() => ""),
-    await confirmations.context(ownerUserId).catch(() => ""),
+    await confirmations.context(ownerUserId, botId).catch(() => ""),
   ]
     .filter(Boolean)
     .join("\n\n");

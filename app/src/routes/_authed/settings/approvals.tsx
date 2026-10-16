@@ -11,6 +11,7 @@ import {
   type ConfirmPrefView,
 } from "../../../../../shared/confirmations";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
+import { BotPermissionsAbout, BotPermissionsSection } from "@/components/settings/bot-permissions";
 import { ConfirmRow } from "@/components/approvals/confirm-row";
 import { useAsyncAction } from "@/components/ui/async-action";
 import { Button, T } from "@/components/ui/button";
@@ -47,7 +48,7 @@ const CATEGORY_ITEMS = Object.fromEntries(CONFIRM_CATEGORIES.map((c) => [c, CONF
 const MODE_ITEMS = CONFIRM_MODE_LABEL;
 
 /**
- * 设置 → 审批偏好（DESIGN.md §58）：哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
+ * 设置 → 机器人 → 权限与审批（DESIGN.md §58 + §97）：每个机器人的权限（请求批准 / 完全访问）；哪些事先问我、哪些直接做；用自己的话写的规则；最近的确认记录。
  * 机器人每轮都读这里，用户在聊天里说「以后 X 不用问我」时机器人也会写进来。
  */
 function ApprovalPrefsPage() {
@@ -78,8 +79,9 @@ function ApprovalPrefsPage() {
   return (
     <PageShell
       description="机器人做有后果的事之前——对外发消息、删除东西、付款购买、操作你的电脑——按这里决定先问你还是直接做。问的时候聊天里会出一张确认卡片，点「确认」它才继续。你在聊天里说「以后 X 不用问我」，机器人也会记到这里。"
-      title="审批偏好"
+      title="权限与审批"
     >
+      <BotPermissionsSection />
       {data.isPending ? (
         <PageSkeleton rows={4} />
       ) : data.isError ? (
@@ -94,7 +96,7 @@ function ApprovalPrefsPage() {
         />
       ) : (
         <>
-          <PageSection title="哪些事先问我">
+          <PageSection description="所有机器人共用。单独设过权限的机器人，「操作你的电脑」按它自己的权限来。" title="哪些事先问我">
             <Card className="mem-card">
               {data.data.prefs.map((pref) => (
                 <PrefRow key={pref.category} pref={pref} onSaved={refresh} />
@@ -165,6 +167,7 @@ function ApprovalPrefsPage() {
           </PageSection>
         </>
       )}
+      <BotPermissionsAbout />
     </PageShell>
   );
 }

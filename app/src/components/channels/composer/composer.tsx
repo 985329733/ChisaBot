@@ -131,6 +131,8 @@ const COMPACT_MAX_HEIGHT_PX = 200;
 export type ComposerProps = {
   className?: string;
   modelControl?: ReactNode;
+  /** 输入框工具栏左侧、「+」后面的控件（机器人权限「请求批准 / 完全访问」，DESIGN.md §97）。 */
+  leadingControl?: ReactNode;
   /** 输入框工具栏右侧、发送键前的「上下文」读数（DESIGN.md §25）。 */
   contextControl?: ReactNode;
   /** A model write blocks sending and parking without disabling draft editing. */
@@ -335,6 +337,7 @@ const UNACCEPTED_DROP_REASON = {
 export function Composer({
   className,
   modelControl,
+  leadingControl,
   contextControl,
   sendBlocked = false,
   onAgentChange,
@@ -1615,6 +1618,7 @@ export function Composer({
                     <IconPlus className="size-[18px]" />
                   </Button>
                 )}
+                {leadingControl}
               </div>
               <div className="flex min-w-0 items-center gap-1.5">
                 {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
@@ -1693,6 +1697,7 @@ export function Composer({
                   <IconPlus className="size-[18px]" />
                 </Button>
               ) : null}
+              {leadingControl}
               {modelControl ? <div className="flex min-w-0 items-center">{modelControl}</div> : null}
             </div>
 

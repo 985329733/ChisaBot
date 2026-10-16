@@ -33,6 +33,7 @@ export function ConversationView({
   draftKey,
   scrollKey,
   modelControl,
+  leadingControl,
   contextControl,
   sendBlocked = false,
   disabled = false,
@@ -83,6 +84,8 @@ export function ConversationView({
   /** 滚动位置记在哪（DESIGN.md §88），交给 ChatTranscript。 */
   scrollKey?: string;
   modelControl?: ReactNode;
+  /** 输入框「+」后面的控件（机器人权限，DESIGN.md §97）。 */
+  leadingControl?: ReactNode;
   /** 输入框里的「上下文」读数（DESIGN.md §25）。 */
   contextControl?: ReactNode;
   sendBlocked?: boolean;
@@ -505,6 +508,7 @@ export function ConversationView({
         {notice}
         <Composer
           modelControl={modelControl}
+          leadingControl={leadingControl}
           contextControl={contextControl}
           sendBlocked={sendBlocked}
           agents={agents}

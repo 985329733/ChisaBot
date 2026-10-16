@@ -108,7 +108,11 @@ function errorText(error: unknown) {
  */
 export type DeviceConfirmLink = {
   linkable(): boolean;
-  before(input: { ownerUserId: string; botId: string; operation: string; operationLabel: string; summary: string; args: unknown }): Promise<"auto" | "ask">;
+  /**
+   * auto = 审批偏好「直接做」；full = 这个机器人开了「完全访问」（输入框权限，§97：连允许文件夹以外的路径也直接加进去）；ask = 问。
+   * 只在策略已经是「询问」时调用：关闭的能力、紧急停止、管理员身份运行这些硬限制在这之前就拒绝了，完全访问放不开它们。
+   */
+  before(input: { ownerUserId: string; botId: string; operation: string; operationLabel: string; summary: string; args: unknown }): Promise<"auto" | "ask" | "full">;
   opened(input: {
     approvalId: string;
     ownerUserId: string;
@@ -210,6 +214,34 @@ export function createDeviceHub(options: {
     const connection = connections.get(deviceId);
     if (!connection) return;
     if (record) send(connection, { type: "config", device: view(record) });
+  }
+
+  /**
+   * 把允许的文件夹以外的那个文件夹加进去（批准时、或机器人完全访问时），写审计，再推配置给 PC。
+   * 成功返回 true，否则返回拒绝的原因。
+   */
+  async function addOutsideRoot(record: DeviceRecord, folder: string, by: string): Promise<true | string> {
+    const roots = record.allowedRoots;
+    if (roots.some((root) => root.toLowerCase() === folder.toLowerCase())) return true;
+    if (roots.length >= MAX_ALLOWED_ROOTS)
+      return `允许的文件夹已经有 ${roots.length} 个（上限 ${MAX_ALLOWED_ROOTS}），没法再加 ${folder}。请到 设置 → 设备 → 这台设备 删掉不用的文件夹。`;
+    const updated = await store.update(record.id, { allowedRoots: [...roots, folder] });
+    if (!updated || !updated.allowedRoots.some((root) => root.toLowerCase() === folder.toLowerCase())) return `没能把 ${folder} 加入允许的文件夹。`;
+    await store.audit({
+      deviceId: record.id,
+      ownerUserId: record.ownerUserId,
+      actorType: "user",
+      actorId: null,
+      actorName: by,
+      action: "roots_added",
+      summary: `${by === "完全访问自动" ? "机器人完全访问时自动" : "批准时"}加入允许的文件夹：${folder}`,
+      outcome: "succeeded",
+      detail: null,
+      durationMs: null,
+    });
+    // config 和 call 走同一条 WebSocket、按顺序处理：PC 先拿到新文件夹，再收到调用。
+    await pushConfig(record.id);
+    return true;
   }
 
   function dropConnection(connection: Connection, reason: string) {
@@ -656,6 +688,16 @@ export function createDeviceHub(options: {
           : "ask";
       if (policy === "ask" && preference === "auto" && !outside) {
         approvalNote = "按审批偏好直接执行";
+      } else if (policy === "ask" && preference === "full") {
+        // 机器人完全访问（输入框权限）：不问，直接做；允许的文件夹以外就先把文件夹加进去（和批准时一样，写审计）。
+        approvalNote = "机器人完全访问，直接执行";
+        if (outside) {
+          const fresh = await store.get(record.id);
+          if (!fresh || fresh.revoked || fresh.paused) return refuse("refused", "设备已停止或被撤销。");
+          const added = await addOutsideRoot(fresh, outside.folder, "完全访问自动");
+          if (added !== true) return refuse("refused", added);
+          approvalNote = `${approvalNote}；已把 ${outside.folder} 加入允许的文件夹`;
+        }
       } else if (policy === "ask") {
         const decision = await requestApproval(record, input);
         const who = decision.by === "device" ? "PC 上" : decision.by === "expired" ? "" : "网页上";
@@ -672,28 +714,8 @@ export function createDeviceHub(options: {
         if (!fresh || fresh.revoked || fresh.paused)
           return refuse("refused", "审批期间设备已停止或被撤销。");
         if (outside) {
-          const roots = fresh.allowedRoots;
-          if (!roots.some((root) => root.toLowerCase() === outside.folder.toLowerCase())) {
-            if (roots.length >= MAX_ALLOWED_ROOTS)
-              return refuse("refused", `允许的文件夹已经有 ${roots.length} 个（上限 ${MAX_ALLOWED_ROOTS}），没法再加 ${outside.folder}。请到 设置 → 设备 → 这台设备 删掉不用的文件夹。`);
-            const updated = await store.update(record.id, { allowedRoots: [...roots, outside.folder] });
-            if (!updated || !updated.allowedRoots.some((root) => root.toLowerCase() === outside.folder.toLowerCase()))
-              return refuse("refused", `没能把 ${outside.folder} 加入允许的文件夹。`);
-            await store.audit({
-              deviceId: record.id,
-              ownerUserId: record.ownerUserId,
-              actorType: "user",
-              actorId: null,
-              actorName: who ? `${who}批准` : "批准",
-              action: "roots_added",
-              summary: `批准时加入允许的文件夹：${outside.folder}`,
-              outcome: "succeeded",
-              detail: null,
-              durationMs: null,
-            });
-            // config 和 call 走同一条 WebSocket、按顺序处理：PC 先拿到新文件夹，再收到调用。
-            await pushConfig(record.id);
-          }
+          const added = await addOutsideRoot(fresh, outside.folder, who ? `${who}批准` : "批准");
+          if (added !== true) return refuse("refused", added);
           approvalNote = `${approvalNote}；已把 ${outside.folder} 加入允许的文件夹`;
         }
       }

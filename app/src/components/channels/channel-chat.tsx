@@ -16,6 +16,7 @@ import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
 import { ConversationView } from "@/components/channels/conversation-view";
 import { ContextMeter } from "@/components/agents/context-meter";
+import { PermissionChip } from "@/components/chat/permission-chip";
 import { BotModelSelector } from "@/components/agents/bot-model-selector";
 import { useModelSelectionSaving } from "@/lib/model-selection/hooks";
 import { assertModelSelectionNotSaving } from "@/lib/model-selection/mutations";
@@ -1228,6 +1229,7 @@ export function ChannelChat({
         <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
           <ConversationView
             modelControl={<BotModelSelector agentId={runtimeAgentId} compact disabled={!channel.active} />}
+            leadingControl={<PermissionChip agentId={runtimeAgentId} disabled={!channel.active} />}
             contextControl={<ContextMeter agentId={runtimeAgentId} running={agent.isRunning || turnsInFlight > 0} threadId={channel.threadId} />}
             sendBlocked={modelSaving}
             agents={toAgentOptions(agentProfiles, channel.agentIds)}

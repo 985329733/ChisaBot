@@ -54,6 +54,8 @@ export function SectionRail({
   title,
   groups,
   footerLink,
+  header,
+  body,
   ...props
 }: {
   ariaLabel: string;
@@ -62,11 +64,16 @@ export function SectionRail({
   groups: RailGroup[];
   /** The icon button in the footer: the way across to the other area (settings ↔ admin). */
   footerLink?: { label: string; to: string; icon: React.ComponentType<{ className?: string }> };
+  /** 标题下面、列表上面的东西（设置搜索框，DESIGN.md §97）。只在展开的左栏里画。 */
+  header?: React.ReactNode;
+  /** 给了就替换掉分组列表（设置搜索有结果 / 没结果时）。 */
+  body?: React.ReactNode;
 } & React.ComponentProps<typeof Sidebar>) {
   const sidebar = useOptionalSidebar();
   const collapsed = Boolean(sidebar && !sidebar.isMobile && sidebar.state === "collapsed");
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const anyHere = groups.some((group) => inGroup(group, pathname));
+  // 只看可折叠的组：当前页在不折叠的组里（设置 →「通用」）时，照样展开 defaultOpen 的那一组。
+  const anyHere = groups.some((group) => group.collapsible && inGroup(group, pathname));
   const scrollRef = useRef<HTMLDivElement>(null);
   // 当前页那一行在可视区外（矮屏、组都展开着）时，打开设置先把它滚进来。
   useEffect(() => {
@@ -129,8 +136,9 @@ export function SectionRail({
         <nav aria-label={ariaLabel} className="glass-card glass-side-card min-h-0 flex-1">
           {/* DESIGN-v3 §6.1：没有「返回应用」胶囊（顶栏主导航就是回去的路），卡片顶部是区域名。 */}
           <div className="rail-title">{title}</div>
+          {header}
           <div className="glass-side-scroll rail-scroll scroll-fade-b" ref={scrollRef}>
-            {groups.map((group, gi) =>
+            {body ?? groups.map((group, gi) =>
               group.collapsible && !(group.collapsible.desktopOnly && sidebar?.isMobile) ? (
                 <CollapsibleGroup anyHere={anyHere} first={gi === 0} group={group} key={group.label ?? gi} />
               ) : (
