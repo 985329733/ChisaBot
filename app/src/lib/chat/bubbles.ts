@@ -144,6 +144,19 @@ function textOf(b: Block): BubbleSegment {
   return { kind: "text", text: lines.join("\n"), wide };
 }
 
+/**
+ * 这一段去掉 Markdown 图片（以及流式时写到一半、还没闭合的图片）和 `<img>` 之后什么都不剩（§93.2）。
+ * 这种段在气泡里画出来是空的——图片本来就画在气泡下面的图片卡里。
+ */
+export function isMediaOnly(text: string): boolean {
+  const rest = text
+    .replace(/!\[[^\]\n]*\]\([^)\n]*\)/g, "")
+    .replace(/<img\b[^>]*>/gi, "")
+    .replace(/!\[[^\]\n]*(\](\([^)\n]*)?)?$/, "")
+    .trim();
+  return rest === "";
+}
+
 export function splitBubbles(text: string): BubbleSegment[] {
   if (!text.trim()) return [];
   const blocks = mergeBlocks(toBlocks(text));
@@ -160,7 +173,9 @@ export function splitBubbles(text: string): BubbleSegment[] {
   let segs = joined.map((b) =>
     b.fence && b.info === "draft" ? draftOf(b) : b.fence && DOC_INFOS.has(b.info ?? "") ? draftOf(b, "doc") : textOf(b),
   );
-  segs = segs.filter((s) => s.text.trim() || s.kind === "draft" || s.kind === "doc");
+  // 只有图片的一段（`![截图](/api/…)`）：正文里的图片不内联画、统一进下面的图片卡（§31，HiddenMarkdownImage），
+  // 留着它就是一个空的小气泡（DESIGN.md §93.2）。流式写到一半的图片（`![当前电脑截图](/api/dev`）同理。
+  segs = segs.filter((s) => (s.text.trim() && !(s.kind === "text" && isMediaOnly(s.text))) || s.kind === "draft" || s.kind === "doc");
   if (segs.length > MAX_BUBBLES) {
     const head = segs.slice(0, MAX_BUBBLES - 1);
     const tail = segs.slice(MAX_BUBBLES - 1);

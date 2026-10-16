@@ -1,10 +1,19 @@
 import { describeWorkerStep } from "../../../../shared/work-step";
+import { toolResultFailed } from "../plugins/tool-result";
 
 /**
  * 主对话这一轮干了哪些活（DESIGN.md §70 干活卡）：从这一轮的工具调用里数步骤、取「当前步骤」那一行。
  * 只认结构 `{ name, arguments }`，不依赖聊天记录的具体类型，方便单测。
  */
-export type WorkCall = { name: string; arguments: string; done: boolean };
+export type WorkCall = {
+  name: string;
+  arguments: string;
+  done: boolean;
+  /** 工具调用 id（简单回合要查它有没有确认卡，§93）。 */
+  id?: string;
+  /** 结果是拒绝 / 出错 / 被中断（§93：这一轮就不算「简单回合」）。 */
+  failed?: boolean;
+};
 
 export type WorkSummary = { count: number; done: number; current: string };
 
@@ -139,4 +148,102 @@ function doneLabel(work: readonly WorkCall[]): string {
   return webOnly
     ? [searches ? `搜索 ${searches} 次` : "", pages ? `看了 ${pages} 个网页` : ""].filter(Boolean).join(" · ")
     : `做了 ${work.length} 步`;
+}
+
+/**
+ * 工具结果是不是「没做成」（§93）：服务器工具门报的失败（`toolResultFailed`）、被拒绝（`Refused.`）、服务器补的「This call produced no result」（中断）、
+ * JSON 里带 `error` / `ok: false`，或者以 Error / 错误 / 失败 开头。只用来判断这一轮能不能悄悄收起干活卡，
+ * 拿不准就当没做成（卡片照常显示）。
+ */
+export function workCallFailed(result: string | undefined): boolean {
+  if (result === undefined) return true;
+  if (toolResultFailed(result)) return true;
+  let text = result.trim();
+  if (text.startsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (typeof parsed === "string") text = parsed.trim();
+    } catch {
+      // 不是 JSON 字符串：按原样看。
+    }
+  }
+  if (text.startsWith("Refused.") || text.includes("This call produced no result")) return true;
+  if (/^(error\b|错误|失败)/i.test(text)) return true;
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text) as Record<string, unknown> | null;
+      if (parsed && typeof parsed === "object" && (Boolean(parsed.error) || parsed.ok === false)) return true;
+    } catch {
+      // 截断的 JSON：不算出错。
+    }
+  }
+  return false;
+}
+
+/**
+ * 「简单回合」允许的工具（§93）：只读、很快、对用户没有信息量——列设备、截屏、看系统信息 / 文件列表、翻记忆、
+ * 看页面 / 定时任务 / 面板列表。改东西（写文件、跑命令、装软件、点鼠标）、上网搜索 / 读网页、开浏览器都不在里面：
+ * 那些干活卡本身就是用户想看的（搜了什么、跑了什么）。准备动作 / 画卡片（NOT_WORK）不算步骤，也不挡。
+ */
+export const QUIET_TOOLS: ReadonlySet<string> = new Set([
+  "device_list",
+  "device_system_info",
+  "device_screenshot",
+  "device_list_files",
+  "device_read_file",
+  "device_search",
+  "device_processes",
+  "device_agent_list",
+  "device_agent_status",
+  "memory_search",
+  "page_list",
+  "page_get",
+  "schedule_list",
+  "panel_list",
+  "worker_status",
+  "chat_files_recent",
+  "list_recent_files",
+]);
+
+/** 简单回合最多几步（不算准备动作）。 */
+export const QUIET_MAX_STEPS = 3;
+/** 简单回合最长几秒（这一页知道用时时才看；从历史打开不知道用时，只按步骤判断）。 */
+export const QUIET_MAX_SECONDS = 15;
+
+/**
+ * 这一轮做完以后要不要把干活卡整行收起（DESIGN.md §93，用户 2026-10-16「做了 2 步 7 秒这个应该隐藏」）。
+ * 唯一的判断，渲染和测试都用它。全部成立才收：
+ *  - 这一轮结束了（不在跑）、没被停掉，并且有结果（最后一段回答）；
+ *  - 每个调用都有结果、没有一个出错 / 被拒 / 被中断；
+ *  - 只用了 QUIET_TOOLS 里的工具（加上不算步骤的准备动作），步数 1..QUIET_MAX_STEPS；
+ *  - 没有确认卡（`confirmed` = 有确认请求的调用 id）；
+ *  - 用时：这一页知道（亲眼看着跑过 / 记下过）时不超过 QUIET_MAX_SECONDS 秒；不知道就不看。
+ * 收起的只是这一行的画法：调用、过程话都还在 `compactTurns().work` 里，打开「调试：显示工具调用」照常全画。
+ */
+export function isQuietWork({
+  calls,
+  live,
+  stopped = false,
+  hasFinal,
+  confirmed,
+  seconds = null,
+}: {
+  calls: readonly WorkCall[];
+  live: boolean;
+  stopped?: boolean;
+  hasFinal: boolean;
+  confirmed?: ReadonlySet<string> | undefined;
+  seconds?: number | null;
+}): boolean {
+  if (live || stopped || !hasFinal) return false;
+  let steps = 0;
+  for (const call of calls) {
+    if (!call.done || call.failed) return false;
+    if (call.id && confirmed?.has(call.id)) return false;
+    if (NOT_WORK.has(call.name)) continue;
+    if (!QUIET_TOOLS.has(call.name)) return false;
+    steps += 1;
+  }
+  if (steps === 0 || steps > QUIET_MAX_STEPS) return false;
+  return seconds === null || seconds <= QUIET_MAX_SECONDS;
 }

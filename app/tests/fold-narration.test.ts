@@ -31,11 +31,15 @@ describe("过程话收进干活卡（§90）", () => {
     ];
     const compact = compactTurns(items, false, new Set());
     expect(compact.tone.get("a1")).toBe("lead");
-    expect(compact.hidden.has("a1")).toBe(false);
+    // §93：开场一句也收进卡片（原 §90 留它当气泡）。
+    expect(compact.hidden.has("a1")).toBe(true);
     expect(compact.hidden.has("a2")).toBe(true);
     expect(compact.tone.get("a3")).toBe("final");
     expect(compact.hidden.has("a3")).toBe(false);
-    expect(compact.work.get("t1")?.notes).toEqual([{ at: 2, text: NARRATION }]);
+    expect(compact.work.get("t1")?.notes).toEqual([
+      { at: 0, text: "我先检查 Node.js 和 npm。" },
+      { at: 2, text: NARRATION },
+    ]);
   });
 
   test("narration → tool：还在跑时，后面一调工具就收；最后一段（后面还没工具）照旧露着", () => {
@@ -52,7 +56,7 @@ describe("过程话收进干活卡（§90）", () => {
     expect(compact.hidden.has("a3")).toBe(false);
     expect(compact.tone.get("a3")).toBe("step");
     expect(compact.work.get("t1")?.live).toBe(true);
-    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual([NARRATION]);
+    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual(["我先检查。", NARRATION]);
   });
 
   test("narration → 中断的工具 → 出错（截图那一轮）：不再散在卡片下面", () => {
@@ -66,7 +70,7 @@ describe("过程话收进干活卡（§90）", () => {
     ];
     const compact = compactTurns(items, false, new Set());
     expect(compact.hidden.has("a2")).toBe(true);
-    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual([NARRATION]);
+    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual(["我先检查。", NARRATION]);
   });
 
   test("narration → 出错（后面没有工具）：照旧当结果——本机的「出错」可能只是流断了，服务器接着写完了（§90.4）", () => {
@@ -80,7 +84,7 @@ describe("过程话收进干活卡（§90）", () => {
     const items = [user("u1", "安装修复"), bot("a1", "我先检查。"), call("t1", "device_run_shell"), bot("a2", NARRATION)];
     const compact = compactTurns(items, false, new Set(["u1"]));
     expect(compact.hidden.has("a2")).toBe(true);
-    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual([NARRATION]);
+    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual(["我先检查。", NARRATION]);
     expect(compact.stoppedAfter.has("t1")).toBe(true);
   });
 
@@ -89,7 +93,7 @@ describe("过程话收进干活卡（§90）", () => {
     const compact = compactTurns(items, false, new Set());
     expect(compact.tone.get("a2")).toBe("final");
     expect(compact.hidden.has("a2")).toBe(false);
-    expect(compact.work.get("t1")?.notes).toEqual([]);
+    expect(compact.work.get("t1")?.notes.map((n) => n.text)).toEqual(["我先检查。"]);
   });
 
   test("没有干活卡的一轮：规则不变（只有 render_ui / 技能）", () => {

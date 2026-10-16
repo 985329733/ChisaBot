@@ -58,8 +58,10 @@ import { readFiring } from "@/lib/channels/routine-firing";
 import { splitChatOrigin } from "./chat-origin";
 import { markdownComponents } from "@/lib/markdown";
 import { BotBubbles } from "@/components/chat/bot-bubbles";
-import { WorkRow } from "@/components/chat/work-card";
-import { isWorkCall, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
+import { knownWorkSeconds, WorkRow } from "@/components/chat/work-card";
+import { isQuietWork, isWorkCall, workCallFailed, type WorkCall, type WorkNote } from "@/lib/chat/work-steps";
+import { useThreadConfirmations } from "@/lib/confirmations";
+import { useCopilotChatConfiguration } from "@copilotkit/react-core/v2";
 import { supersededPageCalls } from "@/lib/chat/page-cards";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { EditAction, MessageEditor, RegenerateAction } from "@/components/chat/message-actions";
@@ -586,12 +588,15 @@ export const SETTLE_AFTER_HYDRATE_MS = 2500;
  * 翻页键、拖滚动条）或者发了新消息，马上停手，交回滚动容器原来的规则。
  */
 function SettleAtEnd({
+  busy = false,
   hydrating,
   newestUserMessageId,
   viewport,
   scrollKey,
   slack,
 }: {
+  /** 这一段对话正在回答（§93.3：一轮结束时把底下留的空收掉）。 */
+  busy?: boolean;
   hydrating: boolean;
   newestUserMessageId: string | null;
   viewport: React.RefObject<HTMLDivElement | null>;
@@ -617,7 +622,14 @@ function SettleAtEnd({
     hydrating,
     /** 底下的留白（px）。 */
     slack: 0,
+    /** 正在把留白收掉（§93.3）：这段时间里变矮不再补留白。 */
+    releasing: false,
+    busy,
   });
+  state.current.busy = busy;
+  const reduceMotion = useReducedMotion();
+  /** §93.3：一轮结束后收掉底下留的空（由下面的 effect 填上；没挂上时什么都不做）。 */
+  const releaseRef = useRef<(() => boolean) | null>(null);
 
   useLayoutEffect(() => {
     const s = state.current;
@@ -628,6 +640,11 @@ function SettleAtEnd({
     } else if (s.wasHydrating) {
       s.until = performance.now() + SETTLE_AFTER_HYDRATE_MS;
       s.baseline = newestUserMessageId;
+      /*
+       * §93.3：恢复完了、这一段没在回答——上次离开时底下留的空（新一轮对齐到顶上时滚动容器留的）不再放回去：
+       * 做完的一轮只要正常的底边距。还在回答时照旧放回去（§88.3，接着写的回答先填那块空，画面不跳）。
+       */
+      if (!s.busy && s.slack > 0) setSlack(0);
     } else if (newestUserMessageId !== s.baseline) {
       // 恢复完成后又多了一条用户消息：人发的（或别的设备发的），交回「新一轮对齐到顶上」。
       s.until = 0;
@@ -655,14 +672,46 @@ function SettleAtEnd({
     el.style.height = `${next}px`;
   }
 
+  /*
+   * §93.3 一轮结束后收掉底下的空（用户 2026-10-16「下面还有额外的空白」）。
+   *
+   * 根因：新一轮发出去时，滚动容器把那条用户消息对齐到顶上，回答比一屏短时在下面垫一块空（它自己的 spacer，
+   * 「anchored-to-message」）；这一轮结束了它也不收——人看着回答下面一大块空。变矮时 §88.1 又把少掉的高度
+   * 补成留白（slack），刷新后 §88.3 还把它原样放回去。
+   *
+   * 现在：回答结束（busy 变 false）的那一次提交里（和收起动画同时开始），人还在底部、没动过滚动：先把滚动容器的空
+   * 原样挪进我们的留白（总高度不变，画面不动），让滚动容器改成「跟着底部」（scrollToEnd 把它的 spacer 清零），
+   * 再把留白在 300ms 里缩到 0——浏览器把 scrollTop 一点点夹小，整段对话平滑地往下落到正常的底边距。
+   * 人往上翻过、或者又开始回答了：不动。`prefers-reduced-motion`：一下收掉。
+   */
+  const wasBusy = useRef(busy);
+  useLayoutEffect(() => {
+    const was = wasBusy.current;
+    wasBusy.current = busy;
+    if (busy || !was || hydrating) return;
+    // 和这一轮结束时的收起（§82.9 过程话 / §93 干活卡）同一次提交、绘制之前开始：收起和收空一起往下落，
+    // 不会先被收起夹一下、滚动容器再把那条消息拉回顶上（预览实测：等收起走完再收，中间往回跳 67px）。
+    if (releaseRef.current?.() !== false) return;
+    // 这一帧还不行（滚动容器还在对齐、最后几个字刚进来）：接下来几帧再试，最多 ~0.5 秒。
+    let tries = 0;
+    let frame = 0;
+    const retry = () => {
+      if (releaseRef.current?.() !== false || ++tries > 30) return;
+      frame = window.requestAnimationFrame(retry);
+    };
+    frame = window.requestAnimationFrame(retry);
+    return () => window.cancelAnimationFrame(frame);
+  }, [busy, hydrating]);
+
   // 离开对话：最后记一次位置。用 layout 的清理——那时 DOM 还在页面上，量得出来（普通 effect 的清理时已经拿掉了）。
   const finalWrite = useRef<(() => void) | null>(null);
   useLayoutEffect(() => () => finalWrite.current?.(), []);
 
-  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。
+  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。没在恢复、也没在回答：不放（§93.3）。
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!memo?.atBottom || memo.spacer <= 0 || !element) return;
+    if (!hydrating && !busy) return;
     setSlack(Math.min(memo.spacer, Math.max(0, element.clientHeight - 96)));
     // biome-ignore lint/correctness/useExhaustiveDependencies: once, on open.
   }, []);
@@ -755,7 +804,9 @@ function SettleAtEnd({
       }
       const max = element.scrollHeight - element.clientHeight;
       const recentlyTouched = performance.now() - touchedAt < 400;
-      if (grew > 0 && s.slack > 0) {
+      if (s.releasing) {
+        // 正在收留白（§93.3）：变矮是我们自己收的，不补回去。
+      } else if (grew > 0 && s.slack > 0) {
         // 长出来的先填留白：总高度不变，画面不动。
         const use = Math.min(s.slack, grew);
         setSlack(s.slack - use);
@@ -783,6 +834,7 @@ function SettleAtEnd({
       const max = element.scrollHeight - element.clientHeight;
       if (
         seen.atBottom &&
+        !s.releasing &&
         !active() &&
         !s.restore &&
         performance.now() - touchedAt > 400 &&
@@ -838,6 +890,56 @@ function SettleAtEnd({
       saveTimer = null;
       write();
     };
+    let releaseFrame = 0;
+    releaseRef.current = () => {
+      const why = (reason: string) => {
+        element.dataset.cbRelease = reason;
+        return false;
+      };
+      if (s.busy || s.releasing || s.restore || active()) return why(`skip:${s.busy ? "busy" : s.releasing ? "releasing" : s.restore ? "restore" : "settling"}`);
+      if (performance.now() - touchedAt < 400) return why("touched");
+      const gap = element.scrollHeight - element.scrollTop - element.clientHeight;
+      if (gap > 4) return why(`gap:${Math.round(gap)}`); // 人不在底部：留白在视口外，§88.1 自己会收
+      const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
+      const spacerHeight = spacer && !spacer.hidden ? spacer.offsetHeight : 0;
+      const total = spacerHeight + s.slack;
+      if (total <= 1) return why("none");
+      s.releasing = true;
+      element.dataset.cbRelease = `release:${Math.round(total)}`;
+      // 1) 滚动容器的空挪进留白（同一帧），2) 让它改成跟着底部（spacer 清零，位置不变）。
+      setSlack(total);
+      const top = element.scrollTop;
+      element.style.scrollBehavior = "auto";
+      scrollToEnd({ behavior: "auto" });
+      element.scrollTop = top;
+      element.style.scrollBehavior = "";
+      const finish = () => {
+        setSlack(0);
+        lastHeight = content.offsetHeight;
+        s.releasing = false;
+        look();
+        save();
+      };
+      if (reduceMotion) {
+        finish();
+        return true;
+      }
+      // 3) 留白缩到 0：ease-out，RELEASE_MS。
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / RELEASE_MS);
+        const eased = 1 - (1 - t) ** 3;
+        if (t >= 1 || s.busy || performance.now() - touchedAt < 50) {
+          finish();
+          return;
+        }
+        setSlack(total * (1 - eased));
+        lastHeight = content.offsetHeight;
+        releaseFrame = window.requestAnimationFrame(step);
+      };
+      releaseFrame = window.requestAnimationFrame(step);
+      return true;
+    };
     const mutations = new MutationObserver(pin);
     mutations.observe(content, { childList: true });
     const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pinNow);
@@ -849,6 +951,9 @@ function SettleAtEnd({
     element.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       if (saveTimer !== null) clearTimeout(saveTimer);
+      window.cancelAnimationFrame(releaseFrame);
+      releaseRef.current = null;
+      s.releasing = false;
       finalWrite.current = null;
       window.cancelAnimationFrame(frame);
       mutations.disconnect();
@@ -860,10 +965,13 @@ function SettleAtEnd({
       element.removeEventListener("scroll", onScroll);
     };
     // biome-ignore lint/correctness/useExhaustiveDependencies: slack / state are refs.
-  }, [scrollToEnd, scrollToMessage, viewport, scrollKey]);
+  }, [scrollToEnd, scrollToMessage, viewport, scrollKey, reduceMotion]);
 
   return null;
 }
+
+/** 一轮结束后底下的空收掉用多久（毫秒，§93.3）。 */
+const RELEASE_MS = 300;
 
 /**
  * How many of the newest turns cascade when a channel is opened, and how far apart.
@@ -2193,6 +2301,28 @@ export function ChatTranscript({
     busy && !(settled !== null && settled.length === shape.length && settled.last === shape.last);
   // 一轮收成「开场一句 → 结果」，与机器人聊天同一规则（compactTurns，2026-10-13 第四轮）。
   const compact = compactTurns(items, live, stoppedTurns ?? EMPTY_STOPS, fallbacks);
+  const showToolActivity = useToolActivityVisible();
+  /*
+   * 简单回合（DESIGN.md §93）：做完了、只读的一两步、有结果——干活卡那一行整行收起，只留结果。结构上的判断在
+   * compactTurns（`quiet`）；有确认卡的调用、这一页知道用时超过 15 秒的，照常显示。确认列表和确认卡片用同一份
+   * 缓存（同一个 queryKey），不多发请求。打开「调试：显示工具调用」时不收（每一步本来就画着）。
+   */
+  const chatConfig = useCopilotChatConfiguration();
+  const hasQuiet = !showToolActivity && [...compact.work.values()].some((work) => work.quiet);
+  const confirmations = useThreadConfirmations(hasQuiet ? (chatConfig?.threadId ?? null) : null, false);
+  const confirmed = new Set<string>();
+  for (const request of confirmations.data ?? []) if (request.toolCallId) confirmed.add(request.toolCallId);
+  const quietRows = new Set<string>();
+  if (hasQuiet) {
+    for (const [anchor, work] of compact.work) {
+      if (!work.quiet) continue;
+      if (isQuietWork({ calls: work.calls, live: work.live, hasFinal: true, confirmed, seconds: knownWorkSeconds(work.key) })) {
+        quietRows.add(anchor);
+      }
+    }
+  }
+  /** 这一行不画（收起的过程话、旧的浏览小条、简单回合的干活卡那一行）。 */
+  const rowHidden = (id: string) => compact.hidden.has(id) || quietRows.has(id);
   /*
    * 收起而不是拔掉（DESIGN §82.9）：一轮结束时过程话 / 旧的浏览小条被收起（compact.hidden），以前那一帧直接卸载，
    * 下面的结果往上一跳。这一页上亲眼看着它可见过的行，变成 hidden 后留在原处、用 220ms 收成 0 高 + 淡出
@@ -2201,12 +2331,12 @@ export function ChatTranscript({
   const shownRef = useRef<Set<string>>(new Set());
   const foldedRef = useRef<Set<string>>(new Set());
   for (const item of items) {
-    if (compact.hidden.has(item.id) && shownRef.current.has(item.id)) foldedRef.current.add(item.id);
+    if (rowHidden(item.id) && shownRef.current.has(item.id)) foldedRef.current.add(item.id);
   }
   useLayoutEffect(() => {
     const ids = new Set(items.map((item) => item.id));
     const shown = new Set<string>();
-    for (const id of ids) if (!compact.hidden.has(id)) shown.add(id);
+    for (const id of ids) if (!rowHidden(id)) shown.add(id);
     shownRef.current = shown;
     for (const id of foldedRef.current) if (!ids.has(id)) foldedRef.current.delete(id);
   });
@@ -2220,7 +2350,6 @@ export function ChatTranscript({
    * message. A tool call that is running shimmers on its own line and needs nothing from here.
    */
   const lastItem = items.at(-1);
-  const showToolActivity = useToolActivityVisible();
   const waitingOnFirstToken =
     busy &&
     ((lastItem?.kind === "text" && lastItem.role === "user") ||
@@ -2394,7 +2523,7 @@ export function ChatTranscript({
             ) : null}
             {items.length === 0 && restoring ? <RestoringTranscript /> : null}
             {items.map((item, index) => {
-              if (compact.hidden.has(item.id)) return foldedRef.current.has(item.id) ? renderFolded(item, index) : null;
+              if (rowHidden(item.id)) return foldedRef.current.has(item.id) ? renderFolded(item, index) : null;
               const stoppedHere = compact.stoppedAfter.has(item.id);
               const fallback = compact.fallbackAfter.get(item.id);
               if (!stoppedHere && !fallback) return renderRow(item, index);
@@ -2419,7 +2548,7 @@ export function ChatTranscript({
           <span className="chat-bottom-pill-t">{"回到底部"}</span>
         </MessageScrollerButton>
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
-        <SettleAtEnd hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} slack={slackRef} {...(scrollKey ? { scrollKey } : {})} />
+        <SettleAtEnd busy={busy} hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} slack={slackRef} {...(scrollKey ? { scrollKey } : {})} />
       </MessageScroller>
     </MessageScrollerProvider>
   );
@@ -2581,6 +2710,16 @@ export function lastAnswerId(items: readonly TranscriptItem[], hidden: ReadonlyS
  *    后面又调了工具的那段马上收；这一轮结束了（有结果 / 出错 / 停止 / 中断）剩下的过程话也收。
  *    还在跑、后面还没调工具的最后一段照旧露在外面（它可能就是正在写的结果）。
  */
+/** 一轮的干活卡（§75.1 / §90 / §93）。 */
+export type WorkEntry = {
+  calls: WorkCall[];
+  key: string;
+  live: boolean;
+  notes: WorkNote[];
+  /** 简单回合（只读的一两步、做完了、有结果）：结构上可以整行收起（§93）。 */
+  quiet: boolean;
+};
+
 export function compactTurns(
   items: readonly TranscriptItem[],
   busy: boolean,
@@ -2597,13 +2736,13 @@ export function compactTurns(
    * 干活卡（§75.1）：这一轮第一个干活的工具那一行 → 这一轮的全部调用、是否还在跑；key = 这一轮开头那条消息（记用时用）。
    * 还在跑时画实时卡，结束后同一个位置收成「搜索 2 次 · 12 秒 ⌄」。
    */
-  work: Map<string, { calls: WorkCall[]; key: string; live: boolean; notes: WorkNote[] }>;
+  work: Map<string, WorkEntry>;
 } {
   const tone = new Map<string, "lead" | "step" | "final">();
   const hidden = new Set<string>();
   const stoppedAfter = new Set<string>();
   const fallbackAfter = new Map<string, string>();
-  const work = new Map<string, { calls: WorkCall[]; key: string; live: boolean; notes: WorkNote[] }>();
+  const work = new Map<string, WorkEntry>();
   // 一轮的开头：人发的消息，或服务器放进来、接着跑一轮的那几种（定时任务 / 任务结果 / 后来确认，CB-046）。
   const sent = (item: TranscriptItem) =>
     item.kind === "attachments" ||
@@ -2656,7 +2795,13 @@ export function compactTurns(
         const tools = item.kind === "tool" ? [item] : item.kind === "browser" ? item.steps : [];
         for (const tool of tools) {
           const name = tool.toolCall.function.name;
-          calls.push({ name, arguments: tool.toolCall.function.arguments, done: tool.result !== undefined });
+          calls.push({
+            name,
+            arguments: tool.toolCall.function.arguments,
+            done: tool.result !== undefined,
+            id: tool.toolCall.id,
+            failed: tool.result !== undefined && workCallFailed(tool.result),
+          });
           if (anchor === null && isWorkCall(name)) anchor = item.id;
         }
       }
@@ -2669,13 +2814,15 @@ export function compactTurns(
          */
         const notes: WorkNote[] = [];
         let seen = 0;
-        let carded = false;
         turn.rest.forEach((item, at) => {
-          if (item.id === anchor) carded = true;
           if (item.kind === "tool") seen += 1;
           else if (item.kind === "browser") seen += item.steps.length;
-          // 开场一句如果出现在卡片之后（这一轮先干活后说话），它也是过程话。
-          else if (item.kind === "text" && (tone.get(item.id) === "step" || (carded && tone.get(item.id) === "lead"))) {
+          /*
+           * 开场一句也是过程话（§93，改 §90 的「卡片之前的开场一句照旧是气泡」）：有干活卡的一轮里，
+           * 「我来查看你当前在线电脑的屏幕…」后面就是干活的工具，和两步之间的话一样收进卡片（实时时下一步一开始就收）。
+           * 出现在卡片之后的开场一句（先干活后说话）同理。
+           */
+          else if (item.kind === "text" && (tone.get(item.id) === "step" || tone.get(item.id) === "lead")) {
             const workAfter = turn.rest.slice(at + 1).some(
               (next) => next.kind === "browser" || (next.kind === "tool" && isWorkCall(next.toolCall.function.name)),
             );
@@ -2685,7 +2832,9 @@ export function compactTurns(
             }
           }
         });
-        work.set(anchor, { calls, key, live, notes });
+        // 简单回合（§93）：结构上的判断在这里；确认卡、用时只有渲染时知道，ChatTranscript 再看一遍。
+        const quiet = isQuietWork({ calls, live, stopped: isStopped, hasFinal: final !== null });
+        work.set(anchor, { calls, key, live, notes, quiet });
       }
     }
     // CB-021：同一轮里同一个页面只留一张卡（§54「同一轮同一页面一张卡」）。
