@@ -23,7 +23,7 @@
 | 节点运行时 | `pc/src/cloud-cc/`：`index.js`（登录、每一轮、快照、目录 / 文件 / diff / 撤销）、`git.js`（P3：克隆、会话工作树、合入、推送、相对 main）、`policy.js`（PreToolUse 规则）、`stream.js`（stream-json 解析）、`hook.js`（`chisabot-node cc-hook`）；`pc/src/headless.js` 在 `CHISABOT_CLOUD_WORKSPACE=1` 时接上 |
 | 服务器 | `server/src/cloud-cc/service.ts`（设备 hub 扩展排在本地 agent 前面；`/api/cloud-workspace/*`、`/api/claude-code/*`） |
 | 共享类型 | `shared/cloud-cc.ts` |
-| 网页 | 设置 → 云端工作区 `app/src/routes/_authed/settings/cloud-workspace.tsx`；Claude Code 视图 `app/src/routes/_authed/cc/`、`app/src/components/cloud-cc/`；`app/src/lib/cloud-cc.ts` |
+| 网页 | 设置 → 云端工作区 `app/src/routes/_authed/settings/cloud-workspace.tsx`；Claude Code 视图 `app/src/routes/_authed/_app/cc/`、`app/src/components/cloud-cc/`；`app/src/lib/cloud-cc.ts` |
 | 测试 | `pc/test/cloud-cc.check.js`（模拟 CLI `tests/cloud-cc/mock-claude.cjs`：登录、两轮接着上次、审批、拒绝推送、停止、撤销）；`pc/test/cloud-cc-git.check.js`（模拟 GitHub `tests/cloud-cc/mock-github.cjs`：git http-backend + Basic 令牌，克隆 / 合入 / 冲突 / 推送 / 令牌不落盘） |
 
 **设备连接上的消息**（同一条 WSS；旧客户端不认识就忽略）

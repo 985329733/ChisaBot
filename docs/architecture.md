@@ -97,7 +97,7 @@ ChisaBot 自己的表大多在服务启动时 `CREATE TABLE IF NOT EXISTS`（不
 | 实时面板 | §29、§43 | — | `server/src/live-panels/` | `live_panels`（迁移 0056/0057） |
 | 链接卡 | §48 | — | `server/src/link-preview/`、`app/src/lib/rich-previews/` | `chisabot_link_previews`、`chisabot_link_preview_assets` |
 | 设备 / PC 节点 · 扫码绑定 | §16、§33、§45 | [pc-node.md](pc-node.md) | `server/src/devices/`、`pc/` | `devices`、`device_audit_events`（迁移 0054；`device_bot_access` 已不用） |
-| 云端 Claude Code（云端工作区节点、Claude 登录、Claude Code 标签页） | §73 · ADR-0014 | [cloud-claude-code.md](cloud-claude-code.md) | `server/src/cloud-cc/`、`pc/src/cloud-cc/`、`deploy/cloud-node/`、`app/src/routes/_authed/cc/`、`app/src/components/cloud-cc/` | `chisabot_cloud_workspaces`、`chisabot_cc_*` |
+| 云端 Claude Code（云端工作区节点、Claude 登录、Claude Code 标签页） | §73 · ADR-0014 | [cloud-claude-code.md](cloud-claude-code.md) | `server/src/cloud-cc/`、`pc/src/cloud-cc/`、`deploy/cloud-node/`、`app/src/routes/_authed/_app/cc/`、`app/src/components/cloud-cc/` | `chisabot_cloud_workspaces`、`chisabot_cc_*` |
 | 新建机器人 · 资料页 | §46、§47 | [coworkers.md](coworkers.md) | `server/src/agents/` | 上游 agents 表（迁移 0058 一律私有） |
 | IM 接入 | §49 | [im.md](im.md) | `server/src/im/`、`shared/im.ts` | `chisabot_im_connections/_chats/_logs` |
 | 长期记忆 | §50 | [memory.md](memory.md) | `server/src/memory-notes/` | `chisabot_memory_notes`、`chisabot_memory_bots` |
