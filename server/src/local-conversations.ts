@@ -8,6 +8,29 @@ import { anchorsPresent, INBOX_TEXT_LIMIT, newSteerSession, ThreadInbox, type Tr
 import type { Database } from "./db/client";
 import { afterTruncate, dropTombstoned, ensureTruncationTable, tombstones, TruncateError, truncateThread, workersSince } from "./thread-truncate";
 
+/**
+ * 接入回放瘦身（DESIGN.md §82）。存下的每一轮 RUN_STARTED 都带着那一刻完整的 input：系统上下文（context）、
+ * 工具定义（tools）和到那一刻为止的全部消息（messages）。n 轮就是 n 份，越聊越大——实测一段 35 轮的对话
+ * 回放 3.4 MB（context 2.2 MB + tools 1 MB），打开 / 切换到它时浏览器要先下完这些。
+ *
+ * 客户端回放时只用 RUN_STARTED.input.messages 里「它还没有的那几条」（AG-UI `defaultApplyEvents`：按 id 找，
+ * 有就跳过），context / tools 根本不看。所以：前面几轮 input 里已经出现过的消息不再重复发，context / tools 发空数组。
+ * 客户端得到的消息列表和以前完全一样，只是少传了重复的部分。只改接入回放，不改存储，不改正在跑的那一轮的实时事件。
+ */
+export function slimReplay(events: readonly BaseEvent[]): BaseEvent[] {
+  const seen = new Set<string>();
+  return events.map((event) => {
+    if (event.type !== EventType.RUN_STARTED) return event;
+    const started = event as BaseEvent & { input?: { messages?: { id?: unknown }[]; context?: unknown; tools?: unknown } };
+    const input = started.input;
+    if (!input || typeof input !== "object") return event;
+    const messages = Array.isArray(input.messages) ? input.messages : [];
+    const fresh = messages.filter((message) => typeof message?.id !== "string" || !seen.has(message.id));
+    for (const message of messages) if (typeof message?.id === "string") seen.add(message.id);
+    return { ...started, input: { ...input, messages: fresh, context: [], tools: [] } } as BaseEvent;
+  });
+}
+
 /** Errors also satisfy the existing history reader's platform-error contract. */
 export class LocalConversationError extends Error {
   constructor(message: string, readonly status: number) {
@@ -559,7 +582,7 @@ class PostgresAgentRunner extends AgentRunner {
         if (request.agentId && row.agent_id !== request.agentId) throw new LocalConversationError("Thread not found", 404);
         const saved = await this.store.events(request.threadId);
         lastSequence = saved.length ? BigInt(saved[saved.length - 1]!.sequence) : 0n;
-        for (const event of compactEvents(saved.map((item) => item.event))) subscriber.next(event);
+        for (const event of slimReplay(compactEvents(saved.map((item) => item.event)))) subscriber.next(event);
         ready = true;
         for (const item of pending) if (item.sequence > lastSequence) {
           lastSequence = item.sequence;

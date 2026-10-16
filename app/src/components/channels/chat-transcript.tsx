@@ -118,6 +118,12 @@ type ChatTranscriptProps = {
   /** History has been asked for and has not arrived. Drawn only when there is nothing else to draw. */
   restoring?: boolean;
   /**
+   * 打开对话后第一次恢复（接入 + 读存储）还没完成（DESIGN.md §82）。这期间以及完成后的一小段时间里，
+   * 历史怎么到（回放一段段长出来、存储补进来、「已停止」/「换了备用模型」行晚到、图片撑高）都钉在最新一条，
+   * 不当成刚发的新一轮去对齐，也不平滑滚动；人一动滚轮 / 手指 / 按键就不再钉。
+   */
+  hydrating?: boolean;
+  /**
    * Why the last turn ended without an answer, if it did.
    *
    * A sentence rather than a flag, because the reasons are not interchangeable: a Bot that refused,
@@ -553,6 +559,107 @@ function ScrollNewestQueuedIntoView({ newest }: { newest: string | null }) {
     }
     scrollToEnd();
   }, [newest, scrollToEnd]);
+
+  return null;
+}
+
+/** 恢复完成后还钉在底部多久（毫秒）：晚到的「已停止」行、图片撑高、存储补进来的几轮都在这段时间里。 */
+export const SETTLE_AFTER_HYDRATE_MS = 2500;
+
+/**
+ * 打开对话时落在最新一条，而且不跳（DESIGN.md §82）。
+ *
+ * 为什么需要它：滚动容器（`@shadcn/react` message-scroller）只看「行数变多了」——从旧的行数往后找第一个
+ * 用户消息行（`data-scroll-anchor`），把它对齐到顶上（这是「刚发出一句，它滑到顶上、下面留地方给回答」的
+ * 设计）。可打开一段长对话时，历史不是一次到齐的：接入回放一段段长出来（网速慢时 1 → 3 → 5 → 8 行），
+ * 存储读完再补进 20 多行，「已停止」/「换了备用模型」的小行晚一点插进中间。每一次行数变多，它都当成
+ * 「刚发了一句」，把中间某一条用户消息对齐到顶上——人就停在半截历史里（实测离底部 7322px），而且
+ * 一路平滑滚着过去（`useSmoothSendScroll` 把那几次当成刚发的）。
+ *
+ * 所以：从打开到恢复完成后 SETTLE_AFTER_HYDRATE_MS 之内，内容每变一次（行增减、高度变化），在下一帧
+ * 绘制之前直接回到底部（`scrollToEnd`，不平滑），并把滚动容器切回「跟着底部」。人自己滚了（滚轮、手指、
+ * 翻页键、拖滚动条）或者发了新消息，马上停手，交回滚动容器原来的规则。
+ */
+function SettleAtEnd({
+  hydrating,
+  newestUserMessageId,
+  viewport,
+}: {
+  hydrating: boolean;
+  newestUserMessageId: string | null;
+  viewport: React.RefObject<HTMLDivElement | null>;
+}) {
+  const { scrollToEnd } = useMessageScroller();
+  const state = useRef({
+    // 一打开就不在恢复（从新建对话页带着第一条消息来的）：不需要钉。
+    until: hydrating ? Number.POSITIVE_INFINITY : 0,
+    baseline: newestUserMessageId,
+    wasHydrating: hydrating,
+    released: false,
+  });
+
+  useLayoutEffect(() => {
+    const s = state.current;
+    if (hydrating) {
+      if (!s.wasHydrating) s.until = Number.POSITIVE_INFINITY;
+      s.baseline = newestUserMessageId;
+    } else if (s.wasHydrating) {
+      s.until = performance.now() + SETTLE_AFTER_HYDRATE_MS;
+      s.baseline = newestUserMessageId;
+    } else if (newestUserMessageId !== s.baseline) {
+      // 恢复完成后又多了一条用户消息：人发的（或别的设备发的），交回「新一轮对齐到顶上」。
+      s.until = 0;
+    }
+    s.wasHydrating = hydrating;
+  }, [hydrating, newestUserMessageId]);
+
+  useEffect(() => {
+    const element = viewport.current;
+    const content = element?.querySelector<HTMLElement>('[data-slot="message-scroller-content"]');
+    if (!element || !content) return;
+    const s = state.current;
+    const active = () => !s.released && performance.now() < s.until;
+    let frame = 0;
+    const pin = () => {
+      if (!active()) return;
+      window.cancelAnimationFrame(frame);
+      // 下一帧、绘制之前：滚动容器自己的处理（微任务里）已经跑完，这里最后说了算，屏幕上看不到中间那一跳。
+      frame = window.requestAnimationFrame(() => {
+        if (!active()) return;
+        element.style.scrollBehavior = "auto";
+        scrollToEnd({ behavior: "auto" });
+        element.style.scrollBehavior = "";
+      });
+    };
+    const release = () => {
+      s.released = true;
+      window.cancelAnimationFrame(frame);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) release();
+    };
+    const onPointer = (event: PointerEvent) => {
+      // 按在滚动条上（视口自己，不是里面的消息）= 要拖着翻。
+      if (event.target === element) release();
+    };
+    const mutations = new MutationObserver(pin);
+    mutations.observe(content, { childList: true });
+    const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pin);
+    sizes?.observe(content);
+    element.addEventListener("wheel", release, { passive: true });
+    element.addEventListener("touchmove", release, { passive: true });
+    element.addEventListener("keydown", onKey);
+    element.addEventListener("pointerdown", onPointer);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      mutations.disconnect();
+      sizes?.disconnect();
+      element.removeEventListener("wheel", release);
+      element.removeEventListener("touchmove", release);
+      element.removeEventListener("keydown", onKey);
+      element.removeEventListener("pointerdown", onPointer);
+    };
+  }, [scrollToEnd, viewport]);
 
   return null;
 }
@@ -1772,16 +1879,22 @@ const SEND_SCROLL_MS = 700;
 function useSmoothSendScroll(
   viewport: React.RefObject<HTMLDivElement | null>,
   newestUserMessageId: string | null,
+  hydrating = false,
 ) {
   const reducedMotion = useReducedMotion();
   const seenRef = useRef<string | null>(null);
+  const wasHydrating = useRef(hydrating);
 
   useLayoutEffect(() => {
     const element = viewport.current;
     const previous = seenRef.current;
     seenRef.current = newestUserMessageId;
+    const quiet = hydrating || wasHydrating.current;
+    wasHydrating.current = hydrating;
 
     if (
+      // 打开对话时历史一段段到（DESIGN.md §82）：最新一条用户消息换了不是「刚发的」，不平滑滚动。
+      quiet ||
       element === null ||
       newestUserMessageId === null ||
       previous === null ||
@@ -1800,7 +1913,7 @@ function useSmoothSendScroll(
       window.clearTimeout(timer);
       element.style.scrollBehavior = "";
     };
-  }, [newestUserMessageId, reducedMotion, viewport]);
+  }, [newestUserMessageId, reducedMotion, viewport, hydrating]);
 }
 
 /**
@@ -1843,6 +1956,7 @@ export function ChatTranscript({
   onRemoveQueued,
   queued = EMPTY_QUEUE,
   restoring = false,
+  hydrating = false,
   stopped,
   stoppedTurns,
   onRetry,
@@ -1922,7 +2036,7 @@ export function ChatTranscript({
          */
         item.kind === "attachments",
     )?.id ?? null;
-  useSmoothSendScroll(viewportRef, newestUserMessageId);
+  useSmoothSendScroll(viewportRef, newestUserMessageId, hydrating);
   useKeepBottomOnPrepend(viewportRef, items[0]?.id ?? null);
 
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
@@ -2068,6 +2182,7 @@ export function ChatTranscript({
           <span className="chat-bottom-pill-t">{"回到底部"}</span>
         </MessageScrollerButton>
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
+        <SettleAtEnd hydrating={hydrating} newestUserMessageId={newestUserMessageId} viewport={viewportRef} />
       </MessageScroller>
     </MessageScrollerProvider>
   );

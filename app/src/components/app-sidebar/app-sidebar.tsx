@@ -36,6 +36,7 @@ import {
 } from "@/lib/channels/queries";
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
 import { latestChannelFor } from "@/lib/channels/latest";
+import { prefetchBotChat, usePrefetchBotChats } from "@/lib/channels/prefetch";
 import { openCreateBot } from "@/lib/agents/create-bot";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
@@ -302,6 +303,9 @@ function BotRow({
         <Link
           aria-current={selected ? "page" : undefined}
           className="glass-bot-link"
+          onFocus={() => prefetchBotChat(bot.id, latest)}
+          onPointerEnter={() => prefetchBotChat(bot.id, latest)}
+          onTouchStart={() => prefetchBotChat(bot.id, latest)}
           params={{ channelId: latest.id }}
           title={bot.name}
           to="/channel/$channelId"
@@ -550,6 +554,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { mainBotId, setMainBot } = useMainBot();
   const mainBot = mainBotId ? roster.find((bot) => bot.id === mainBotId) : undefined;
   const others = mainBot ? roster.filter((bot) => bot.id !== mainBot.id) : roster;
+  // 空闲时预取主机器人和左栏前几个的对话，切过去就是现成的（DESIGN.md §82）。
+  usePrefetchBotChats(
+    [...(mainBot ? [mainBot.id] : []), ...others.map((bot) => bot.id)],
+    channels.data,
+    selectedBotId,
+  );
 
   const searching = search.trim().length > 0;
   const visibleChannels = searching
@@ -831,6 +841,9 @@ function MiniBot({
             aria-current={selected ? "page" : undefined}
             aria-label={label}
             className={linkClass}
+            onFocus={() => prefetchBotChat(bot.id, latest)}
+            onPointerEnter={() => prefetchBotChat(bot.id, latest)}
+            onTouchStart={() => prefetchBotChat(bot.id, latest)}
             params={{ channelId: latest.id }}
             to="/channel/$channelId"
           >

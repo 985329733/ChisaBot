@@ -20,6 +20,7 @@ import { useOpenThread } from "@/lib/channels/open-thread";
 import { markChannelReadMutationOptions } from "@/lib/channels/mutations";
 import {
   type AgentChannel,
+  channelFromRoster,
   channelListQueryOptions,
   channelQueryOptions,
 } from "@/lib/channels/queries";
@@ -39,14 +40,21 @@ export const Route = createFileRoute("/_authed/_app/channel/$channelId")({
 function RouteComponent() {
   const { channelId } = Route.useParams();
   const { settings, watch } = Route.useSearch();
-  const channel = useQuery(channelQueryOptions(channelId));
+  const queryClient = useQueryClient();
+  /*
+   * 左栏里点过来的对话，左栏的列表里已经有它（DESIGN.md §82）：先用那一行画聊天，详情读到再换上，
+   * 不再空白等一次 `/api/channels/:id`。
+   */
+  const channel = useQuery({
+    ...channelQueryOptions(channelId),
+    placeholderData: () => channelFromRoster(queryClient, channelId),
+  });
   const navigate = Route.useNavigate();
   const isSettingsOpen = settings === true;
   const isWatching = watch === true;
   /** Channel routing currently supports one coworker. */
   const agentId = channel.data?.agentIds[0];
 
-  const queryClient = useQueryClient();
   const markRead = useMutation(markChannelReadMutationOptions(queryClient));
   /*
    * This channel's roster summary, read out of the same infinite query the sidebar renders.
