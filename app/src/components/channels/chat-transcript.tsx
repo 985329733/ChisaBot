@@ -876,6 +876,12 @@ function SettleAtEnd({
         const use = Math.min(s.slack, grew);
         setSlack(s.slack - use);
         lastHeight -= use;
+        // 全吃进去了：滚动容器要是已经先「跟着底部」滚了这一截（它比我们早动），放回去，画面不动（§94）。
+        if (use === grew && seen.atBottom && element.scrollTop !== seen.top) {
+          element.style.scrollBehavior = "auto";
+          element.scrollTop = seen.top;
+          element.style.scrollBehavior = "";
+        }
       } else if (
         grew < 0 &&
         !recentlyTouched &&
@@ -1005,8 +1011,15 @@ function SettleAtEnd({
       releaseFrame = window.requestAnimationFrame(step);
       return true;
     };
-    const mutations = new MutationObserver(pin);
-    mutations.observe(content, { childList: true });
+    /*
+     * 行进来 / 出去（新的一行、开场一句收进卡片、「思考中」换成回答）：React 提交后的微任务里就量一次（§94），
+     * 比滚动容器的 ResizeObserver → requestAnimationFrame 早，留白当场吃掉 / 补上，不等下一帧。
+     */
+    const mutations = new MutationObserver(() => {
+      if (!active() && !s.restore && content.offsetHeight !== lastHeight) pinNow();
+      pin();
+    });
+    mutations.observe(content, { childList: true, subtree: true });
     const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pinNow);
     sizes?.observe(content);
     /*
