@@ -16,38 +16,92 @@ data class ToolCall(
     val ended: Boolean = false,
 )
 
-/** 界面用的一条消息（从 AG-UI Message 或流式事件来）。 */
+/** 用户消息里的附件（AG-UI image / document 段，source.url = /api/attachments/<id>）。 */
+data class Attachment(val name: String, val mime: String, val url: String, val image: Boolean, val width: Int? = null, val height: Int? = null)
+
+/** 界面用的一条消息（从 AG-UI Message 或流式事件来）。content = 原样的 AG-UI content（重新生成 / 编辑时原样重发附件段）。 */
 data class ChatMessage(
     val id: String,
     val role: String,
     val text: String = "",
     val toolCalls: List<ToolCall> = emptyList(),
     val images: List<String> = emptyList(),
+    val files: List<Attachment> = emptyList(),
+    val content: JsonElement? = null,
 )
+
+/** 服务器放进对话、以 user 角色出现但不是人说的消息（DESIGN §68.2）：画成一行淡色小字，不给编辑。 */
+object ServerRows {
+    private const val SCHEDULE = "⟦chisabot:schedule:"
+    private const val WORKER = "⟦chisabot:worker-result:"
+    private const val LOCAL_AGENT = "⟦chisabot:local-agent-result:"
+    private const val CONFIRM = "⟦chisabot:confirm:"
+
+    fun isServerRow(text: String) = text.startsWith(SCHEDULE) || text.startsWith(WORKER) || text.startsWith(LOCAL_AGENT) || text.startsWith(CONFIRM)
+
+    /** 那一行显示的话。 */
+    fun label(text: String): String = when {
+        text.startsWith(CONFIRM) -> Regex("用户确认了「([^」]*)」").find(text)?.groupValues?.get(1)?.let { "你确认了「$it」，机器人接着做" } ?: "你确认了，机器人接着做"
+        text.startsWith(SCHEDULE) -> "定时任务到点了，机器人开始做"
+        text.startsWith(WORKER) -> "后台任务交回了结果"
+        else -> "电脑上的助手交回了结果"
+    }
+}
+
+/** 编辑后的内容（同网页 withEditedText）：纯文字直接换；带附件的只换文字段，附件原样保留。空 → null。 */
+fun withEditedText(content: JsonElement?, text: String): JsonElement? {
+    val said = text.trim()
+    if (content !is JsonArray) return if (said.isNotEmpty()) JsonPrimitive(said) else null
+    val parts = mutableListOf<JsonElement>()
+    var placed = false
+    for (part in content) {
+        val isText = (part as? JsonObject)?.s("type") == "text"
+        if (!isText) { parts += part; continue }
+        if (!placed && said.isNotEmpty()) parts += JsonObject((part as JsonObject) + ("text" to JsonPrimitive(said)))
+        placed = true
+    }
+    if (!placed && said.isNotEmpty()) parts.add(0, JsonObject(mapOf("type" to JsonPrimitive("text"), "text" to JsonPrimitive(said))))
+    return if (parts.isEmpty()) null else JsonArray(parts)
+}
 
 fun JsonElement?.str(): String? = (this as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull
 fun JsonObject.s(key: String): String? = this[key].str()
 fun JsonObject.o(key: String): JsonObject? = this[key] as? JsonObject
 fun JsonObject.a(key: String): JsonArray? = this[key] as? JsonArray
 
-/** user 消息的 content 可能是字符串，也可能是 [{type:text,text}, {type:image|binary, url|source…}]。 */
-fun contentParts(content: JsonElement?): Pair<String, List<String>> {
-    if (content == null || content is JsonNull) return "" to emptyList()
-    if (content is JsonPrimitive) return (content.contentOrNull ?: "") to emptyList()
+/** user 消息的 content 可能是字符串，也可能是 [{type:text,text}, {type:image|document, source:{type:url,value}, metadata}]。 */
+fun contentParts(content: JsonElement?): Pair<String, List<String>> = contentAll(content).let { it.first to it.second }
+
+/** 文字、图片地址、附件（图片也在附件里，带文件名）。 */
+fun contentAll(content: JsonElement?): Triple<String, List<String>, List<Attachment>> {
+    if (content == null || content is JsonNull) return Triple("", emptyList(), emptyList())
+    if (content is JsonPrimitive) return Triple(content.contentOrNull ?: "", emptyList(), emptyList())
     val text = StringBuilder()
     val images = mutableListOf<String>()
+    val files = mutableListOf<Attachment>()
     (content as? JsonArray)?.forEach { part ->
         val p = part as? JsonObject ?: return@forEach
         when (p.s("type")) {
             "text" -> p.s("text")?.let { if (text.isNotEmpty()) text.append("\n"); text.append(it) }
             else -> {
-                val url = p.s("url") ?: p.o("source")?.s("url") ?: p.o("image_url")?.s("url")
-                val mime = p.s("mimeType") ?: p.o("source")?.s("mimeType") ?: ""
-                if (url != null && (p.s("type") == "image" || mime.startsWith("image/") || p.s("type") == "image_url")) images += url
+                val src = p.o("source")
+                // AG-UI 0.0.5x：source = {type:"url", value} 或 {type:"data", value(base64)}；老格式 url / image_url.url
+                val url = p.s("url") ?: src?.let { s -> if (s.s("type") == "data") s.s("value")?.let { v -> "data:${s.s("mimeType") ?: "application/octet-stream"};base64,$v" } else s.s("value") ?: s.s("url") } ?: p.o("image_url")?.s("url")
+                val mime = p.s("mimeType") ?: src?.s("mimeType") ?: ""
+                val isImage = p.s("type") == "image" || p.s("type") == "image_url" || mime.startsWith("image/")
+                val meta = p.o("metadata")
+                val name = meta?.s("filename") ?: if (isImage) "图片" else "文件"
+                // 图片宽高（DESIGN §83.2，cb-img-dims：part 的 metadata.width / height）：有就按比例先留框，没有就固定方框
+                val w = meta?.s("width")?.toDoubleOrNull()?.toInt()?.takeIf { it in 1..20000 }
+                val h = meta?.s("height")?.toDoubleOrNull()?.toInt()?.takeIf { it in 1..20000 }
+                if (url != null) {
+                    if (isImage) images += url
+                    files += Attachment(name, mime, url, isImage, if (w != null && h != null) w else null, if (w != null && h != null) h else null)
+                }
             }
         }
     }
-    return text.toString() to images
+    return Triple(text.toString(), images, files)
 }
 
 /** GET /api/copilotkit/threads/<id>/messages 的 messages[] → 界面消息（tool 结果并进对应的调用）。 */
@@ -62,14 +116,14 @@ fun parseHistory(messages: JsonArray): List<ChatMessage> {
         val m = el as? JsonObject ?: continue
         val role = m.s("role") ?: continue
         if (role == "tool" || role == "system" || role == "developer") continue
-        val (text, images) = contentParts(m["content"])
+        val (text, images, files) = contentAll(m["content"])
         val calls = m.a("toolCalls")?.mapNotNull { c ->
             val call = c as? JsonObject ?: return@mapNotNull null
             val id = call.s("id") ?: return@mapNotNull null
             val fn = call.o("function")
             ToolCall(id, fn?.s("name") ?: "", fn?.s("arguments") ?: "", results[id], ended = true)
         } ?: emptyList()
-        out += ChatMessage(m.s("id") ?: "m${out.size}", role, text, calls, images)
+        out += ChatMessage(m.s("id") ?: "m${out.size}", role, text, calls, images, files, m["content"])
     }
     return out
 }

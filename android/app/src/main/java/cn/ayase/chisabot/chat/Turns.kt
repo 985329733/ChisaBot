@@ -4,10 +4,31 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /** 聊天画面里的一行（从上到下）。key 稳定，LazyColumn 靠它保持位置不跳（DESIGN §35）。 */
+/** 确认卡片（DESIGN §58）：/api/confirmations/requests 的一条，或上游审批（/api/approvals，§58 外观）。 */
+data class ConfirmCard(
+    val id: String,
+    val toolCallId: String,
+    val category: String,          // message | delete | purchase | device
+    val title: String,
+    val target: String?,
+    val details: List<Triple<String, String, String>>, // label, value, style(""|code|diff)
+    val status: String,            // pending | approved | denied | expired | cancelled
+    val decidedNote: String? = null,
+    /** upstream = /api/approvals 的请求（决定用 allow_once / deny / handled），否则确认卡片。 */
+    val upstream: Boolean = false,
+    val handOff: Boolean = false,
+    val eyebrow: String? = null,
+)
+
 sealed class Row(val key: String) {
-    class User(val msg: ChatMessage) : Row("u:" + msg.id)
+    /** editable = 人发的、这一轮没在跑时可以编辑后重发（§67）。 */
+    class User(val msg: ChatMessage, val editable: Boolean = false) : Row("u:" + msg.id)
+    /** 服务器放进对话的「用户角色」消息（定时任务 / 后台任务结果 / 确认后接着做），一行淡色小字。 */
+    class Server(key: String, val text: String) : Row(key)
+    /** 工具调用下面的确认卡片。 */
+    class Confirm(val card: ConfirmCard) : Row("cf:" + card.id)
     /** 机器人的一段话：opening = 开场一句，result = 结果，process = 过程话（还在跑时淡色显示，结束后收起）。 */
-    class Bot(key: String, val text: String, val kind: Kind, val streaming: Boolean, val copyable: Boolean) : Row(key)
+    class Bot(key: String, val text: String, val kind: Kind, val streaming: Boolean, val copyable: Boolean, val regenerate: Boolean = false) : Row(key)
     /** 一轮一张干活卡（§75）：live = 这一轮还在跑。 */
     class Work(key: String, val turnKey: String, val calls: List<ToolCall>, val live: Boolean) : Row(key)
     /** render_ui 画的卡片（json-render spec）。 */
@@ -34,8 +55,9 @@ object Turns {
         return (spec as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull ?: spec.toString()
     }
 
-    fun build(messages: List<ChatMessage>, running: Boolean, error: String?): List<Row> {
+    fun build(messages: List<ChatMessage>, running: Boolean, error: String?, confirms: Map<String, List<ConfirmCard>> = emptyMap()): List<Row> {
         val rows = mutableListOf<Row>()
+        val lastHuman = messages.indexOfLast { it.role == "user" && !ServerRows.isServerRow(it.text) }.let { if (it >= 0) messages[it].id else null }
         // 第一条用户消息之前的机器人消息（欢迎语等）也按一轮处理
         val turns = mutableListOf<Pair<ChatMessage?, MutableList<ChatMessage>>>()
         for (m in messages) {
@@ -45,15 +67,24 @@ object Turns {
         }
         for ((index, turn) in turns.withIndex()) {
             val (user, replies) = turn
-            if (user != null) rows += Row.User(user)
+            if (user != null) {
+                rows += if (ServerRows.isServerRow(user.text)) Row.Server("s:" + user.id, ServerRows.label(user.text))
+                else Row.User(user, editable = !running && user.id == lastHuman)
+            }
             val last = index == turns.lastIndex
-            buildTurn(rows, user?.id ?: "pre", replies, running && last)
+            buildTurn(rows, user?.id ?: "pre", replies, running && last, confirms)
+        }
+        // 重新生成（§67.4）：最后一轮最后一段看得见的回答下面；没在回答、最后一轮有人发的消息时才有
+        if (!running && lastHuman != null && turns.lastOrNull()?.first?.id == lastHuman) {
+            val at = rows.indexOfLast { it is Row.Bot || it is Row.User || it is Row.Server }
+            val r = rows.getOrNull(at)
+            if (r is Row.Bot) rows[at] = Row.Bot(r.key, r.text, r.kind, r.streaming, r.copyable, regenerate = true)
         }
         if (!running && error != null) rows += Row.Error("err:" + (turns.lastOrNull()?.first?.id ?: "x"), error)
         return rows
     }
 
-    private fun buildTurn(rows: MutableList<Row>, turnKey: String, replies: List<ChatMessage>, live: Boolean) {
+    private fun buildTurn(rows: MutableList<Row>, turnKey: String, replies: List<ChatMessage>, live: Boolean, confirms: Map<String, List<ConfirmCard>>) {
         val segs = mutableListOf<Seg>()
         for (m in replies) {
             if (m.text.isNotBlank()) segs += Seg.Text(m.id, m.text)
@@ -93,6 +124,7 @@ object Turns {
                         workPlaced = true
                     }
                     if (seg.call.name == "render_ui") renderSpec(seg.call)?.let { rows += Row.Card("c:" + seg.call.id, it) }
+                    confirms[seg.call.id]?.forEach { rows += Row.Confirm(it) }
                 }
             }
         }

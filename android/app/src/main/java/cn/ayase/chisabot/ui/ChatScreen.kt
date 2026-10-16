@@ -1,5 +1,9 @@
 package cn.ayase.chisabot.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -84,14 +88,18 @@ fun ChatScreen(vm: AppViewModel, bot: Bot) {
     val sky = LocalSky.current
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
-    val rows = remember(vm.messages, vm.running, vm.runError) { Turns.build(vm.messages, vm.running, vm.runError) }
+    val rows = remember(vm.messages, vm.running, vm.runError, vm.confirms) { Turns.build(vm.messages, vm.running, vm.runError, vm.confirms) }
     val list = rememberLazyListState()
     val atBottom by remember { derivedStateOf { list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset < 40 } }
     val webFallback = { vm.push(Screen.Web(vm.channelId?.let { "/channel/$it" } ?: "/channel/new?agent=${bot.id}", bot.name)) }
     val actions = remember(bot.id) { RenderActions(ask = { text -> scope.launch { vm.send(text) } }, fallback = webFallback) }
 
-    // 刚发出 / 自己在底部：新内容来了贴着底部（reverseLayout，index 0 = 最底下）
-    LaunchedEffect(rows.size, vm.running) { if (atBottom) list.scrollToItem(0) }
+    // 刚发出 / 自己在底部：新内容来了贴着底部（reverseLayout，index 0 = 最底下）。
+    // 「跟着底部」在手指滑完时才更新：新的一行插在 index 0 时列表按 key 保住原来那一行，atBottom 会先变 false，
+    // 只看 atBottom 的话末尾新出的卡片（确认卡片等）会落在屏幕外。
+    var follow by remember { mutableStateOf(true) }
+    LaunchedEffect(list.isScrollInProgress) { if (!list.isScrollInProgress) follow = atBottom }
+    LaunchedEffect(rows.size, vm.running, rows.lastOrNull()?.key) { if (follow || atBottom) { list.animateScrollToItem(0); follow = true } }
 
     Column(Modifier.fillMaxSize().imePadding()) {
         TopBar(bot.name, subtitle = if (vm.running) "正在回复…" else if (bot.main) "主机器人" else bot.title, onBack = { vm.back() }) {
@@ -126,6 +134,7 @@ fun ChatScreen(vm: AppViewModel, bot: Bot) {
                     items(rows.asReversed(), key = { it.key }) { row -> RowView(vm, row, actions) }
                 }
             }
+            NoticePill(vm, Modifier.align(Alignment.TopCenter))
             // 回到底部：手机上是 36dp 圆形 ↓（§78.4）
             androidx.compose.animation.AnimatedVisibility(visible = !atBottom && rows.isNotEmpty(), Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp), enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.8f), exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.8f)) {
                 Box(Modifier.size(36.dp).clip(CircleShape).glass(sky, CircleShape, 3).clickable { scope.launch { list.animateScrollToItem(0) } }.semantics { contentDescription = "回到底部" }, contentAlignment = Alignment.Center) {
@@ -142,33 +151,31 @@ private fun RowView(vm: AppViewModel, row: ChatRow, actions: RenderActions) {
     val sky = LocalSky.current
     val ctx = LocalContext.current
     when (row) {
-        is ChatRow.User -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                row.msg.images.forEach { url ->
-                    AsyncImage(absUrl(url), "图片", contentScale = ContentScale.Crop, modifier = Modifier.size(160.dp).clip(RoundedCornerShape(14.dp)).background(sky.glass1))
-                }
-                if (row.msg.text.isNotBlank()) Text(
-                    row.msg.text, color = sky.onUser, fontSize = 15.5.sp, lineHeight = 23.sp,
-                    modifier = Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp, 18.dp, 6.dp, 18.dp)).background(sky.userBubble).padding(horizontal = 13.dp, vertical = 9.dp),
-                )
-            }
-        }
+        is ChatRow.User -> UserMessage(vm, row.msg, row.editable)
+        is ChatRow.Server -> ServerNote(row.text)
+        is ChatRow.Confirm -> ConfirmCardView(vm, row.card)
         is ChatRow.Bot -> {
             val shown = rememberSmoothText(row.text, row.streaming)
             Column(Modifier.fillMaxWidth()) {
                 if (row.kind == ChatRow.Kind.Process) InlineText(shown, sky.ink3, 13.5f)
                 else BotBubbles(if (row.streaming) hideIncompleteTail(shown) else shown)
-                if (row.copyable && row.kind == ChatRow.Kind.Result) Row(Modifier.padding(top = 2.dp)) { CopyChip(sky.ink3) { copyText(ctx, row.text) } }
+                if ((row.copyable && row.kind == ChatRow.Kind.Result) || row.regenerate) Row(Modifier.padding(top = 2.dp)) {
+                    if (row.copyable && row.kind == ChatRow.Kind.Result) CopyChip(sky.ink3) { copyText(ctx, row.text) }
+                    if (row.regenerate) ActionChip("↻", "重新生成", "生成中…", enabled = !vm.running) { vm.regenerate() }
+                }
             }
         }
         is ChatRow.Work -> WorkCard(vm, row)
         is ChatRow.Card -> JsonRenderView(row.spec, actions, Modifier.fillMaxWidth())
         is ChatRow.Thinking -> ThinkingPill()
         is ChatRow.Pause -> PauseDots(row.lastText)
-        is ChatRow.Error -> Text(
-            row.text, color = sky.danger, fontSize = 13.5.sp,
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(sky.danger.copy(alpha = 0.10f)).padding(10.dp),
-        )
+        is ChatRow.Error -> Column {
+            Text(
+                row.text, color = sky.danger, fontSize = 13.5.sp,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(sky.danger.copy(alpha = 0.10f)).padding(10.dp),
+            )
+            if (!vm.running) ActionChip("↻", "重新生成", "生成中…") { vm.regenerate() }
+        }
     }
 }
 
@@ -247,40 +254,63 @@ private fun Composer(vm: AppViewModel, onSent: () -> Unit) {
     val scope = rememberCoroutineScope()
     var text by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().background(sky.glass1).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Box(Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).background(sky.glass3).padding(horizontal = 16.dp, vertical = 11.dp)) {
-            if (text.isEmpty()) Text("发消息…", color = sky.ink4, fontSize = 15.5.sp)
-            BasicTextField(
-                text, { text = it }, textStyle = TextStyle(color = sky.ink1, fontSize = 15.5.sp, lineHeight = 22.sp),
-                cursorBrush = SolidColor(sky.accent), maxLines = 6, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "消息输入框" },
+    // 照片：系统照片选择器（Android 13+ 不要权限；老系统回落到 GET_CONTENT）；文件：只给能读的类型；拍照：存到 cache/camera 再上传
+    val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(8)) { uris -> if (uris.isNotEmpty()) vm.addFiles(uris) }
+    val pickFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) vm.addFiles(uris) }
+    var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> photoUri?.let { if (ok) vm.addFiles(listOf(it)) } }
+    val uploading = vm.files.any { it.state == "uploading" }
+    val readyFiles = vm.files.count { it.state == "ready" }
+    Column(Modifier.fillMaxWidth().background(sky.glass1).navigationBarsPadding()) {
+        AttachmentStrip(vm)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
+            AttachButton(
+                onPhotos = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onCamera = { runCatching { vm.cameraUri() }.getOrNull()?.let { photoUri = it; runCatching { takePhoto.launch(it) }.onFailure { vm.notice = "这台手机没有可用的相机" } } },
+                onFiles = { pickFiles.launch(arrayOf("image/png", "image/jpeg", "image/gif", "image/webp", "text/*", "application/json")) },
+                enabled = vm.files.size < 8,
             )
-        }
-        Spacer(Modifier.width(8.dp))
-        val canSend = text.isNotBlank() && !sending
-        AnimatedContent(vm.running, transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) }, label = "send") { running ->
-            if (running) {
-                Box(Modifier.size(44.dp).clip(CircleShape).background(sky.ink1).clickable { vm.stop() }.semantics { contentDescription = "停止" }, contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(sky.skyBottom))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).background(sky.glass3).padding(horizontal = 16.dp, vertical = 11.dp)) {
+                if (text.isEmpty()) Text(if (readyFiles > 0 || uploading) "说点什么（可以不写）…" else "发消息…", color = sky.ink4, fontSize = 15.5.sp)
+                BasicTextField(
+                    text, { text = it }, textStyle = TextStyle(color = sky.ink1, fontSize = 15.5.sp, lineHeight = 22.sp),
+                    cursorBrush = SolidColor(sky.accent), maxLines = 6, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "消息输入框" },
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            val canSend = (text.isNotBlank() || readyFiles > 0) && !uploading && !sending
+            AnimatedContent(vm.running, transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) }, label = "send") { running ->
+                if (running) {
+                    // 停止（§38）：点了原地转圈「停止中」，服务器停下、流断开后变回发送
+                    Box(
+                        Modifier.size(44.dp).clip(CircleShape).background(sky.ink1).clickable(enabled = !vm.stopping) { vm.stop() }
+                            .semantics { contentDescription = if (vm.stopping) "停止中" else "停止" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (vm.stopping) CircularProgressIndicator(Modifier.size(18.dp), color = sky.skyBottom, strokeWidth = 2.dp)
+                        else Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(sky.skyBottom))
+                    }
+                } else {
+                    Box(
+                        Modifier.size(44.dp).clip(CircleShape).background(if (canSend) sky.accent else sky.accent.copy(alpha = 0.35f))
+                            .clickable(enabled = canSend) {
+                                val msg = text.trim()
+                                sending = true
+                                scope.launch {
+                                    text = ""
+                                    val ok = vm.send(msg)
+                                    if (!ok) text = msg // 发送失败：字放回去，可以重试
+                                    sending = false
+                                    onSent()
+                                }
+                            }.semantics { contentDescription = if (uploading) "发送（附件上传中）" else "发送" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (uploading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text("↑", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.alpha(if (sending) 0.5f else 1f))
+                    }
                 }
-            } else {
-                Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(if (canSend) sky.accent else sky.accent.copy(alpha = 0.35f))
-                        .clickable(enabled = canSend) {
-                            val msg = text.trim()
-                            sending = true
-                            scope.launch {
-                                text = ""
-                                val ok = vm.send(msg)
-                                if (!ok) text = msg // 发送失败：字放回去，可以重试
-                                sending = false
-                                onSent()
-                            }
-                        }.semantics { contentDescription = "发送" },
-                    contentAlignment = Alignment.Center,
-                ) { Text("↑", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.alpha(if (sending) 0.5f else 1f)) }
             }
         }
     }

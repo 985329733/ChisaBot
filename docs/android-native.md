@@ -30,6 +30,10 @@ Android 客户端（`android/`）是 Kotlin + Jetpack Compose（Material3）原�
 - 历史：`GET /api/copilotkit/threads/<threadId>/messages`、`…/inbox`（`running` = 别处正在回答，原生版每 1.5 秒读一次历史直到结束）
 - 回复：`POST /api/copilotkit/agent/<bot>/run`（`Accept: text/event-stream`，body = RunAgentInput，只带新的那条用户消息，服务器以存下的历史为准）；停止 `POST /api/copilotkit/agent/<bot>/stop/<threadId>`
 - 面板：`GET /api/live-panels?botId=`（只读；搭建 / 刷新中每 5 秒再读一次）
+- 确认卡片：`GET /api/confirmations/requests?thread=`、`POST /api/confirmations/requests/<id> {decision}`、`PUT /api/confirmations/prefs/<类别>`；上游审批 `GET /api/approvals`、`POST /api/approvals/<id>/decision`
+- 附件：`POST /api/channels/<channelId>/attachments`（multipart `file` + `uploadGroup`）→ 消息里的 `image` / `document` 段（`/api/attachments/<id>`）
+- 重新生成 / 编辑：`POST /api/copilotkit/threads/<threadId>/truncate {fromMessageId, mode}`，然后照常发一轮
+- 设置：`GET /api/me`、`GET /api/devices`（只读）
 
 ## 构建
 
@@ -39,6 +43,6 @@ Android 客户端（`android/`）是 Kotlin + Jetpack Compose（Material3）原�
 ## 阶段
 
 1. **核心原生（0.1.13）**：登录、机器人列表、聊天、富卡片、面板只读；其余网页兜底。
-2. 输入框：附件 / 拍照 / 图片、回答期间插话（§38）、重新生成 / 编辑重发（§67）、确认卡（§58）、别处正在回答时接上事件流（`connect`）。
-3. 原生设置子集（主机器人、设备、模型、主题）、通知、离线缓存、桌面小组件。
+2. **第二轮（0.1.14，DESIGN §86）**：确认卡片 + 上游审批（§58）、附件（照片 / 拍照 / 文件，§56）、停止、重新生成 / 编辑重发（§67）、服务器行（§68.2）、原生设置基础（外观、账号 / 服务器、设备只读）。还没有：回答期间插话（§38 收件箱）、别处正在回答时接上事件流（现在每 1.5 秒读历史）、render_ui 表单组件、聊天文件卡（`⟦chisabot:files⟧`）。
+3. 原生设置其余部分（主机器人、模型、审批偏好）、通知、离线缓存、桌面小组件。
 4. Claude Code 标签页原生化；管理后台继续用网页。
