@@ -102,7 +102,7 @@ save(icon(512, "rounded"), "pc/assets/icon.png")
 # pc/build/icon.ico + pc/build/icons/chisabot-<哈希>.ico：小尺寸 BMP、按内容哈希命名（换图标后快捷方式不吃旧缓存）
 import subprocess
 subprocess.run([sys.executable, os.path.join(R, "pc", "scripts", "win-icon.py")], check=True)
-save(icon(192, "circle"), "pc/src/ui/logo.png")   # client login page; copied to Android by sync-login-android.mjs
+save(icon(192, "circle"), "pc/src/ui/logo.png")   # PC client login page
 
 def tray(kind):
     s = 32
