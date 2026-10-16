@@ -1,14 +1,16 @@
 /* 本机登录页（login.html）。只用 skyglass-tokens.css 的令牌和 ui.css 的组件；亮色 / 暗色都由令牌切换。 */
-body.login-page { overflow: auto; }
+/* 滚动放在 .login 里而不是视口上：视口滚动条画在 body 的圆角裁切之外（透明窗口里会在窗口右缘外露出一条，§91.2）。 */
+body.login-page { overflow: hidden; }
 .login {
-  min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; align-items: center; justify-content: safe center;
   padding: max(20px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
 }
 .login-card { width: 100%; max-width: 400px; padding: 28px 28px 18px; display: flex; flex-direction: column; align-items: center; }
-/* 无边框窗口（DESIGN.md §91）：天空本身可以拖动窗口，卡片和下拉照常点。顶部留出 40px 拖动带。
+/* 无边框窗口（DESIGN.md §91）：顶部 40px 是拖动带（.win-bar，chrome.css），内容从它下面开始。
+   （不把整片天空设成拖动区：拖动区会吞掉滚轮和滚动条。）
    卡片外沿是柔和的玻璃边（描边减半 + 顶部高光），不再是一圈硬白线。 */
-.login { -webkit-app-region: drag; app-region: drag; padding-top: max(44px, env(safe-area-inset-top)); }
-.login-card, .login .foot { -webkit-app-region: no-drag; app-region: no-drag; }
+.login { padding-top: max(44px, env(safe-area-inset-top)); }
 .login-card.auth-card { border-color: color-mix(in srgb, var(--stroke) 45%, transparent); }
 
 /* 标志：品牌头像（logo.png，由 assets/brand/generate.py 生成；PC / Android 同一份文件）。
@@ -116,11 +118,11 @@ body.login-page { overflow: auto; }
 
 /* 矮屏幕（1366×768 @125% 工作区只有 ~614px，登录窗贴着工作区，DESIGN.md §91.2）：收紧间距；还放不下时页面内滚动，
    滚动条是细的半透明胶囊，不是系统那条带底槽的白色滚动条。 */
-body.login-page::-webkit-scrollbar { width: 10px; }
-body.login-page::-webkit-scrollbar-track { background: transparent; }
-body.login-page::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 99px; background: rgba(17, 26, 43, 0.22) padding-box; }
-.dark body.login-page::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2) padding-box; }
-body.login-page::-webkit-scrollbar-button { display: none; height: 0; }
+.login::-webkit-scrollbar { width: 10px; }
+.login::-webkit-scrollbar-track { background: transparent; margin: 40px 0 8px; }
+.login::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 99px; background: rgba(17, 26, 43, 0.22) padding-box; }
+.dark .login::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2) padding-box; }
+.login::-webkit-scrollbar-button { display: none; height: 0; }
 @media (max-height: 720px) {
   .login { padding-bottom: 10px; }
   .login-card { padding: 20px 24px 12px; }
