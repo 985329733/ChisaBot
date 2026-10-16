@@ -15,7 +15,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CC_EFFORT_ZH, CC_EFFORTS, CC_MODELS, type CcMessage } from "../../../../../shared/cloud-cc";
+import { CC_EFFORT_ZH, CC_EFFORTS, CC_MODELS, type CcMessage } from "../../../../../../shared/cloud-cc";
 import { CcPushDialog } from "@/components/cloud-cc/cc-github-dialogs";
 import { CcRightContent, type RightTab } from "@/components/cloud-cc/cc-right-panel";
 import { CcMessageView } from "@/components/cloud-cc/cc-transcript";
@@ -31,7 +31,7 @@ import { toast } from "@/components/ui/toast";
 import { ccApi, ccKeys, ccSessionQueryOptions, ccWorkspacesQueryOptions, LAST_CC_SESSION_KEY, rememberLeftMode, type SessionDetail, useCcSessionStream } from "@/lib/cloud-cc";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authed/cc/$sessionId")({
+export const Route = createFileRoute("/_authed/_app/cc/$sessionId")({
   component: CcSessionPage,
 });
 
