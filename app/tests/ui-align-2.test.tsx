@@ -35,3 +35,21 @@ test("folded rows collapse instead of unmounting, and the panel handle never cov
   const src = readFileSync(path.join(import.meta.dir, "../src/components/channels/chat-transcript.tsx"), "utf8");
   expect(src).toContain("renderFolded(item, index)");
 });
+
+test("device badges never carry bare text — the label sits in <T> so it is trimmed like buttons (§82.6)", () => {
+  const files = [
+    "../src/components/devices/devices.tsx",
+    "../src/components/devices/full-access.tsx",
+    "../src/components/devices/pair-phone.tsx",
+    "../src/components/im/im.tsx",
+    "../src/components/local-agents/device-agents-panel.tsx",
+    "../src/routes/_authed/admin/system-update.tsx",
+    "../src/routes/_authed/settings/devices/$deviceId.tsx",
+  ];
+  for (const f of files) {
+    const src = readFileSync(path.join(import.meta.dir, f), "utf8");
+    // one-line badges: <span className="device-badge …">{…}</span> with no <T> inside
+    const bare = src.match(/<span\b[^>]*device-badge[^>]*>\{[^<]*\}<\/span>/g) ?? [];
+    expect({ f, bare }).toEqual({ f, bare: [] });
+  }
+});

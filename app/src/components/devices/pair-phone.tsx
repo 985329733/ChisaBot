@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pairingUri } from "../../../../shared/devices";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -203,7 +203,7 @@ export function PairPhoneDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <div className="pair-meta">
             <span aria-live="polite" className={cn("device-badge", status.tone)}>
               {phase.kind === "pending" ? <span className="device-dot is-ok pair-dot" /> : null}
-              {status.text}
+              <T>{status.text}</T>
             </span>
             {phase.kind === "pending" ? (
               <span className="pair-countdown">{`${mmss(left)} 后自动刷新 · 只能用一次`}</span>

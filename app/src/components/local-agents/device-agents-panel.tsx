@@ -19,7 +19,7 @@ import {
 import { FullAccessCard } from "@/components/devices/full-access";
 import { PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, ErrorCard, ListRow, SaveBar, SettingRow } from "@/components/ui/skyglass";
 import { Switch } from "@/components/ui/switch";
@@ -49,7 +49,7 @@ export function DeviceProfileBadge({ device }: { device: Pick<DeviceView, "id" |
   const profile = state.data.settings.profile === "full" ? "workspace" : state.data.settings.profile;
   return (
     <span className="device-badge is-accent" data-testid="device-profile-badge" title={PROFILE_INFO[profile].description}>
-      {`档位：${PROFILE_INFO[profile].label}`}
+      <T>{`档位：${PROFILE_INFO[profile].label}`}</T>
     </span>
   );
 }
@@ -251,7 +251,7 @@ export function DeviceAgentsPanel({ device, isThisPc }: { device: DeviceView; is
             <ListRow
               actions={
                 draft.defaultAgent === agent.kind ? (
-                  <span className="device-badge is-accent">{"默认"}</span>
+                  <span className="device-badge is-accent"><T>{"默认"}</T></span>
                 ) : (
                   <Button onClick={() => update((d) => ({ ...d, defaultAgent: agent.kind }))} size="sm" variant="ghost">
                     {"设为默认"}
@@ -312,7 +312,7 @@ export function DeviceAgentsPanel({ device, isThisPc }: { device: DeviceView; is
           <Card>
             {data.tasks.slice(0, 8).map((task) => (
               <ListRow
-                actions={<span className="device-badge">{LOCAL_TASK_STATUS_ZH[task.status]}</span>}
+                actions={<span className="device-badge"><T>{LOCAL_TASK_STATUS_ZH[task.status]}</T></span>}
                 icon={<IconTerminal2 className="size-5" />}
                 key={task.id}
                 sub={`${LOCAL_AGENT_INFO[task.agent]?.label ?? task.agent} · ${profileLine(task)} · ${new Date(task.createdAt).toLocaleString("zh-CN")}${task.diff?.files.length ? ` · ${task.diff.files.length} 个文件` : ""}`}
