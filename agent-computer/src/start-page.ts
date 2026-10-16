@@ -43,7 +43,10 @@ export async function whileNavigating<T>(
  * 页面停在空白的 about:blank 时，画上起始页。已经画过、正在导航、或者已经打开了真网页，都什么也不做。
  * 永远不抛错：画不上就保持原样，截图和直播照常进行。
  */
-export async function ensureStartPage(page: Page): Promise<void> {
+export async function ensureStartPage(
+  page: Page,
+  links: readonly StartLink[] = DEFAULT_START_LINKS,
+): Promise<void> {
   if (page.isClosed()) return;
   if (page.url() !== "about:blank") return;
   if (navigating.has(page)) return;
@@ -62,7 +65,7 @@ export async function ensureStartPage(page: Page): Promise<void> {
       // 再查一次：evaluate 期间可能已经开始导航了。
       if (!empty || navigating.has(page) || page.url() !== "about:blank")
         return;
-      await page.setContent(START_PAGE_HTML, {
+      await page.setContent(startPageHtml(links), {
         waitUntil: "domcontentloaded",
         timeout: 3_000,
       });
@@ -87,7 +90,7 @@ const START_PAGE_TIMEZONE = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/.test(
   ? (process.env.COMPUTER_TIMEZONE as string)
   : "Asia/Shanghai";
 
-export const START_PAGE_HTML = `<!doctype html>
+const START_PAGE_TEMPLATE = `<!doctype html>
 <html lang="zh-CN" data-chisabot-start="1">
 <head>
 <meta charset="utf-8">
@@ -134,14 +137,8 @@ export const START_PAGE_HTML = `<!doctype html>
       <input id="q" name="q" placeholder="搜索，或输入网址" aria-label="搜索，或输入网址">
       <button type="submit">搜索</button>
     </form>
-    <div class="links">
-      <a href="https://www.bing.com/"><span class="dot" style="background:#0f7bd8">B</span>必应</a>
-      <a href="https://www.baidu.com/"><span class="dot" style="background:#2b5bd7">百</span>百度</a>
-      <a href="https://github.com/"><span class="dot" style="background:#24292f">G</span>GitHub</a>
-      <a href="https://zh.wikipedia.org/"><span class="dot" style="background:#6b7280">W</span>维基百科</a>
-      <a href="https://www.bilibili.com/"><span class="dot" style="background:#fb7299">B</span>哔哩哔哩</a>
-    </div>
-    <div class="hint">机器人还没有打开网页。它用浏览器时，画面会出现在这里；接管后可以直接在这里搜索。</div>
+    <div class="links">__LINKS__</div>
+    <div class="hint">新标签页。机器人打开网页时画面会出现在这里；接管后可以直接在这里搜索，或点上面的收藏网站。</div>
   </div>
 <script>
   (function(){
@@ -167,3 +164,73 @@ export const START_PAGE_HTML = `<!doctype html>
 </script>
 </body>
 </html>`.replace("__TZ__", START_PAGE_TIMEZONE);
+
+/** 起始页上的一个常用网站（来自用户的收藏夹）。 */
+export type StartLink = { title: string; url: string };
+
+/** 没有收藏夹数据时（还没同步过）用的默认五个，和收藏夹第一次使用时的种子一样。 */
+export const DEFAULT_START_LINKS: StartLink[] = [
+  { title: "必应", url: "https://www.bing.com/" },
+  { title: "百度", url: "https://www.baidu.com/" },
+  { title: "GitHub", url: "https://github.com/" },
+  { title: "维基百科", url: "https://zh.wikipedia.org/" },
+  { title: "哔哩哔哩", url: "https://www.bilibili.com/" },
+];
+
+const DOT_COLOURS = ["#0f7bd8", "#2b5bd7", "#24292f", "#6b7280", "#fb7299", "#0d9488", "#7c3aed", "#ea580c"];
+const KNOWN_DOTS: Record<string, [string, string]> = {
+  "www.bing.com": ["B", "#0f7bd8"],
+  "www.baidu.com": ["百", "#2b5bd7"],
+  "github.com": ["G", "#24292f"],
+  "zh.wikipedia.org": ["W", "#6b7280"],
+  "www.bilibili.com": ["B", "#fb7299"],
+};
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+}
+
+/** 起始页 HTML。链接只收 http/https，最多 12 个；标题和网址都转义。 */
+export function startPageHtml(links: readonly StartLink[] = DEFAULT_START_LINKS): string {
+  const items = links
+    .filter((link) => /^https?:\/\//i.test(link.url))
+    .slice(0, 12)
+    .map((link) => {
+      let host = "";
+      try {
+        host = new URL(link.url).host;
+      } catch {}
+      const title = (link.title || host || link.url).slice(0, 40);
+      const known = KNOWN_DOTS[host];
+      const letter = known?.[0] ?? (Array.from(title.trim())[0] ?? "?").toUpperCase();
+      let hash = 0;
+      for (const ch of host) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+      const colour = known?.[1] ?? DOT_COLOURS[hash % DOT_COLOURS.length];
+      return `<a href="${escapeHtml(link.url)}"><span class="dot" style="background:${colour}">${escapeHtml(letter)}</span>${escapeHtml(title)}</a>`;
+    })
+    .join("\n      ");
+  return START_PAGE_TEMPLATE.replace("__LINKS__", items);
+}
+
+/** 兼容旧的导入：默认链接的起始页。 */
+export const START_PAGE_HTML = startPageHtml();
+
+
+/**
+ * 收藏夹变了：已经画着起始页的空白标签重新画一遍，让上面的常用网站跟着变。
+ * 只动还停在 about:blank、带起始页标记、没在导航的页面。
+ */
+export async function redrawStartPage(page: Page, links: readonly StartLink[]): Promise<void> {
+  if (page.isClosed() || page.url() !== "about:blank" || navigating.has(page)) return;
+  if (await page.opener().catch(() => null)) return;
+  const drawn = await page
+    .evaluate((mark) => Boolean(document.documentElement.dataset[mark]), START_PAGE_MARK)
+    .catch(() => false);
+  if (!drawn) return;
+  // 用户正在起始页的搜索框里打字时不重画，免得把字吞掉。
+  const typing = await page
+    .evaluate(() => (document.getElementById("q") as HTMLInputElement | null)?.value ?? "")
+    .catch(() => "");
+  if (typing) return;
+  await page.setContent(startPageHtml(links), { waitUntil: "domcontentloaded", timeout: 3_000 }).catch(() => undefined);
+}

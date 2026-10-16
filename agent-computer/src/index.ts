@@ -51,7 +51,14 @@ import {
   sensitiveRefs,
 } from "./secret-masking";
 import { type BotSession, createSessions } from "./sessions";
-import { ensureStartPage, whileNavigating } from "./start-page";
+import {
+  DEFAULT_START_LINKS,
+  ensureStartPage,
+  redrawStartPage,
+  type StartLink,
+  whileNavigating,
+} from "./start-page";
+import { TabError } from "./tabs";
 import { createShell } from "./shell";
 import { fillSignIn, parseSignInFill } from "./sign-in";
 import { startVirtualDisplay } from "./virtual-display";
@@ -279,6 +286,25 @@ const profiles = createProfiles(
     await sessions.get(botId)?.viewer.releaseAll(COMPUTER_STOPPED);
   },
 );
+
+/**
+ * 每个机器人起始页上的常用网站 = 它主人的收藏夹（服务器在收藏夹变化、打开浏览器画面时推过来）。
+ * 只在内存里：进程重启后先用默认五个，下一次推送就换回来。
+ */
+const startLinks = new Map<string, StartLink[]>();
+const linksFor = (botId: string): StartLink[] => startLinks.get(botId) ?? DEFAULT_START_LINKS;
+
+/** 标签变了时立刻让直播画面跟过去，不用等下一次 1 秒的轮询。 */
+const kickers = new Map<string, Set<() => void>>();
+function kick(botId: string): void {
+  for (const run of kickers.get(botId) ?? []) run();
+}
+
+/** 标签接口的统一出错处理：TabError 带自己的状态码，别的当 502。 */
+function tabFailure(error: unknown): Response {
+  if (error instanceof TabError) return json({ error: error.message }, error.status);
+  return json({ error: describe(error, "标签页操作没有成功。") }, 502);
+}
 // Rooted in the same workspace the file tools use, so a command and a written file see one
 // directory rather than two.
 const shell = createShell(process.env.WORKSPACE_DIR?.trim() || "/workspace");
@@ -593,10 +619,21 @@ serve<StreamData>({
          * underneath us without a listener per page.
          */
         let casting: Page | undefined;
+        /** 上一次推给界面的标签列表，没变就不再推。 */
+        let lastTabs = "";
+        const pushTabs = async () => {
+          const view = await profiles.tabs(ws.data.botId).catch(() => null);
+          if (!view) return;
+          const encoded = JSON.stringify(view);
+          if (encoded === lastTabs) return;
+          lastTabs = encoded;
+          send({ type: "tabs", ...view });
+        };
         const attach = async () => {
           const target = await currentPage(ws.data.botId);
           // 接管时看到的也是起始页，而不是一片白。
-          void ensureStartPage(target);
+          void ensureStartPage(target, linksFor(ws.data.botId));
+          void pushTabs();
           if (target === casting) return;
           const cast = await startScreencast(target, send);
           // The claim stops a cast it refuses, so a launch that lost the screen leaks nothing.
@@ -608,7 +645,21 @@ serve<StreamData>({
         const follow = setInterval(() => {
           void attach().catch(() => undefined);
         }, FOLLOW_INTERVAL_MS);
-        if (!claim.setFollow(() => clearInterval(follow))) return;
+        const kicked = () => {
+          void attach().catch(() => undefined);
+        };
+        const botKickers = kickers.get(ws.data.botId) ?? new Set();
+        botKickers.add(kicked);
+        kickers.set(ws.data.botId, botKickers);
+        if (
+          !claim.setFollow(() => {
+            clearInterval(follow);
+            botKickers.delete(kicked);
+            if (botKickers.size === 0 && kickers.get(ws.data.botId) === botKickers)
+              kickers.delete(ws.data.botId);
+          })
+        )
+          return;
       } catch (error) {
         /*
          * Released before the socket is told, because this path is reachable in exactly the timing
@@ -1107,6 +1158,87 @@ serve<StreamData>({
         return json({ reset: true, botId });
       }
 
+      /* ---------- 标签页（DESIGN.md §XX） ---------- */
+
+      // 读：标签列表。不拉起浏览器（没在运行就列出上次保存的）。
+      if (url.pathname === "/tabs" && request.method === "GET") {
+        try {
+          return json(await profiles.tabs(botId));
+        } catch (error) {
+          return tabFailure(error);
+        }
+      }
+
+      // 机器人开 / 切 / 关标签。在 ACTING_PATHS 上：人接管时被上面的 admitBotAction 拒绝。
+      if (
+        ["/tabs/new", "/tabs/activate", "/tabs/close"].includes(url.pathname) &&
+        request.method === "POST"
+      ) {
+        const body = (await request.json().catch(() => null)) as { id?: unknown } | null;
+        try {
+          if (url.pathname === "/tabs/new") await profiles.openTab(botId);
+          else if (typeof body?.id !== "string" || !body.id.trim())
+            return json({ error: "要说明是哪个标签页（id）。" }, 400);
+          else if (url.pathname === "/tabs/activate") await profiles.activateTab(botId, body.id);
+          else await profiles.closeTab(botId, body.id);
+          // 旧快照里的元素编号属于原来那页。
+          await currentPage(botId);
+          kick(botId);
+          return json(await profiles.tabs(botId));
+        } catch (error) {
+          return tabFailure(error);
+        }
+      }
+
+      // 人自己的标签操作：只有接管时可以。
+      if (url.pathname === "/human/tab" && request.method === "POST") {
+        if (!session.control.humanMayDrive()) return json({ error: TAKE_CONTROL_FIRST }, 409);
+        const body = (await request.json().catch(() => null)) as {
+          action?: unknown;
+          id?: unknown;
+        } | null;
+        try {
+          if (body?.action === "new") await profiles.openTab(botId);
+          else if (typeof body?.id !== "string" || !body.id.trim())
+            return json({ error: "要说明是哪个标签页（id）。" }, 400);
+          else if (body.action === "activate") await profiles.activateTab(botId, body.id);
+          else if (body.action === "close") await profiles.closeTab(botId, body.id);
+          else return json({ error: "标签页操作只能是 new / activate / close。" }, 400);
+          await currentPage(botId);
+          kick(botId);
+          return json(await profiles.tabs(botId));
+        } catch (error) {
+          return tabFailure(error);
+        }
+      }
+
+      // 服务器推来这个机器人主人的收藏夹：起始页上的常用网站跟着变。
+      if (url.pathname === "/start-links" && request.method === "PUT") {
+        const body = (await request.json().catch(() => null)) as { links?: unknown } | null;
+        if (!Array.isArray(body?.links)) return json({ error: "links 要是数组。" }, 400);
+        const links: StartLink[] = body.links
+          .filter(
+            (link): link is { title: unknown; url: string } =>
+              !!link &&
+              typeof link === "object" &&
+              typeof (link as { url?: unknown }).url === "string" &&
+              /^https?:\/\//i.test((link as { url: string }).url) &&
+              (link as { url: string }).url.length <= 2048,
+          )
+          .slice(0, 12)
+          .map((link) => ({
+            url: link.url,
+            title: typeof link.title === "string" ? link.title.slice(0, 60) : "",
+          }));
+        const before = JSON.stringify(linksFor(botId));
+        startLinks.set(botId, links);
+        if (JSON.stringify(links) !== before && profiles.isLive(botId)) {
+          const pages = await profiles.pagesOf(botId);
+          await Promise.all(pages.map((page) => redrawStartPage(page, links)));
+        }
+        return json({ ok: true, count: links.length });
+      }
+
       if (url.pathname === "/navigate" && request.method === "POST") {
         const body = (await request.json().catch(() => null)) as {
           url?: unknown;
@@ -1178,7 +1310,7 @@ serve<StreamData>({
         try {
           const target = await currentPage(botId);
           // 空白页先画上起始页，截图才不是一张纯白图。
-          await ensureStartPage(target);
+          await ensureStartPage(target, linksFor(botId));
           // Sensitive fields are masked in the picture the Bot is handed. See secret-masking.ts.
           const buffer = await target.screenshot({
             type: "png",
