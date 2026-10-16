@@ -118,7 +118,7 @@ type ChatTranscriptProps = {
   /** History has been asked for and has not arrived. Drawn only when there is nothing else to draw. */
   restoring?: boolean;
   /**
-   * 打开对话后第一次恢复（接入 + 读存储）还没完成（DESIGN.md §82）。这期间以及完成后的一小段时间里，
+   * 打开对话后第一次恢复（接入 + 读存储）还没完成（DESIGN.md §83）。这期间以及完成后的一小段时间里，
    * 历史怎么到（回放一段段长出来、存储补进来、「已停止」/「换了备用模型」行晚到、图片撑高）都钉在最新一条，
    * 不当成刚发的新一轮去对齐，也不平滑滚动；人一动滚轮 / 手指 / 按键就不再钉。
    */
@@ -567,7 +567,7 @@ function ScrollNewestQueuedIntoView({ newest }: { newest: string | null }) {
 export const SETTLE_AFTER_HYDRATE_MS = 2500;
 
 /**
- * 打开对话时落在最新一条，而且不跳（DESIGN.md §82）。
+ * 打开对话时落在最新一条，而且不跳（DESIGN.md §83）。
  *
  * 为什么需要它：滚动容器（`@shadcn/react` message-scroller）只看「行数变多了」——从旧的行数往后找第一个
  * 用户消息行（`data-scroll-anchor`），把它对齐到顶上（这是「刚发出一句，它滑到顶上、下面留地方给回答」的
@@ -1905,7 +1905,7 @@ function useSmoothSendScroll(
     wasHydrating.current = hydrating;
 
     if (
-      // 打开对话时历史一段段到（DESIGN.md §82）：最新一条用户消息换了不是「刚发的」，不平滑滚动。
+      // 打开对话时历史一段段到（DESIGN.md §83）：最新一条用户消息换了不是「刚发的」，不平滑滚动。
       quiet ||
       element === null ||
       newestUserMessageId === null ||

@@ -554,7 +554,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { mainBotId, setMainBot } = useMainBot();
   const mainBot = mainBotId ? roster.find((bot) => bot.id === mainBotId) : undefined;
   const others = mainBot ? roster.filter((bot) => bot.id !== mainBot.id) : roster;
-  // 空闲时预取主机器人和左栏前几个的对话，切过去就是现成的（DESIGN.md §82）。
+  // 空闲时预取主机器人和左栏前几个的对话，切过去就是现成的（DESIGN.md §83）。
   usePrefetchBotChats(
     [...(mainBot ? [mainBot.id] : []), ...others.map((bot) => bot.id)],
     channels.data,

@@ -9,7 +9,7 @@ import type { Database } from "./db/client";
 import { afterTruncate, dropTombstoned, ensureTruncationTable, tombstones, TruncateError, truncateThread, workersSince } from "./thread-truncate";
 
 /**
- * 接入回放瘦身（DESIGN.md §82）。存下的每一轮 RUN_STARTED 都带着那一刻完整的 input：系统上下文（context）、
+ * 接入回放瘦身（DESIGN.md §83）。存下的每一轮 RUN_STARTED 都带着那一刻完整的 input：系统上下文（context）、
  * 工具定义（tools）和到那一刻为止的全部消息（messages）。n 轮就是 n 份，越聊越大——实测一段 35 轮的对话
  * 回放 3.4 MB（context 2.2 MB + tools 1 MB），打开 / 切换到它时浏览器要先下完这些。
  *

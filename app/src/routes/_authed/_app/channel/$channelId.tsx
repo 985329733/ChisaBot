@@ -42,7 +42,7 @@ function RouteComponent() {
   const { settings, watch } = Route.useSearch();
   const queryClient = useQueryClient();
   /*
-   * 左栏里点过来的对话，左栏的列表里已经有它（DESIGN.md §82）：先用那一行画聊天，详情读到再换上，
+   * 左栏里点过来的对话，左栏的列表里已经有它（DESIGN.md §83）：先用那一行画聊天，详情读到再换上，
    * 不再空白等一次 `/api/channels/:id`。
    */
   const channel = useQuery({

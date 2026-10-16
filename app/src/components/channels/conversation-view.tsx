@@ -118,7 +118,7 @@ export function ConversationView({
   queueWhileBusy?: boolean;
   /** History has been asked for and has not arrived. Drawn as placeholder rows; see `ChatTranscript`. */
   restoring?: boolean;
-  /** 打开对话后第一次恢复还没完成（DESIGN.md §82）：落在最新一条、不跳；见 `ChatTranscript`。 */
+  /** 打开对话后第一次恢复还没完成（DESIGN.md §83）：落在最新一条、不跳；见 `ChatTranscript`。 */
   hydrating?: boolean;
   onSubmit: (draft: ComposerDraft) => void | Promise<void>;
   /** Stop the Bot mid-answer; forwarded to turn the send button into a stop button. */

@@ -329,7 +329,7 @@ export function ChannelChat({
   });
 
   /*
-   * 打开时先画什么（DESIGN.md §82）：恢复（接入 + 读存储）完成之前，不把接入回放一段段长出来的样子画出来
+   * 打开时先画什么（DESIGN.md §83）：恢复（接入 + 读存储）完成之前，不把接入回放一段段长出来的样子画出来
    * （那会让滚动容器把每一段当成「刚发的一轮」对齐到顶上，停在半截历史）。先画这台设备上次看到的样子
    * （`transcript-cache`），没有就等存储读到——存储读和接入同时开始，谁也不等谁——再没有就是骨架。
    */
@@ -666,7 +666,7 @@ export function ChannelChat({
         !cancelled &&
         initialActivity &&
         !sameActivity(selfReportedBotActivity.current, initialActivity) &&
-        // 打开时读存储已经读到了左栏说的那一句（DESIGN.md §82）：不再连读三遍。存储落后（还没有这一句）
+        // 打开时读存储已经读到了左栏说的那一句（DESIGN.md §83）：不再连读三遍。存储落后（还没有这一句）
         // 时照旧重试，等它写进来。之后的新动静照旧由上面的订阅拉。
         !(mountReadOk.current && saysActivity(agentRef.current.messages, initialActivity.text))
       ) {
@@ -684,7 +684,7 @@ export function ChannelChat({
 
   const skillCommands = useSkillCommands(runtimeAgentId);
   /*
-   * 记下这段对话的样子，下次切回来先画它（DESIGN.md §82）：恢复完成时记一次，离开（切机器人 / 换对话）时
+   * 记下这段对话的样子，下次切回来先画它（DESIGN.md §83）：恢复完成时记一次，离开（切机器人 / 换对话）时
    * 再记一次最新的。agent 会原地改它的数组，所以 `rememberTranscript` 存的是一份拷贝。
    */
   const restoredRef = useRef(false);

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * 打开对话落在最新一条、不跳（DESIGN.md §82）。滚动本身由 tests/open-scroll/open-scroll.mjs 在真浏览器里量
+ * 打开对话落在最新一条、不跳（DESIGN.md §83）。滚动本身由 tests/open-scroll/open-scroll.mjs 在真浏览器里量
  * （happy-dom 没有布局）；这里锁住接线，免得以后改组件时悄悄断掉：
  * - 恢复完成前不画接入回放一段段长出来的样子（先画缓存 / 存储读到的，没有就是骨架）；
  * - 恢复期间和之后一小段时间由 SettleAtEnd 钉在底部，平滑滚动只给「刚发的」；

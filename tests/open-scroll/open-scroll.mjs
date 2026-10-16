@@ -1,4 +1,4 @@
-// 打开对话落在最新一条 / 切机器人秒开 的回归（DESIGN.md §82）。真浏览器（Playwright），对着一个预览实例跑。
+// 打开对话落在最新一条 / 切机器人秒开 的回归（DESIGN.md §83）。真浏览器（Playwright），对着一个预览实例跑。
 //
 //   BASE=http://127.0.0.1:3201 [TOK=…] [THROTTLE=150:4000:4] node tests/open-scroll/open-scroll.mjs
 //

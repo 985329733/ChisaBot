@@ -4,7 +4,7 @@ import { from, lastValueFrom, toArray } from "rxjs";
 import { slimReplay } from "../src/local-conversations";
 
 /**
- * 接入回放瘦身（DESIGN.md §82）：每一轮 RUN_STARTED 不再重复带 context / tools 和前面已经出现过的消息。
+ * 接入回放瘦身（DESIGN.md §83）：每一轮 RUN_STARTED 不再重复带 context / tools 和前面已经出现过的消息。
  * 锁住两件事：客户端按 AG-UI 回放出来的消息列表和瘦身前一模一样；传的东西少了很多。
  */
 const user = (id: string, text: string): Message => ({ id, role: "user", content: text });

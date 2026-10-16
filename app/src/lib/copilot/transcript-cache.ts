@@ -2,7 +2,7 @@ import type { Message } from "@ag-ui/core";
 import { readThreadMessages } from "@/lib/copilot/thread-messages";
 
 /**
- * 打开对话 / 切换机器人时先画的那一份（DESIGN.md §82）。
+ * 打开对话 / 切换机器人时先画的那一份（DESIGN.md §83）。
  *
  * 只用来「先画出来」，不是第二份对话：对话打开后照旧由运行中的 agent 接入、读存储、合并，读完就换成
  * agent 手里那份。这里存的是上一次在这台设备上看到的样子（离开对话时记下），或者预取时从存储读到的。

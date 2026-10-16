@@ -172,7 +172,7 @@ function shortUrl(url: string): string {
 
 /**
  * 看过的图片多大（按地址记，只在这个页面里）。再画同一张图（切回这段对话、虚拟列表重画）时直接把宽高写在
- * `<img>` 上，浏览器先留出位置，图片加载完不再把下面的消息往下推（DESIGN.md §82）。
+ * `<img>` 上，浏览器先留出位置，图片加载完不再把下面的消息往下推（DESIGN.md §83）。
  */
 const imageSizes = new Map<string, { width: number; height: number }>();
 const IMAGE_SIZE_LIMIT = 500;
