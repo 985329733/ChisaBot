@@ -1,0 +1,42 @@
+/*
+ * 本机小窗口的窗框（DESIGN.md §91）：无边框、圆角、天空铺满到窗口边缘，只有一道边。
+ *  - dwm（Windows 11）：系统画圆角（约 8px）和阴影，页面什么都不加。
+ *  - clip（Windows 10）：窗口透明，页面自己裁成 --r-window 圆角，外沿一圈很淡的墨色细线代替系统阴影（不是白边）。
+ * 窗口按钮和主窗口网页顶栏的 .win-ctrl 同值：46×40、贴住右上角、关闭悬停 #c42b1c。
+ */
+:root { --r-window: 8px; }
+
+/* 不让 body 的天空传到画布上（那样会铺满整个矩形，圆角外不透明）。 */
+html[data-frame="clip"] { background: linear-gradient(transparent, transparent); }
+html[data-frame="clip"] body {
+  min-height: 100vh; height: 100%;
+  border-radius: var(--r-window);
+  clip-path: inset(0 round var(--r-window));
+}
+html[data-frame="clip"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  border-radius: var(--r-window);
+  box-shadow: inset 0 0 0 1px rgba(17, 26, 43, 0.16);
+}
+html[data-frame="clip"].dark body::after { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55); }
+
+/* 顶部拖动带 + 窗口按钮（登录窗）。DOM 里放在表单后面：Tab 先走表单，最后才到窗口按钮。 */
+.win-bar {
+  position: fixed; inset: 0 0 auto 0; height: 40px; z-index: 100;
+  display: flex; justify-content: flex-end;
+  -webkit-app-region: drag; app-region: drag;
+}
+.win-ctrls { display: flex; align-items: stretch; height: 40px; -webkit-app-region: no-drag; app-region: no-drag; }
+.win-ctrl {
+  width: 46px; height: 40px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: 0; background: transparent; color: var(--ink-1); cursor: default;
+  transition: background var(--dur-1) linear, color var(--dur-1) linear;
+}
+.win-ctrl svg { width: 10px; height: 10px; }
+.win-ctrl:hover { background: rgba(17, 26, 43, 0.07); }
+.win-ctrl:active { background: rgba(17, 26, 43, 0.12); }
+.dark .win-ctrl:hover { background: rgba(255, 255, 255, 0.08); }
+.dark .win-ctrl:active { background: rgba(255, 255, 255, 0.04); }
+.win-ctrl.is-close:hover, .dark .win-ctrl.is-close:hover { background: #c42b1c; color: #fff; }
+.win-ctrl.is-close:active, .dark .win-ctrl.is-close:active { background: #c84031; color: rgba(255, 255, 255, 0.85); }
+.win-ctrl:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus); }

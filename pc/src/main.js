@@ -48,12 +48,15 @@ const { createUpdater } = require("./updater");
 const shellRefresh = require("./shell-refresh");
 const { createCompactController } = require("./compact-window");
 const { computeUpdateBounds } = require("./update-placement");
+const windowChrome = require("./window-chrome");
 const buildConfig = require("./build-config");
 const { createSyncManager } = require("./sync/manager");
 const BUILD = buildConfig.load();
 const pkg = require("../package.json");
 
 const PARTITION = "persist:chisabot";
+/** 本机小窗口的窗框（DESIGN.md §91）：Windows 上透明窗口 + 网页裁圆角（clip），macOS 系统圆角（dwm）。 */
+const FRAME = windowChrome.frameMode({ platform: process.platform, override: process.env.CHISABOT_WINDOW_FRAME });
 const ASSETS = path.join(__dirname, "..", "assets");
 /**
  * 窗口 / 任务栏图标：Windows 上用多尺寸 .ico（resources/icons/chisabot-<哈希>.ico，开发运行时 build/icon.ico），
@@ -147,7 +150,7 @@ function localWindow(name, file, { query, ...options } = {}) {
     ...options,
   });
   win.setMenu(null);
-  win.loadFile(path.join(UI, file), query ? { query } : undefined);
+  win.loadFile(path.join(UI, file), { query: { ...windowChrome.frameQuery(FRAME), ...(query || {}) } });
   win.once("ready-to-show", () => win.show());
   win.on("closed", () => {
     windows[name] = null;
@@ -167,13 +170,9 @@ function windowBackground() {
 /** 本机登录页。notice：expired（会话过期）| logout（已退出）| switch（切换服务器）。 */
 function openLogin(notice = "") {
   const existing = windows.login && !windows.login.isDestroyed();
+  // 无边框、圆角、固定大小（DESIGN.md §91）：右上角只有最小化 + 关闭，页面顶部是拖动带。
   const win = localWindow("login", "login.html", {
-    width: 460,
-    height: 760,
-    minWidth: 400,
-    minHeight: 620,
-    maximizable: false,
-    title: "登录 ChisaBot",
+    ...windowChrome.loginWindowOptions(FRAME, { background: windowBackground(), workAreaHeight: screen.getPrimaryDisplay().workArea.height }),
     query: notice ? { notice } : undefined,
   });
   if (existing && notice) win.webContents.send("state:changed", `notice:${notice}`);
@@ -817,22 +816,19 @@ function pumpConfirm() {
   confirmWindow = new BrowserWindow({
     width: 440,
     height: confirmCurrent.request.description && confirmCurrent.request.description.length > 90 ? 330 : 260,
+    ...windowChrome.dialogWindowOptions(FRAME, { background: windowBackground() }),
     parent,
     modal: !!parent,
-    frame: false,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
     alwaysOnTop: !parent,
     show: false,
     title: "ChisaBot PC · 本机确认",
-    backgroundColor: windowBackground(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
-  confirmWindow.loadFile(path.join(UI, "confirm.html"));
-  confirmWindow.once("ready-to-show", () => {
-    confirmWindow.show();
-    confirmWindow.focus();
+  confirmWindow.loadFile(path.join(UI, "confirm.html"), { query: windowChrome.frameQuery(FRAME) });
+  dialogWidth.set(confirmWindow, 440);
+  showAfterFit(confirmWindow, () => {
+    confirmWindow?.show();
+    confirmWindow?.focus();
   });
   confirmWindow.on("closed", () => {
     confirmWindow = null;
@@ -842,6 +838,25 @@ function pumpConfirm() {
     }
     setTimeout(pumpConfirm, 100);
   });
+}
+
+/**
+ * 按内容定高的弹窗（DESIGN.md §91.3）：等页面量好高度（dialog:fit）再显示，不先露出旧高度再跳；
+ * 页面没报（旧页面 / 出错）时 ready-to-show 后 400ms 照常显示。
+ */
+const pendingShow = new WeakMap();
+/** 创建时的宽度：小数缩放（125% / 150%）下 getBounds 会比设定值多几 px，定高时用它回写，不越来越宽。 */
+const dialogWidth = new WeakMap();
+function showAfterFit(win, show) {
+  let done = false;
+  const go = () => {
+    if (done || win.isDestroyed()) return;
+    done = true;
+    pendingShow.delete(win);
+    show();
+  };
+  pendingShow.set(win, go);
+  win.once("ready-to-show", () => setTimeout(go, 400));
 }
 
 // ---------- 审批弹窗 ----------
@@ -867,21 +882,19 @@ function pumpApprovals() {
     height,
     x: workArea.x + workArea.width - width - 16,
     y: workArea.y + workArea.height - height - 16,
-    frame: false,
-    resizable: false,
+    ...windowChrome.dialogWindowOptions(FRAME, { background: windowBackground() }),
     alwaysOnTop: true,
     skipTaskbar: false,
-    transparent: false,
     show: false,
     title: "ChisaBot 请求操作这台电脑",
-    backgroundColor: windowBackground(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
   approvalWindow.setAlwaysOnTop(true, "screen-saver");
-  approvalWindow.loadFile(path.join(UI, "approval.html"));
-  approvalWindow.once("ready-to-show", () => {
-    approvalWindow.showInactive();
-    approvalWindow.flashFrame(true);
+  approvalWindow.loadFile(path.join(UI, "approval.html"), { query: windowChrome.frameQuery(FRAME) });
+  dialogWidth.set(approvalWindow, width);
+  showAfterFit(approvalWindow, () => {
+    approvalWindow?.showInactive();
+    approvalWindow?.flashFrame(true);
   });
   approvalWindow.on("closed", () => {
     approvalWindow = null;
@@ -957,17 +970,13 @@ function openUpdateWindow() {
   updateWindow = new BrowserWindow({
     width: 440,
     height: updateContentHeight,
-    frame: false,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
+    ...windowChrome.dialogWindowOptions(FRAME, { background: windowBackground() }),
     show: false,
     title: "ChisaBot PC · 新版本",
-    backgroundColor: windowBackground(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
   placeUpdateWindow();
-  updateWindow.loadFile(path.join(UI, "update.html"));
+  updateWindow.loadFile(path.join(UI, "update.html"), { query: windowChrome.frameQuery(FRAME) });
   updateWindow.once("ready-to-show", () => updateWindow?.showInactive());
   updateWindow.on("closed", () => {
     updateWindow = null;
@@ -1334,6 +1343,30 @@ function registerIpc() {
     if (restart === true) return installUpdateNow();
     updateWindow?.close();
     return false;
+  });
+  // 本机小窗口自己的窗口按钮（登录窗右上角的最小化 / 关闭，DESIGN.md §91）：只作用于发起调用的那个本机窗口。
+  handleLocal("window:local", (action, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed() || win === windows.chat) return false;
+    if (action === "minimize" && win.isMinimizable()) win.minimize();
+    else if (action === "close") win.close();
+    else return false;
+    return true;
+  });
+  // 审批 / 本机确认按内容定高（DESIGN.md §91.3）：审批窗贴住右下角往上长，确认窗保持中心。
+  handleLocal("dialog:fit", ({ height } = {}, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed() || (win !== approvalWindow && win !== confirmWindow)) return false;
+    const h = windowChrome.fitHeight(height);
+    if (!h) return false;
+    const b = win.getBounds();
+    const width = dialogWidth.get(win) || b.width;
+    if (Math.abs(b.height - h) >= 2 || b.width !== width) {
+      if (win === approvalWindow) win.setBounds({ x: b.x, y: b.y + b.height - h, width, height: h });
+      else win.setBounds({ x: b.x, y: Math.round(b.y + (b.height - h) / 2), width, height: h });
+    }
+    pendingShow.get(win)?.();
+    return true;
   });
   handleLocal("confirm:current", () => confirmCurrent?.request ?? null);
   handleLocal("confirm:answer", ({ id, ok }) => {

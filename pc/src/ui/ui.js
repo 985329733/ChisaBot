@@ -77,3 +77,20 @@ function cleanError(error) {
   const text = error && error.message ? error.message : String(error);
   return text.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 }
+
+/**
+ * 弹窗按内容定高（DESIGN.md §91.3）：按自然高度量出对话框内容，报给主进程（审批 / 本机确认用 dialog:fit，
+ * 更新提示用 update:fit）。主进程等这一次报上来才显示窗口，所以不会先露出旧高度再跳。
+ */
+function measureDialog() {
+  document.body.classList.add("is-measuring");
+  const height = document.querySelector("main").getBoundingClientRect().height;
+  document.body.classList.remove("is-measuring");
+  return Math.ceil(height);
+}
+function fitDialog(channel) {
+  if (!window.chisa) return;
+  const run = () => window.chisa.invoke(channel || "dialog:fit", { height: measureDialog() }).catch(() => {});
+  if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(run);
+  else run();
+}
