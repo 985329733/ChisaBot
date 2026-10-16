@@ -13,6 +13,8 @@
  *   cc_approval_result { approvalId, decision: "approve" | "deny", always }
  *   cc_browser_input { loginId, events }       云端登录浏览器的点击 / 键盘（不记录）
  *   「在云端完成登录」「Claude 上游代理」走 cc_rpc：browser_start / browser_stop / proxy_set / proxy_test / egress
+ *   proxy_set / proxy_test 带 outbound（节点链接解析出的 sing-box 出站，DESIGN §84）时，在容器里起 sing-box（singbox.js），
+ *   本机转发器把它当 socks5 上游。
  *   GitHub 工作区（P3，git.js）走 cc_rpc：ws_clone / ws_merge / ws_push / ws_push_preview / ws_base_diff / ws_delete / ws_drop_tree；
  *   cc_turn 带 git: { branch } 时，会话目录是工作区 work/ 的一个工作树（分支 cc/…）。
  * 节点 → 服务器
@@ -36,6 +38,7 @@ const { spawn, execFile } = require("node:child_process");
 const { parseLine, slimInput } = require("./stream");
 const { decide } = require("./policy");
 const { createForwarder, parseProxy, maskProxy, scrubProxy, httpsGet, traceIp, testRoute } = require("./proxy");
+const { createSingBox, singBoxVersion, cleanOutbound, scrub: scrubSecrets } = require("./singbox");
 const { createRemoteBrowser, findChromium } = require("./browser");
 const { createGitWorkspaces } = require("./git");
 const { createSyncNode } = require("./sync");
@@ -123,6 +126,11 @@ function createCloudCc(options) {
   let sockPath = null;
   // 「Claude 上游代理」：本机转发器（只听容器的 127.0.0.1），上游地址只在内存里
   const forwarder = createForwarder({ log });
+  // 节点链接（trojan / vless / vmess / ss / hysteria2 / tuic）：sing-box 子进程，本机 socks5 入站给转发器当上游
+  // 换节点时先起新的、起好了再停旧的：新节点起不来，旧的照常用
+  let singbox = null;
+  let singboxVersion;
+  const singboxVer = async () => (singboxVersion === undefined ? (singboxVersion = await singBoxVersion()) : singboxVersion);
   let remote = null; // { loginId, browser }
   /** 设了上游代理时给 claude 进程的环境变量（指向本机转发器，里面没有密码）。 */
   function proxyEnv() {
@@ -686,14 +694,43 @@ function createCloudCc(options) {
         if (remote && (!args.id || remote.loginId === args.id)) await remote.browser.stop("取消");
         return { stopped: true };
       case "proxy_set": {
+        if (args.outbound) {
+          // 节点链接：先把 sing-box 起好（起不来就保持原样、报错），再换转发器的上游
+          const next = createSingBox({ log });
+          const local = await next.start(args.outbound);
+          const old = singbox;
+          singbox = next;
+          forwarder.setUpstream(local);
+          await forwarder.start();
+          if (old) await old.stop();
+          const o = singbox.state();
+          return { active: true, converter: true, masked: `${o.type} ${String(args.outbound.server).slice(0, 100)}:${args.outbound.server_port}`, running: [...bySession.keys()].length };
+        }
         const url = args.url ? String(args.url) : null;
         if (url && !parseProxy(url)) throw new Error("代理地址不对");
         forwarder.setUpstream(url);
+        if (singbox) await singbox.stop();
+        singbox = null;
         if (url) await forwarder.start();
         // 正在跑的那一轮不打断：它新建的连接马上按新设置走，下一轮的 claude 进程从头用新设置
-        return { active: !!url, masked: url ? maskProxy(url) : null, running: [...bySession.keys()].length };
+        return { active: !!url, converter: false, masked: url ? maskProxy(url) : null, running: [...bySession.keys()].length };
       }
+      case "proxy_state":
+        return { converter: singbox ? singbox.state() : null, singbox: await singboxVer(), upstream: !!forwarder.upstream() };
       case "proxy_test": {
+        if (args.outbound) {
+          // 还没保存的节点链接：临时起一个 sing-box，测完就停
+          const clean = cleanOutbound(args.outbound);
+          const temp = createSingBox({ log, supervise: false, name: "sing-box（测试）" });
+          try {
+            const local = await temp.start(clean);
+            return await testRoute(local);
+          } catch (e) {
+            return { ok: false, ip: null, country: null, claudeAi: null, anthropicApi: null, ms: null, error: scrubSecrets(e.message, temp.secrets()) };
+          } finally {
+            await temp.stop();
+          }
+        }
         const url = args.url === undefined ? null : args.url ? String(args.url) : null;
         const p = url ? parseProxy(url) : forwarder.upstream();
         if (url && !p) return { ok: false, error: "代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@" };
@@ -747,7 +784,7 @@ function createCloudCc(options) {
 
   async function info() {
     const v = await run(claude, ["--version"], { timeout: 15_000 });
-    out({ type: "cc_info", root, claudeVersion: v.code === 0 ? v.stdout.trim().split("\n")[0].slice(0, 120) : null, running: [...bySession.keys()], browser: !!findChromium(), proxy: !!forwarder.upstream() });
+    out({ type: "cc_info", root, claudeVersion: v.code === 0 ? v.stdout.trim().split("\n")[0].slice(0, 120) : null, running: [...bySession.keys()], browser: !!findChromium(), proxy: !!forwarder.upstream(), singbox: await singboxVer() });
   }
 
   return {
@@ -803,6 +840,7 @@ function createCloudCc(options) {
     close() {
       this.stopAll();
       forwarder.close();
+      if (singbox) void singbox.stop();
       if (hookServer) hookServer.close();
       if (sockPath) {
         try {

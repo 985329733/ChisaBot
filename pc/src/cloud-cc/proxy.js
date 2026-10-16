@@ -318,15 +318,22 @@ function traceIp(body) {
   return m ? m[1].trim() : null;
 }
 
-/** 测试连接：出口 IP（claude.ai 看到的）+ claude.ai / api.anthropic.com 通不通。 */
+/** /cdn-cgi/trace 里的 loc=…（两个字母的国家 / 地区代码）。 */
+function traceLoc(body) {
+  const m = /^loc=([A-Za-z]{2})$/m.exec(String(body || ""));
+  return m ? m[1].toUpperCase() : null;
+}
+
+/** 测试连接：出口 IP 和国家（claude.ai 看到的）+ claude.ai / api.anthropic.com 通不通。 */
 async function testRoute(text) {
   const p = text ? parseProxy(text) : null;
   if (text && !p) return { ok: false, error: "代理地址不对：写成 http://、https:// 或 socks5://主机:端口，可以带 用户名:密码@" };
   const started = Date.now();
-  const out = { ok: false, ip: null, claudeAi: null, anthropicApi: null, ms: null, error: null };
+  const out = { ok: false, ip: null, country: null, claudeAi: null, anthropicApi: null, ms: null, error: null };
   try {
     const trace = await httpsGet("https://claude.ai/cdn-cgi/trace", p);
     out.ip = traceIp(trace.body);
+    out.country = traceLoc(trace.body);
     out.claudeAi = { ok: trace.status > 0 && trace.status < 500, status: trace.status };
   } catch (e) {
     out.claudeAi = { ok: false, error: scrubProxy(e.message, p) };
@@ -343,4 +350,4 @@ async function testRoute(text) {
   return out;
 }
 
-module.exports = { createForwarder, parseProxy, maskProxy, scrubProxy, isClaudeHost, tunnel, httpsGet, traceIp, testRoute };
+module.exports = { createForwarder, parseProxy, maskProxy, scrubProxy, isClaudeHost, tunnel, httpsGet, traceIp, traceLoc, testRoute };

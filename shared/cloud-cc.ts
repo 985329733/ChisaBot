@@ -1,6 +1,7 @@
 /**
  * 云端 Claude Code（docs/cloud-claude-code.md，ADR-0014）：服务器和网页共用的类型。
  */
+import { maskShareLink, parseShareLink, shareScheme, SHARE_PROTOCOL_ZH, type ShareProtocol } from "./proxy-links";
 
 export type ClaudeAuth = {
   loggedIn: boolean;
@@ -26,7 +27,20 @@ export type CloudWorkspaceView = {
   /** 节点镜像里有浏览器：可以「在云端完成登录」。 */
   browserLogin: boolean;
   /** 「Claude 上游代理」：只给打码后的地址。 */
-  proxy: { configured: boolean; masked: string | null };
+  proxy: CcProxyView;
+};
+
+/**
+ * 「Claude 上游代理」的现状（DESIGN.md §73.8、§84）。kind = url：http / https / socks5 代理；link：节点链接，经 sing-box 转换。
+ * converter：云端节点里的 sing-box（available = 节点镜像里有；lastError = 最近一次启动 sing-box 的错误）。
+ */
+export type CcProxyView = {
+  configured: boolean;
+  masked: string | null;
+  kind: "url" | "link" | null;
+  /** 节点链接的协议名（Trojan / VLESS…），普通代理为 null。 */
+  protocol: string | null;
+  converter: { available: boolean; version: string | null; lastError: string | null };
 };
 
 /** 「在云端完成登录」的画面流（GET /api/cloud-workspace/claude/login/browser/:id/stream）。 */
@@ -46,6 +60,8 @@ export type CcBrowserInput =
 export type CcProxyTest = {
   ok: boolean;
   ip: string | null;
+  /** 出口所在国家 / 地区（claude.ai 的 /cdn-cgi/trace 里的 loc，两个字母）。 */
+  country?: string | null;
   claudeAi: { ok: boolean; status?: number; error?: string } | null;
   anthropicApi: { ok: boolean; status?: number; error?: string } | null;
   ms: number | null;
@@ -72,6 +88,40 @@ export function maskProxyUrl(text: string) {
   const p = parseProxyUrl(text);
   if (!p) return null;
   return `${p.protocol}://${p.username ? `${encodeURIComponent(p.username)}${p.hasPassword ? ":••••" : ""}@` : ""}${p.host}:${p.port}`;
+}
+
+/** 填进来的是什么：普通代理地址 / 节点链接 / 都不是。网页用来决定要不要显示「用 sing-box 转换此链接」。 */
+export type ProxyInputKind =
+  | { kind: "url"; masked: string }
+  | { kind: "link"; protocol: ShareProtocol; protocolZh: string; masked: string | null; error: string | null }
+  | { kind: "invalid" }
+  | { kind: "empty" };
+
+export function classifyProxyInput(text: string): ProxyInputKind {
+  const t = String(text ?? "").trim();
+  if (!t) return { kind: "empty" };
+  const proto = shareScheme(t);
+  if (proto) {
+    const r = parseShareLink(t);
+    return { kind: "link", protocol: proto, protocolZh: SHARE_PROTOCOL_ZH[proto], masked: r.ok ? maskShareLink(t) : null, error: r.ok ? null : r.error };
+  }
+  const masked = maskProxyUrl(t);
+  return masked ? { kind: "url", masked } : { kind: "invalid" };
+}
+
+/** 已保存的值打码：普通代理 → 打码地址；节点链接 → 协议 · 主机:端口 · 节点名。 */
+export function maskProxyValue(text: string): string | null {
+  return shareScheme(text) ? maskShareLink(text) : maskProxyUrl(text);
+}
+
+/** 两个字母的国家 / 地区代码 → 中文名（不认识就原样）。 */
+export function countryZh(code: string | null | undefined): string | null {
+  if (!code) return null;
+  try {
+    return new Intl.DisplayNames(["zh-CN"], { type: "region" }).of(code.toUpperCase()) ?? code;
+  } catch {
+    return code;
+  }
 }
 
 export type CcLoginStart = { id: string; url: string; expiresAt: string };

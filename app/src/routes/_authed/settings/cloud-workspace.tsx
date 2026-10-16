@@ -1,8 +1,8 @@
-import { IconKey, IconCloudComputing, IconExternalLink, IconRefresh, IconShieldCheck, IconTrash, IconWorldWww, IconPlugConnected, IconCircleCheck, IconCircleX } from "@tabler/icons-react";
+import { IconKey, IconCloudComputing, IconExternalLink, IconRefresh, IconShieldCheck, IconTrash, IconWorldWww, IconPlugConnected, IconCircleCheck, IconCircleX, IconLink } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import type { CcLoginStart, CcProxyTest } from "../../../../../shared/cloud-cc";
+import { classifyProxyInput, countryZh, type CcLoginStart, type CcProxyTest } from "../../../../../shared/cloud-cc";
 import { CloudLoginBrowser } from "@/components/cloud-cc/cloud-login-browser";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
@@ -12,7 +12,8 @@ import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
-import { Card, CardBody, EmptyState, ErrorCard, ListRow } from "@/components/ui/skyglass";
+import { Card, CardBody, EmptyState, ErrorCard, ListRow, SettingRow } from "@/components/ui/skyglass";
+import { Switch } from "@/components/ui/switch";
 import { ccApi, ccKeys, cloudWorkspaceQueryOptions } from "@/lib/cloud-cc";
 import { client } from "@/lib/client";
 import { agoText } from "@/lib/im";
@@ -263,41 +264,52 @@ function ClaudeAccount() {
 }
 
 /**
- * 「Claude 上游代理」（DESIGN.md §73.8）：你自己的代理 / 静态住宅 IP。设了以后，云端节点里 Claude Code 的所有请求（含登录、换令牌）
- * 和「在云端完成登录」的浏览器访问 Claude 的域名时都走它；GitHub、npm 这些不走。地址存在保险箱里，这里只显示打码后的。
+ * 「Claude 上游代理」（DESIGN.md §73.8、§84）：你自己的代理 / 静态住宅 IP，或者 trojan / vless / vmess / ss / hysteria2 / tuic 节点链接。
+ * 设了以后，云端节点里 Claude Code 的所有请求（含登录、换令牌）和「在云端完成登录」的浏览器访问 Claude 的域名时都走它；
+ * GitHub、npm 这些不走。节点链接要打开「用 sing-box 转换此链接」：服务器上的云端节点起一个本机转换器（sing-box）。
+ * 地址 / 链接存在保险箱里，这里只显示打码后的（协议 · 主机:端口 · 节点名）。
  */
 function ProxySection() {
   const queryClient = useQueryClient();
   const status = useQuery(cloudWorkspaceQueryOptions());
   const proxy = status.data?.proxy;
   const online = !!status.data?.node?.online;
+  const converterReady = !!proxy?.converter.available;
   const [value, setValue] = useState("");
+  const [convert, setConvert] = useState(false);
   const [result, setResult] = useState<CcProxyTest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const input = classifyProxyInput(value);
+  const isLink = input.kind === "link";
+  /** 节点链接：链接写对了、开关打开了、节点里有 sing-box 才能测试 / 保存。 */
+  const linkBlocked = isLink && (!!input.error || !convert || !converterReady);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ccKeys.status });
-  const test = useAsyncAction(
-    async () => {
-      setError(null);
-      setResult(null);
-      const r = await client("/api/cloud-workspace/claude/proxy/test", { method: "POST", body: value.trim() ? { url: value.trim() } : {}, fallback: "测试失败" }).then((x) => x.json() as Promise<CcProxyTest>);
-      setResult(r);
-      if (!r.ok) throw new Error(r.error ?? "连不上 Claude");
-    },
-    { errorToast: false },
-  );
+  const runTest = async (url: string | null) => {
+    setError(null);
+    setResult(null);
+    const r = await client("/api/cloud-workspace/claude/proxy/test", { method: "POST", body: url ? { url } : {}, fallback: "测试失败" }).then((x) => x.json() as Promise<CcProxyTest>);
+    setResult(r);
+    if (!r.ok) throw new Error(r.error ?? "连不上 Claude");
+  };
+  const test = useAsyncAction(async () => runTest(value.trim() || null), { errorToast: false });
+  /** 保存后自动测一次已保存的：出口 IP + 国家。 */
+  const check = useAsyncAction(async () => runTest(null), { errorToast: false });
   const save = useAsyncAction(
     async () => {
       setError(null);
-      const r = await client("/api/cloud-workspace/claude/proxy", { method: "PUT", body: { url: value.trim() }, fallback: "保存失败" })
+      setResult(null);
+      const r = await client("/api/cloud-workspace/claude/proxy", { method: "PUT", body: { url: value.trim(), ...(isLink ? { convert } : {}) }, fallback: "保存失败" })
         .then((x) => x.json() as Promise<{ masked: string | null; applied: boolean; running: number }>)
         .catch((e: Error) => {
           setError(e.message);
           throw e;
         });
       setValue("");
+      setConvert(false);
       await refresh();
       if (r.running) toast.info(`正在跑的 ${r.running} 个会话不会被打断：这一轮里新的连接马上走新代理，下一轮整轮都用它。`);
       else if (!r.applied) toast.info("已保存。云端工作区现在不在线，上线后自动用上。");
+      if (r.applied) void check.run();
     },
     { errorToast: false },
   );
@@ -307,7 +319,7 @@ function ProxySection() {
     await refresh();
   });
   const askClear = async () => {
-    const ok = await confirmDialog({ title: "清除 Claude 上游代理？", description: "之后 Claude Code 和云端登录浏览器直接走机房的默认出口。正在跑的这一轮不会被打断。", confirmLabel: "清除", destructive: true });
+    const ok = await confirmDialog({ title: "清除 Claude 上游代理？", description: "之后 Claude Code 和云端登录浏览器直接走机房的默认出口；用的是节点链接的话，云端的 sing-box 转换器也会停掉。正在跑的这一轮不会被打断。", confirmLabel: "清除", destructive: true });
     if (ok) void clear.run();
   };
   const row = (label: string, r: CcProxyTest["claudeAi"]) => (
@@ -317,8 +329,14 @@ function ProxySection() {
       <span className="cc-proxy-chk-s">{r?.ok ? (r.status ? `HTTP ${r.status}` : "通") : (r?.error ?? "不通")}</span>
     </span>
   );
+  const country = countryZh(result?.country);
+  const currentSub = !proxy?.configured
+    ? "支持 http://、https://、socks5://（可以带 用户名:密码@），也支持 trojan://、vless://、vmess://、ss://、hysteria2://、tuic:// 节点链接。"
+    : proxy.kind === "link"
+      ? "经 sing-box 转换。Claude Code 和云端登录浏览器访问 Claude 时走这个节点。"
+      : "Claude Code 和云端登录浏览器访问 Claude 时走这个代理。";
   return (
-    <PageSection description="用你自己的代理或静态住宅 IP 访问 Claude。设了以后，云端 Claude Code（包括登录、续期）和「在云端完成登录」的浏览器访问 Claude 时都走它，登录和日常使用是同一个 IP；GitHub、npm 等其他网站不走。地址加密存在保险箱里。" title="Claude 上游代理">
+    <PageSection description="用你自己的代理、静态住宅 IP 或节点链接访问 Claude。设了以后，云端 Claude Code（包括登录、续期）和「在云端完成登录」的浏览器访问 Claude 时都走它，登录和日常使用是同一个 IP；GitHub、npm 等其他网站不走。地址加密存在保险箱里。" title="Claude 上游代理">
       <Card data-testid="cc-proxy">
         <CardBody className="cc-proxy-body">
           <div className="cc-proxy-now">
@@ -327,7 +345,10 @@ function ProxySection() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="cc-account-t" data-testid="cc-proxy-current">{proxy?.configured ? proxy.masked : "没有设置 · 走机房默认出口"}</div>
-              <div className="cc-account-s">{proxy?.configured ? "Claude Code 和云端登录浏览器访问 Claude 时走这个代理。" : "支持 http://、https://、socks5://，可以带 用户名:密码@。"}</div>
+              <div className="cc-account-s">{currentSub}</div>
+              {proxy?.kind === "link" && proxy.converter.lastError ? (
+                <div className="cc-proxy-warn is-bad" data-testid="cc-proxy-conv-error">{`sing-box 没起来：${proxy.converter.lastError}`}</div>
+              ) : null}
             </div>
             {proxy?.configured ? (
               <Button data-testid="cc-proxy-clear" disabled={!online} feedback={{ pending: "清除中…", success: "已清除", error: "没清除" }} onClick={() => void askClear()} size="sm" state={clear.state} variant="ghost">
@@ -339,24 +360,69 @@ function ProxySection() {
             className="cc-proxy-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (value.trim()) void save.run();
+              if (value.trim() && !linkBlocked) void save.run();
             }}
           >
-            <Input autoComplete="off" data-testid="cc-proxy-input" onChange={(e) => setValue(e.target.value)} placeholder={proxy?.configured ? "填新的地址来替换" : "socks5://用户名:密码@1.2.3.4:1080"} spellCheck={false} type="text" value={value} />
-            <Button data-testid="cc-proxy-test" disabled={!online} feedback={{ pending: "测试中…", success: "连接正常", error: "连不上" }} onClick={() => void test.run()} state={test.state} type="button" variant="outline">
+            <Input
+              aria-label="代理地址或节点链接"
+              autoComplete="off"
+              data-testid="cc-proxy-input"
+              onChange={(e) => {
+                setValue(e.target.value);
+                setError(null);
+              }}
+              placeholder={proxy?.configured ? "填新的地址或节点链接来替换" : "socks5://用户名:密码@1.2.3.4:1080 或 trojan://…"}
+              spellCheck={false}
+              type="text"
+              value={value}
+            />
+            <Button
+              data-testid="cc-proxy-test"
+              disabled={!online || linkBlocked}
+              feedback={{ pending: "测试中…", success: "连接正常", error: "连不上" }}
+              onClick={() => void test.run()}
+              state={test.state}
+              type="button"
+              variant="outline"
+            >
               {value.trim() ? "测试连接" : proxy?.configured ? "测试当前代理" : "测试默认出口"}
             </Button>
-            <Button data-testid="cc-proxy-save" disabled={!value.trim() || !online} feedback="save" state={save.state} type="submit">
+            <Button data-testid="cc-proxy-save" disabled={!value.trim() || !online || linkBlocked} feedback="save" state={save.state} type="submit">
               {"保存"}
             </Button>
           </form>
+          {input.kind === "link" ? (
+            <div className="cc-proxy-conv" data-testid="cc-proxy-conv">
+              <div className={cn("cc-proxy-kind", input.error && "is-bad")} data-testid="cc-proxy-kind">
+                {input.error ? <IconCircleX className="size-4" /> : <IconLink className="size-4" />}
+                <span className="min-w-0">{input.error ? `${input.protocolZh} 链接：${input.error}` : `识别为 ${input.masked}`}</span>
+              </div>
+              <SettingRow
+                className="cc-proxy-switch"
+                description="在云端服务器上运行一个本机转换器（sing-box），把这个节点转成只给 Claude Code 和云端登录浏览器用的本地代理。http / https / socks5 地址不需要它。"
+                title="用 sing-box 转换此链接"
+              >
+                <Switch aria-label="用 sing-box 转换此链接" checked={convert} data-testid="cc-proxy-convert" disabled={!converterReady} onCheckedChange={(v) => setConvert(!!v)} />
+              </SettingRow>
+              {!converterReady ? (
+                <div className="cc-proxy-warn" data-testid="cc-proxy-no-singbox">{"云端节点镜像里还没有 sing-box，更新云端节点镜像后才能用节点链接。"}</div>
+              ) : !convert ? (
+                <div className="cc-proxy-hint">{"打开上面的开关才能测试和保存这个链接。"}</div>
+              ) : null}
+              <div className="cc-proxy-hint" data-testid="cc-proxy-risk">{"提醒：多人共用的机场节点 IP 比静态住宅 IP 更容易被 Claude 风控，长期使用建议选固定的住宅 IP。"}</div>
+            </div>
+          ) : input.kind === "invalid" ? (
+            <div className="cc-proxy-hint" data-testid="cc-proxy-kind">{"认不出来：写成 http://、https://、socks5://主机:端口，或者粘贴 trojan / vless / vmess / ss / hysteria2 / tuic 节点链接。"}</div>
+          ) : null}
           {result ? (
             <div className="cc-proxy-result" data-testid="cc-proxy-result">
-              <span className="cc-proxy-ip">{result.ip ? `出口 IP ${result.ip}` : "拿不到出口 IP"}</span>
+              <span className="cc-proxy-ip">{result.ip ? `出口 IP ${result.ip}${country ? ` · ${country}` : ""}` : "拿不到出口 IP"}</span>
               {row("claude.ai", result.claudeAi)}
               {row("api.anthropic.com", result.anthropicApi)}
               {result.ms ? <span className="cc-proxy-chk-s">{`${(result.ms / 1000).toFixed(1)} 秒`}</span> : null}
             </div>
+          ) : check.state === "pending" ? (
+            <div className="cc-proxy-hint" data-testid="cc-proxy-checking">{"已保存，正在经新的代理测试 claude.ai 和 api.anthropic.com…"}</div>
           ) : null}
           {error ? (
             <div className="cc-account-err" role="alert">
