@@ -7389,7 +7389,7 @@ html[data-phone] .chat-composer-box { padding-bottom: calc(1rem + var(--safe-b, 
 .cc-session { padding: 0 16px 16px; }
 .cc-session.is-phone { padding: 0 16px calc(16px + var(--safe-b, 0px)); }
 
-/* ── 浏览器多标签 + 收藏夹（DESIGN.md §XX）──────────────────────────────────────────── */
+/* ── 浏览器多标签 + 收藏夹（DESIGN.md §95）──────────────────────────────────────────── */
 .btabs { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; }
 .computer-takeover-card .btabs { padding-right: 34px; }
 .btabs-track { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; padding: 2px; mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); }

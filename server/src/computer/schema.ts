@@ -393,7 +393,7 @@ export type ComputerStatus = {
 };
 
 
-/** 浏览器标签（DESIGN.md §XX）。和 agent-computer/src/tabs.ts 的 TabsView 同一个形状。 */
+/** 浏览器标签（DESIGN.md §95）。和 agent-computer/src/tabs.ts 的 TabsView 同一个形状。 */
 export type BrowserTab = {
   id: string;
   url: string;

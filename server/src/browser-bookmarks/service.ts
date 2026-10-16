@@ -5,7 +5,7 @@ import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
 
 /**
- * 浏览器收藏夹（DESIGN.md §XX，docs/browser-tabs.md）。
+ * 浏览器收藏夹（DESIGN.md §95，docs/browser-tabs.md）。
  *
  * 每个用户一份，这个用户所有机器人的浏览器共用（起始页上的常用网站 = 收藏夹前 12 个）。
  * 表 chisabot_browser_bookmarks + chisabot_browser_bookmark_seeds（开机 CREATE TABLE IF NOT EXISTS，

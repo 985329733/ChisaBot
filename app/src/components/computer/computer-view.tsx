@@ -213,7 +213,7 @@ type Props = {
    * side panel is not a turn and has nothing to remember.
    */
   toolCallId?: string;
-  /** 右栏「计算机」：画面上面显示一条标签（DESIGN §XX）。对话里的小卡片不显示。 */
+  /** 右栏「计算机」：画面上面显示一条标签（DESIGN §95）。对话里的小卡片不显示。 */
   browserChrome?: boolean;
 };
 

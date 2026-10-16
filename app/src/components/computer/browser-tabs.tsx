@@ -4,7 +4,7 @@ import { siteMonogram } from "@/lib/browser-bookmarks";
 import { type BrowserTab, humanTab, useBrowserTabs } from "@/lib/computers/tabs";
 
 /**
- * 机器人浏览器的标签栏（DESIGN.md §XX）。
+ * 机器人浏览器的标签栏（DESIGN.md §95）。
  *
  * 机器人和人看到的是同一组真标签（云端 Chromium 里的页面）。人接管时可以点着切、× 关、+ 新开；
  * 只看着的时候标签栏照样显示，当前那个高亮——看得出机器人在哪个标签上，点不动（提示先接管）。

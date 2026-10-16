@@ -11,7 +11,7 @@ import {
 import { createDatabase } from "../src/db/client";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
-/** 浏览器收藏夹（DESIGN.md §XX）。 */
+/** 浏览器收藏夹（DESIGN.md §95）。 */
 describe("bookmark input", () => {
   test("url: only http(s); bare host gets https://", () => {
     expect(normaliseBookmarkUrl("github.com")).toBe("https://github.com/");

@@ -14,7 +14,7 @@ import {
   writeSavedTabs,
 } from "../src/tabs";
 
-/** 浏览器多标签（DESIGN.md §XX）：不碰浏览器的规则。 */
+/** 浏览器多标签（DESIGN.md §95）：不碰浏览器的规则。 */
 const page = (url: string, closed = false) => ({ url: () => url, isClosed: () => closed });
 
 describe("tab rules", () => {

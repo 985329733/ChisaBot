@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { tryClient } from "@/lib/client";
 
 /**
- * 机器人浏览器的标签（DESIGN.md §XX）。
+ * 机器人浏览器的标签（DESIGN.md §95）。
  *
  * 一份按机器人分的小仓库：直播画面的 socket 推来的 `tabs` 帧和没有直播时的轮询（GET /tabs，2 秒一次，
  * 页面不可见时停）写进同一个地方，标签栏只读这里。人接管时的 + / × / 切换走 POST /human/tab，

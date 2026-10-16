@@ -7,7 +7,7 @@ import { TabStrip } from "@/components/computer/browser-tabs";
 import { findBookmark, sameBookmarkUrl, siteMonogram } from "@/lib/browser-bookmarks";
 import { parseTabsView, setTabsView } from "@/lib/computers/tabs";
 
-/** 浏览器多标签 + 收藏夹（DESIGN.md §XX）。 */
+/** 浏览器多标签 + 收藏夹（DESIGN.md §95）。 */
 
 const realFetch = globalThis.fetch;
 let calls: { url: string; method: string; body: unknown }[] = [];

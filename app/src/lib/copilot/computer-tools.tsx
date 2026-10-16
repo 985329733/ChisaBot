@@ -279,7 +279,7 @@ export function ComputerTools() {
     render: () => null,
   });
 
-  // 浏览器多标签（DESIGN.md §XX）：列出 / 新开 / 切换 / 关闭。机器人总是在「当前标签」上操作。
+  // 浏览器多标签（DESIGN.md §95）：列出 / 新开 / 切换 / 关闭。机器人总是在「当前标签」上操作。
   useFrontendTool({
     available,
     name: "computer_tabs",
@@ -336,7 +336,7 @@ export function ComputerTools() {
     },
   });
 
-  // 收藏夹（DESIGN.md §XX）：读、打开；只有用户明确要求时才收藏 / 删除。
+  // 收藏夹（DESIGN.md §95）：读、打开；只有用户明确要求时才收藏 / 删除。
   useFrontendTool({
     available,
     name: "computer_bookmarks",

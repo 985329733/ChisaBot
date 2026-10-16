@@ -500,7 +500,7 @@ export function createComputerRoutes(
    * The takeover is the audited event; what the person typed during it is deliberately unrecorded,
    * because the reason a takeover exists is to let them enter the thing nothing else should keep.
    */
-  /* ---------- 浏览器标签（DESIGN.md §XX） ---------- */
+  /* ---------- 浏览器标签（DESIGN.md §95） ---------- */
 
   routes.get("/:botId/tabs", async (context) => {
     if (!gateway.tabs) return context.json({ error: "这个计算机不支持标签页。" }, 404);

@@ -113,7 +113,7 @@ type Props = {
   aspectRatio?: number;
   /** Drawn over the screen (for example the "disconnected, retry" sheet). */
   children?: ReactNode;
-  /** 地址栏上面（标签栏，DESIGN §XX）。 */
+  /** 地址栏上面（标签栏，DESIGN §95）。 */
   aboveUrlbar?: ReactNode;
   /** 地址栏下面（收藏栏）。看着和接管时都显示。 */
   belowUrlbar?: ReactNode;
@@ -330,7 +330,7 @@ export function LiveScreen({
         ok?: unknown;
       };
       if (typeof message.type !== "string") return;
-      // 标签列表（DESIGN §XX）：直播 socket 每次有变化就推一次，写进标签栏读的那份仓库。
+      // 标签列表（DESIGN §95）：直播 socket 每次有变化就推一次，写进标签栏读的那份仓库。
       if (message.type === "tabs") {
         setTabsView(computerId, parsed);
         return;

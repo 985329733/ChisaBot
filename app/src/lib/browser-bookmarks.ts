@@ -2,7 +2,7 @@ import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
 
 /**
- * 浏览器收藏夹（DESIGN.md §XX）。每个用户一份，所有机器人的浏览器共用；起始页上的常用网站就是前 12 个。
+ * 浏览器收藏夹（DESIGN.md §95）。每个用户一份，所有机器人的浏览器共用；起始页上的常用网站就是前 12 个。
  * 第一次读的时候服务器种下起始页原来的五个网站。
  */
 export type Bookmark = { id: string; title: string; url: string; position: number };

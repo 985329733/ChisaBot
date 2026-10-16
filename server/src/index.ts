@@ -1262,7 +1262,7 @@ await memoryNotes.ensure();
 /** 机器人头像（DESIGN.md §81）：上传的图片 / 表情 / 首字；没有 = 花纹头像。 */
 const botAvatars = createBotAvatars(database, agentProfileStore);
 await botAvatars.ensure();
-// 浏览器收藏夹（DESIGN §XX）：每个用户一份，推给机器人浏览器的起始页。
+// 浏览器收藏夹（DESIGN §95）：每个用户一份，推给机器人浏览器的起始页。
 const browserBookmarks = createBrowserBookmarks(database, {
   agents: agentProfileStore,
   ...(computerGateway?.startLinks

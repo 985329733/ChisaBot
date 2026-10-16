@@ -1158,7 +1158,7 @@ serve<StreamData>({
         return json({ reset: true, botId });
       }
 
-      /* ---------- 标签页（DESIGN.md §XX） ---------- */
+      /* ---------- 标签页（DESIGN.md §95） ---------- */
 
       // 读：标签列表。不拉起浏览器（没在运行就列出上次保存的）。
       if (url.pathname === "/tabs" && request.method === "GET") {
