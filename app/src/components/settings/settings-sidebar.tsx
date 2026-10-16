@@ -1,5 +1,6 @@
 import { IconMessageCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import type { LinkOptions } from "@tanstack/react-router";
 import { useMemo } from "react";
 import type * as React from "react";
 import { type RailGroup, SectionRail } from "@/components/layout/section-rail";
@@ -38,7 +39,7 @@ export function SettingsSidebar(props: React.ComponentProps<typeof Sidebar>) {
           sub: page.sub,
           icon: page.icon,
           ...(page.exact ? { exact: true } : {}),
-          linkOptions: { to: page.to },
+          linkOptions: { to: page.to } as LinkOptions,
         })),
       })),
     [viewer],
