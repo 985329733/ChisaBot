@@ -35,6 +35,7 @@ import {
   type LinkRef,
   splitLinkLines,
 } from "@/lib/rich-previews/extract";
+import { readImageDims } from "@/lib/image-dims";
 import { SmoothStreamdown } from "@/components/chat/smooth-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Lightbox, type LightboxImage } from "./lightbox";
@@ -66,6 +67,9 @@ export type LinkPreviewData = {
   favicon: string | null;
   /** 网页没取到（被拦 / 超时 / 不是网页）：只有域名和站点图标的兜底卡。 */
   degraded?: boolean;
+  /** `image` 的像素宽高（DESIGN.md §83.2）；旧服务器 / 读不出时没有。 */
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 class PreviewMissing extends Error {}
@@ -177,18 +181,25 @@ function shortUrl(url: string): string {
 const imageSizes = new Map<string, { width: number; height: number }>();
 const IMAGE_SIZE_LIMIT = 500;
 
-function rememberImageSize(src: string, img: HTMLImageElement) {
-  if (!(img.naturalWidth > 0 && img.naturalHeight > 0) || imageSizes.has(src)) return;
+function rememberSize(src: string, size: { width: number; height: number }) {
+  if (imageSizes.has(src)) return;
   if (imageSizes.size >= IMAGE_SIZE_LIMIT) imageSizes.delete(imageSizes.keys().next().value!);
-  imageSizes.set(src, { width: img.naturalWidth, height: img.naturalHeight });
+  imageSizes.set(src, size);
+}
+
+function rememberImageSize(src: string, img: HTMLImageElement) {
+  if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return;
+  rememberSize(src, { width: img.naturalWidth, height: img.naturalHeight });
 }
 
 /**
  * 记得尺寸就先把框留好：宽度按样式的上限（宽 318、高 300，见 styles.css「图片：单张」）缩，高度跟着宽高比。
  * `aspect-ratio` 让窄屏上 max-width 把宽度压小时高度一起变小。
  */
-function reservedImageBox(src: string): CSSProperties | undefined {
-  const size = imageSizes.get(src);
+function reservedImageBox(image: PileImage): CSSProperties | undefined {
+  const given = readImageDims(image.width, image.height);
+  if (given) rememberSize(image.src, given);
+  const size = given ?? imageSizes.get(image.src);
   if (!size) return undefined;
   const scale = Math.min(1, 318 / size.width, 300 / size.height);
   return { width: `${Math.round(size.width * scale)}px`, aspectRatio: `${size.width} / ${size.height}` };
@@ -389,7 +400,7 @@ export function ImagePile({
               if (img?.complete) rememberImageSize(image.src, img);
             }}
             src={image.src}
-            style={reservedImageBox(image.src)}
+            style={reservedImageBox(image)}
           />
         </button>
         {open !== null ? (
@@ -503,7 +514,7 @@ function useResolvedImages(images: readonly ExtractedImage[]): PileImage[] {
     const result = results[external.indexOf(image)];
     const data = result?.data;
     if (!data?.image || data.imageKind !== "direct") return [];
-    return [{ src: data.image, alt: image.alt, name: data.title }];
+    return [{ src: data.image, alt: image.alt, name: data.title, ...readImageDims(data.imageWidth, data.imageHeight) }];
   });
 }
 

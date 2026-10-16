@@ -24,6 +24,9 @@ export type ChatFileView = {
   workspacePath: string | null;
   prompt?: string | null;
   createdAt: string;
+  /** 图片的像素宽高（DESIGN.md §83.2）；不是图片 / 读不出 / 旧数据没有。网页据此先留框。 */
+  width?: number;
+  height?: number;
 };
 
 export type ImageProviderKind = "minimax" | "openai";

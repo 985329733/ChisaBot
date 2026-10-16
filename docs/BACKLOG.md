@@ -1146,6 +1146,7 @@ P4a #159、P4b #160 已上线（2026-10-16），PC 客户端随 v0.1.11 发布�
 - [x] 切机器人再切回来：第一帧在底部、不跳；看过的对话先画上次的样子（不节流 ≤ 400 ms）
 - [x] 接入回放不再每轮重传 context / tools / 旧消息（35 轮对话 3471 KB → 235 KB），客户端消息列表不变
 - [x] 回归：`app/tests/transcript-cache.test.ts`、`app/tests/open-at-latest.test.ts`、`server/tests/slim-replay.test.ts`、`tests/open-scroll/open-scroll.mjs`
+- [x] 后续（长对话图片加载闪动）：第一次见的图片也不推开消息——服务器存图时读出宽高（`chisabot_image_dims`，旧图读时现算），随消息 / 工具结果 / 链接预览给网页，网页先按比例留框（DESIGN.md §83.2）。回归 `server/tests/image-dims.test.ts`、`app/tests/image-dims.test.tsx`
 
 ## CB-072
 

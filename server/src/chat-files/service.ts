@@ -17,6 +17,7 @@ import type { StoredAttachment } from "../channels/attachment-parts";
 import type { AuditInitiator } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
+import { imageDimsFor } from "../image-dims";
 import { type GrantedTool, REFUSAL_MARKER } from "../plugins/tools";
 import { assertPublicUrl } from "../web/tools";
 import { ImageProviderError, type ImageProviderConfig, probeImageModel, runImageModel } from "./image-provider";
@@ -254,7 +255,11 @@ export function createChatFiles(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING ${LIST_COLUMNS}`,
       [id, owner, agentId, input.kind, input.name, input.mimeType, input.bytes.length, input.bytes, input.workspacePath ?? null, input.prompt ?? null, input.model ?? null, input.sourceId ?? null],
     );
-    return fileView(rows[0]!);
+    const view = fileView(rows[0]!);
+    // 图片记下宽高，随工具结果的文件清单给网页（DESIGN.md §83.2）。
+    if (!input.mimeType.startsWith("image/")) return view;
+    const dims = await imageDimsFor(database).remember(`cf:${id}`, input.bytes);
+    return dims ? { ...view, width: dims.width, height: dims.height } : view;
   }
 
   async function setWorkspacePath(id: string, path: string | null) {

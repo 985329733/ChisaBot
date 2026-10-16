@@ -1,3 +1,4 @@
+import { imageDimsFor } from "../image-dims";
 import {
   and,
   eq,
@@ -1146,7 +1147,14 @@ export function createChannelAttachmentRoutes(
       });
     }
 
-    return context.json(outcome.inserted, 201);
+    /*
+     * 图片的宽高（DESIGN.md §83.2）：记下来，也随回答给作曲框，它写进消息 part 的 metadata，
+     * 网页画这张图之前就能按比例留好框。不是图片 / 读不出来就不带。旧客户端不看这两个字段。
+     */
+    const dims = kind === "image"
+      ? await imageDimsFor(database).remember(`a:${outcome.inserted.id.toLowerCase()}`, bytes)
+      : null;
+    return context.json(dims ? { ...outcome.inserted, width: dims.width, height: dims.height } : outcome.inserted, 201);
   });
 
   return routes;

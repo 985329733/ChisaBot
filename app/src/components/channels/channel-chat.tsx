@@ -1,3 +1,4 @@
+import { readImageDims } from "@/lib/image-dims";
 import type { Message } from "@ag-ui/core";
 import {
   type Attachment,
@@ -210,7 +211,7 @@ function uploadedAttachment(attachment: Attachment): {
   filename?: string;
 } {
   const metadata = attachment.metadata as
-    | { attachmentId?: unknown; filename?: unknown }
+    | { attachmentId?: unknown; filename?: unknown; width?: unknown; height?: unknown }
     | undefined;
   const attachmentId = metadata?.attachmentId;
   if (typeof attachmentId !== "string") {
@@ -253,7 +254,15 @@ function toAttachmentPart(attachment: Attachment) {
   return {
     type: attachmentModality(attachment.type, mimeType),
     source: { type: "url" as const, value: attachmentUrl(attachmentId) },
-    metadata: filename ? { attachmentId, filename } : { attachmentId },
+    metadata: {
+      attachmentId,
+      ...(filename ? { filename } : {}),
+      // 上传时服务器读出的宽高（DESIGN.md §83.2）：存进消息，以后每次画这张图都能先留好框。
+      ...readImageDims(
+        (attachment.metadata as { width?: unknown } | undefined)?.width,
+        (attachment.metadata as { height?: unknown } | undefined)?.height,
+      ),
+    },
   };
 }
 

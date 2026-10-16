@@ -1,3 +1,4 @@
+import { imageDimsFor, imageKeyForUrl } from "../image-dims";
 import { createHash } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
@@ -44,6 +45,9 @@ export type LinkPreview = {
    * 被 SSRF 拦下的不算，那种直接 422（DESIGN.md §48）。
    */
   degraded?: boolean;
+  /** `image` 的像素宽高（DESIGN.md §83.2），回答时补上；没有就不带。 */
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 type ComputerTarget = { baseUrl: string; token?: string };
@@ -201,6 +205,7 @@ export async function createLinkPreviews(
        ON CONFLICT (id) DO UPDATE SET used_at = now()`,
       [id, mime, Buffer.from(bytes)],
     );
+    await imageDimsFor(database).remember(`lp:${id}`, bytes);
     return `/api/link-preview/asset/${id}`;
   }
 
@@ -433,6 +438,14 @@ export async function createLinkPreviews(
     return { preview: await job, cached: false };
   }
 
+  /** 预览图的宽高（DESIGN.md §83.2）：缓存里存的预览不带，回答时按资源查（旧资源第一次现算）。 */
+  async function withImageDims(preview: LinkPreview): Promise<LinkPreview> {
+    const key = imageKeyForUrl(preview.image);
+    if (!key) return preview;
+    const size = (await imageDimsFor(database).lookup([key])).get(key);
+    return size ? { ...preview, imageWidth: size.width, imageHeight: size.height } : preview;
+  }
+
   function allow(userId: string): boolean {
     const now = Date.now();
     const recent = (rate.get(userId) ?? []).filter((t) => now - t < 60_000);
@@ -458,7 +471,7 @@ export async function createLinkPreviews(
       }
       const { preview } = await previewFor(url);
       if (!preview) return c.json({ error: "这个网址没有可显示的预览" }, 422);
-      return c.json({ preview }, 200, {
+      return c.json({ preview: await withImageDims(preview) }, 200, {
         "cache-control": preview.imagePending
           ? "no-store"
           : "private, max-age=600",

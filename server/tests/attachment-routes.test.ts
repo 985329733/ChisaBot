@@ -534,6 +534,16 @@ describe("POST /:channelId/attachments", () => {
     expect(body.name).toBe("photo.png");
   });
 
+  test("an image upload answers with its pixel size (DESIGN.md §83.2); a bare signature has none", async () => {
+    const { app, channelId } = await harness();
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAACUAAAAVCAIAAABOhrD5AAAAJklEQVR4nGOUqzjBQEfARE/LRu0btW/UvlH7Ru0btW/UvlH7qAAAVx0BiGHvRxAAAAAASUVORK5CYII=", "base64");
+    const response = await upload(app, channelId, new File([png], "small.png", { type: "image/png" }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ mimeType: "image/png", width: 37, height: 21 });
+    const bare = await upload(app, channelId, new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], "b.png", { type: "image/png" }));
+    expect("width" in ((await bare.json()) as object)).toBe(false);
+  });
+
   test("a stored upload is handed to the bot-workspace mirror (CB-046)", async () => {
     const { app, channelId } = await harness();
     const seen: { channelId: string; name: string; size: number }[] = [];

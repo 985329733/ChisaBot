@@ -24,7 +24,14 @@ import { createPortal } from "react-dom";
  * 进场 220ms 淡入 + 轻微放大，出场 150ms 淡出；减少动态效果时只淡入淡出。
  */
 
-export type LightboxImage = { src: string; alt?: string; name?: string };
+export type LightboxImage = {
+  src: string;
+  alt?: string;
+  name?: string;
+  /** 像素宽高（服务器给的，DESIGN.md §83.2）：单张图先按比例留框。 */
+  width?: number;
+  height?: number;
+};
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;

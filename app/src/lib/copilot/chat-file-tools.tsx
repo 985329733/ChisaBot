@@ -1,3 +1,4 @@
+import { readImageDims } from "@/lib/image-dims";
 import { useRenderTool } from "@copilotkit/react-core/v2";
 import { IconPhoto } from "@tabler/icons-react";
 import { memo } from "react";
@@ -35,7 +36,7 @@ const ImageToolCard = memo(function ImageToolCard({ running, result, aspect, edi
   if (images.length === 0) return null;
   return (
     <div className="rp-stack cf-tool-result" data-align="start" data-testid="image-tool-result">
-      <ImagePile images={images.map((f) => ({ src: f.url, name: f.name, alt: f.prompt ?? f.name }))} />
+      <ImagePile images={images.map((f) => ({ src: f.url, name: f.name, alt: f.prompt ?? f.name, ...readImageDims(f.width, f.height) }))} />
     </div>
   );
 });

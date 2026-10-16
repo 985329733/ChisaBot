@@ -1,3 +1,4 @@
+import { readImageDims } from "@/lib/image-dims";
 import type { AttachmentsConfig } from "@copilotkit/react-core/v2";
 import {
   ACCEPTED_IMAGE_MIME,
@@ -28,6 +29,9 @@ type UploadedAttachment = {
   id: string;
   name: string;
   mimeType: string;
+  /** 图片的像素宽高（DESIGN.md §83.2）；不是图片 / 旧服务器没有。 */
+  width?: unknown;
+  height?: unknown;
 };
 
 /**
@@ -97,7 +101,7 @@ export function uploadToChannel(
       type: "url",
       value: attachmentUrl(body.id),
       mimeType: body.mimeType,
-      metadata: { attachmentId: body.id, filename: body.name },
+      metadata: { attachmentId: body.id, filename: body.name, ...readImageDims(body.width, body.height) },
     };
   };
 }
