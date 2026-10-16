@@ -7388,3 +7388,99 @@ html[data-phone] .chat-composer-box { padding-bottom: calc(1rem + var(--safe-b, 
 /* Claude Code 会话页：左边原来只有 4px（贴左栏卡），手机 10px。改成左右底都 16px，和机器人聊天一样。 */
 .cc-session { padding: 0 16px 16px; }
 .cc-session.is-phone { padding: 0 16px calc(16px + var(--safe-b, 0px)); }
+
+/* ── 浏览器多标签 + 收藏夹（DESIGN.md §XX）──────────────────────────────────────────── */
+.btabs { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.computer-takeover-card .btabs { padding-right: 34px; }
+.btabs-track { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; padding: 2px; mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); }
+.btabs-track::-webkit-scrollbar { display: none; }
+.btab { position: relative; flex: 0 1 200px; min-width: 96px; max-width: 220px; height: 32px; display: flex; align-items: center; border-radius: 10px; background: transparent; border: 1px solid transparent; color: var(--ink-2); transition: background var(--dur-1), color var(--dur-1), border-color var(--dur-1), box-shadow var(--dur-1); }
+.btab:hover { background: var(--glass-hover); color: var(--ink-1); }
+.btab.is-active { background: rgba(255, 255, 255, 0.92); border-color: var(--line-strong); color: var(--ink-1); box-shadow: 0 1px 3px rgba(22, 36, 62, 0.08); }
+.dark .btab.is-active { background: rgba(255, 255, 255, 0.09); box-shadow: none; }
+.btab.is-active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent-blue); }
+.btab-main { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 9px; border-radius: inherit; text-align: left; font-size: 12.5px; }
+.btab-main[aria-disabled="true"] { cursor: default; }
+.btab-main:focus-visible, .btab-x:focus-visible, .btabs-new:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 1px; }
+.btab-t { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.btab-ic { flex: none; width: 16px; height: 16px; border-radius: 4px; object-fit: contain; }
+.btab-ic.is-glyph { color: var(--ink-3); }
+.btab-ic.is-mono { display: inline-grid; place-items: center; color: #fff; font-size: 9.5px; font-weight: 700; line-height: 1; border-radius: 5px; }
+.btab-x { flex: none; width: 20px; height: 20px; margin-right: 5px; display: grid; place-items: center; border-radius: 6px; color: var(--ink-3); opacity: 0.75; transition: background var(--dur-1), color var(--dur-1), opacity var(--dur-1); }
+.btab-x:hover:not(:disabled) { background: var(--glass-hover); color: var(--ink-1); opacity: 1; }
+.dark .btab-x:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.btabs-new { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; color: var(--ink-2); transition: background var(--dur-1), color var(--dur-1), opacity var(--dur-1); }
+.btabs-new:hover:not(:disabled) { background: var(--glass-hover); color: var(--ink-1); }
+.btabs-new:disabled { opacity: 0.4; }
+.btabs.is-saved .btab { opacity: 0.6; }
+.btabs-problem { position: absolute; left: 4px; top: calc(100% + 2px); z-index: 25; margin: 0; padding: 5px 10px; border-radius: 10px; font-size: 12.5px; color: var(--destructive, #dc2626); background: rgba(255, 255, 255, 0.96); border: 1px solid var(--line-strong); box-shadow: 0 6px 20px rgba(22, 36, 62, 0.12); animation: rail-pane-in var(--dur-2) var(--ease-out); }
+.dark .btabs-problem { background: rgba(18, 25, 38, 0.97); }
+/* 右栏小画面上面那一条：只有标签，没有 + 和 × */
+.btabs.is-compact { margin-bottom: -4px; }
+.btabs.is-compact .btab { height: 28px; flex-basis: 150px; min-width: 72px; }
+.btabs.is-compact .btab-main { font-size: 12px; padding: 0 8px; cursor: pointer; }
+.btabs-count { flex: none; min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 600; color: var(--ink-2); background: var(--glass-hover); border: 1px solid var(--line); }
+
+/* 收藏栏 */
+.bm-bar { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 30px; }
+.bm-track { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 1px; }
+.bm-track::-webkit-scrollbar { display: none; }
+.bm-chip-wrap { position: relative; flex: none; }
+.bm-chip { height: 28px; max-width: 168px; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 8px; border-radius: 9px; font-size: 12.5px; color: var(--ink-2); transition: background var(--dur-1), color var(--dur-1), opacity var(--dur-1); }
+.bm-chip:hover { background: var(--glass-hover); color: var(--ink-1); }
+.dark .bm-chip:hover { background: rgba(255, 255, 255, 0.07); }
+.bm-chip:focus-visible, .bm-drop:focus-visible, .bm-manage-btn:focus-visible { outline: 2px solid var(--focus-line); outline-offset: 1px; }
+.bm-chip.is-dragging { opacity: 0.45; }
+.bm-chip-t { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bm-empty { padding: 0 8px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.bm-manage-btn, .bm-icon-btn { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--ink-3); transition: background var(--dur-1), color var(--dur-1), opacity var(--dur-1); }
+.bm-manage-btn:hover, .bm-icon-btn:hover:not(:disabled) { background: var(--glass-hover); color: var(--ink-1); }
+.bm-icon-btn:disabled { opacity: 0.35; }
+.bm-icon-btn.is-danger:hover:not(:disabled) { color: var(--destructive, #dc2626); }
+.bm-drop-wrap { position: relative; }
+.bm-drop { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 9px; font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); background: var(--glass-hover); }
+.bm-pop { z-index: 30; animation: rail-pane-in var(--dur-2) var(--ease-out); }
+.bm-menu { position: absolute; left: 0; top: calc(100% + 4px); min-width: 180px; max-width: min(300px, 80vw); max-height: 320px; overflow-y: auto; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.97); border: 1px solid var(--line-strong); box-shadow: 0 12px 32px rgba(22, 36, 62, 0.16); backdrop-filter: blur(18px); }
+.dark .bm-menu, .dark .bm-manager { background: rgba(20, 28, 44, 0.97); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+.bm-menu-i { width: 100%; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink-1); text-align: left; }
+.bm-menu-i:hover, .bm-menu-i:focus-visible { background: var(--accent-blue-soft); outline: none; }
+.bm-menu-i.is-danger { color: var(--destructive, #dc2626); }
+.bm-menu-t { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bm-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.bm-hint { position: absolute; left: 4px; top: calc(100% + 2px); z-index: 25; margin: 0; padding: 5px 10px; border-radius: 10px; font-size: 12.5px; color: var(--ink-2); background: rgba(255, 255, 255, 0.96); border: 1px solid var(--line-strong); box-shadow: 0 6px 20px rgba(22, 36, 62, 0.12); animation: rail-pane-in var(--dur-2) var(--ease-out); }
+.dark .bm-hint { background: rgba(18, 25, 38, 0.97); }
+/* 星标 */
+.bm-star.is-on { color: #f5a623; }
+.bm-star[data-state="done"] { color: #16a34a; }
+/* 管理面板 */
+.bm-manager { position: absolute; right: 0; top: calc(100% + 4px); width: min(460px, 100%); max-height: min(440px, 60vh); display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.98); border: 1px solid var(--line-strong); box-shadow: 0 18px 48px rgba(22, 36, 62, 0.2); backdrop-filter: blur(20px); }
+.bm-manager-h { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.bm-manager-h > span:first-of-type { flex: none; }
+.bm-manager-n { flex: 1; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.bm-manager-s { margin: 0; font-size: 12px; color: var(--ink-3); }
+.bm-manager-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.bm-row { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 2px 4px 2px 8px; border-radius: 10px; }
+.bm-row:hover { background: var(--glass-hover); }
+.bm-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bm-row-t, .bm-row-u { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bm-row-t { font-size: 13px; color: var(--ink-1); }
+.bm-row-u { font-size: 11.5px; color: var(--ink-3); font-family: var(--font-code, ui-monospace, monospace); }
+.bm-edit, .bm-add { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bm-add { padding-top: 8px; border-top: 1px solid var(--line); }
+.bm-input { flex: 1 1 110px; min-width: 0; height: 32px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--glass-hover); font-size: 13px; color: var(--ink-1); outline: none; transition: box-shadow var(--dur-1), border-color var(--dur-1); }
+.bm-input.is-url { flex-basis: 170px; font-family: var(--font-code, ui-monospace, monospace); font-size: 12px; }
+.bm-input:focus { border-color: transparent; box-shadow: 0 0 0 2px var(--focus); }
+.bm-text-btn { flex: none; height: 32px; min-width: 64px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 12px; border-radius: var(--r-pill); font-size: 13px; color: var(--ink-2); border: 1px solid var(--line-strong); transition: background var(--dur-1), opacity var(--dur-1); }
+.bm-text-btn:hover:not(:disabled) { background: var(--glass-hover); }
+.bm-text-btn.is-primary { color: #fff; background: var(--accent-blue); border-color: transparent; }
+.bm-text-btn.is-primary:hover:not(:disabled) { background: var(--accent-blue-ink); }
+.bm-text-btn:disabled { opacity: 0.5; }
+.bm-problem { margin: 0; font-size: 12.5px; color: var(--destructive, #dc2626); }
+@media (max-width: 520px) {
+  .btab { flex-basis: 140px; min-width: 84px; }
+  .bm-manager { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-height: 70vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bm-pop, .btabs-problem, .bm-hint { animation: none; }
+  .btabs-track { scroll-behavior: auto; }
+}

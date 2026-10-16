@@ -10,7 +10,11 @@ import {
 import { useComputerControl } from "@/lib/computers/use-control";
 import { ChannelAvatar } from "../channels/avatar";
 import { ComputerControlButton } from "./computer-controls";
-import { LiveScreen } from "./live-screen";
+import { syncStartLinks } from "@/lib/browser-bookmarks";
+import { humanTab, useBrowserTabs } from "@/lib/computers/tabs";
+import { BookmarkStar, BookmarksBar } from "./bookmarks-bar";
+import { TabStrip } from "./browser-tabs";
+import { LiveScreen, type LiveScreenController } from "./live-screen";
 import { useElementVisible, usePageVisible } from "./preview-visibility";
 
 /** Explicit blank-browser URLs use placeholder artwork; missing URL fields are treated as real pages. */
@@ -209,6 +213,8 @@ type Props = {
    * side panel is not a turn and has nothing to remember.
    */
   toolCallId?: string;
+  /** 右栏「计算机」：画面上面显示一条标签（DESIGN §XX）。对话里的小卡片不显示。 */
+  browserChrome?: boolean;
 };
 
 export function ComputerView({
@@ -222,6 +228,7 @@ export function ComputerView({
   page,
   finished,
   toolCallId,
+  browserChrome = false,
 }: Props) {
   const [shot, setShot] = useState<Screenshot | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -285,6 +292,20 @@ export function ComputerView({
   const watchUntil = useRef(0);
 
   const visualVisible = pageVisible && (expanded || previewIntersecting);
+  const liveController = useRef<LiveScreenController | null>(null);
+  const tabsView = useBrowserTabs(computerId, false);
+  const activeTab = tabsView?.tabs.find((tab) => tab.id === tabsView.activeId);
+  // 起始页上的常用网站 = 收藏夹：右栏画面出现、打开大屏时推一次给这个机器人的浏览器。
+  useEffect(() => {
+    if (browserChrome || expanded) syncStartLinks(computerId);
+  }, [browserChrome, expanded, computerId]);
+  const openBookmark = async (url: string, inNewTab: boolean) => {
+    if (inNewTab) {
+      const opened = await humanTab(computerId, "new");
+      if (!opened.ok) return;
+    }
+    liveController.current?.openUrl(url);
+  };
 
   /*
    * The frame this turn's page was showing, fetched once and then kept.
@@ -457,6 +478,15 @@ export function ComputerView({
 
   return (
     <>
+      {browserChrome && !settled ? (
+        <TabStrip
+          compact
+          computerId={computerId}
+          driving={driving}
+          onPick={() => setExpanded(true)}
+          poll={pageVisible && !expanded}
+        />
+      ) : null}
       <figure ref={previewRef} className="overflow-hidden rounded-2xl border">
         {/* Inline preview remains in transcript; click opens a readable full-size view. */}
         <button
@@ -679,11 +709,30 @@ export function ComputerView({
                     </div>
                   ) : showLiveScreen ? (
                     <LiveScreen
+                      aboveUrlbar={
+                        <TabStrip computerId={computerId} driving={driving} poll={!showLiveScreen} />
+                      }
                       aspectRatio={aspectRatio}
+                      belowUrlbar={
+                        <BookmarksBar
+                          botId={computerId}
+                          driving={driving}
+                          onOpen={(url, inNewTab) => void openBookmark(url, inNewTab)}
+                        />
+                      }
                       computerId={computerId}
+                      controllerRef={liveController}
                       driving={driving}
                       onProblem={setStreamProblem}
                       retryKey={retryKey}
+                      urlbarEnd={(url) => (
+                        <BookmarkStar
+                          botId={computerId}
+                          disabled={!driving}
+                          title={activeTab?.url === url ? activeTab.title : undefined}
+                          url={url}
+                        />
+                      )}
                     >
                       {/*
                         A live screen that ends reports why through `onProblem`, and this is the
