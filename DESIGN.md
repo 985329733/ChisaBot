@@ -1806,3 +1806,28 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 
 **86.7 验证**：单测（附件段 / 宽高解析、`withEditedText`、服务器行 + 重新生成 / 编辑出现的条件 + 确认卡片挂在工具下面）；模拟器连预览（生产库副本 + 假模型 CONFIRM / ATTACH / SLOW）走：发一句 → 重新生成（服务器上只剩新的一轮）→ 编辑重发 → SLOW 中途停止 → CONFIRM 取消（「好，没有删」）→ CONFIRM 确认（「删好了」）→ 照片 + csv 一起发（模型收到 1 张图片、1 个文件）→ 设置；浅色 + 深色截图。图片 / 表情 / 首字头像在预览上都是圆的。
 
+## 87. 电脑文件夹导入失败不留半个工作区、删了的工作区不再挡住重新导入（2026-10-16）
+
+用户 2026-10-16 12:46（PC 0.1.13，Windows）：「电脑上的文件夹」选 `C:\AI\Seelen-UI`，第一次报错但左栏还是多了这个工作区；移除后重新导入，弹窗写「这个文件夹已经在同步一个工作区了。」，「上传并创建」灰着点不了。另外弹窗底栏「取消」单独掉到下一行。
+
+### 87.1 根因
+1. **第一次为什么失败**：同步边车 `chisabot-cloudnode-sync` 用 `network_mode: service:cloudnode` 和节点共用网络命名空间。`docker restart chisabot-cloudnode`（每次更新 `pc/src/cloud-cc` 都要做，P4b 上线后 01:31 做过）给节点一个新的命名空间，边车还留在旧的里面——节点连 `127.0.0.1:2222` 一律 ECONNREFUSED（节点日志「连不上同步边车：ECONNREFUSED」，三条隧道 0 字节、几十毫秒就断）。上线检查只读、没真正同步，没发现。
+2. **失败了为什么还留着工作区**：PC 的 `createFromFolder` 先 `POST /workspaces`（服务器建行 + 节点建 `work/`）→ `/bind`（绑定行 + 租约「同步中」）→ 本机 `sync.json` 记下绑定 → 建 Mutagen 会话。中间任何一步抛错都直接往上抛，前面做过的一样不撤。
+3. **移除后为什么不能重新导入**：「已经在同步」只查 PC 本机的 `sync.json`（`inspect().bound`），删工作区（`deleteWorkspace`）只删工作区行、节点目录、归档会话，不碰同步：服务器上绑定 / 租约成了孤儿，PC 本机那条记录（和暂停着的 Mutagen 会话）一直在，没有任何路径能让它消失。
+
+### 87.2 规则
+1. **新建 / 开启同步之前先探边车**：服务器在 `createLocal` 和 `bind` 里先让节点 `sync_probe`（连 2222 等到 `SSH-` 版本行，4 秒）。连不上就 503「云端的同步组件没有就绪（…），这次什么都没有建」，不建工作区、不写绑定。旧节点不认识 `sync_probe` 时当作没问题。
+2. **边车看门狗**：主机 systemd 定时器 `chisabot-cloudnode-syncwatch.timer`（30 秒，`deploy/cloud-node/sync-watch.sh`）比较节点和边车的 netns，不一样就 `docker restart chisabot-cloudnode-sync`。
+3. **新建是一整件事**（PC `createFromFolder`，0.1.15 起）：`POST /workspaces` 之后任何一步失败 → 终止 Mutagen 会话、从 `sync.json` 去掉、删交接记录、重写 ssh 配置 → 服务器 `POST /sync/abandon`（只对电脑文件夹工作区、没开过会话的：断隧道、节点 `ws_delete`、删绑定 / 租约 / 冲突 / 工作区行、重写公钥）→ 报「新建没有成功，已经撤销（云端没有留下工作区，电脑上的文件没动）：<一句中文原因>。可以直接再点一次重试。」英文的 ssh / Mutagen 报错收成「连不上云端的同步组件（…）」。
+4. **删工作区把同步一起拆掉**：`deleteWorkspace` 删行之前调 `forgetWorkspace`：断隧道、删绑定 / 租约 / 冲突、重写节点公钥、给登记过的电脑发 `sync_forget`（事件 `forgotten` 留审计）。
+5. **PC 放下本机记录只听服务器的**：`sync_forget`、上报时服务器回 404、启动时，PC 都先 `POST /sync/reconcile` 问「这些工作区还在不在」，服务器确认不在了才 `forgetLocal`（终止 Mutagen 会话、去掉记录、重写 ssh 配置；文件夹里的文件一个不碰）。服务器连不上：什么都不动。
+6. **重复检查只算还活着的工作区**：`inspect` 把同一个文件夹（Windows 不分大小写）的本机记录拿去对账，工作区还在 = `bound`（「这个文件夹已经在同步工作区「X」了。」，不能再导入）；都删了 = `boundStale`（残留）。网页显示「这个文件夹以前同步过的工作区已经在云端删掉了…」，按钮变「解除旧的同步并重新导入」。
+7. **已装的 0.1.13 / 0.1.14 也能自救**（网页跟着服务器更新）：旧客户端的同步桥 version 1 没有 `forget`、新建会被旧记录拦住，网页自己拿工作区列表判断残留，按钮走另一条路：`POST /api/claude-code/local-workspaces` 建工作区 → 电脑 `sync.enable`（非空文件夹 = 上传，不查重复）→ 没勾「开启同步」就 `release`。网页里任何一次新建失败都找出这次留下的电脑文件夹工作区（新出现的、来源是这个文件夹），先让电脑交还（最多等 20 秒）再 `POST …/sync/abandon`。本机桥的报错去掉 Electron 的「Error invoking remote method …」前缀。
+8. **启动清理**：服务器 `recover()` 里 `cleanupOrphans()`：工作区已经不在的绑定 / 租约 / 冲突删掉（事件 `orphan_cleanup`）。
+9. **底栏一行**：「电脑上的文件夹」的按钮经 portal 放进对话框底栏（`DialogFooter` 里的 `display: contents` 插槽），和「取消」一行、靠右：取消 · 上传并创建（失败后「重试」，残留时「解除旧的同步并重新导入」）。上传中按开始时的判断显示（新工作区出现在同步记录里不会把提示变成「已经在同步」）。
+
+### 87.3 回归
+- `server/tests/cloud-sync-cleanup.test.ts`：边车连不上 → 新建 / 绑定什么都不写；旧节点没 `sync_probe` 照常；abandon 删干净、有会话不撤；forgetWorkspace 删记录 + 发 `sync_forget` + 重写公钥；reconcile 报出已删的；启动清理只动孤儿。
+- `pc/test/cloud-cc-sync.check.js`：节点 `sync_probe`——sshd 回 `SSH-` 算好，没人听（边车在旧命名空间）报「连不上同步边车：ECONNREFUSED」。
+- `pc/test/sync-forget.check.js`：新建失败全撤 + 中文原因 + 重试成功；残留可导入、活着的拦住、服务器连不上不下结论；forget 只在服务器确认时放；`sync_forget` / 启动对账放下已删的。
+- 预览 e2e（Linux 电脑替身，harness `wt-wsync-h/ws.sh`）：边车断开时新建 → 报错、服务器 / 节点 / 电脑都没留下东西；边车恢复后重试成功；删工作区 → 电脑上的记录和 Mutagen 会话消失 → 重新导入成功；电脑离线时删 → 上线对账放下；0.1.13 状态（残留记录）+ 网页的旧客户端路径（建工作区 + enable）。

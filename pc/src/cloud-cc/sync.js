@@ -282,8 +282,35 @@ function createSyncNode(options) {
     return { files, count: Object.keys(files).length, at: new Date().toISOString() };
   }
 
+  /**
+   * 边车连得上吗（DESIGN.md §87）：连 127.0.0.1:2222，等到 sshd 的 `SSH-` 版本行。节点重启后边车留在旧的网络命名空间里时
+   * 这里是 ECONNREFUSED——服务器在新建 / 开启同步之前先问一遍，连不上就什么都不建。
+   */
+  function probe(timeoutMs = 4000) {
+    return new Promise((resolve) => {
+      let done = false;
+      let buf = "";
+      const sock = net.connect({ host: sshHost, port: sshPort });
+      const finish = (r) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        sock.destroy();
+        resolve(r);
+      };
+      const timer = setTimeout(() => finish({ ok: false, error: "边车没有应答（超时）" }), timeoutMs);
+      sock.on("data", (chunk) => {
+        buf += chunk.toString("latin1");
+        if (buf.startsWith("SSH-")) finish({ ok: true, error: null });
+        else if (buf.length >= 4) finish({ ok: false, error: "边车应答不对" });
+      });
+      sock.on("error", (e) => finish({ ok: false, error: `连不上同步边车：${e.code || e.message}` }));
+      sock.on("close", () => finish({ ok: false, error: "边车断开了连接" }));
+    });
+  }
+
   const HANDLED = new Set(["sync_tunnel_open", "sync_tunnel_close"]);
-  const RPC = new Set(["sync_keys_set", "sync_host_key", "sync_lease", "sync_lease_get", "ws_init_local", "ws_manifest", "ws_sync_drop"]);
+  const RPC = new Set(["sync_probe", "sync_keys_set", "sync_host_key", "sync_lease", "sync_lease_get", "ws_init_local", "ws_manifest", "ws_sync_drop"]);
 
   return {
     handles: (type) => HANDLED.has(type),
@@ -303,6 +330,8 @@ function createSyncNode(options) {
     rpcs: RPC,
     rpc(op, args) {
       switch (op) {
+        case "sync_probe":
+          return probe();
         case "sync_keys_set":
           return setKeys(args.keys);
         case "sync_host_key":

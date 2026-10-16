@@ -201,7 +201,7 @@ function createSyncManager(options) {
     env.ELECTRON_RUN_AS_NODE = "1";
     return env;
   }
-  const mutagen = createMutagen({ bin: options.mutagenPath, env: childEnv, log });
+  const mutagen = options.mutagenImpl || createMutagen({ bin: options.mutagenPath, env: childEnv, log });
 
   // ── git ──────────────────────────────────────────────────────────────
   const gitBin = options.gitPath || "git";
@@ -267,7 +267,10 @@ function createSyncManager(options) {
       }
     } catch (e) {
       lastReport.delete(workspaceId);
-      if (e.status === 409 || e.status === 403) {
+      if (e.status === 404) {
+        // 服务器上已经没有这个工作区了（网页上删了）：对一次账，确认后放下本机的记录（§87）
+        void reconcileGone([workspaceId]).catch(() => {});
+      } else if (e.status === 409 || e.status === 403) {
         // 服务器说这台电脑没开着这个工作区的同步了（交还 / 强制收回 / 撤销）：本机也停下
         log(`同步 ${workspaceId}：${e.message}`);
         await localStop(workspaceId, e.message).catch(() => {});
@@ -291,6 +294,8 @@ function createSyncManager(options) {
       if (monitorTimer.unref) monitorTimer.unref();
       await recoverJournals();
       // 开着的同步：恢复会话（暂停着的只有在交接里才会是暂停）
+      // 启动时对账：服务器上已经删掉的工作区，本机的同步记录和 Mutagen 会话也放下（§87）
+      await reconcileGone(Object.keys(state.bindings)).catch((e) => log(`对账失败（下次再试）：${e.message}`));
       for (const b of Object.values(state.bindings)) if (b.enabled && !handoffs.has(b.workspaceId)) await mutagen.resume(b.workspaceId).catch(() => {});
       changed();
       return true;
@@ -437,8 +442,117 @@ function createSyncManager(options) {
       git: g,
       skipped: [...skipped.entries()].map(([name, count]) => ({ name, count })).slice(0, 20),
       ignores: IGNORES,
-      bound: Object.values(state.bindings).find((b) => path.resolve(b.path) === path.resolve(dir))?.workspaceId || null,
+      ...(await boundInfo(dir)),
     };
+  }
+
+  /** 同一个文件夹（Windows 不分大小写）在本机记着的同步。 */
+  function samePath(a, b) {
+    const x = path.resolve(a);
+    const y = path.resolve(b);
+    return platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y;
+  }
+  function bindingsAt(dir) {
+    return Object.values(state.bindings).filter((b) => b.path && samePath(b.path, dir));
+  }
+  /**
+   * 这个文件夹在本机记着的同步里，工作区还在的叫「在同步」，服务器上已经删掉的叫「残留」（boundStale）。
+   * 服务器连不上时不下结论：当作还在同步（不让重复导入）。
+   */
+  async function boundInfo(dir) {
+    const at = bindingsAt(dir);
+    if (!at.length) return { bound: null, boundStale: false, staleIds: [] };
+    let gone = [];
+    try {
+      gone = (await api("POST", "/reconcile", { workspaceIds: at.map((b) => b.workspaceId) })).gone || [];
+    } catch (e) {
+      log(`对账失败：${e.message}`);
+      return { bound: at[0].workspaceId, boundStale: false, staleIds: [] };
+    }
+    const live = at.find((b) => !gone.includes(b.workspaceId));
+    if (live) return { bound: live.workspaceId, boundName: live.name || null, boundStale: false, staleIds: [] };
+    return { bound: at[0].workspaceId, boundName: at[0].name || null, boundStale: true, staleIds: at.map((b) => b.workspaceId) };
+  }
+
+  /**
+   * 放下本机的一条同步记录：终止 Mutagen 会话、删交接记录、从 sync.json 里去掉、重写 ssh 配置。
+   * 只动 ChisaBot 自己的记录，文件夹里的文件一个都不碰。
+   */
+  async function forgetLocal(workspaceId, why) {
+    const b = binding(workspaceId);
+    await mutagen.terminate(workspaceId).catch(() => {});
+    removeJournal(workspaceId);
+    handoffs.delete(workspaceId);
+    lastReport.delete(workspaceId);
+    if (b) {
+      delete state.bindings[workspaceId];
+      save();
+      try {
+        if (key) writeSshFiles();
+      } catch (e) {
+        log(`重写 ssh 配置失败：${e.message}`);
+      }
+      audit({ operation: "sync_forget", summary: `放下本机的同步记录「${b.name || workspaceId}」（${why}，文件夹里的文件没动）`, outcome: "succeeded" });
+    }
+    changed();
+    return !!b;
+  }
+
+  /** 问服务器这些工作区还在不在；不在的放下本机记录。返回放下的 id。服务器连不上：抛错，什么都不动。 */
+  async function reconcileGone(ids) {
+    const list = ids.filter((id) => ID.test(String(id)));
+    if (!list.length) return [];
+    const { gone = [] } = await api("POST", "/reconcile", { workspaceIds: list });
+    const dropped = [];
+    for (const id of gone) {
+      if (!list.includes(id) || busy.has(id)) continue;
+      if (await forgetLocal(id, "工作区已在云端删除")) dropped.push(id);
+    }
+    return dropped;
+  }
+
+  /** 网页上的「解除旧的同步」：只有服务器确认工作区已经删掉了才放下。 */
+  async function forget(workspaceId) {
+    need();
+    if (!ID.test(String(workspaceId))) throw new Error("工作区 id 不对");
+    if (!binding(workspaceId)) return { forgotten: false };
+    let gone;
+    try {
+      gone = (await api("POST", "/reconcile", { workspaceIds: [workspaceId] })).gone || [];
+    } catch (e) {
+      throw new Error(`连不上服务器，没法确认旧的工作区已经删掉：${e.message}`);
+    }
+    if (!gone.includes(workspaceId)) throw new Error("这个工作区还在云端，要停止同步请用「交还云端」，或者先删掉工作区");
+    return { forgotten: await forgetLocal(workspaceId, "解除旧的同步") };
+  }
+
+  /** 让报错能看懂：同步组件 / ssh 的英文报错换成一句中文，原因附在后面。 */
+  function explain(e) {
+    const raw = String((e && e.message) || e || "未知错误");
+    if (!/同步组件没有就绪/.test(raw) && /ECONNREFUSED|连不上同步边车|kex_exchange|Connection (closed|reset)|connection refused|Permission denied \(publickey\)|unable to connect|ssh/i.test(raw))
+      return `连不上云端的同步组件（${raw.replace(/\s+/g, " ").slice(0, 160)}）`;
+    return raw.replace(/\s+/g, " ").slice(0, 300);
+  }
+
+  /**
+   * 新建失败的补偿（§87）：终止 Mutagen 会话、去掉本机记录、让服务器撤销这个工作区（删节点上的目录、绑定、租约）。
+   * 返回服务器那边是否撤销成功。
+   */
+  async function rollbackCreate(workspaceId, cause) {
+    log(`新建失败，撤销 ${workspaceId}：${cause && cause.message}`);
+    busy.delete(workspaceId);
+    progress.delete(workspaceId);
+    await forgetLocal(workspaceId, "新建失败，已撤销");
+    let ok = true;
+    try {
+      await api("POST", "/abandon", { workspaceId });
+    } catch (e) {
+      ok = e.status === 404;
+      if (!ok) log(`服务器撤销失败：${e.message}`);
+    }
+    audit({ operation: "sync_create", summary: `新建失败，已撤销：${explain(cause)}`, outcome: "failed" });
+    changed();
+    return ok;
   }
 
   // ── 开启 / 新建 ──────────────────────────────────────────────────────
@@ -512,21 +626,40 @@ function createSyncManager(options) {
   }
 
   /** 「电脑上的文件夹」新建（图 2 右）。 */
+  /**
+   * 「电脑上的文件夹」新建（图 2 右）。一整件事：中间任何一步失败都撤销（§87）——终止 Mutagen 会话、去掉本机记录、
+   * 服务器撤销工作区，报一句中文原因，可以直接重试。这个文件夹以前同步过的工作区已经在云端删掉了（残留）：先放下旧记录再导入。
+   */
   async function createFromFolder({ dir, name, enableSync = true }) {
     need();
     const info = await inspect(dir);
-    if (info.bound) throw new Error("这个文件夹已经在同步一个工作区了");
-    const ws = (await api("POST", "/workspaces", { name: String(name || info.name).slice(0, 80), label: dir })).workspace;
-    audit({ operation: "sync_create", summary: `电脑上的文件夹 → 云端工作区「${ws.name}」`, outcome: "started" });
-    return await withBusy(ws.id, "上传中", async (setText) => {
-      await bindAndSession(ws.id, dir, { name: ws.name, source: "local" }, setText);
-      await report(ws.id, "syncing", "第一次上传");
-      await flushWithProgress(ws.id, setText, "上传中");
-      const result = await afterFlush(ws.id);
-      if (!enableSync && result === "pc_active") await releaseInner(ws.id, setText);
-      audit({ operation: "sync_create", summary: `工作区「${ws.name}」已上传（${info.files} 个文件）`, outcome: "succeeded" });
-      return { workspace: ws, state: enableSync ? result : "paused", files: info.files, bytes: info.bytes };
-    });
+    if (info.bound && !info.boundStale) throw new Error(`这个文件夹已经在同步工作区${info.boundName ? `「${info.boundName}」` : ""}了`);
+    for (const id of info.staleIds || []) await forgetLocal(id, "旧的工作区已在云端删除，重新导入");
+    let ws = null;
+    try {
+      ws = (await api("POST", "/workspaces", { name: String(name || info.name).slice(0, 80), label: dir })).workspace;
+      audit({ operation: "sync_create", summary: `电脑上的文件夹 → 云端工作区「${ws.name}」`, outcome: "started" });
+      const created = ws;
+      return await withBusy(created.id, "上传中", async (setText) => {
+        await bindAndSession(created.id, dir, { name: created.name, source: "local" }, setText);
+        await report(created.id, "syncing", "第一次上传");
+        await flushWithProgress(created.id, setText, "上传中");
+        const result = await afterFlush(created.id);
+        if (!enableSync && result === "pc_active") await releaseInner(created.id, setText);
+        audit({ operation: "sync_create", summary: `工作区「${created.name}」已上传（${info.files} 个文件）`, outcome: "succeeded" });
+        return { workspace: created, state: enableSync ? result : "paused", files: info.files, bytes: info.bytes };
+      });
+    } catch (e) {
+      if (!ws) throw new Error(`新建没有成功：${explain(e)}`);
+      const undone = await rollbackCreate(ws.id, e);
+      const err = new Error(
+        undone
+          ? `新建没有成功，已经撤销（云端没有留下工作区，电脑上的文件没动）：${explain(e)}。可以直接再点一次重试。`
+          : `新建没有成功：${explain(e)}。云端可能留下了一个空的工作区「${ws.name}」，可以在左栏删掉它再重试。`,
+      );
+      err.rolledBack = undone;
+      throw err;
+    }
   }
 
   /** 在这台电脑上开启（或再次开启）一个云端工作区的同步。空文件夹：云端 → 电脑；非空：两边对比。 */
@@ -872,6 +1005,12 @@ function createSyncManager(options) {
   /** 设备 WSS 上服务器发来的同步消息（core.js 的 onExtra）。 */
   function onServerMessage(message) {
     if (!message || typeof message.type !== "string") return false;
+    if (message.type === "sync_forget") {
+      // 工作区在网页上删了（§87）：服务器确认后放下本机记录（对账，不光凭这一条消息）
+      if (!ID.test(String(message.workspaceId || ""))) return false;
+      if (started) void reconcileGone([String(message.workspaceId)]).catch((e) => log(`对账失败：${e.message}`));
+      return true;
+    }
     if (!ID.test(String(message.workspaceId || "")) || !ID.test(String(message.handoffId || ""))) return false;
     if (message.type === "sync_begin") void onBegin(message);
     else if (message.type === "sync_end") void onEnd(message);
@@ -895,13 +1034,14 @@ function createSyncManager(options) {
     createFromFolder,
     enable,
     release,
+    forget,
     syncNow,
     resolve,
     onServerMessage,
     pauseAll,
     events,
     // 测试用
-    _internal: { gitSync, tick, binding, state: () => state, writeSshFiles, sshConfig, wrapperDir, childEnv, mutagen, broker, recoverJournals, journalFile },
+    _internal: { gitSync, tick, binding, state: () => state, writeSshFiles, sshConfig, wrapperDir, childEnv, mutagen, broker, recoverJournals, journalFile, reconcileGone, forgetLocal, explain },
   };
 }
 

@@ -6,7 +6,7 @@
  *
  *   SERVER=http://… TOKEN_FILE=/cc/ptok DATA=/pc/data PC=/pc/src MUTAGEN=/usr/local/bin/mutagen node sync-pc-standin.cjs
  *
- * 本机 127.0.0.1:7788 开一个控制口给 e2e 脚本：GET /status、POST /create|/enable|/release|/now|/resolve（JSON）、POST /quit。
+ * 本机 127.0.0.1:7788 开一个控制口给 e2e 脚本：GET /status、POST /create|/enable|/release|/forget|/now|/resolve|/inspect（JSON）、POST /quit。
  */
 const http = require("node:http");
 const fs = require("node:fs");
@@ -70,6 +70,7 @@ const routes = {
   "POST /create": (b) => manager.createFromFolder({ dir: b.path, name: b.name, enableSync: b.enableSync !== false }),
   "POST /enable": (b) => manager.enable({ workspaceId: b.workspaceId, dir: b.path, name: b.name, source: b.source }),
   "POST /release": (b) => manager.release(b.workspaceId),
+  "POST /forget": (b) => manager.forget(b.workspaceId),
   "POST /now": (b) => manager.syncNow(b.workspaceId),
   "POST /resolve": (b) => manager.resolve(b),
   "POST /inspect": (b) => manager.inspect(b.path),

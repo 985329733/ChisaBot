@@ -107,6 +107,10 @@ export type PcFolderInfo = {
   skipped: { name: string; count: number }[];
   ignores: string[];
   bound: string | null;
+  /** 0.1.15 起：bound 指的工作区已经在云端删掉了（本机留下的旧记录），可以「解除旧的同步并重新导入」。 */
+  boundStale?: boolean;
+  boundName?: string | null;
+  staleIds?: string[];
 };
 export type PcSyncChoice = "cloud" | "pc" | "both" | "git_cloud" | "git_retry" | "handoff_retry";
 export type PcSyncBridge = {
@@ -117,11 +121,26 @@ export type PcSyncBridge = {
   create(input: { path: string; name: string; enableSync: boolean }): Promise<{ workspace: { id: string; name: string }; state: PcSyncState; files: number; bytes: number }>;
   enable(input: { workspaceId: string; path?: string | null; name?: string; source?: string }): Promise<{ state: PcSyncState }>;
   release(workspaceId: string): Promise<{ state: PcSyncState }>;
+  /** version 2（0.1.15）起：放下已在云端删掉的工作区留下的本机同步记录（服务器确认删掉了才放）。 */
+  forget?(workspaceId: string): Promise<{ forgotten: boolean }>;
   syncNow(workspaceId: string): Promise<{ state: PcSyncState }>;
   resolve(input: { workspaceId: string; path: string; choice: PcSyncChoice }): Promise<unknown>;
   openFolder(workspaceId: string): Promise<string>;
   onChange(callback: () => void): () => void;
 };
+
+/** 本机桥的报错去掉 Electron 加的「Error invoking remote method 'pc:…': Error: 」前缀。 */
+export function pcErrorMessage(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  return raw.replace(/^Error invoking remote method '[^']*':\s*/, "").replace(/^(Error:\s*)+/, "").trim() || "出错了";
+}
+
+/** 同一个文件夹（Windows 路径不分大小写，斜杠方向不论）。 */
+export function samePcPath(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return false;
+  const n = (p: string) => p.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+  return n(a) === n(b);
+}
 
 /** PC 客户端的电脑同步桥（浏览器 / 手机 / 旧客户端是 null）。 */
 export function pcSyncBridge(): PcSyncBridge | null {

@@ -83,6 +83,14 @@ docker compose -f deploy/cloud-node/compose.yaml up -d                   # 节�
 - compose 的 `volume.subpath` 要求 `projects/` 已经存在：节点入口每次启动都会建它；第一次部署时先起节点再起边车（或者 `up -d` 两次）。
 - 检查：`docker port chisabot-cloudnode-sync` 为空；`docker logs chisabot-cloudnode-sync` 有 `Server listening on 127.0.0.1 port 2222`；
   主机 `ss -ltn` 没有 2222。
+- **节点重启后边车要跟着重启**：`docker restart chisabot-cloudnode` 给节点一个新的网络命名空间，边车还留在旧的里面，
+  节点连 2222 就是 ECONNREFUSED（电脑文件夹新建 / 开启同步全部失败）。装上看门狗，它每 30 秒比较两边的 netns，不一样就重启边车：
+  ```sh
+  cp deploy/cloud-node/sync-watch.sh /opt/chisabot-cloudnode/
+  cp deploy/cloud-node/systemd/chisabot-cloudnode-syncwatch.* /etc/systemd/system/
+  systemctl daemon-reload && systemctl enable --now chisabot-cloudnode-syncwatch.timer
+  ```
+  服务器在新建 / 开启同步之前也会先让节点 `sync_probe` 一次边车，连不上就直接报错、什么都不建（DESIGN.md §87）。
 
 ## 验收（部署后）
 

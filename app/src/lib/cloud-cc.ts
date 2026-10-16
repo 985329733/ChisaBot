@@ -173,6 +173,12 @@ export const ccApi = {
       (r) => r.json() as Promise<{ ok: boolean; error?: string; prUrl?: string; prNumber?: number | null; message: CcMessage }>,
     ),
   syncView: (workspaceId: string) => client(`/api/claude-code/workspaces/${encodeURIComponent(workspaceId)}/sync`, { fallback: "读不到同步状态" }).then((r) => r.json() as Promise<CcSyncView>),
+  /** 旧客户端（同步桥 version 1）重新导入时网页替它建电脑文件夹工作区（DESIGN.md §87）。 */
+  createLocalWorkspace: (body: { name: string; label: string }) =>
+    client<{ id: string; name: string }>("/api/claude-code/local-workspaces", "workspace", { method: "POST", body, fallback: "新建工作区失败" }),
+  /** 撤销一次没成功的「电脑上的文件夹」新建（还没开过会话的才行）。 */
+  abandonLocalWorkspace: (workspaceId: string) =>
+    client(`/api/claude-code/workspaces/${encodeURIComponent(workspaceId)}/sync/abandon`, { method: "POST", fallback: "撤销失败" }).then((r) => r.json() as Promise<{ abandoned: boolean; gone: boolean }>),
   forceReclaim: (workspaceId: string) =>
     client(`/api/claude-code/workspaces/${encodeURIComponent(workspaceId)}/sync/force-reclaim`, { method: "POST", fallback: "强制收回失败" }).then((r) => r.json() as Promise<CcSyncView>),
   decide: (approvalId: string, decision: "approve" | "deny", always = false) =>
