@@ -73,7 +73,13 @@ class MainActivity : ComponentActivity() {
         updater = Updater(this)
         vm.start()
         setContent {
-            ChisaTheme(dark = isSystemInDarkTheme()) {
+            // 外观（设置 → 外观）：跟随系统 / 浅色 / 深色；状态栏 / 导航栏图标颜色跟着变
+            val dark = when (vm.themeMode) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
+            androidx.compose.runtime.LaunchedEffect(dark) {
+                val bar = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT) else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = bar, navigationBarStyle = bar)
+            }
+            ChisaTheme(dark = dark) {
                 SkyBackground { App() }
             }
         }
@@ -123,6 +129,7 @@ class MainActivity : ComponentActivity() {
             when (s) {
                 Screen.Login -> LoginScreen(vm, this@MainActivity)
                 Screen.Bots -> BotsScreen(vm, onCheckUpdate = ::checkUpdate, onLogout = { confirmLogout = true })
+                Screen.Settings -> cn.ayase.chisabot.ui.SettingsScreen(vm, onCheckUpdate = ::checkUpdate, onLogout = { confirmLogout = true })
                 is Screen.Chat -> ChatScreen(vm, s.bot)
                 is Screen.Panels -> PanelsScreen(vm, s.bot)
                 is Screen.Web -> WebScreen(vm, s.path, s.title)

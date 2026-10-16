@@ -96,7 +96,8 @@ fun ChisaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () ->
 fun SkyBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val sky = LocalSky.current
     Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(sky.skyTop, sky.skyBottom)))) {
-        val cloud = Modifier.blur(if (canBlur) 60.dp else 0.dp)
+        // Unbounded：模糊不按方框裁切（Rectangle 会在云朵外圈留一条看得见的方边）
+        val cloud = Modifier.blur(if (canBlur) 60.dp else 0.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded)
         Box(cloud.offset((-60).dp, (-40).dp).size(260.dp).alpha(if (sky.dark) 0.35f else 0.8f)
             .background(Brush.radialGradient(listOf(sky.cloud, Color.Transparent)), CircleShape))
         Box(cloud.offset(200.dp, 180.dp).size(300.dp).alpha(if (sky.dark) 0.25f else 0.6f)

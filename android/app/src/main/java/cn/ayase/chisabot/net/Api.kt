@@ -114,6 +114,28 @@ class Api(val origin: String, private val renew: (suspend () -> Boolean)? = null
         throw Unauthorized()
     }
 
+    /** multipart 上传（聊天附件）：一个文件字段 + 几个普通字段。 */
+    suspend fun upload(path: String, fields: Map<String, String>, fileName: String, mime: String, bytes: ByteArray): JsonObject = withContext(Dispatchers.IO) {
+        for (attempt in 0..1) {
+            val body = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM).apply {
+                fields.forEach { (k, v) -> addFormDataPart(k, v) }
+                addFormDataPart("file", fileName, bytes.toRequestBody(mime.toMediaType()))
+            }.build()
+            val req = Request.Builder().url(origin + path).header("Origin", origin)
+                .header("User-Agent", "ChisaBotAndroid/${BuildConfig.VERSION_NAME} native").header("Accept", "application/json").post(body).build()
+            val r = client.newBuilder().writeTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build().newCall(req).execute()
+            if (isAuthFail(r)) {
+                r.close()
+                if (attempt == 0 && renew != null && renew.invoke()) continue
+                throw Unauthorized()
+            }
+            val text = r.use { it.body?.string().orEmpty() }
+            if (!r.isSuccessful) throw ApiError(r.code, errorText(r.code, text))
+            return@withContext (runCatching { json.parseToJsonElement(text) }.getOrNull() as? JsonObject) ?: JsonObject(emptyMap())
+        }
+        throw Unauthorized()
+    }
+
     suspend fun get(path: String) = call(path) as? JsonObject ?: JsonObject(emptyMap())
     suspend fun post(path: String, body: JsonElement? = null) = call(path, "POST", body) as? JsonObject ?: JsonObject(emptyMap())
 

@@ -45,7 +45,7 @@ fun BotsScreen(vm: AppViewModel, onCheckUpdate: () -> Unit, onLogout: () -> Unit
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         TopBar("ChisaBot", subtitle = vm.origin()?.removePrefix("https://")) {
-            IconText("⚙", "设置", { vm.push(Screen.Web("/settings", "设置")) })
+            IconText("⚙", "设置", { vm.openSettings() })
             Box {
                 IconText("⋯", "更多", { menu = true }, size = 22.sp)
                 DropdownMenu(menu, { menu = false }) {

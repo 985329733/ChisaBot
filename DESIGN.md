@@ -1756,4 +1756,30 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 解析：`shared/proxy-links.ts`（网页、服务器共用；trojan / vless（tls、reality pbk/sid/fp、vision、ws/grpc/h2/httpupgrade、ws `?ed=`）/ vmess base64 JSON / ss SIP002 + 旧式 / hysteria2（hy2）obfs salamander / tuic）。不支持的（xhttp、kcp、tcp http 伪装、ss 插件、端口跳跃、VLESS 加密）直接说不支持哪一项。
 - 保险箱存原链接；下发给节点的是解析好的 sing-box 出站，不是原链接。节点上 sing-box 只开 127.0.0.1 的 socks5（随机端口、随机账号密码），本机转发器把它当 socks5 上游：只有 Claude 的域名走它，其他直连，和普通代理覆盖的流量完全一样。
 - 任何地方都不显示、不记录密码 / UUID；操作记录写打码后的 `协议 · 主机:端口 · 节点名`。
+## 86. Android 原生第二轮：确认卡片、附件、停止、重新生成 / 编辑、设置基础（2026-10-16）
+
+接 §80（CB-068 第二阶段）。以前这些在 Android 上要「⋯ → 在网页中打开这段对话」，现在都是原生的。不新增服务器接口，全部用网页同一套。
+
+**86.1 确认卡片（§58）**：读 `GET /api/confirmations/requests?thread=<threadId>&limit=100`，按 `toolCallId` 画在那个工具调用下面（干活卡之后）；同一段对话的上游审批（`GET /api/approvals`，`action.threadId` 相同、还在等的）用同一种卡片（§58 外观、`zhReason` 中文原因、「这一步要你亲自完成」= 我已自己完成 / 不要执行）。打开对话取一次；这一轮在跑或有卡片在等时每 1.5 秒取一次（同网页 `useThreadConfirmations`）。
+- 卡片：圆形类别图标 + 「需要你确认 · 删除」+ 标题 + 对象 + 细节（等宽 / diff 着色）+ 确认（删除用红色）/ 取消（描边）/「以后这类直接做」（先 `PUT /api/confirmations/prefs/<类别> {mode:auto}` 再确认；付款没有，显示「付款一律先问你」）。等待时卡片边框带类别颜色。
+- 决定 `POST /api/confirmations/requests/<id> {decision}`（上游 `POST /api/approvals/<id>/decision`）。按钮 §2 状态机（确认中… → ✓ / ✕ 重试，最少 300ms，宽度固定）；成功后卡片原地收成一行「✓ 已确认 · 删除 · 标题」，细节和按钮 220ms 收起，不跳版；历史里决定过的卡片也是这一行。本机正在读流时服务器接着做这一轮；没在读（重新打开的对话）时 1.2 秒后看 `inbox.running`，在跑就接着读历史。
+- 末尾新出的卡片要看得见：列表「跟着底部」只在手指滑完时更新（新的一行插到 index 0 时 LazyColumn 按 key 保住原来那行，单看 atBottom 会让卡片落在屏幕外）。
+
+**86.2 附件（§56）**：输入框左边「+」→ 照片（系统照片选择器，Android 13+ 不要权限）/ 拍照（`TakePicture` 存 `cache/camera/`）/ 文件（`OpenMultipleDocuments`，只给图片和 txt / md / csv / json）。选了就上传 `POST /api/channels/<channelId>/attachments`（multipart `file` + 这个输入框的 `uploadGroup`，同网页）；还没有会话时先建一对一会话。限制和服务器同一套：图片 PNG / JPEG / GIF / WebP ≤ 8 MB、文本 ≤ 1 MB、一条最多 8 个；不认识的类型、文件管理器给的别名（`text/comma-separated-values`）按扩展名再认一次。
+- 输入框上方一排：图片 56dp 圆角小图（上传中盖一层转圈，失败红边 + ↻ 点一下重试），文件一个胶囊（名字 + 「CSV 表格」）；右上 ✕ 移除；失败原因一行红字（中文）。传好才能发，上传中发送键转圈；有附件时可以不写字。
+- 发出去的是 AG-UI `image` / `document` 段（`source {type:url, value:/api/attachments/<id>}` + `metadata {attachmentId, filename, width, height}`），和网页发的完全一样；气泡上方画附件（图片 + 文件胶囊），刚发时先用本机的图。历史里读 `source.value`（以前读 `source.url`，读不到图片）。
+- 图片框在图到之前定好：part 的 `metadata.width / height`（§83.2；上传回答里有就用，老服务器没有就本机读图片头）按比例，最宽 220dp、高 90–280dp；不知道宽高就 160dp 方框。
+
+**86.3 停止**：回答时发送键变 ■，点了原地转圈「停止中」（`POST …/stop/<thread>`，400ms 后断开本机的流，服务器把这一轮的确认卡片作废）。
+
+**86.4 重新生成 / 编辑后重发（§67）**：和网页同一流程——先 `POST /api/copilotkit/threads/<id>/truncate {fromMessageId, mode}`，成功后本机也截到同一处，再用新 id 发一轮（重新生成 = 原内容含附件段；编辑 = `withEditedText`，只换文字段、附件留着）。409 / 404 / 其他都是中文提示（顶部玻璃小条，3 秒淡出）。
+- 「↻ 重新生成」在最后一轮最后一段看得见的回答下面、「复制」旁边（出错那一行下面也有）；回答进行中不出现。
+- 「✎ 编辑」在最后一条人发的消息下面常显（手机没有悬停），长按任意用户气泡 → 复制 / 编辑。气泡原地变玻璃编辑框（淡入 180ms）：文字框 + 「发送后，这条之后的对话会换成新的回答」+ 取消 / 发送（没改或为空时不可点，§2 状态机）。
+- 服务器放进对话的「用户角色」消息（定时任务到点、后台任务结果、本地 agent 结果、确认后接着做，§68.2）画成居中淡色一行，不给编辑，各自开一轮。
+
+**86.5 设置（原生基础部分）**：机器人列表右上 ⚙ 进原生设置——外观（跟随系统 / 浅色 / 深色 分段按钮，存在 SharedPreferences「chisabot」的 `theme`；状态栏图标、网页兜底页一起跟着变）、账号（`/api/me` 名字 + 邮箱、服务器地址、扫码绑定的设备名、切换服务器 / 退出登录）、设备（`GET /api/devices` 只读：在线点、平台、上次在线、客户端版本，「这台手机」标出来）、更多（更多设置 / 审批偏好用网页、检查更新、版本号）。管理设备（权限、解绑）仍在网页。
+
+**86.6 其他**：天空背景的云朵模糊改成不按方框裁切（`BlurredEdgeTreatment.Unbounded`），以前聊天区左上能看到一块淡淡的方边。
+
+**86.7 验证**：单测（附件段 / 宽高解析、`withEditedText`、服务器行 + 重新生成 / 编辑出现的条件 + 确认卡片挂在工具下面）；模拟器连预览（生产库副本 + 假模型 CONFIRM / ATTACH / SLOW）走：发一句 → 重新生成（服务器上只剩新的一轮）→ 编辑重发 → SLOW 中途停止 → CONFIRM 取消（「好，没有删」）→ CONFIRM 确认（「删好了」）→ 照片 + csv 一起发（模型收到 1 张图片、1 个文件）→ 设置；浅色 + 深色截图。图片 / 表情 / 首字头像在预览上都是圆的。
 

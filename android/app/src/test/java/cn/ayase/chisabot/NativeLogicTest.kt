@@ -7,6 +7,9 @@ import cn.ayase.chisabot.chat.ToolCall
 import cn.ayase.chisabot.chat.Turns
 import cn.ayase.chisabot.chat.WorkSteps
 import cn.ayase.chisabot.chat.parseHistory
+import cn.ayase.chisabot.chat.ConfirmCard
+import cn.ayase.chisabot.chat.withEditedText
+import kotlinx.serialization.json.JsonPrimitive
 import cn.ayase.chisabot.md.Block
 import cn.ayase.chisabot.md.Markdown
 import cn.ayase.chisabot.ui.hideIncompleteTail
@@ -156,5 +159,49 @@ class NativeLogicTest {
         assertEquals("好的\n", hideIncompleteTail("好的\n![示例图](https:/"))
         assertEquals("看 ", hideIncompleteTail("看 [链接](http"))
         assertEquals("看 [链接](http://a)", hideIncompleteTail("看 [链接](http://a)"))
+    }
+
+    @Test fun historyReadsAttachmentParts() {
+        val hist = Json.parseToJsonElement("""[{"id":"u1","role":"user","content":[{"type":"text","text":"看看"},
+          {"type":"image","source":{"type":"url","value":"/api/attachments/a1","mimeType":"image/png"},"metadata":{"attachmentId":"a1","filename":"猫.png","width":800,"height":600}},
+          {"type":"document","source":{"type":"url","value":"/api/attachments/a2","mimeType":"text/csv"},"metadata":{"attachmentId":"a2","filename":"表.csv"}}]}]""") as JsonArray
+        val m = parseHistory(hist).single()
+        assertEquals("看看", m.text)
+        assertEquals(listOf("/api/attachments/a1"), m.images)
+        assertEquals(listOf("猫.png", "表.csv"), m.files.map { it.name })
+        assertFalse(m.files[1].image)
+        assertEquals(800 to 600, m.files[0].width to m.files[0].height)
+        assertNull(m.files[1].width)
+    }
+
+    @Test fun editKeepsAttachments() {
+        val c = Json.parseToJsonElement("""[{"type":"text","text":"旧"},{"type":"image","source":{"type":"url","value":"/api/attachments/a1"}}]""")
+        val e = withEditedText(c, " 新 ") as JsonArray
+        assertEquals(2, e.size)
+        assertEquals("新", ((e[0] as JsonObject)["text"] as JsonPrimitive).content)
+        assertEquals(JsonPrimitive("改"), withEditedText(JsonPrimitive("旧"), "改"))
+        assertNull(withEditedText(JsonPrimitive("旧"), "  "))
+    }
+
+    @Test fun turnsServerRowsRegenerateAndConfirms() {
+        val call = ToolCall("c1", "panel_remove", "{}", null, true)
+        val msgs = listOf(
+            ChatMessage("u1", "user", "删掉旧面板"),
+            ChatMessage("a1", "assistant", "我把它删掉。", listOf(call)),
+            ChatMessage("u2", "user", "⟦chisabot:confirm:x⟧ 用户确认了「删除面板」"),
+            ChatMessage("a2", "assistant", "删好了。"),
+        )
+        val card = ConfirmCard("cf1", "c1", "delete", "删除面板", null, emptyList(), "approved")
+        val rows = Turns.build(msgs, running = false, error = null, confirms = mapOf("c1" to listOf(card)))
+        assertTrue(rows.any { it is Row.Confirm })
+        val server = rows.filterIsInstance<Row.Server>().single()
+        assertEquals("你确认了「删除面板」，机器人接着做", server.text)
+        // 最后一轮是服务器行开的：没有重新生成；人发的 u1 可以编辑
+        assertFalse(rows.filterIsInstance<Row.Bot>().any { it.regenerate })
+        assertTrue((rows.first() as Row.User).editable)
+        val plain = Turns.build(msgs.take(2) + ChatMessage("u3", "user", "再说一次") + ChatMessage("a3", "assistant", "好。"), false, null)
+        assertTrue(plain.filterIsInstance<Row.Bot>().last().regenerate)
+        assertFalse(plain.filterIsInstance<Row.User>().first().editable)
+        assertFalse(Turns.build(msgs.take(2) + ChatMessage("u3", "user", "再说一次"), true, null).filterIsInstance<Row.User>().any { it.editable })
     }
 }
