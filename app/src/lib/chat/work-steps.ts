@@ -9,9 +9,9 @@ export type WorkCall = {
   name: string;
   arguments: string;
   done: boolean;
-  /** 工具调用 id（简单回合要查它有没有确认卡，§91）。 */
+  /** 工具调用 id（简单回合要查它有没有确认卡，§93）。 */
   id?: string;
-  /** 结果是拒绝 / 出错 / 被中断（§91：这一轮就不算「简单回合」）。 */
+  /** 结果是拒绝 / 出错 / 被中断（§93：这一轮就不算「简单回合」）。 */
   failed?: boolean;
 };
 
@@ -151,7 +151,7 @@ function doneLabel(work: readonly WorkCall[]): string {
 }
 
 /**
- * 工具结果是不是「没做成」（§91）：服务器工具门报的失败（`toolResultFailed`）、被拒绝（`Refused.`）、服务器补的「This call produced no result」（中断）、
+ * 工具结果是不是「没做成」（§93）：服务器工具门报的失败（`toolResultFailed`）、被拒绝（`Refused.`）、服务器补的「This call produced no result」（中断）、
  * JSON 里带 `error` / `ok: false`，或者以 Error / 错误 / 失败 开头。只用来判断这一轮能不能悄悄收起干活卡，
  * 拿不准就当没做成（卡片照常显示）。
  */
@@ -181,7 +181,7 @@ export function workCallFailed(result: string | undefined): boolean {
 }
 
 /**
- * 「简单回合」允许的工具（§91）：只读、很快、对用户没有信息量——列设备、截屏、看系统信息 / 文件列表、翻记忆、
+ * 「简单回合」允许的工具（§93）：只读、很快、对用户没有信息量——列设备、截屏、看系统信息 / 文件列表、翻记忆、
  * 看页面 / 定时任务 / 面板列表。改东西（写文件、跑命令、装软件、点鼠标）、上网搜索 / 读网页、开浏览器都不在里面：
  * 那些干活卡本身就是用户想看的（搜了什么、跑了什么）。准备动作 / 画卡片（NOT_WORK）不算步骤，也不挡。
  */
@@ -211,7 +211,7 @@ export const QUIET_MAX_STEPS = 3;
 export const QUIET_MAX_SECONDS = 15;
 
 /**
- * 这一轮做完以后要不要把干活卡整行收起（DESIGN.md §91，用户 2026-10-16「做了 2 步 7 秒这个应该隐藏」）。
+ * 这一轮做完以后要不要把干活卡整行收起（DESIGN.md §93，用户 2026-10-16「做了 2 步 7 秒这个应该隐藏」）。
  * 唯一的判断，渲染和测试都用它。全部成立才收：
  *  - 这一轮结束了（不在跑）、没被停掉，并且有结果（最后一段回答）；
  *  - 每个调用都有结果、没有一个出错 / 被拒 / 被中断；

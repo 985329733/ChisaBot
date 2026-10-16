@@ -30,7 +30,7 @@ describe("server rows", () => {
     expect(compact.tone.get("a2")).toBe("final");
     expect(compact.hidden.has("a2")).toBe(false);
     expect(compact.tone.get("a3")).toBe("final");
-    // §91：有干活卡的一轮，开场一句（后面就是干活的工具）也收进卡片。
+    // §93：有干活卡的一轮，开场一句（后面就是干活的工具）也收进卡片。
     expect(compact.hidden.has("a1")).toBe(true);
   });
 });

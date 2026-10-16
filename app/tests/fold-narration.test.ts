@@ -31,7 +31,7 @@ describe("过程话收进干活卡（§90）", () => {
     ];
     const compact = compactTurns(items, false, new Set());
     expect(compact.tone.get("a1")).toBe("lead");
-    // §91：开场一句也收进卡片（原 §90 留它当气泡）。
+    // §93：开场一句也收进卡片（原 §90 留它当气泡）。
     expect(compact.hidden.has("a1")).toBe(true);
     expect(compact.hidden.has("a2")).toBe(true);
     expect(compact.tone.get("a3")).toBe("final");

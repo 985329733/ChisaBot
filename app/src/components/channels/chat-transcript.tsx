@@ -595,7 +595,7 @@ function SettleAtEnd({
   scrollKey,
   slack,
 }: {
-  /** 这一段对话正在回答（§91.3：一轮结束时把底下留的空收掉）。 */
+  /** 这一段对话正在回答（§93.3：一轮结束时把底下留的空收掉）。 */
   busy?: boolean;
   hydrating: boolean;
   newestUserMessageId: string | null;
@@ -622,13 +622,13 @@ function SettleAtEnd({
     hydrating,
     /** 底下的留白（px）。 */
     slack: 0,
-    /** 正在把留白收掉（§91.3）：这段时间里变矮不再补留白。 */
+    /** 正在把留白收掉（§93.3）：这段时间里变矮不再补留白。 */
     releasing: false,
     busy,
   });
   state.current.busy = busy;
   const reduceMotion = useReducedMotion();
-  /** §91.3：一轮结束后收掉底下留的空（由下面的 effect 填上；没挂上时什么都不做）。 */
+  /** §93.3：一轮结束后收掉底下留的空（由下面的 effect 填上；没挂上时什么都不做）。 */
   const releaseRef = useRef<(() => boolean) | null>(null);
 
   useLayoutEffect(() => {
@@ -641,7 +641,7 @@ function SettleAtEnd({
       s.until = performance.now() + SETTLE_AFTER_HYDRATE_MS;
       s.baseline = newestUserMessageId;
       /*
-       * §91.3：恢复完了、这一段没在回答——上次离开时底下留的空（新一轮对齐到顶上时滚动容器留的）不再放回去：
+       * §93.3：恢复完了、这一段没在回答——上次离开时底下留的空（新一轮对齐到顶上时滚动容器留的）不再放回去：
        * 做完的一轮只要正常的底边距。还在回答时照旧放回去（§88.3，接着写的回答先填那块空，画面不跳）。
        */
       if (!s.busy && s.slack > 0) setSlack(0);
@@ -673,7 +673,7 @@ function SettleAtEnd({
   }
 
   /*
-   * §91.3 一轮结束后收掉底下的空（用户 2026-10-16「下面还有额外的空白」）。
+   * §93.3 一轮结束后收掉底下的空（用户 2026-10-16「下面还有额外的空白」）。
    *
    * 根因：新一轮发出去时，滚动容器把那条用户消息对齐到顶上，回答比一屏短时在下面垫一块空（它自己的 spacer，
    * 「anchored-to-message」）；这一轮结束了它也不收——人看着回答下面一大块空。变矮时 §88.1 又把少掉的高度
@@ -689,7 +689,7 @@ function SettleAtEnd({
     const was = wasBusy.current;
     wasBusy.current = busy;
     if (busy || !was || hydrating) return;
-    // 和这一轮结束时的收起（§82.9 过程话 / §91 干活卡）同一次提交、绘制之前开始：收起和收空一起往下落，
+    // 和这一轮结束时的收起（§82.9 过程话 / §93 干活卡）同一次提交、绘制之前开始：收起和收空一起往下落，
     // 不会先被收起夹一下、滚动容器再把那条消息拉回顶上（预览实测：等收起走完再收，中间往回跳 67px）。
     if (releaseRef.current?.() !== false) return;
     // 这一帧还不行（滚动容器还在对齐、最后几个字刚进来）：接下来几帧再试，最多 ~0.5 秒。
@@ -707,7 +707,7 @@ function SettleAtEnd({
   const finalWrite = useRef<(() => void) | null>(null);
   useLayoutEffect(() => () => finalWrite.current?.(), []);
 
-  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。没在恢复、也没在回答：不放（§91.3）。
+  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。没在恢复、也没在回答：不放（§93.3）。
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!memo?.atBottom || memo.spacer <= 0 || !element) return;
@@ -805,7 +805,7 @@ function SettleAtEnd({
       const max = element.scrollHeight - element.clientHeight;
       const recentlyTouched = performance.now() - touchedAt < 400;
       if (s.releasing) {
-        // 正在收留白（§91.3）：变矮是我们自己收的，不补回去。
+        // 正在收留白（§93.3）：变矮是我们自己收的，不补回去。
       } else if (grew > 0 && s.slack > 0) {
         // 长出来的先填留白：总高度不变，画面不动。
         const use = Math.min(s.slack, grew);
@@ -970,7 +970,7 @@ function SettleAtEnd({
   return null;
 }
 
-/** 一轮结束后底下的空收掉用多久（毫秒，§91.3）。 */
+/** 一轮结束后底下的空收掉用多久（毫秒，§93.3）。 */
 const RELEASE_MS = 300;
 
 /**
@@ -2303,7 +2303,7 @@ export function ChatTranscript({
   const compact = compactTurns(items, live, stoppedTurns ?? EMPTY_STOPS, fallbacks);
   const showToolActivity = useToolActivityVisible();
   /*
-   * 简单回合（DESIGN.md §91）：做完了、只读的一两步、有结果——干活卡那一行整行收起，只留结果。结构上的判断在
+   * 简单回合（DESIGN.md §93）：做完了、只读的一两步、有结果——干活卡那一行整行收起，只留结果。结构上的判断在
    * compactTurns（`quiet`）；有确认卡的调用、这一页知道用时超过 15 秒的，照常显示。确认列表和确认卡片用同一份
    * 缓存（同一个 queryKey），不多发请求。打开「调试：显示工具调用」时不收（每一步本来就画着）。
    */
@@ -2710,13 +2710,13 @@ export function lastAnswerId(items: readonly TranscriptItem[], hidden: ReadonlyS
  *    后面又调了工具的那段马上收；这一轮结束了（有结果 / 出错 / 停止 / 中断）剩下的过程话也收。
  *    还在跑、后面还没调工具的最后一段照旧露在外面（它可能就是正在写的结果）。
  */
-/** 一轮的干活卡（§75.1 / §90 / §91）。 */
+/** 一轮的干活卡（§75.1 / §90 / §93）。 */
 export type WorkEntry = {
   calls: WorkCall[];
   key: string;
   live: boolean;
   notes: WorkNote[];
-  /** 简单回合（只读的一两步、做完了、有结果）：结构上可以整行收起（§91）。 */
+  /** 简单回合（只读的一两步、做完了、有结果）：结构上可以整行收起（§93）。 */
   quiet: boolean;
 };
 
@@ -2818,7 +2818,7 @@ export function compactTurns(
           if (item.kind === "tool") seen += 1;
           else if (item.kind === "browser") seen += item.steps.length;
           /*
-           * 开场一句也是过程话（§91，改 §90 的「卡片之前的开场一句照旧是气泡」）：有干活卡的一轮里，
+           * 开场一句也是过程话（§93，改 §90 的「卡片之前的开场一句照旧是气泡」）：有干活卡的一轮里，
            * 「我来查看你当前在线电脑的屏幕…」后面就是干活的工具，和两步之间的话一样收进卡片（实时时下一步一开始就收）。
            * 出现在卡片之后的开场一句（先干活后说话）同理。
            */
@@ -2832,7 +2832,7 @@ export function compactTurns(
             }
           }
         });
-        // 简单回合（§91）：结构上的判断在这里；确认卡、用时只有渲染时知道，ChatTranscript 再看一遍。
+        // 简单回合（§93）：结构上的判断在这里；确认卡、用时只有渲染时知道，ChatTranscript 再看一遍。
         const quiet = isQuietWork({ calls, live, stopped: isStopped, hasFinal: final !== null });
         work.set(anchor, { calls, key, live, notes, quiet });
       }
