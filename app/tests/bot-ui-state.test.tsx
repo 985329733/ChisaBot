@@ -112,7 +112,9 @@ describe("接线", () => {
   const fresh = src("routes/_authed/_app/channel/new.tsx");
 
   test("只有刚发出去的那一条带对齐标记（历史里的用户消息不会被拉到顶上）", () => {
-    expect(transcript).toContain("const freshAnchor = useFreshAnchor(newestUserMessageId, hydrating)");
+    expect(transcript).toContain("const freshAnchor = useFreshAnchor(newestUserMessageId, hydrating, lastSentAt, sendMode)");
+    // §94：连续聊天（上一条 <5 分钟）不带对齐标记
+    expect(transcript).toContain("const fresh = !memo.continuous && memo.id !== null");
     expect(transcript).toContain("const anchorRows = newestAnchor ? new Set([newestAnchor]) : EMPTY_ANCHORS");
     expect(transcript).not.toMatch(/const anchorRows = anchorRowIds\(items\);/);
   });

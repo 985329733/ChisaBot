@@ -53,7 +53,7 @@ import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
 import { readSync } from "@/lib/copilot/bot-thread";
 import { CONNECTION_LOST_REASON, isConnectionDrop, settleDroppedTurn, storedTurnAnswered } from "@/lib/copilot/connection-drop";
-import { useFallbackTurns, useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
+import { useFallbackTurns, useLastSentAt, useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
 import { queueMessage } from "@/lib/copilot/thread-inbox";
 import { useThreadInbox } from "@/lib/copilot/use-thread-inbox";
 import { reportChatRunning } from "@/lib/copilot/computer-activity";
@@ -1078,6 +1078,8 @@ export function ChannelChat({
   // 「已停止」（2026-10-13 第四轮）：本机刚按停止的那一轮 + 服务器记下的（刷新、换设备也在）。
   const [localStops, setLocalStops] = useState<ReadonlySet<string>>(() => new Set());
   const serverStops = useStoppedTurnIds(channel.threadId);
+  // 上一条用户消息的服务器发送时刻（§94：5 分钟内连续发消息不翻页）。
+  const lastSentAt = useLastSentAt(channel.threadId);
   const stoppedTurns = useMemo(() => new Set([...serverStops, ...localStops]), [serverStops, localStops]);
   const stopTask = () => {
     const lastUser = [...agent.messages].reverse().find((message) => message.role === "user");
@@ -1348,6 +1350,7 @@ export function ChannelChat({
             stopped={runError ?? undefined}
             stoppedTurns={stoppedTurns}
             fallbacks={fallbackTurns}
+            lastSentAt={lastSentAt}
             queueToServer={queueToServer}
             /*
              * The retry resends the restored draft, which adds the message again. Take the failed

@@ -1,3 +1,4 @@
+import type { SentAtReading } from "@/lib/chat/send-scroll";
 import type { Message } from "@ag-ui/core";
 import type { Attachment } from "@copilotkit/react-core/v2";
 import {
@@ -48,12 +49,15 @@ export function ConversationView({
   onSubmit,
   onStop,
   fallbacks,
+  lastSentAt,
   queueToServer,
 }: {
   messages: readonly Message[];
   busy?: boolean;
   /** 换了备用模型的轮次（用户消息 id → 说明），那一轮末尾一行小字（DESIGN.md §61）。 */
   fallbacks?: ReadonlyMap<string, string>;
+  /** 最新一条用户消息的服务器发送时刻（本机时钟，DESIGN.md §94）。 */
+  lastSentAt?: SentAtReading | null;
   /**
    * 回答期间发的纯文字消息进服务器收件箱（DESIGN.md §38.1，CB-046 从 `/bot` 搬来）：正在跑的那一轮下一步就读到，
    * 不用等它说完。"send" = 那一轮其实已经结束，按原来的本地排队走；带附件 / 技能的仍走本地排队。
@@ -491,6 +495,7 @@ export function ConversationView({
           {...(scrollKey ? { scrollKey } : {})}
           topNotice={transcriptNotice}
           {...(fallbacks ? { fallbacks } : {})}
+          {...(lastSentAt ? { lastSentAt } : {})}
           {...(stoppedTurns ? { stoppedTurns } : {})}
           {...(stopped ? { stopped, onRetry: retry } : {})}
         />

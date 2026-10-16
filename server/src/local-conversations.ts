@@ -345,6 +345,7 @@ const EMPTY_THREAD_READS: Record<string, unknown> = {
   fallbacks: { turns: [] },
   inbox: { running: false, items: [] },
   workers: { workers: [] },
+  "sent-at": { userMessageId: null, at: null, now: null },
 };
 
 /** Public OSS runner with our own PostgreSQL transcript and per-thread lease. */
@@ -824,6 +825,26 @@ export async function createLocalConversations(database: Database): Promise<Loca
     }
     return [...turns.values()];
   };
+  /**
+   * 最新一条用户消息什么时候发的（DESIGN.md §94：5 分钟内连续发消息不翻页）：它第一次出现在某次运行的
+   * RUN_STARTED 输入里的那一刻（存的 RUN_STARTED 只带这次新进来的消息，见 slimReplay 上面的说明，所以很小）。
+   * 只看最近 40 次运行；找不到（太旧 / 还没跑过）回 null。同时回服务器的「现在」，浏览器用差值换算，不受两边时钟差影响。只读。
+   */
+  const lastSentAt = async (threadId: string, messages: readonly Message[]) => {
+    const now = new Date().toISOString();
+    const newest = messages.findLast((message) => message.role === "user");
+    if (!newest) return { userMessageId: null, at: null, now };
+    const rows = await database.$client.unsafe<{ event: { input?: { messages?: { id?: unknown }[] } }; created_at: Date }[]>(
+      `SELECT event, created_at FROM openbot_local_events
+       WHERE thread_id = $1 AND event->>'type' = 'RUN_STARTED'
+       ORDER BY sequence DESC LIMIT 40`, [threadId],
+    );
+    let at: Date | null = null;
+    for (const row of rows) {
+      if ((row.event.input?.messages ?? []).some((message) => message?.id === newest.id)) at = row.created_at;
+    }
+    return { userMessageId: newest.id, at: at ? new Date(at).toISOString() : null, now };
+  };
   const runner = new PostgresAgentRunner(store, client, inbox);
   let workers: ThreadWorkerRoutes | undefined;
 
@@ -875,6 +896,7 @@ export async function createLocalConversations(database: Database): Promise<Loca
         if (operation === "context") return Response.json({ context: await contextReading(threadId, row.messages) });
         if (operation === "stopped") return Response.json({ userMessageIds: await stoppedTurns(threadId, row.messages) });
         if (operation === "fallbacks") return Response.json({ turns: await fallbackTurns(threadId, row.messages) });
+        if (operation === "sent-at") return Response.json(await lastSentAt(threadId, row.messages));
         if (operation === "events") return Response.json({ events: compactEvents((await store.events(threadId)).map((event) => event.event)) });
         if (operation === "inbox") return Response.json({ running: runner.isActive(threadId), items: await inbox.list(threadId) });
         if (operation === "workers") return Response.json({ workers: workers ? await workers.list(threadId, actorId) : [] });
