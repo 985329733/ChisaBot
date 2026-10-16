@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="skyglass-tokens.css" />
 <link rel="stylesheet" href="ui.css" />
 <link rel="stylesheet" href="login.css" />
+<link rel="stylesheet" href="chrome.css" />
+<script src="chrome.js"></script>
 </head>
 <body class="login-page">
 <!--
@@ -75,6 +77,17 @@
   </form>
   <p class="foot hint center" id="foot"></p>
 </main>
+<!-- 无边框窗口的拖动带和窗口按钮（DESIGN.md §91）：只有最小化 + 关闭（登录窗不能最大化 / 改大小）。放在表单后面，Tab 顺序不变。 -->
+<div class="win-bar">
+  <div class="win-ctrls" role="group" aria-label="窗口">
+    <button class="win-ctrl" data-win="minimize" type="button" aria-label="最小化" title="最小化">
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5.5h8" stroke="currentColor" stroke-linecap="round" stroke-width="1.2"/></svg>
+    </button>
+    <button class="win-ctrl is-close" data-win="close" type="button" aria-label="关闭" title="关闭">
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-linecap="round" stroke-width="1.2"/></svg>
+    </button>
+  </div>
+</div>
 <script src="sky.js"></script>
 <script src="ui.js"></script>
 <script src="login.js"></script>

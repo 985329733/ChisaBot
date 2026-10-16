@@ -12,5 +12,6 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") answer(false);
   });
+  fitDialog("dialog:fit");
   $("cancel").focus();
 })();

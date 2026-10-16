@@ -1,17 +1,24 @@
-/* 审批弹窗 / 本机确认：天空上一张玻璃对话框（与网页确认对话框同值：r-xl、玻璃 1、shadow-2）。 */
-body.dialog-page { padding: 10px; display: flex; }
+/* 审批弹窗 / 本机确认 / 更新提示（DESIGN.md §91）：窗口本身就是对话框——玻璃 1 铺满整个无边框圆角窗口，
+   只有窗口一道边（Windows 11 系统圆角 / Windows 10 chrome.css 裁切）。不再在天空上留 10px 再放一张带描边的卡片
+   （那样窗口边 + 卡片边是两圈）。 */
+body.dialog-page { padding: 0; display: flex; }
+.dialog-page .dialog.auth-card { border: 0; border-radius: 0; box-shadow: none; }
+/* 对话框铺满窗口：不做整块上移进场（会露出一条天空），窗口出现本身就是进场。 */
+.dialog-page .dialog.enter { animation: none; }
 .dialog { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 18px 20px 16px; }
 .dialog-h { display: flex; align-items: center; gap: 12px; }
 .drag { -webkit-app-region: drag; }
 .dialog-ht { min-width: 0; }
 .dialog-title { font-size: var(--fs-16); font-weight: 600; line-height: 1.4; color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dialog-code { flex: 1; min-height: 0; margin: 14px 0 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-2); white-space: pre-wrap; overflow: auto; }
-.dialog-desc { flex: 1; margin: 12px 0 8px; font-size: var(--fs-14); line-height: var(--lh); color: var(--ink-2); }
-.dialog-meta { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-12); color: var(--ink-3); margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+/* 摘要框按内容定高（两行就两行高），最多约 8 行，再多就在框里滚动；改文件时连 diff 最多 300px（§91.3）。 */
+.dialog-code { flex: none; max-height: 168px; margin: 14px 0 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-2); white-space: pre-wrap; overflow: auto; }
+.dialog-desc { flex: 1; margin: 12px 0 12px; font-size: var(--fs-14); line-height: var(--lh); color: var(--ink-2); }
+.dialog-meta { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-12); color: var(--ink-3); margin-bottom: 12px; font-variant-numeric: tabular-nums; }
 .dialog-f { display: flex; gap: 8px; justify-content: flex-end; }
 .dialog-f .btn { min-width: 104px; }
 /* 更新提示（DESIGN.md §36.5）：标题可以折两行（小窗里窗口只有 388 宽，「此更新需要重新安装…」不再被省略号切掉）；
    量高度时内容按自然高度排（is-measuring，update.js）。 */
 .update-page .dialog-title { white-space: normal; overflow: visible; }
-.update-page.is-measuring { display: block; }
-.update-page.is-measuring .dialog, .update-page.is-measuring .dialog-desc { flex: none; }
+.dialog-page.is-measuring { display: block; }
+.dialog-page.is-measuring .dialog, .dialog-page.is-measuring .dialog-desc { flex: none; }
+.dialog-code.has-diff { max-height: 300px; }

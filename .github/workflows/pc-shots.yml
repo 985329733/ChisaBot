@@ -1,0 +1,59 @@
+name: PC window shots
+
+# 本机小窗口（登录窗、审批、本机确认、更新提示）在真的 Windows + Electron 上的截图（DESIGN.md §91）。
+# 100% / 125% / 150% 缩放 × 系统窗框（auto）/ Windows 10 透明裁切（clip）× 亮 / 暗。只截图，不发布任何东西。
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "pc/src/ui/**"
+      - "pc/src/window-chrome.js"
+      - "pc/src/preload.js"
+      - "pc/scripts/shots/**"
+      - ".github/workflows/pc-shots.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pc-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        scale: ["1", "1.25", "1.5"]
+        frame: ["auto", "clip"]
+    defaults:
+      run:
+        shell: bash
+        working-directory: pc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Shots
+        env:
+          SCALE: ${{ matrix.scale }}
+          FRAME: ${{ matrix.frame }}
+        run: |
+          extra=""
+          if [ "$FRAME" != auto ]; then extra="--frame=$FRAME"; fi
+          npx electron scripts/shots/main.js --out="shots/s${SCALE}-${FRAME}" --scale="$SCALE" $extra
+          cat "shots/s${SCALE}-${FRAME}/shots.json" | head -c 6000
+          ls -la "shots/s${SCALE}-${FRAME}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pc-shots-s${{ matrix.scale }}-${{ matrix.frame }}
+          if-no-files-found: error
+          path: pc/shots/**

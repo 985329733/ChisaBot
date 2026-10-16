@@ -1,0 +1,94 @@
+"use strict";
+/**
+ * 本机小窗口的「窗框」（DESIGN.md §91）：登录窗、本机确认、审批弹窗、更新提示都无边框、圆角，和主窗口同一套做法。
+ *
+ *  - Windows 11（内部版本 ≥ 22000）和 macOS：不透明无边框窗口 + thickFrame，圆角（Windows 11 约 8px）和阴影由系统画
+ *    （DWM）。网页不再画圆角或描边，避免「系统圆角 + 网页卡片描边」两圈。frameMode = "dwm"。
+ *  - Windows 10 及更早、Linux：系统不画圆角。用透明窗口，网页自己把整页裁成 WINDOW_RADIUS 圆角（chrome.css 里
+ *    html[data-frame="clip"]）。透明窗口没有系统阴影，网页画一圈很淡的墨色细线代替（不是白边）。frameMode = "clip"。
+ *  - 这些窗口都不能改大小、不能最大化 / 全屏（右上角只有最小化 + 关闭，弹窗只有自己的按钮）。
+ *
+ * 纯函数，pc/test/window-chrome.check.js 直接测；main.js 和截图脚本（scripts/shots/）都只从这里拿窗口参数。
+ */
+
+/** 和 Windows 11 系统圆角一致（DWM 固定约 8px）；Windows 10 的透明裁切用同一个值。 */
+const WINDOW_RADIUS = 8;
+/** 登录窗尺寸（DIP）：固定大小，不能拖边调整。 */
+const LOGIN_SIZE = { width: 460, height: 760 };
+
+/** Windows 版本号 "10.0.22631" → 22631；拿不到时 0。 */
+function windowsBuild(release) {
+  const parts = String(release || "").split(".");
+  const build = Number(parts[2]);
+  return Number.isFinite(build) ? build : 0;
+}
+
+/**
+ * 这台系统上本机小窗口用哪种窗框。
+ * @param {{platform: string, release?: string}} sys process.platform + os.release()
+ * @returns {"dwm" | "clip"}
+ */
+function frameMode({ platform, release } = {}) {
+  if (platform === "win32") return windowsBuild(release) >= 22000 ? "dwm" : "clip";
+  if (platform === "darwin") return "dwm";
+  return "clip";
+}
+
+/**
+ * 无边框小窗口的公共参数。background：dwm 模式下窗口底色（天空色，避免载入前闪白）。
+ * clip 模式窗口本身完全透明，圆角外露出桌面。
+ */
+function chromeOptions(mode, { background = "#9dbddc" } = {}) {
+  const base = {
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+  };
+  if (mode === "clip") return { ...base, thickFrame: false, transparent: true, hasShadow: false, backgroundColor: "#00000000" };
+  // thickFrame 让 Windows 11 给无边框窗口画系统圆角和阴影；resizable:false 时 Electron 不会因此允许拖边。
+  return { ...base, thickFrame: true, transparent: false, hasShadow: true, backgroundColor: background };
+}
+
+/** 登录窗：固定 460×760，可以最小化，不能最大化 / 改大小。 */
+function loginWindowOptions(mode, opts) {
+  return {
+    ...chromeOptions(mode, opts),
+    width: LOGIN_SIZE.width,
+    height: LOGIN_SIZE.height,
+    minimizable: true,
+    title: "登录 ChisaBot",
+  };
+}
+
+/** 本机确认 / 审批 / 更新提示：同一套窗框，自己没有最小化。 */
+function dialogWindowOptions(mode, opts) {
+  return { ...chromeOptions(mode, opts), minimizable: false };
+}
+
+/** 交给页面的查询参数：页面据此决定要不要自己裁圆角（chrome.js 读 ?frame=）。 */
+function frameQuery(mode) {
+  return { frame: mode };
+}
+
+/**
+ * 弹窗按内容定高：页面量出内容高度后报上来（dialog:fit），夹在 [min, max] 里、取整。
+ * @returns {number}
+ */
+function fitHeight(height, { min = 160, max = 640 } = {}) {
+  if (typeof height !== "number" || !Number.isFinite(height)) return 0;
+  return Math.round(Math.min(max, Math.max(min, Math.ceil(height))));
+}
+
+module.exports = {
+  WINDOW_RADIUS,
+  LOGIN_SIZE,
+  windowsBuild,
+  frameMode,
+  chromeOptions,
+  loginWindowOptions,
+  dialogWindowOptions,
+  frameQuery,
+  fitHeight,
+};

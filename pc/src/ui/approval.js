@@ -14,8 +14,7 @@
   // 改文件类操作：把改动（diff）也给本人看，删行红、加行绿。
   if (req.diff) {
     const pre = $("summary");
-    pre.style.maxHeight = "220px";
-    pre.style.overflow = "auto";
+    pre.classList.add("has-diff");
     pre.appendChild(document.createTextNode("\n\n"));
     for (const line of String(req.diff).slice(0, 8000).split("\n")) {
       const span = document.createElement("span");
@@ -53,5 +52,6 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") decide("deny");
   });
+  fitDialog("dialog:fit");
   $("deny").focus();
 })();

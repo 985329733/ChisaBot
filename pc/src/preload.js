@@ -17,6 +17,8 @@ const CHANNELS = new Set([
   "update:current",
   "update:answer",
   "update:fit",
+  "dialog:fit",
+  "window:local",
 ]);
 
 contextBridge.exposeInMainWorld("chisa", {
