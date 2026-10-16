@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { LAST_CC_SESSION_KEY, rememberLeftMode } from "@/lib/cloud-cc";
+import { T } from "@/components/ui/button";
 
 /**
  * 左栏顶部「机器人｜Claude Code」（ADR-0014 修订 ADR-0001，DESIGN.md §73.2）。机器人那边仍然只放机器人。
@@ -28,10 +29,10 @@ export function LeftModeSwitch({ mode }: { mode: "bots" | "cc" }) {
   return (
     <div aria-label="左栏内容" className="sg-segmented cc-mode-switch" data-testid="left-mode-switch" role="radiogroup">
       <button aria-checked={mode === "bots"} className="sg-segmented-item" onClick={() => go("bots")} role="radio" type="button">
-        {"机器人"}
+        <T>{"机器人"}</T>
       </button>
       <button aria-checked={mode === "cc"} className="sg-segmented-item" data-testid="left-mode-cc" onClick={() => go("cc")} role="radio" type="button">
-        {"Claude Code"}
+        <T>{"Claude Code"}</T>
       </button>
     </div>
   );

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { IMAGE_PROVIDER_PRESETS, type ImageProviderKind, type ImageSettingsView } from "../../../../shared/chat-files";
 import { type MediaDefaultsSummary, type PersonalImageView, type PersonalVisionView, VISION_PRESET, type VisionSettingsView } from "../../../../shared/media-models";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SettingRow } from "@/components/ui/skyglass";
@@ -36,7 +36,7 @@ function Segmented<T extends string>({ value, onChange, options, label, testId }
     <div aria-label={label} className="sg-segmented media-seg" data-testid={testId} role="radiogroup">
       {options.map((option) => (
         <button aria-checked={value === option.value} className="sg-segmented-item" key={option.value} onClick={() => onChange(option.value)} role="radio" type="button">
-          {option.label}
+          <T>{option.label}</T>
         </button>
       ))}
     </div>

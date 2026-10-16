@@ -2306,11 +2306,19 @@ button.chat-bottom-pill:hover {
 [data-slot="switch"][data-checked] { background: #3b82f6; }
 .dark [data-slot="switch"][data-checked] { background: #60a5fa; }
 [data-slot="button"][data-loading="true"] { cursor: progress; }
+/* §82：输入框里放不下的占位文字 / 值收成「…」，不在框边被硬切。 */
+[data-slot="input"] { text-overflow: ellipsis; }
+/* §82 按钮 / 胶囊 / 分段里的中文标点用半角宽（OpenType halt）：「检查（不生成图片）」末尾的全角「）」右半边是空的，
+   字形整体看起来偏左 4px；半角后墨迹居中。只作用在控件标签上，正文不变。字体没有 halt 时什么都不变。 */
+:is([data-slot="button"], [data-slot="badge"], [data-slot="tabs-trigger"], [data-slot="select-trigger"], [role="tab"], .sg-segmented-item, [class*="pill"], [class*="chip"]) { font-feature-settings: "halt"; }
 
 /* Note: write only the unprefixed `backdrop-filter` in this file. The build adds the -webkit-
    prefix itself; a hand-written -webkit- line after it made the minifier drop the unprefixed one,
    which left Chromium with no blur at all. */
 
+/* §82.2 按钮 / 胶囊里文字的竖向居中：文字盒裁成「大写字母顶 → 基线」，按钮按它居中，和字体的 ascent / descent 无关。
+   不支持 text-box 的浏览器只是多一层 inline-block，什么都不变。 */
+.btn-t { display: inline-block; text-box: trim-both cap alphabetic; }
 /* ---------- Async button state machine (DESIGN.md §2) ---------- */
 /* Every face sits in the same grid cell, so the button is as wide as its widest state and never
    resizes; the active face cross-fades in, the others keep their space invisibly. */
@@ -3218,14 +3226,14 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
   display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--accent-blue); background: var(--accent-blue-soft);
 }
 .device-steps b { font-size: 14px; font-weight: 500; color: var(--ink-1); }
-.device-steps span { font-size: 13px; color: var(--ink-3); }
+.device-steps span:not([data-slot="button"] *) { font-size: 13px; color: var(--ink-3); }
 .device-step-inline { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .device-steps + .sg-card, .sg-card + .device-steps { margin-top: 12px; }
 /* 绑定手机（DESIGN.md §33）：一次性二维码弹窗 + 设备页「添加一台手机」卡片。 */
 .device-cap-chip.is-mobile { color: var(--accent-blue-ink); background: var(--accent-blue-soft); border-color: transparent; }
 .pair-card-row { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
 .pair-card-row b { display: block; font-size: 14px; font-weight: 500; color: var(--ink-1); }
-.pair-card-row span { display: block; margin-top: 2px; font-size: 13px; line-height: 1.55; color: var(--ink-3); }
+.pair-card-row span:not([data-slot="button"] *) { display: block; margin-top: 2px; font-size: 13px; line-height: 1.55; color: var(--ink-3); }
 .pair-card-ic { display: inline-grid !important; place-items: center; flex: none; width: 40px; height: 40px; margin: 0 !important; border-radius: 14px; color: var(--accent-blue); background: var(--accent-blue-soft); }
 @media (max-width: 640px) {
   .pair-card-row { flex-wrap: wrap; }
@@ -3651,6 +3659,8 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .sg-empty { padding: 28px 24px; }
 .sg-empty-ic { width: 40px; height: 40px; border-radius: 12px; margin-bottom: 10px; }
 .sg-empty p { margin-bottom: 0; }
+/* §82：空状态里说明下面的按钮不贴着说明（上面那条把 p 的下边距清掉了）。 */
+.sg-empty > p + * { margin-top: 16px; }
 .admin-group [data-slot="item-description"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .admin-group [data-slot="item"] { flex-wrap: nowrap; }
 .admin-group [data-slot="item-content"] { min-width: 0; }
@@ -6496,7 +6506,8 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
   .cf-image-pending { animation: rp-fade var(--dur-2) linear both; }
 }
 /* ── 设置左栏：默认折叠的「高级」分组 + 底部「返回聊天」（DESIGN.md §57 导航收敛） ── */
-.rail-sec-toggle { width: 100%; text-align: left; border-radius: 8px; cursor: pointer; }
+/* §82：上下内边距对称（原来 .glass-sec 是 2px / 8px，焦点框里字贴着上沿）；总高不变，下面的间距挪到 margin。 */
+.rail-sec-toggle { width: 100%; text-align: left; border-radius: 8px; cursor: pointer; padding-top: 5px; padding-bottom: 5px; margin-bottom: 3px; }
 .rail-sec-toggle:hover:not(:disabled) { color: var(--ink-2); }
 .rail-sec-toggle:disabled { cursor: default; }
 .rail-sec-toggle:focus-visible { outline: 2px solid var(--ink-3); outline-offset: -2px; }
@@ -6722,6 +6733,9 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 /* §70 / §75 干活卡：沿用「思考中」胶囊，一行当前步骤 + 第几步 · 用时 + ⌄；画在这一轮第一个干活的工具那一行里。
    结束时同一个按钮换成「✓ 搜索 2 次 · 12 秒 ⌄」：同样的内边距和字号 → 同样高，结束那一刻不跳（§75.1）。 */
 .chat-work { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 100%; }
+/* §82 间距：干活卡 / 收成的「✓ …」行和同一行里画在它上面的卡片（确认卡、浏览卡、工具卡）之间留 10px，
+   不再贴着；它是这一行第一个（上面是别的消息行）时不加，行和行之间照旧 24px。 */
+.chat-work:not(:first-child) { margin-top: 10px; }
 .chat-work-card { max-width: min(100%, 520px); border: 0; font: inherit; font-size: 13px; line-height: 20px; cursor: pointer; text-align: left; transition: background-color 0.24s ease, box-shadow 0.24s ease, color 0.24s ease; }
 .chat-work-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent-blue) 55%, transparent); outline-offset: 2px; }
 .chat-work-step { position: relative; display: inline-flex; min-width: 0; overflow: hidden; }
@@ -7009,7 +7023,7 @@ a.page-card-media:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var
 .cc-ws-more:hover { background: var(--glass-hover); color: var(--ink-1); }
 .cc-ws-err { display: flex; align-items: flex-start; gap: 6px; margin: 2px 8px 6px 28px; padding: 7px 9px; border-radius: 10px; font-size: 12px; line-height: 1.5; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent); }
 .cc-ws-err svg { margin-top: 2px; }
-.cc-ws-err span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cc-ws-err span:not([data-slot="button"] *) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .cc-ws-retry { flex: none; font-weight: 600; color: var(--accent-blue); }
 .cc-new-ws { display: flex; align-items: center; gap: 8px; width: calc(100% - 8px); min-height: 40px; margin: 10px 4px 0; padding: 0 12px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--accent-blue) 40%, var(--line)); color: var(--accent-blue); font-size: 13.5px; font-weight: 500; text-align: left; transition: background var(--dur-1), border-color var(--dur-1); }
 .cc-new-ws:hover { background: color-mix(in srgb, var(--accent-blue) 7%, transparent); border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }
@@ -7077,7 +7091,7 @@ a.cc-pill { text-decoration: none; }
 .cc-ws-more:hover { background: var(--glass-hover); color: var(--ink-1); }
 .cc-ws-err { display: flex; align-items: flex-start; gap: 6px; margin: 2px 8px 6px 28px; padding: 7px 9px; border-radius: 10px; font-size: 12px; line-height: 1.5; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent); }
 .cc-ws-err svg { margin-top: 2px; }
-.cc-ws-err span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cc-ws-err span:not([data-slot="button"] *) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .cc-ws-retry { flex: none; font-weight: 600; color: var(--accent-blue); }
 .cc-new-ws { display: flex; align-items: center; gap: 8px; width: calc(100% - 8px); min-height: 40px; margin: 10px 4px 0; padding: 0 12px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--accent-blue) 40%, var(--line)); color: var(--accent-blue); font-size: 13.5px; font-weight: 500; text-align: left; transition: background var(--dur-1), border-color var(--dur-1); }
 .cc-new-ws:hover { background: color-mix(in srgb, var(--accent-blue) 7%, transparent); border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }

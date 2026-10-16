@@ -29,7 +29,7 @@ import {
 } from "../../../../shared/im";
 import { PairQr } from "@/components/devices/pair-phone";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -103,7 +103,7 @@ export function PlatformGrid({ onPick }: { onPick: (platform: ImPlatform) => voi
           <span className="min-w-0 flex-1">
             <span className="im-platform-t">
               {platform.name}
-              <span className={cn("im-chip", platform.official ? "is-official" : "is-risk")}>{platform.official ? "官方" : "非官方"}</span>
+              <span className={cn("im-chip", platform.official ? "is-official" : "is-risk")}><T>{platform.official ? "官方" : "非官方"}</T></span>
             </span>
             <span className="im-platform-s">{platform.summary}</span>
           </span>
@@ -169,8 +169,8 @@ export function ConnectionRow({ connection, botName, onEdit, onLogs }: { connect
                   <IconRobot aria-hidden className="size-3.5" />
                   {botName ?? "机器人已不在"}
                 </span>
-                {connection.allowUsers.length ? <span className="device-cap-chip">{`白名单 ${connection.allowUsers.length} 人`}</span> : null}
-                {connection.allowDevices ? <span className="device-cap-chip is-ask">{"可用电脑和设备"}</span> : null}
+                {connection.allowUsers.length ? <span className="device-cap-chip"><T>{`白名单 ${connection.allowUsers.length} 人`}</T></span> : null}
+                {connection.allowDevices ? <span className="device-cap-chip is-ask"><T>{"可用电脑和设备"}</T></span> : null}
               </span>
               {connection.enabled && connection.status === "error" && connection.statusDetail ? (
                 <span className="im-row-error">{connection.statusDetail}</span>

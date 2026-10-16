@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { VAULT_DOMAIN, VAULT_NAME, type VaultSecretView } from "../../../../../shared/vault";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -92,7 +92,7 @@ function VaultPage() {
                         <>
                           <span className="device-row-meta">
                             <span className="skill-slug">{`{{secret:${secret.name}}}`}</span>
-                            {secret.hint ? <span className="device-cap-chip">{`末四位 ${secret.hint}`}</span> : null}
+                            {secret.hint ? <span className="device-cap-chip"><T>{`末四位 ${secret.hint}`}</T></span> : null}
                           </span>
                           <span className="mem-by">{`${secret.managedBy === "claude-proxy" ? "由 云端工作区 → Claude 上游代理 管理 · " : secret.managedBy ? "由 账号连接 → GitHub 管理 · " : ""}可用于 ${secret.domains.join("、")} · ${secret.lastUsedAt ? `${agoText(secret.lastUsedAt)}用过` : "还没用过"}`}</span>
                         </>

@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { type CcSyncState, type CcWorkspaceView, SYNC_STATE_ZH } from "../../../../shared/cloud-cc";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,7 +56,7 @@ export function CcSyncPillButton({ ws, className }: { ws: CcWorkspaceView; class
         type="button"
       >
         <i aria-hidden className="cc-dot" />
-        {SYNC_STATE_ZH[ws.syncState]}
+        <T>{SYNC_STATE_ZH[ws.syncState]}</T>
       </button>
       <CcSyncDialog onOpenChange={setOpen} open={open} ws={ws} />
     </>
@@ -172,7 +172,7 @@ export function CcSyncDialog({ ws, open, onOpenChange }: { ws: CcWorkspaceView; 
             {"电脑同步"}
             <span className={cn("cc-pill cc-sync-pill", TONE[state])} data-state={state}>
               <i aria-hidden className="cc-dot" />
-              {SYNC_STATE_ZH[state]}
+              <T>{SYNC_STATE_ZH[state]}</T>
             </span>
           </DialogTitle>
           <DialogDescription>{`工作区「${ws.name}」。云端是主副本；同一时间最多一台电脑在用，关闭同步不删任何东西。`}</DialogDescription>

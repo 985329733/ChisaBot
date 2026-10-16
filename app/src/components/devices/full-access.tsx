@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { DeviceAuditEntry, DeviceView } from "../../../../shared/devices";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Card, SettingRow } from "@/components/ui/skyglass";
@@ -122,7 +122,7 @@ export function FullAccessCard({ device }: { device: DeviceView }) {
                     role="radio"
                     type="button"
                   >
-                    {item.label}
+                    <T>{item.label}</T>
                   </button>
                 ))}
               </div>

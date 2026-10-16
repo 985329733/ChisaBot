@@ -14,7 +14,7 @@ import { useState } from "react";
 import { formatWhen, RUN_STATUS_ZH, type ScheduleRunStatus, type ScheduleView } from "../../../../../shared/schedules";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -155,7 +155,7 @@ function ScheduleRow({ schedule: s, botName, onOpen, onHide }: { schedule: Sched
             <>
               <span className="device-row-meta">
                 <span className="sch-when">{s.schedule}</span>
-                <span className="device-cap-chip">{botName}</span>
+                <span className="device-cap-chip"><T>{botName}</T></span>
                 {s.source === "im" ? (
                   <span className="device-cap-chip">
                     <IconBrandWechat className="size-3" />

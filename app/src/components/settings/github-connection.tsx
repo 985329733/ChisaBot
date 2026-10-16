@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { GITHUB_NEW_TOKEN_URL, type GithubConnectionView } from "../../../../shared/github";
 import { PageSection, PageSkeleton } from "@/components/layout/page-shell";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -89,8 +89,8 @@ export function GithubConnectionSection() {
                   <>
                     <span className="device-row-meta">
                       <span className={connection.status === "ok" ? "gh-state is-ok" : "gh-state is-bad"}>{connection.status === "ok" ? "已连接" : "令牌已失效"}</span>
-                      <span className="device-cap-chip">{KIND_TEXT[connection.tokenKind]}</span>
-                      {connection.hint ? <span className="device-cap-chip">{`末四位 ${connection.hint}`}</span> : null}
+                      <span className="device-cap-chip"><T>{KIND_TEXT[connection.tokenKind]}</T></span>
+                      {connection.hint ? <span className="device-cap-chip"><T>{`末四位 ${connection.hint}`}</T></span> : null}
                     </span>
                     <span className="mem-by">{`${agoText(connection.checkedAt)}检查过 · 写操作每次都先问你`}</span>
                   </>

@@ -17,7 +17,7 @@ import type { PageView } from "../../../../../shared/pages";
 import { PageEmpty, PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { PageThumb } from "@/components/pages/page-card";
 import { useAsyncAction } from "@/components/ui/async-action";
-import { Button } from "@/components/ui/button";
+import { Button, T } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -309,7 +309,7 @@ function VersionsDialog({ page, onOpenChange }: { page: PageView | null; onOpenC
                     <span className="mem-by">{`${agoText(v.createdAt) ?? ""} · ${sizeText(v.bytes)}`}</span>
                   </span>
                   {v.current ? (
-                    <span className="device-cap-chip">{"当前"}</span>
+                    <span className="device-cap-chip"><T>{"当前"}</T></span>
                   ) : (
                     <Button
                       disabled={restoring !== null}
