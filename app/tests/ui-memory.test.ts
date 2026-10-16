@@ -20,7 +20,7 @@ import {
 import { isPromptSegment } from "@/components/channels/composer/composer";
 
 /**
- * 每个机器人 / 每段对话「我的操作状态」（DESIGN.md §85）：内存一份 + localStorage（刷新还在）、有效期、条数上限、
+ * 每个机器人 / 每段对话「我的操作状态」（DESIGN.md §88）：内存一份 + localStorage（刷新还在）、有效期、条数上限、
  * 草稿只放回结构对的、附件只在内存里取一次。
  */
 const registered = !(globalThis as { document?: unknown }).document;

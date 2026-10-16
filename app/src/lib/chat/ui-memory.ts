@@ -1,5 +1,5 @@
 /**
- * 每个机器人 / 每段对话「我的操作状态」（DESIGN.md §85）。
+ * 每个机器人 / 每段对话「我的操作状态」（DESIGN.md §88）。
  *
  * 用户反馈：在一个机器人里把右栏切到「计算机」，去设置 / Claude Code / 别的机器人转一圈回来，又变回「面板」；
  * 写了一半的话、往上翻到的位置、点开的干活卡也都没了。这里把这些记下来：
@@ -59,7 +59,7 @@ export type ThreadUi = {
   scroll?: ScrollMemo;
   /**
    * 最后发出去的那句话（纯文本）和时间。发送失败时输入框会把字放回去（重试用），那份不当草稿记；
-   * 记下的草稿和它一样也不放回——已经发出去的话不会「复活」在输入框里（§85.4）。
+   * 记下的草稿和它一样也不放回——已经发出去的话不会「复活」在输入框里（§88.4）。
    */
   sent?: string;
   sentAt?: number;
@@ -230,7 +230,7 @@ export function wasJustSent(threadKey: string | undefined, text: string): boolea
   return Boolean(trimmed && t?.sent !== undefined && t.sent === trimmed && now() - (t.sentAt ?? 0) < SENT_GUARD_MS);
 }
 
-/** 发出去了：草稿清掉，记下这句（§85.4）。 */
+/** 发出去了：草稿清掉，记下这句（§88.4）。 */
 export function markDraftSent(threadKey: string | undefined, text: string): void {
   if (!threadKey) return;
   setThreadUi(threadKey, { draft: undefined, sent: text.trim(), sentAt: now() });

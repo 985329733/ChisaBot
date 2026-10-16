@@ -83,7 +83,7 @@ export function PanelRail({ className }: { className?: string }) {
     setWidth(next);
   };
   /*
-   * 右栏宽度和展开 / 收起按机器人记（DESIGN.md §85）：换了机器人，在绘制之前换成它上次的样子；
+   * 右栏宽度和展开 / 收起按机器人记（DESIGN.md §88）：换了机器人，在绘制之前换成它上次的样子；
    * 没记过的机器人用全局最后一次的宽度。
    */
   const { botId: widthBot } = usePanelBot();

@@ -217,7 +217,7 @@ export type ComposerProps = {
   stoppable?: boolean;
   initialValue?: string;
   /**
-   * 这段对话的草稿记在哪（DESIGN.md §85）：通常是频道 id。给了它，输入框的字（含 @ / 命令小块）离开再回来、刷新后
+   * 这段对话的草稿记在哪（DESIGN.md §88）：通常是频道 id。给了它，输入框的字（含 @ / 命令小块）离开再回来、刷新后
    * 还在，选好的附件离开再回来会重新放上（附件只在内存里，刷新就没了）。不给就和以前一样，什么都不记。
    */
   draftKey?: string;
@@ -362,14 +362,14 @@ export function Composer({
       (initialValue ? [{ type: "text", text: initialValue }] : []),
   );
   /*
-   * 草稿跟着打字记下来（§85）。第一次画出来的那一份不用写；发出去后输入框清空，记下的草稿也一起清掉。
+   * 草稿跟着打字记下来（§88）。第一次画出来的那一份不用写；发出去后输入框清空，记下的草稿也一起清掉。
    * 写进内存是同步的，落到 localStorage 合并 150ms（ui-memory.ts）。
    */
   const draftWritten = useRef<Segment[] | null>(value);
   useEffect(() => {
     if (!draftKey || draftWritten.current === value) return;
     draftWritten.current = value;
-    // 发送失败放回来的字（和刚发出去的那句一样）只留在这个输入框里，不当草稿记：离开再回来不会再冒出来（§85.4）。
+    // 发送失败放回来的字（和刚发出去的那句一样）只留在这个输入框里，不当草稿记：离开再回来不会再冒出来（§88.4）。
     const keep = !isSegmentsEmpty(value) && !wasJustSent(draftKey, toDraft(value).text);
     setThreadUi(draftKey, { draft: keep ? value : undefined });
   }, [draftKey, value]);
@@ -691,7 +691,7 @@ export function Composer({
    * state update is.
    */
   const stagedCount = useRef(0);
-  /** 这个输入框收过的文件（§85：离开对话时据此找回还在输入框上的那几个）。 */
+  /** 这个输入框收过的文件（§88：离开对话时据此找回还在输入框上的那几个）。 */
   const pickedFiles = useRef<File[]>([]);
 
   /**
@@ -757,7 +757,7 @@ export function Composer({
       // a number that already includes these.
       stagedCount.current += screened.accepted.length;
       staging.current += screened.accepted.length;
-      // 离开对话时按文件名 + 大小找回还在输入框上的那几个文件（§85）。
+      // 离开对话时按文件名 + 大小找回还在输入框上的那几个文件（§88）。
       if (draftKey) pickedFiles.current.push(...screened.accepted);
       try {
         await processFiles(screened.accepted.map(withMediaTypeOnly));
@@ -794,7 +794,7 @@ export function Composer({
    * no other reason.
    */
   /*
-   * 选好还没发的附件：离开对话时收起来，回来时重新放上（DESIGN.md §85）。
+   * 选好还没发的附件：离开对话时收起来，回来时重新放上（DESIGN.md §88）。
    *
    * SDK 的附件列表是它自己的 state，没有办法把一个已经上传好的附件塞回去，所以回来时用同一个 `File` 再走一遍
    * `stageFiles`（同样的检查、同样的上限）。离开时把这几个已经上传的行交还服务器（和点 ✕ 一样），免得占着
@@ -1241,7 +1241,7 @@ export function Composer({
       setIsSubmitting(true);
       // Clear optimistically; restore if the send fails before becoming a message.
       setValue([]);
-      // 记下的草稿当场清掉、记下这句发过了（§85.4）：哪怕下一刻就切走 / 刷新，也不会在输入框里复活。
+      // 记下的草稿当场清掉、记下这句发过了（§88.4）：哪怕下一刻就切走 / 刷新，也不会在输入框里复活。
       markDraftSent(draftKey, submitted.text);
       /*
        * The refusals go with them, and do NOT come back if the send fails. They are about files
@@ -1760,7 +1760,7 @@ function withMediaTypeOnly(file: File): File {
   });
 }
 
-/** localStorage 里读回来的草稿分段，结构对才用（DESIGN.md §85）。 */
+/** localStorage 里读回来的草稿分段，结构对才用（DESIGN.md §88）。 */
 export function isPromptSegment(value: unknown): value is Segment {
   if (!value || typeof value !== "object") return false;
   const segment = value as Record<string, unknown>;

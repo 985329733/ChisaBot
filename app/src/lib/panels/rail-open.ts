@@ -21,7 +21,7 @@ export const PANEL_RAIL_HOTKEY_LABEL = formatHotkey(PANEL_RAIL_HOTKEY).join("+")
 
 let open = readStoredPreference(PANEL_RAIL_STORAGE_KEY) !== "collapsed";
 const listeners = new Set<() => void>();
-/** 右栏现在显示的是哪个机器人的（`PanelRail` 设）：展开 / 收起也按机器人记一份（DESIGN.md §85）。 */
+/** 右栏现在显示的是哪个机器人的（`PanelRail` 设）：展开 / 收起也按机器人记一份（DESIGN.md §88）。 */
 let railBot: string | undefined;
 
 export function setPanelRailOpen(next: boolean) {

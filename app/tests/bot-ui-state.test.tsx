@@ -9,7 +9,7 @@ import { setPanelRailOpen, showRailFor } from "@/lib/panels/rail-open";
 import { turnAnswered } from "@/components/channels/channel-chat";
 
 /**
- * 每个机器人记住「面板 | 计算机」、右栏展开 / 宽度（DESIGN.md §85.2），以及聊天滚动「不往回跳」的接线（§85.1）。
+ * 每个机器人记住「面板 | 计算机」、右栏展开 / 宽度（DESIGN.md §88.2），以及聊天滚动「不往回跳」的接线（§88.1）。
  * 滚动本身在真浏览器里量（tests/bot-state/bot-state.mjs）；这里锁住规则和接线。
  */
 beforeAll(() => GlobalRegistrator.register({ url: "http://localhost/" }));
@@ -140,7 +140,7 @@ describe("接线", () => {
   });
 });
 
-describe("中途断的一轮不把字放回输入框（§85.4）", () => {
+describe("中途断的一轮不把字放回输入框（§88.4）", () => {
   const user = { id: "u1", role: "user", content: "你好?" };
   test("最后一条用户消息之后有回答 / 工具调用 = 已经接着做了事", () => {
     expect(turnAnswered([user] as never)).toBe(false);

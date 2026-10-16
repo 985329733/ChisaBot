@@ -50,7 +50,7 @@ export function workSeconds(turnKey: string): number | null {
 
 export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; turnKey: string; live: boolean }) {
   if (live) remember(startedAt, turnKey, Date.now());
-  // 点开过的干活卡离开再回来 / 刷新后还开着（按这一轮记，DESIGN.md §85）。
+  // 点开过的干活卡离开再回来 / 刷新后还开着（按这一轮记，DESIGN.md §88）。
   const [open, setOpenState] = useState(() => workUi(turnKey)?.open === true);
   const setOpen = (update: (value: boolean) => boolean) =>
     setOpenState((value) => {
@@ -65,7 +65,7 @@ export function WorkRow({ calls, turnKey, live }: { calls: readonly WorkCall[]; 
     return () => window.clearInterval(timer);
   }, [live]);
   // 结束时记下用时（只记一次）；之后重画都用同一个数。
-  // 用时只有亲眼看着它跑的那一页知道：记下来，刷新 / 切回来后「做了 2 步 · 10 秒」的秒数还在（§85）。
+  // 用时只有亲眼看着它跑的那一页知道：记下来，刷新 / 切回来后「做了 2 步 · 10 秒」的秒数还在（§88）。
   const [doneSeconds, setDoneSeconds] = useState<number | null>(() =>
     live ? null : (workSeconds(turnKey) ?? workUi(turnKey)?.seconds ?? null),
   );

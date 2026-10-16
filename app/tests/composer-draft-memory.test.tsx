@@ -6,7 +6,7 @@ import { flushUiMemory, resetUiMemory, setThreadUi, threadUi } from "@/lib/chat/
 import { settleReactWork } from "./settle-react-work";
 
 /**
- * 输入框草稿按对话记住（DESIGN.md §85）：写了一半离开（切机器人 / 去设置）、回来或刷新后还在；
+ * 输入框草稿按对话记住（DESIGN.md §88）：写了一半离开（切机器人 / 去设置）、回来或刷新后还在；
  * 发出去后草稿清掉；没给 draftKey 的输入框（首页、引导页）什么都不记。
  */
 beforeAll(() => GlobalRegistrator.register({ url: "http://localhost/" }));

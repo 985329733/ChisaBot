@@ -928,7 +928,7 @@ export function ChannelChat({
        * 这一轮已经有了回答 / 工具调用（中途断的，用户反馈截图：「你好?」之后机器人干了几步、然后
        * 「暂时连不上模型服务」）：这条消息已经是对话的一部分，机器人也接着它做了事。再把字放回输入框，
        * 屏幕上就是「气泡里一份、输入框里又一份」，点重试还会把同一句话再发一遍。所以这时算发出去了：
-       * 输入框清空、记下的草稿也清掉（DESIGN.md §85.4）；「重试」从这条消息起重新生成（`retryTurn`）。
+       * 输入框清空、记下的草稿也清掉（DESIGN.md §88.4）；「重试」从这条消息起重新生成（`retryTurn`）。
        * 什么都没回来就失败的，照旧把字放回去（重试 = 再发一次，先拿掉失败的那份）。
        */
       if (!turnAnswered(target.messages)) throw new Error(turnFailure.current);
@@ -1306,7 +1306,7 @@ export function ChannelChat({
              * part of the conversation and stays.
              */
             onRetryTurn={() => {
-              // 中途断的一轮（已经有回答 / 工具调用）：字没放回输入框，重试 = 从这条消息起重新生成（§85.4）。
+              // 中途断的一轮（已经有回答 / 工具调用）：字没放回输入框，重试 = 从这条消息起重新生成（§88.4）。
               if (!turnAnswered(agentRef.current.messages)) return false;
               void regenerate().catch(() => undefined);
               return true;

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { botUi, setBotUi } from "./ui-memory";
 
 /**
- * 右栏「面板 | 计算机」按机器人记住（DESIGN.md §85.2）。
+ * 右栏「面板 | 计算机」按机器人记住（DESIGN.md §88.2）。
  *
  * 地址里的 `watch` 照旧（§23 / §79：刷新还在、后退能关、能发链接），但地址里没有它时（从左栏点回来、从设置 /
  * Claude Code 回来、刷新了一个不带参数的地址），用这个机器人上次的选择——第一帧就画对，然后把地址补上

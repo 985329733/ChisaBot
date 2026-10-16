@@ -55,7 +55,7 @@ function RouteComponent() {
   const isSettingsOpen = settings === true;
   /**
    * Channel routing currently supports one coworker. 刷新时对话详情还没读到：先用这台设备记下的「这段对话是哪个
-   * 机器人的」（DESIGN.md §85），右栏第一帧就画对。
+   * 机器人的」（DESIGN.md §88），右栏第一帧就画对。
    */
   const agentId = channel.data?.agentIds[0] ?? threadUi(channelId)?.agent;
   useEffect(() => {
@@ -92,7 +92,7 @@ function RouteComponent() {
   }, [channelId, unseen, markReadMutate]);
 
   // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）；设置窗格仍是聊天旁的详情栏，两者互不挤占。
-  // 按机器人记住选的是哪个标签（DESIGN.md §85）：地址里没有 `watch` 时用上次的。
+  // 按机器人记住选的是哪个标签（DESIGN.md §88）：地址里没有 `watch` 时用上次的。
   const writeWatch = useCallback(
     (open: boolean, replace: boolean) =>
       void navigate({

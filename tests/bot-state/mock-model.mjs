@@ -1,4 +1,4 @@
-// OpenAI 兼容假模型（DESIGN.md §85 回归用；从 tests/ui-align/mock-model.mjs 复制，加了 SCHED / WORKL），端口 PORT（默认 4012）。最后一条用户消息决定：
+// OpenAI 兼容假模型（DESIGN.md §88 回归用；从 tests/ui-align/mock-model.mjs 复制，加了 SCHED / WORKL），端口 PORT（默认 4012）。最后一条用户消息决定：
 //   "DELEGATE" -> delegate_task，参数按 6 字一段、每 300ms 流出（约 6 秒），之后一句话
 //   "DELEGATE2"-> 同上，但参数里 task 在 title 前面（CB-023：先用说明头一句）
 //   "PAGE2"    -> page_create → page_update → page_update（同一页面），之后一句话

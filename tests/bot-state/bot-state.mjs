@@ -1,4 +1,4 @@
-// 每个机器人记住「我的操作状态」+ 聊天不往回跳（DESIGN.md §85）。真浏览器（Playwright），对着一个预览实例跑。
+// 每个机器人记住「我的操作状态」+ 聊天不往回跳（DESIGN.md §88）。真浏览器（Playwright），对着一个预览实例跑。
 //
 //   BASE=http://127.0.0.1:<预览端口> [TOK=…] [WIDTHS=1280,390] [SEND=1] [READONLY=1] node tests/bot-state/bot-state.mjs
 //

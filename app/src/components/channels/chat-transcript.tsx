@@ -108,7 +108,7 @@ import { setThreadUi, threadUi } from "@/lib/chat/ui-memory";
 
 type ChatTranscriptProps = {
   busy?: boolean;
-  /** 滚动位置记在哪（DESIGN.md §85）：频道 id。 */
+  /** 滚动位置记在哪（DESIGN.md §88）：频道 id。 */
   scrollKey?: string;
   /** Comma-separated `/` command names, used to tell a skill chip from a leading slash. */
   commandNames?: string;
@@ -595,14 +595,14 @@ function SettleAtEnd({
   hydrating: boolean;
   newestUserMessageId: string | null;
   viewport: React.RefObject<HTMLDivElement | null>;
-  /** 滚动位置记在哪（DESIGN.md §85）；没有就只管钉在底部。 */
+  /** 滚动位置记在哪（DESIGN.md §88）；没有就只管钉在底部。 */
   scrollKey?: string;
-  /** 最后一条下面的留白（§85.1），在 `contents` 那一格里，不算一行。 */
+  /** 最后一条下面的留白（§88.1），在 `contents` 那一格里，不算一行。 */
   slack: React.RefObject<HTMLDivElement | null>;
 }) {
   const { scrollToEnd, scrollToMessage } = useMessageScroller();
   /*
-   * 上次离开这段对话时的位置（§85.3）：不在底部 → 回到那一条、离顶边一样远；在底部 → 钉在底部，最后一条下面
+   * 上次离开这段对话时的位置（§88.3）：不在底部 → 回到那一条、离顶边一样远；在底部 → 钉在底部，最后一条下面
    * 照样留出当时的空白（新一轮对齐到顶上时滚动容器留的），画面和离开时一样。只在打开时读一次。
    */
   const [memo] = useState(() => (scrollKey ? (threadUi(scrollKey)?.scroll ?? null) : null));
@@ -659,7 +659,7 @@ function SettleAtEnd({
   const finalWrite = useRef<(() => void) | null>(null);
   useLayoutEffect(() => () => finalWrite.current?.(), []);
 
-  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§85.3）。
+  // 回来时在底部、底下有留白：第一帧之前就把留白放回去（§88.3）。
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!memo?.atBottom || memo.spacer <= 0 || !element) return;
@@ -738,7 +738,7 @@ function SettleAtEnd({
      * 这一帧画出来就已经在底部。等到下一帧（requestAnimationFrame）再回去，慢设备上会先画一帧「被顶上去」
      * ——实测切到带图片的长对话，图片加载那一下离底部 488px 停了一两帧。
      *
-     * 钉底部的那段时间过了以后（§85.1）：人在底部看着，底下的东西变矮了（干活卡收起、工具那一行换成结果、
+     * 钉底部的那段时间过了以后（§88.1）：人在底部看着，底下的东西变矮了（干活卡收起、工具那一行换成结果、
      * 「思考中」先走一帧、下一条还没到），浏览器把 scrollTop 夹小——整段聊天往下挪一截，下一帧滚动容器再滚回来，
      * 看着就是「往回跳一下」。这里在同一帧把少掉的高度放到最后一条下面当留白、scrollTop 放回去，屏幕上不动；
      * 后来长出来的内容先填这块留白，人往上翻到看不见它时悄悄收掉。
@@ -755,9 +755,6 @@ function SettleAtEnd({
       }
       const max = element.scrollHeight - element.clientHeight;
       const recentlyTouched = performance.now() - touchedAt < 400;
-      // 排查用（tests/bot-state）：页面上设了 window.__cbScrollDebug 才记。
-      const debug = (window as { __cbScrollDebug?: unknown[] }).__cbScrollDebug;
-      if (debug) debug.push([Math.round(performance.now()), grew, Math.round(seen.top), seen.atBottom, Math.round(max), Math.round(element.scrollTop), s.slack, recentlyTouched]);
       if (grew > 0 && s.slack > 0) {
         // 长出来的先填留白：总高度不变，画面不动。
         const use = Math.min(s.slack, grew);
@@ -776,9 +773,33 @@ function SettleAtEnd({
         element.scrollTop = seen.top;
       }
       look();
+      hold();
+    };
+    /*
+     * 钉在底部时把内容的高度先「撑住」（min-height = 现在的高度，§88.1）：最后一行在这一轮结束时变矮（工具行
+     * 127→48px），浏览器在那一帧的布局里就把 scrollTop 夹小、画出来——ResizeObserver 有时晚一帧才到（实测
+     * SCHED：先画出往回 79px 的一帧，下一帧滚动容器自己的留白长回来）。撑住之后变矮的那一截在最下面变成空白，
+     * 屏幕上什么都不动；人往上翻、空白整个在视口下面时再放开。
+     */
+    const natural = () => {
+      const last = content.lastElementChild as HTMLElement | null;
+      if (!last) return content.offsetHeight;
+      const pad = Number.parseFloat(getComputedStyle(content).paddingBottom) || 0;
+      return Math.round(last.getBoundingClientRect().bottom - content.getBoundingClientRect().top + pad);
+    };
+    const hold = () => {
+      if (active() || s.restore || !seen.atBottom) return;
+      content.style.minHeight = `${content.offsetHeight}px`;
+    };
+    const letGo = () => {
+      if (!content.style.minHeight) return;
+      // 放开不能让 scrollTop 被夹：自然高度的底边要在视口底边下面（或者正好）。
+      if (content.getBoundingClientRect().top + natural() >= element.getBoundingClientRect().bottom - 1) content.style.minHeight = "";
     };
     const onScroll = () => {
       look();
+      if (seen.atBottom) hold();
+      else letGo();
       // 留白整个在视口下面（人往上翻了）：收掉，看得见的东西一点都不动。
       if (s.slack > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - s.slack - 1) {
         setSlack(0);
@@ -787,7 +808,7 @@ function SettleAtEnd({
       save();
     };
     /*
-     * 记下现在的位置（§85.3）：恢复完成之后才记（恢复中的样子是过渡的）；在底部记「在底部」+ 底下的空白，
+     * 记下现在的位置（§88.3）：恢复完成之后才记（恢复中的样子是过渡的）；在底部记「在底部」+ 底下的空白，
      * 不在底部记第一条看得见的消息和它离顶边多远。滚动时合并 200ms 记一次，离开对话时再记一次。
      */
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -799,7 +820,8 @@ function SettleAtEnd({
       if (gap <= 4) {
         const spacer = content.querySelector<HTMLElement>("[data-message-scroller-spacer]");
         const spacerHeight = spacer && !spacer.hidden ? spacer.offsetHeight : 0;
-        setThreadUi(scrollKey, { scroll: { atBottom: true, spacer: spacerHeight + s.slack, anchor: null, offset: 0, at: Date.now() } });
+        const held = content.style.minHeight ? Math.max(0, content.offsetHeight - natural()) : 0;
+        setThreadUi(scrollKey, { scroll: { atBottom: true, spacer: spacerHeight + s.slack + held, anchor: null, offset: 0, at: Date.now() } });
         return;
       }
       const top = element.getBoundingClientRect().top;
@@ -835,6 +857,7 @@ function SettleAtEnd({
       if (saveTimer !== null) clearTimeout(saveTimer);
       finalWrite.current = null;
       window.cancelAnimationFrame(frame);
+      content.style.minHeight = "";
       mutations.disconnect();
       sizes?.disconnect();
       element.removeEventListener("wheel", release);
@@ -2247,7 +2270,7 @@ export function ChatTranscript({
 
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
   /*
-   * 只有「刚发出去的那一条」带 `data-scroll-anchor`（DESIGN.md §85.1）。
+   * 只有「刚发出去的那一条」带 `data-scroll-anchor`（DESIGN.md §88.1）。
    *
    * 滚动容器按位置找新行：行数变多时从旧行数往后找第一个带标记的行，行数不变但有行换了元素时找第一个
    * 「没对齐过」的带标记的行，把它对齐到顶上。历史里每一轮的第一条用户消息以前都带标记——于是回答结束时某一行
@@ -2370,7 +2393,7 @@ export function ChatTranscript({
               ))}
               {/* 回答期间发的、进了服务器收件箱的（DESIGN.md §38.1）：读到之前画在这里，读到后出现在它被读到的位置。 */}
               <QueuedMessages />
-              {/* 最后一条下面的留白（§85.1）：在这一格里，不算一行；高度由 SettleAtEnd 直接改。 */}
+              {/* 最后一条下面的留白（§88.1）：在这一格里，不算一行；高度由 SettleAtEnd 直接改。 */}
               <div aria-hidden className="chat-slack" data-chat-slack="" ref={slackRef} style={{ display: "none" }} />
             </div>
             {topNotice ? (

@@ -79,7 +79,7 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
   }, [existing, navigate, watch]);
 
   // 右栏「计算机」开关（DESIGN.md §79）：和对话页一样记在 `watch` 搜索参数里（刷新保留、后退关闭）。
-  // 按机器人记住选的是哪个标签（DESIGN.md §85）：地址里没有 `watch` 时用上次的。
+  // 按机器人记住选的是哪个标签（DESIGN.md §88）：地址里没有 `watch` 时用上次的。
   const navigateHere = Route.useNavigate();
   const writeWatch = useCallback(
     (open: boolean, replace: boolean) =>
@@ -203,7 +203,7 @@ function BotChat({ agent, fresh, watch }: { agent: string; fresh: boolean; watch
         // Choosing a coworker answers the "To:" field, so the message is what remains: the caret
         // lands in the composer the moment a recipient exists, whether picked here or in the URL.
         autoFocus
-        // 还没开对话前写的字也按机器人记着（DESIGN.md §85）。
+        // 还没开对话前写的字也按机器人记着（DESIGN.md §88）。
         draftKey={`new:${agent}`}
         // Commands must be loaded before the first channel message is sent.
         commands={skillCommands}
