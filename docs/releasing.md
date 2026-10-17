@@ -1,5 +1,7 @@
 # Releasing
 
+> **ChisaBot 的发版流程在 [release.md](release.md)**（版本号规则、客户端发版、外壳指纹、自测规则）。本页是上游参考。
+
 > **ChisaBot 分支：** 本文描述上游发布基础设施。私有分支的源码提交不代表发布公共镜像或客户端安装包；分发前需使用自己的构建、签名、镜像与发布配置。当前分支的验证范围见实际 CI 和部署验收记录，不能将定向检查通过描述为整个上游测试集通过。
 
 A release is one person choosing a version, and a reviewed pull request doing everything else. No

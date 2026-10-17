@@ -33,6 +33,8 @@ ChisaBot 需求多、并行开发多，所以每个改动都按同一套流程�
 - **docs**：功能文档 `docs/<功能>.md`；新表、新开关写进 [architecture.md](docs/architecture.md) 的功能表；架构取舍写 ADR。
 - **CHANGELOG.md**：`Unreleased` 下一行，写给运行部署的人看（行为有什么不同、要不要更新客户端、要不要手动操作）。
 - **BACKLOG / ROADMAP**：勾掉验收标准，条目移到「最近完成」，写 PR 号。
+- **docs/CHANGELOG.md**：在「未发版」表里加一行（PR、合并时间、提交、内容、DESIGN / 条目）；客户端发版时把这些行移进新版本。
+- **docs/features.md / data-model.md**：新功能、新入口、新开关、新表都要登记；长期规则变化记到 docs/decisions.md。发版流程和测试约定见 docs/release.md、docs/testing.md。
 - **内部记录**：维护者自己的运行记录（部署机路径、镜像标签、回滚脚本）记在仓库之外；**仓库是公开的**，不要提交服务器 IP、私人主机路径、
   密钥、真实用户数据。
 

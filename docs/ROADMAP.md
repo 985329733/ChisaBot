@@ -6,48 +6,50 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 - **谁维护**：每个 PR 改自己那一行（开始做 → 「现在」，合并 → 「最近完成」）；主维护者每天过一遍，调整顺序、清理已完成。
 - **方向**（2026-10-15）：尽快做成「相对成熟、可以分享给朋友用」的私人助手。核心是**在任何地方管理所有设备（包括本地电脑）**，
   云端机器人能读、改、写本地文件和代码；同时继续把上游 OpenBot 的企业功能瘦身掉；Hark 的能力逐项补齐。
-- 上次整理：2026-10-15 14:10（对照 origin/main 23c58bf 逐行核对）。
+- 上次整理：2026-10-17（对照 origin/main 0e23321 = PR #192 逐行核对；客户端最新 v0.1.15）。版本史见 [CHANGELOG](CHANGELOG.md)，功能全表见 [features.md](features.md)。
 
 ## 里程碑
 
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
-| [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图、审批、生图/识图设置已上线；对话体验第五轮（短气泡、干活卡）已上线；简报、Google 账号最后 | 9 / 11 已上线（剩简报、Google 账号） |
-| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1–P4b、P6-1…P6-4（企业闸门、SSO/SCIM、worker/、桌面端残留）、删语音、P4c-1（routines 并入定时任务）已上线；P4c 其余合并按依赖排；P5 删空表等 ≥ 2 周 |
-| [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问 / 本地 agent 已上线；待真机验证 |
-| [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 第 1、2、3 轮已上线（#115、#122、#124、#125；第 3 轮非聊天页面 #142、#144、#145） |
-| [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次 PC + Android 发版，真机验证 | 待设备核心合并 |
+| [Hark parity](https://github.com/ChisaAlter/ChisaBot/milestone/1) | 记忆、技能、保险箱、GitHub、页面、定时、文件/生图、审批、生图/识图设置已上线；对话体验第五轮（短气泡、干活卡）已上线；简报、Google 账号最后 | 9 / 11 已上线（剩简报、Google 账号）；对话体验第六轮（干活卡在原位、文档卡、面板像 Hark）及后续 §88–§97 已上线 |
+| [精简 Slim](https://github.com/ChisaAlter/ChisaBot/milestone/2) | P1–P5 收敛成私人助手（[docs/slimming.md](slimming.md)） | P1–P4b、P6-1…P6-4（企业闸门、SSO/SCIM、worker/、桌面端残留）、删语音、P4c-1（routines 并入定时任务）、发版前功能精简（#163，`CHISABOT_EXTRAS`）已上线；P4c 其余合并按依赖排；P5 删空表等 ≥ 2 周 |
+| [设备核心 Devices core](https://github.com/ChisaAlter/ChisaBot/milestone/3) | 设备上的编码工具、无界面节点、完全访问、本地 agent | 编码工具 / 无界面节点 / 完全访问 / 本地 agent 已上线；云端 Claude Code P0–P4（含电脑文件夹同步、上游代理）已上线；输入框按机器人权限（#192）；待真机验证 |
+| [成熟度 Maturity](https://github.com/ChisaAlter/ChisaBot/milestone/4) | 全量体验扫查 + 已知缺陷 / 性能尾巴 | 第 1、2、3 轮已上线（#115、#122、#124、#125；第 3 轮非聊天页面 #142、#144、#145）；10-16 一轮 CB-069…CB-083 全部上线 |
+| [0.2.0 release](https://github.com/ChisaAlter/ChisaBot/milestone/5) | 下一次大版本，真机验证 | 0.1.x 已发到 v0.1.15（Android 原生、PC 同步）；等真机验证（CB-017 / CB-018） |
 
 ## 现在（进行中）
 
 | 条目 | 内容 | 里程碑 | 分支 |
 |---|---|---|---|
-| [CB-061](BACKLOG.md#cb-061) / [CB-062](BACKLOG.md#cb-062) | 云端 Claude Code：云端工作区节点 + Claude 登录（P1）→ Claude Code 标签页（P2）（[设计](cloud-claude-code.md)、ADR-0014） | 设备核心 | `feat/cloud-cc-*` |
-| [CB-047](BACKLOG.md#cb-047) / [CB-050](BACKLOG.md#cb-050) | 长对话打开时历史晚到；商品推荐带图网格（向 Hark 看齐 第五轮） | 成熟度 / Hark parity | `feat/harkchat-*` |
+| [CB-012](BACKLOG.md#cb-012) | 文档整理：概览、功能目录、版本记录、决策日志、发布 / 测试手册、术语、数据模型 | 成熟度 | `docs/handbook-20261017` |
+
+（2026-10-17 没有进行中的代码条目。）
 
 ## 接下来
 
 | 条目 | 内容 | 为什么排在这 |
 |---|---|---|
-| [CB-018](BACKLOG.md#cb-018) | 用户电脑手动重装 PC 0.1.x（现在 0.1.9） | 需要用户；设备核心验收依赖它 |
-| [CB-017](BACKLOG.md#cb-017) | 真机验证 Windows / 安卓 | 需要用户；0.2.0 发版前 |
-| [CB-019](BACKLOG.md#cb-019) | 发版 0.2.0 | 设备核心 + 审批合并之后 |
-| [CB-021](BACKLOG.md#cb-021) | 一轮两张同一页面卡片 | 小缺陷 |
-| [CB-023](BACKLOG.md#cb-023) | 后台任务卡片笼统文字 | 小缺陷 |
+| [CB-067](BACKLOG.md#cb-067) | 功能精简留下的 4 项待决定：两个同名「助手」、IM 接入、个人生图与识图、云端浏览器管理页 | 需要所有者决定 |
+| [CB-018](BACKLOG.md#cb-018) | 所有者电脑手动重装 PC 0.1.x（现在 0.1.15；0.2.x 不会自动更新） | 需要所有者；设备核心验收依赖它 |
+| [CB-017](BACKLOG.md#cb-017) | 真机验证 Windows（含电脑文件夹同步）/ 安卓原生 | 需要所有者；0.2.0 发版前 |
+| [CB-066](BACKLOG.md#cb-066) / [CB-063](BACKLOG.md#cb-063) | 所有者在云端登录 Claude 一次、连接 GitHub | 需要所有者；云端 Claude Code 真正可用的前提 |
+| [CB-034](BACKLOG.md#cb-034) | 真实账号验证 GitHub / IM | 需要所有者 |
+| [CB-019](BACKLOG.md#cb-019) | 发版 0.2.0 | 真机验证之后 |
 | [CB-027](BACKLOG.md#cb-027) | IM 定时推送的平台窗口 | 需要真实平台验证 |
-| [CB-034](BACKLOG.md#cb-034) | 真实账号验证 GitHub / IM | 需要用户 |
+| 测试基线 | 修 main 上 `approvals-rules` / `approval-tools` 两个已知失败（[testing.md](testing.md) §5） | 让「对比 main 0 新增失败」更干净 |
 
 ## 以后
 
 | 条目 | 内容 | 条件 |
 |---|---|---|
-| [CB-063](BACKLOG.md#cb-063) / [CB-064](BACKLOG.md#cb-064) / [CB-065](BACKLOG.md#cb-065) | 云端 Claude Code P3 GitHub 工作区、P4 电脑同步（PC 新版）、P5 ChisaCloudCode 去留 | P2 上线后；P5 要问用户 |
+| [CB-065](BACKLOG.md#cb-065) | 云端 Claude Code P5：ChisaCloudCode 留还是下线 | 要问所有者 |
 | [CB-015](BACKLOG.md#cb-015) | 瘦身 P4c 其余合并（旧面板、components、responsibilities、审批规则…；routines 已并入定时任务 #143） | 各自依赖的功能上线并稳定后 |
 | [CB-016](BACKLOG.md#cb-016) | 瘦身 P5 DROP 空表 | P4b 上线 ≥ 2 周 |
-| [CB-013](BACKLOG.md#cb-013) | Google 账号连接 | 用户说不急，Hark parity 最后一项 |
+| [CB-013](BACKLOG.md#cb-013) | Google 账号连接 | 所有者说不急，Hark parity 最后一项 |
 | [CB-014](BACKLOG.md#cb-014) | 每日简报（可选） | 定时任务稳定后 |
-| [CB-022](BACKLOG.md#cb-022) | 只读工具结果的卡片规则 | 先定设计 |
-| [CB-024](BACKLOG.md#cb-024) / [CB-025](BACKLOG.md#cb-025) / [CB-029](BACKLOG.md#cb-029) | 主题切换、长对话首屏、弹窗模糊性能 | 性能轮 |
+| [CB-045](BACKLOG.md#cb-045) | 每人模型额度 / 用量上限 | 多用户打开时 |
+| [CB-025](BACKLOG.md#cb-025) / [CB-029](BACKLOG.md#cb-029) | 长对话首屏、弹窗模糊性能 | 性能轮（content-visibility 方案试过无收益，未合并） |
 | [CB-026](BACKLOG.md#cb-026) / [CB-028](BACKLOG.md#cb-028) / [CB-031](BACKLOG.md#cb-031) | 数据卫生：线程指针、过程话、事件表 | 数据轮 |
 | [CB-032](BACKLOG.md#cb-032) / [CB-033](BACKLOG.md#cb-033) | CI 内安卓签名、生产 stale-chunk 测试 | 发布流程 |
 
@@ -55,16 +57,34 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 
 | 日期 | 内容 | PR | 设计 / 文档 |
 |---|---|---|---|
-| 2026-10-16 | 设置重新整合 + 设置搜索；输入框权限「请求批准 / 完全访问」（CB-083） | 本 PR | DESIGN.md §97、docs/settings-ia.md |
-| 2026-10-16 | 浏览器暗色图标 + 外侧去掉标签 + 放大页重排（CB-082） | 本 PR | DESIGN.md §96 |
-| 2026-10-16 | 窄窗口里输入框两边也留白（CB-078） | 本 PR | DESIGN.md §92 |
-| 2026-10-16 | 简单回合不出干活卡、开场一句进卡片、不画空气泡、答完下面不留空（CB-079） | 本 PR | DESIGN.md §93 |
-| 2026-10-16 | 中途说明文字收进干活卡；断线重接不再写两遍（CB-077） | 本 PR | DESIGN.md §90 |
-| 2026-10-16 | 「模型老断」：断线不再误报成连不上模型、自动接上；部署不再截断正在回答的一轮（CB-076） | 本 PR | DESIGN.md §89 |
-| 2026-10-16 | 每个机器人记住操作状态；消息不再往回跳（CB-075） | 本 PR | DESIGN.md §88 |
-| 2026-10-16 | 电脑文件夹导入失败不留半个工作区、删了的工作区不再挡住重新导入（CB-074） | 本 PR | DESIGN.md §87 |
-| 2026-10-16 | 机器人 ↔ Claude Code 原地切换，不再整屏刷新（CB-072） | 本 PR | DESIGN.md §84 |
-| 2026-10-16 | 打开对话落在最新一条、不跳；切机器人秒开；接入回放瘦身（CB-071） | 本 PR | DESIGN.md §83 |
+| 2026-10-17 | 文档整理：概览、功能目录、版本记录、决策日志、发布 / 测试手册、术语、数据模型（CB-012） | 本次文档 PR | [README](README.md) |
+| 2026-10-16 | 设置重新整合 + 设置搜索；输入框权限「请求批准 / 完全访问」（CB-083） | #192 | DESIGN.md §97、docs/settings-ia.md |
+| 2026-10-16 | 浏览器暗色图标 + 外侧去掉标签 + 放大页重排（CB-082） | #191 | DESIGN.md §96 |
+| 2026-10-16 | 窄窗口里输入框两边也留白（CB-078） | #187 | DESIGN.md §92 |
+| 2026-10-16 | 简单回合不出干活卡、开场一句进卡片、不画空气泡、答完下面不留空（CB-079） | #188 | DESIGN.md §93 |
+| 2026-10-16 | 中途说明文字收进干活卡；断线重接不再写两遍（CB-077） | #185 | DESIGN.md §90 |
+| 2026-10-16 | 「模型老断」：断线不再误报成连不上模型、自动接上；部署不再截断正在回答的一轮（CB-076） | #184 | DESIGN.md §89 |
+| 2026-10-16 | 每个机器人记住操作状态；消息不再往回跳（CB-075） | #183 | DESIGN.md §88 |
+| 2026-10-16 | 电脑文件夹导入失败不留半个工作区、删了的工作区不再挡住重新导入（CB-074） | #181 | DESIGN.md §87 |
+| 2026-10-16 | 机器人 ↔ Claude Code 原地切换，不再整屏刷新（CB-072） | #175 | DESIGN.md §84 |
+| 2026-10-16 | 打开对话落在最新一条、不跳；切机器人秒开；接入回放瘦身（CB-071） | #173 | DESIGN.md §83 |
+| 2026-10-16 | 浏览器多标签 + 收藏夹（CB-081） | #190 | DESIGN.md §95、[browser-tabs.md](browser-tabs.md) |
+| 2026-10-16 | 5 分钟内连续发消息不翻页上跳（CB-080） | #189 | DESIGN.md §94 |
+| 2026-10-16 | 客户端 v0.1.15：PC 登录窗无边框圆角、弹窗一道边（Android vc 221） | #186 | DESIGN.md §91、[CHANGELOG](CHANGELOG.md) |
+| 2026-10-16 | 长对话图片宽高预留 | #180 | DESIGN.md §83.2 |
+| 2026-10-16 | UI 对齐第一、二轮（CB-070） | #172、#178、#182 | DESIGN.md §82 |
+| 2026-10-16 | 客户端 v0.1.14：Android 原生第二轮（确认卡、附件、停止、重新生成 / 编辑） | #176 | DESIGN.md §86 |
+| 2026-10-16 | Claude 上游代理支持 trojan / vless 等节点链接（CB-073） | #174、#177 | DESIGN.md §85 |
+| 2026-10-16 | 新建 / 修改机器人一张表 + 圆形头像（CB-069） | #170 | DESIGN.md §81、[bot-avatars.md](bot-avatars.md) |
+| 2026-10-16 | 客户端 v0.1.13：Android 原生版 Kotlin + Compose（CB-068） | #168 | DESIGN.md §80、[android-native.md](android-native.md) |
+| 2026-10-16 | 客户端 v0.1.12：允许的文件夹之外批准即加入；PC 图标（外壳指纹变更） | #169 | [release.md](release.md) §3.3 |
+| 2026-10-16 | 空聊天也有「计算机」 | #167 | DESIGN.md §79 |
+| 2026-10-16 | Hark 第六轮：干活卡在原位、文档卡、面板像 Hark、等待的那几秒 | #164、#165、#166 | DESIGN.md §75–§78 |
+| 2026-10-16 | 发版前功能精简：工作流 / 插件与 MCP / 权限规则 / 组件目录默认隐藏；新建机器人两格（CB-067） | #163 | DESIGN.md §74 |
+| 2026-10-16 | 客户端 v0.1.11：电脑文件夹同步 P4a / P4b（CB-064） | #159、#160、#161 | DESIGN.md §73、[cloud-claude-code.md](cloud-claude-code.md) |
+| 2026-10-15 | 客户端 v0.1.10：设备「打开」只做安全的打开（CB-030） | #156、#157 | — |
+| 2026-10-15 | 只读工具中文说法、页面卡 / 任务卡标题、切暗色不卡（CB-021…024） | #152、#154、#155 | DESIGN.md §7.4、§70.3 |
+| 2026-10-15 | 云端 Claude Code P0–P3 + 在云端完成登录 + 上游代理（CB-061…063、CB-066） | #148–#151、#153、#158 | DESIGN.md §73、ADR-0014 |
 | 2026-10-15 | 商品 / 地点推荐带图卡片网格（CB-050）、长对话历史晚到停在底部（CB-047） | #146 | DESIGN §72 |
 | 2026-10-15 | 瘦身 P4c-1：上游 Routines 并入定时任务，只剩一套（CB-015，约 8.6k 行） | #143 | DESIGN §55、[slimming.md](slimming.md) |
 | 2026-10-15 | 成熟度 3c：设置左栏三组可折叠、默认只展开当前页所在组，笔记本上不用滚（CB-058） | #145 | DESIGN §71.7 |
@@ -110,4 +130,4 @@ ChisaBot 现在要做什么、接下来做什么、以后做什么。这一页�
 | 2026-10-14 | 链接卡 | #98 | DESIGN §48 |
 | 2026-10-14 | 0.1.7：设备默认「询问」、PC 连接提示 | #94 #95 #96 | DESIGN §45 · [pc-node.md](pc-node.md) |
 
-更早的见 [CHANGELOG](../CHANGELOG.md)。
+更早的见 [CHANGELOG](CHANGELOG.md)（按版本）和根 [CHANGELOG.md](../CHANGELOG.md)。
