@@ -34,4 +34,11 @@ describe("workspace file links (§101)", () => {
     expect(workspaceLinks("```\nhttps://workspace.local/c.py\n```", "agent_1", O)).toBe("```\nhttps://workspace.local/c.py\n```");
     expect(workspaceLinks("看 https://workspace.local/c.py.", "agent_1", O)).toBe(`看 [c.py](${d("c.py")}).`);
   });
+  test("HTML anchors to workspace files become download links (§101.14)", () => {
+    const d = (p: string) => `${O}/api/computers/agent_1/files/download?path=${encodeURIComponent(p)}`;
+    expect(workspaceLinks('点击这里下载文件：<a href="primes.py" download>primes.py</a> 下次', "agent_1", O)).toBe(`点击这里下载文件：[primes.py](${d("primes.py")}) 下次`);
+    expect(workspaceLinks("<a href='https://workspace.local/out/r.csv'><b>结果</b></a>", "agent_1", O)).toBe(`[结果](${d("out/r.csv")})`);
+    // 别的 HTML 链接不动
+    expect(workspaceLinks('<a href="https://github.com">GitHub</a>', "agent_1", O)).toBe('<a href="https://github.com">GitHub</a>');
+  });
 });

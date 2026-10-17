@@ -40,9 +40,11 @@ export function workspacePathOf(target: string): string | null {
 // 前面不能是「(」「<」「[」或字母数字（已在链接里 / 是别的地址的一部分）；末尾的标点不算地址。
 const BARE = /(^|[^(<\[\w/])<?(https?:\/\/workspace\.local\/[^\s<>()\[\]"'`，。；、！？）】」]+)>?/gi;
 const TRAIL = /[.,;:!?]+$/;
+// 模型偶尔写 HTML：<a href="primes.py" download>primes.py</a>（被画成「primes.py [blocked]」，§101.14）。
+const ANCHOR = /<a\s[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
 export function workspaceLinks(markdown: string, botId: string | undefined, origin: string): string {
-  if (!botId || (!markdown.includes("](") && !/workspace\.local\//i.test(markdown))) return markdown;
+  if (!botId || (!markdown.includes("](") && !/workspace\.local\/|<a\s/i.test(markdown))) return markdown;
   const download = (path: string) => `${origin}/api/computers/${encodeURIComponent(botId)}/files/download?path=${encodeURIComponent(path)}`;
   const parts = markdown.split(/(```[\s\S]*?(?:```|$))/);
   return parts
@@ -53,7 +55,13 @@ export function workspaceLinks(markdown: string, botId: string | undefined, orig
         .split(/(`[^`\n]*`)/)
         .map((seg, j) => {
           if (j % 2 === 1) return seg;
-          const linked = seg.replace(LINK, (whole, target: string, title: string | undefined) => {
+          const anchored = seg.replace(ANCHOR, (whole, target: string, text: string) => {
+            const path = workspacePathOf(target);
+            if (!path) return whole;
+            const label = text.replace(/<[^>]*>/g, "").replace(/[\[\]]/g, "").trim() || path;
+            return `[${label}](${download(path)})`;
+          });
+          const linked = anchored.replace(LINK, (whole, target: string, title: string | undefined) => {
             const path = workspacePathOf(target);
             if (!path) return whole;
             return `](${download(path)}${title ?? ""})`;
