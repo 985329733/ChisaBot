@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { readSync, SYNC_INTERVAL_MS, type ThreadActivity } from "./bot-thread";
+import { useKeptVisible } from "@/lib/kept-visible";
 
 /**
  * 频道聊天（/channel/:id）的「这条对话有没有新动静」（DESIGN.md §64，CB-041 / CB-043）。
@@ -12,6 +13,10 @@ import { readSync, SYNC_INTERVAL_MS, type ThreadActivity } from "./bot-thread";
 export function useThreadActivity(agentId: string, threadId: string | undefined) {
   const listenersRef = useRef(new Set<(activity: ThreadActivity) => void>());
   const kickRef = useRef<() => void>(() => {});
+  /** 聊天被外壳藏着（DESIGN.md §98.3）和页面在后台一样：不问；回来时马上问一次。 */
+  const onScreen = useKeptVisible();
+  const onScreenRef = useRef(onScreen);
+  const pauseRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!threadId) return;
@@ -20,7 +25,8 @@ export function useThreadActivity(agentId: string, threadId: string | undefined)
     /** 服务器没有这个接口（旧版本 / 不是本地会话模式）：不再问。 */
     let unsupported = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const visible = () => typeof document === "undefined" || document.visibilityState !== "hidden";
+    const visible = () =>
+      onScreenRef.current && (typeof document === "undefined" || document.visibilityState !== "hidden");
     const schedule = () => {
       if (timer) clearTimeout(timer);
       timer = alive && !unsupported && visible() ? setTimeout(() => void tick(), SYNC_INTERVAL_MS) : undefined;
@@ -49,6 +55,10 @@ export function useThreadActivity(agentId: string, threadId: string | undefined)
       if (visible()) void tick();
     };
     kickRef.current = now;
+    pauseRef.current = () => {
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+    };
     const onVisibility = () => (visible() ? now() : timer && clearTimeout(timer));
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", now);
@@ -58,6 +68,7 @@ export function useThreadActivity(agentId: string, threadId: string | undefined)
     return () => {
       alive = false;
       kickRef.current = () => {};
+      pauseRef.current = () => {};
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", now);
@@ -65,6 +76,13 @@ export function useThreadActivity(agentId: string, threadId: string | undefined)
       window.removeEventListener("pageshow", now);
     };
   }, [agentId, threadId]);
+
+  useEffect(() => {
+    if (onScreenRef.current === onScreen) return;
+    onScreenRef.current = onScreen;
+    if (onScreen) kickRef.current();
+    else pauseRef.current();
+  }, [onScreen]);
 
   const onActivity = useCallback((listener: (activity: ThreadActivity) => void) => {
     listenersRef.current.add(listener);

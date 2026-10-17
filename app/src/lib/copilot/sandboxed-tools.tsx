@@ -2,6 +2,7 @@ import {
   OpenGenerativeUIActivityRenderer,
   useFrontendTool,
 } from "@copilotkit/react-core/v2";
+import { useBotOnScreen } from "@/lib/kept-visible";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import * as z from "zod";
@@ -28,7 +29,12 @@ export function SandboxedTools() {
   // server knows, and asking would 404 on every poll.
   const declared = useDeclaredBotId();
   const { data: published } = useQuery(publishedSandboxedQueryOptions());
-  const { data: granted } = useQuery(agentComponentsQueryOptions(declared));
+  // 这个机器人的聊天被外壳藏着时不轮询授权（DESIGN.md §98.3）；调用时服务端照样再查。
+  const declaredOnScreen = useBotOnScreen(declared);
+  const { data: granted } = useQuery({
+    ...agentComponentsQueryOptions(declared),
+    ...(declaredOnScreen ? {} : { refetchInterval: false as const }),
+  });
 
   const held = new Map(
     (granted ?? []).map((component: GrantedComponent) => [

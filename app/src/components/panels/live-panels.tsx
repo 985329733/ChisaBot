@@ -1,4 +1,5 @@
 import { createStateStore, JSONUIProvider, Renderer, type Spec } from "@json-render/react";
+import { useKeptVisible } from "@/lib/kept-visible";
 import {
   IconAlertTriangle,
   IconArrowBackUp,
@@ -84,6 +85,8 @@ function useChatRunning() {
 
 export function useLivePanels(botId: string | undefined) {
   const running = useChatRunning();
+  // 右栏藏着（设置 / 管理 / Claude Code，DESIGN.md §98.3）时不轮询；回来时窗口聚焦 / 下一拍照常。
+  const onScreen = useKeptVisible();
   const queryClient = useQueryClient();
   // 一轮刚结束：再看一次（面板可能在最后一步才填好）。
   useEffect(() => {
@@ -95,6 +98,7 @@ export function useLivePanels(botId: string | undefined) {
     queryFn: () => client<LivePanel[]>(`/api/live-panels?botId=${encodeURIComponent(botId ?? "")}`, "items", { fallback: "面板无法加载" }),
     // 有卡片在搭建 / 刷新时 3 秒看一次，平时 30 秒（机器人在对话里建的卡片要马上出现）。
     refetchInterval: (query) => {
+      if (!onScreen) return false;
       const items = query.state.data;
       if (running) return 2500;
       return items?.some((p) => p.status === "building" || p.refreshing) ? 3000 : 30_000;

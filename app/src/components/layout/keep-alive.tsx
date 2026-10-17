@@ -1,3 +1,4 @@
+import { KeptVisibleContext } from "@/lib/kept-visible";
 import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** 藏着的聊天留多久（之后卸载，回来走正常的打开：先画上次的样子，再接入）。 */
@@ -31,7 +32,8 @@ export function KeepAliveStage<T>({
   children,
 }: {
   address: T | null;
-  idleVisible?: boolean;
+  /** 布尔，或按留着的那页判断（`/` 正跳向的正是它时才露着）。 */
+  idleVisible?: boolean | ((kept: T) => boolean);
   same: (a: T, b: T) => boolean;
   renderKept: (kept: T, state: KeptState) => ReactNode;
   ttlMs?: number;
@@ -39,7 +41,8 @@ export function KeepAliveStage<T>({
 }) {
   const [kept, setKept] = useState<T | null>(address);
   if (address !== null && (kept === null || !same(address, kept))) setKept(address);
-  const shown = address !== null || (kept !== null && idleVisible);
+  const idle = kept !== null && (typeof idleVisible === "function" ? idleVisible(kept) : idleVisible);
+  const shown = address !== null || idle;
   const visible = kept !== null && shown;
 
   const [epoch, setEpoch] = useState(0);
@@ -94,7 +97,7 @@ export function KeepAliveStage<T>({
           ref={box}
           style={keptStyle}
         >
-          {renderKept(kept, { visible, epoch })}
+          <KeptVisibleContext.Provider value={visible}>{renderKept(kept, { visible, epoch })}</KeptVisibleContext.Provider>
         </div>
       ) : null}
       <div

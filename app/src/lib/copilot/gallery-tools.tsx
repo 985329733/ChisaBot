@@ -1,4 +1,5 @@
 import { useFrontendTool, useHumanInTheLoop } from "@copilotkit/react-core/v2";
+import { useBotOnScreen } from "@/lib/kept-visible";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefusedCard } from "@/components/gallery/refused";
@@ -39,7 +40,12 @@ export function GalleryTools() {
   // See sandboxed-tools: the placeholder Bot is not fetchable, so the grant query waits for a
   // surface to declare a real one.
   const declared = useDeclaredBotId();
-  const { data: granted } = useQuery(agentComponentsQueryOptions(declared));
+  // 这个机器人的聊天被外壳藏着时不轮询授权（DESIGN.md §98.3）；调用时服务端照样再查。
+  const declaredOnScreen = useBotOnScreen(declared);
+  const { data: granted } = useQuery({
+    ...agentComponentsQueryOptions(declared),
+    ...(declaredOnScreen ? {} : { refetchInterval: false as const }),
+  });
   const held = useMemo(
     () =>
       new Map(

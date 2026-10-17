@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+import { useKeptVisible } from "@/lib/kept-visible";
 import {
   cancelControl,
   type ControlState,
@@ -18,7 +19,7 @@ type ControlStore = {
   getSnapshot: () => Snapshot;
   refresh: () => Promise<void>;
   change: (action: Action) => Promise<boolean>;
-  subscribe: (listener: () => void) => () => void;
+  subscribe: (listener: () => void, active?: boolean) => () => void;
 };
 const stores = new Map<string, ControlStore>();
 
@@ -29,6 +30,8 @@ function createControlStore(computerId: string): ControlStore {
   let timer: ReturnType<typeof setInterval> | undefined;
   let reading: AbortController | undefined;
   const listeners = new Set<() => void>();
+  /** 在屏幕上的订阅者。全都藏着（留着的聊天 / 右栏，DESIGN.md §98.3）时不轮询。 */
+  let active = 0;
   const publish = (next: Snapshot) => {
     snapshot = next;
     for (const listener of listeners) listener();
@@ -111,15 +114,21 @@ function createControlStore(computerId: string): ControlStore {
     getSnapshot: () => snapshot,
     refresh,
     change,
-    subscribe: (listener: () => void) => {
+    subscribe: (listener: () => void, onScreen = true) => {
       listeners.add(listener);
+      if (onScreen) {
+        active++;
+        // 第一个看得见的订阅者（含藏着之后回来的）：马上补读一次，不等下一拍。
+        if (active === 1 && timer !== undefined && !snapshot.busy && !reading) void refresh();
+      }
       if (timer === undefined) {
-        if (!snapshot.busy) void refresh();
+        if (!snapshot.busy && active > 0) void refresh();
         timer = setInterval(() => {
-          if (!snapshot.busy && !reading) void refresh();
+          if (active > 0 && !snapshot.busy && !reading) void refresh();
         }, 1000);
       }
       return () => {
+        if (onScreen) active--;
         listeners.delete(listener);
         if (listeners.size) return;
         clearInterval(timer);
@@ -140,8 +149,13 @@ export function useComputerControl(computerId: string, enabled = true) {
     store = createControlStore(computerId);
     stores.set(computerId, store);
   }
+  const onScreen = useKeptVisible();
+  const subscribe = useCallback(
+    (listener: () => void) => (store ? store.subscribe(listener, onScreen) : noSubscription()),
+    [store, onScreen],
+  );
   const snapshot = useSyncExternalStore(
-    store?.subscribe ?? noSubscription,
+    subscribe,
     store?.getSnapshot ?? emptySnapshot,
     emptySnapshot,
   );

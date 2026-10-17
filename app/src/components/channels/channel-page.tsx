@@ -27,6 +27,7 @@ import {
 import { useComputerAutoWatch } from "@/lib/computers/auto-watch";
 import { setThreadUi, threadUi } from "@/lib/chat/ui-memory";
 import { useBotComputerTab } from "@/lib/chat/use-bot-computer";
+import { useMarkBotHidden } from "@/lib/kept-visible";
 
 export const chatSearchSchema = z.object({
   settings: z.boolean().optional(),
@@ -75,6 +76,9 @@ export function ChannelPage({ channelId, settings, watch, visible, epoch }: Chan
     const id = channel.data?.agentIds[0];
     if (id && threadUi(channelId)?.agent !== id) setThreadUi(channelId, { agent: id });
   }, [channelId, channel.data]);
+
+  // 藏着时，全局的组件授权轮询不再为这个机器人跑（DESIGN.md §98.3）。
+  useMarkBotHidden(agentId, !visible);
 
   const markRead = useMutation(markChannelReadMutationOptions(queryClient));
   /*

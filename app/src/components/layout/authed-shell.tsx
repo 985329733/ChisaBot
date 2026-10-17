@@ -2,14 +2,14 @@ import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { KeepAliveStage } from "@/components/layout/keep-alive";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
-import { GlassShell } from "@/components/layout/glass-shell";
-import type { ShellScope } from "@/components/layout/glass-topbar";
+import { GlassShell, scopeOfPath } from "@/components/layout/glass-shell";
 import { LeftRail } from "@/components/layout/left-rail";
 import { SelfHostBanner } from "@/components/layout/self-host-banner";
 import { PanelRail } from "@/components/panels/panel-rail";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { type LeftMode, modeOfPath } from "@/lib/left-mode";
 import { CHANNEL_ROUTE_ID, ChannelPage } from "@/components/channels/channel-page";
+import { useLanding } from "@/lib/agents/landing";
 
 /**
  * 登录之后的那一个外壳（DESIGN.md §98）。
@@ -25,12 +25,6 @@ export function AuthedShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   if (pathname === "/onboarding" || pathname.startsWith("/sign-in")) return <Outlet />;
   return <ShellFrame pathname={pathname} />;
-}
-
-function scopeOfPath(pathname: string): ShellScope {
-  if (pathname === "/settings" || pathname.startsWith("/settings/")) return "settings";
-  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
-  return "app";
 }
 
 function ShellFrame({ pathname }: { pathname: string }) {
@@ -97,10 +91,14 @@ const sameAddress = (a: ChatAddress, b: ChatAddress) =>
 /** 主区：留着的聊天 + 当前路由（`KeepAliveStage`，DESIGN.md §98）。`/` 正在跳到聊天时，留着的聊天照样露着。 */
 function ChatStage({ pathname }: { pathname: string }) {
   const address = useChatAddress();
+  // `/` 正在跳的那段（最近的对话）正是留着的这段时才先露着；跳向别的机器人 / 空聊天时不露，免得闪一下别人的对话。
+  const landing = useLanding();
+  const landingChannel =
+    landing.state === "ready" && landing.target.to === "/channel/$channelId" ? landing.target.params.channelId : null;
   return (
     <KeepAliveStage
       address={address}
-      idleVisible={pathname === "/"}
+      idleVisible={(kept) => pathname === "/" && landingChannel === kept.channelId}
       renderKept={(kept, { visible, epoch }) => (
         <ChannelPage
           channelId={kept.channelId}
