@@ -2297,6 +2297,11 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 现在：代码块、行内代码之外，裸的 / 尖括号里的 `https://workspace.local/<路径>` 换成 `[路径](下载地址)`；末尾的中英文标点不算地址；已经是 Markdown 链接的只改一次。
 - 回归：`app/tests/workspace-links.test.ts`（裸地址、尖括号、行内代码不动、末尾句点）。
 
+### 101.14 HTML 写的工作区文件链接也换成下载地址（`lib/chat/workspace-links.ts`）
+- 实测（10-18 06:26，PC 客户端模拟 + solar-mini4，#204 上线后）：机器人回复「点击这里下载文件：<a href="primes.py" download>primes.py</a>」，画成「primes.py [blocked]」。
+- 现在：代码之外的 `<a href="目标">文字</a>`，目标是工作区文件（相对路径、/workspace/…、file://、sandbox:、workspace.local）时换成 `[文字](下载地址)`；别的 HTML 链接不动。
+- 回归：`app/tests/workspace-links.test.ts`。真实 UI 复测用 `tests/realtest/rt.mjs` 的 e3（要求直接贴 workspace.local 地址）、e4（要求用 HTML 链接），不靠模型碰巧写出来。
+
 - 回归：`app/tests/active-bot-routing.test.tsx`、`app/tests/cjk-emphasis.test.ts`、`app/tests/workspace-links.test.ts`、`server/tests/model-fallback.test.ts`（坏候选不挡路、冷却中主模型兜底、429 冷却）、
   `server/tests/confirmations.test.ts`（非网页回合放卡片、旧卡作废）、`server/tests/step-budget.test.ts`。PC 客户端加载服务器网页，不需要更新客户端。
 
