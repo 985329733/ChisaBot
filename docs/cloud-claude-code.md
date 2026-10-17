@@ -366,6 +366,8 @@ Claude 会话在**自己的工作树**里改，不碰 `work/`，所以 PC 开着
 | POST | `/api/claude-code/workspaces/:id/sync/force-reclaim` | 电脑离线时强制收回（二次确认） |
 | GET / DELETE | `/api/cloud-workspace/permission-rules` | 「总是允许」规则 |
 
+登录状态缓存在 `chisabot_cloud_workspaces.claude_auth`，在节点重连、`/claude/check`、以及节点在线时服务器每 5 分钟的定期复查时刷新（同一节点并发检查合并）。网页打开 Claude Code / 设置 → 云端工作区、窗口回到前台时，若缓存「未登录」或超过 60 秒，会节流地自动调 `/claude/check`（`app/src/lib/claude-auth-recheck.ts`，DESIGN.md §73.1）。
+
 **设备连接上的消息**（复用同一条 WSS，旧客户端会忽略不认识的消息）
 
 - 服务器 → 节点：v1 的 `cc_*`、`ws_clone`、`ws_tree`、`ws_read`、`ws_push`，再加 `ws_merge{session, handoffId}`、`ws_manifest`、`ws_lease{holder, handoffId}`、`sync_key_add/remove`、`sync_tunnel_open{ticket}`。

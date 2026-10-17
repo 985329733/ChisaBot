@@ -57,6 +57,8 @@ const APPROVAL_MS = 120_000;
 const RPC_MS = 40_000;
 const LOGIN_CODE_MS = 80_000;
 const PERSIST_EVERY_MS = 2_000;
+/** 节点在线时服务器定期复查一次 Claude 登录状态（缓存在 chisabot_cloud_workspaces.claude_auth）。 */
+const AUTH_REFRESH_MS = 5 * 60_000;
 const SCRATCH_ID_PREFIX = "scratch";
 
 type Json = Record<string, unknown>;
@@ -167,6 +169,8 @@ export type CloudCcServiceOptions = {
   github?: Pick<Github, "status" | "gitCredential" | "repoInfo" | "listRepos" | "openPullRequest"> | null;
   /** 克隆地址的前缀，默认 https://github.com（CHISABOT_GITHUB_GIT_BASE，测试替身 / GitHub Enterprise）。 */
   gitBase?: string;
+  /** 节点在线时定期复查 Claude 登录状态的间隔，默认 5 分钟（测试可以调短）。 */
+  authRefreshMs?: number;
 };
 
 export const PROXY_SECRET = "claude-proxy";
@@ -365,6 +369,20 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
     return value;
   }
 
+  // 同一节点同时只查一次登录状态（打开页面、聚焦、定时复查可能撞在一起）。
+  const authChecks = new Map<string, Promise<ClaudeAuth>>();
+  function refreshAuth(deviceId: string, timeoutMs = RPC_MS): Promise<ClaudeAuth> {
+    const pending = authChecks.get(deviceId);
+    if (pending) return pending;
+    const p = (async () => saveAuth(deviceId, await rpc<ClaudeAuth>(deviceId, "status", {}, timeoutMs)))().finally(() => authChecks.delete(deviceId));
+    authChecks.set(deviceId, p);
+    return p;
+  }
+  const authTimer = setInterval(() => {
+    for (const id of nodes) if (hub.isOnline(id)) void refreshAuth(id, 25_000).catch(() => {});
+  }, options.authRefreshMs ?? AUTH_REFRESH_MS);
+  unref(authTimer);
+
   async function register(record: DeviceRecord, info: Json) {
     const clean = {
       claudeVersion: typeof info.claudeVersion === "string" ? info.claudeVersion.slice(0, 120) : null,
@@ -396,8 +414,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
         );
         if (shareScheme(proxy ?? "")) converterErrors.set(record.id, r ? r.slice(0, 300) : null);
       }
-      const auth = await rpc<ClaudeAuth>(record.id, "status", {}, 25_000);
-      await saveAuth(record.id, auth);
+      await refreshAuth(record.id, 25_000);
     })().catch(() => {});
     // 节点重启后：服务器以为还在跑、节点那边已经没有的轮次，如实结束。
     const running = Array.isArray(info.running) ? new Set(info.running as string[]) : new Set<string>();
@@ -1367,8 +1384,7 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
 
   async function check(ownerUserId: string) {
     const node = await onlineNode(ownerUserId);
-    const result = await rpc<ClaudeAuth>(node.device_id, "status", {}, RPC_MS);
-    return { claude: await saveAuth(node.device_id, result) };
+    return { claude: await refreshAuth(node.device_id) };
   }
 
   async function emergencyStop(ownerUserId: string) {
@@ -1628,6 +1644,6 @@ export function createCloudCcService(options: CloudCcServiceOptions) {
       syncHooks.forgetWorkspace = hooks.forgetWorkspace ?? null;
     },
     // 测试用
-    _internal: { live, nodes, startTurn, send, decideApproval, workspaces, createSession, status, createGithubWorkspace, mergeSession, pushSession },
+    _internal: { live, nodes, check, refreshAuth, authTimer, startTurn, send, decideApproval, workspaces, createSession, status, createGithubWorkspace, mergeSession, pushSession },
   };
 }
