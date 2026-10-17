@@ -34,6 +34,14 @@ export class ElementNotFoundError extends Error {
   }
 }
 
+/** The page did not answer in time; nothing points at a missing element (§101.12). */
+export class PageTimeoutError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "PageTimeoutError";
+  }
+}
+
 /** The navigation target is not permitted. */
 export class NavigationRefusedError extends Error {
   constructor(reason: string) {
@@ -384,10 +392,20 @@ function throwMappedError(
   if (status === 413) {
     throw new WorkspaceTooLargeError(detail);
   }
-  if (/waiting for locator|Timeout .* exceeded/i.test(detail)) {
+  if (/waiting for locator|aria-ref=/i.test(detail)) {
     const ref = detail.match(/aria-ref=([A-Za-z0-9_-]+)/)?.[1];
     throw new ElementNotFoundError(
       `${ref ? `Element ${ref} is` : "That element is"} not on the page any more. Take a fresh snapshot and use the refs from it.`,
+    );
+  }
+  /*
+   * 一个没有指向任何元素的超时（截图、读快照、打开网页时页面一直在忙）不是「元素不在了」（DESIGN.md §101.12）。
+   * 以前同一条正则把它也说成「元素不在了，重新快照」，机器人就一直快照 → 又超时 → 又快照，十来步原地打转
+   * （2026-10-18 实测 hark.com 登录页：WebGL 壁纸在软件渲染下把页面拖住，截图 / 快照全部超时）。
+   */
+  if (/Timeout \d+\s*ms exceeded|timed out/i.test(detail)) {
+    throw new PageTimeoutError(
+      "The page did not respond in time (it may still be loading or busy drawing). Do not repeat the same call in a loop: wait a few seconds and try once more, use computer_read to get the page text, or tell the person the page is not responding.",
     );
   }
   throw new ComputerUnavailableError(detail);

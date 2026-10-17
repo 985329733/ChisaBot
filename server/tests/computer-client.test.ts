@@ -6,6 +6,7 @@ import {
   ElementNotFoundError,
   HumanHasControlError,
   NavigationRefusedError,
+  PageTimeoutError,
   StaleSnapshotError,
   WorkspaceNotFoundError,
   WorkspaceTooLargeError,
@@ -278,6 +279,36 @@ describe("acting on an element that is not there", () => {
       expect(message).not.toContain("Call log");
       expect(message).not.toContain("Timeout");
     }
+  });
+});
+
+/**
+ * §101.12：没有指向元素的超时（截图 / 快照 / 打开网页时页面一直在忙）不是「元素不在了」。以前同一条正则把它也说成
+ * 「重新快照」，机器人在 hark.com 登录页上原地快照了十来次。
+ */
+describe("a timeout that names no element", () => {
+  const busy = (error: string) =>
+    clientWith(
+      () =>
+        new Response(JSON.stringify({ error }), {
+          status: 502,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+
+  test("a screenshot timeout is a page timeout, not a stale element", async () => {
+    const pending = busy("page.screenshot: Timeout 30000ms exceeded.\nCall log:\n  - taking page screenshot\n").screenshot();
+    await expect(pending).rejects.toBeInstanceOf(PageTimeoutError);
+    await pending.catch((error: Error) => {
+      expect(error.message).not.toContain("snapshot and use the refs");
+      expect(error.message).toContain("Do not repeat");
+    });
+  });
+
+  test("a locator timeout still means the element is gone", async () => {
+    await expect(
+      busy("click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for locator('aria-ref=e9')\n").click({ ref: "e9", snapshotId: 1 }),
+    ).rejects.toBeInstanceOf(ElementNotFoundError);
   });
 });
 

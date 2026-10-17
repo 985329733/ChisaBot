@@ -19,6 +19,7 @@ const T = {
   g3: { max: 180000, msg: "你有哪些技能？挑一个你觉得最有用的，现在用它帮我做一件小事。" },
   g4: { max: 240000, msg: "帮我做一个网页：标题「周末计划」，列出周六爬山、周日看电影，发布后把链接给我。" },
   h2: { max: 900000, shotEvery: 45000, msg: "逐个用你的浏览器打开这 8 个官网：python.org、nodejs.org、www.rust-lang.org、go.dev、kotlinlang.org、www.ruby-lang.org、www.php.net、dart.dev。每个页面都要真的打开，读出页面上写的最新稳定版本号（页面上没写就打开它的下载页找），全部看完后整理成一张表（语言、最新版本、你在哪个页面看到的）。" },
+  h3: { max: 1500000, shotEvery: 60000, msg: "帮我做一份开源项目近况表。逐个用你的浏览器打开下面 12 个 GitHub 仓库：先打开仓库主页读 star 数，再打开它的 Releases 页面（仓库地址后面加 /releases）读最新正式版本号和发布日期。仓库：microsoft/vscode、facebook/react、vuejs/core、sveltejs/svelte、vitejs/vite、denoland/deno、oven-sh/bun、rust-lang/rust、golang/go、python/cpython、nodejs/node、tauri-apps/tauri。每个都要真的打开两页，不要凭记忆。全部看完后给我一张表（仓库、star、最新版本、发布日期），最后说一句你觉得哪个最近最活跃、为什么。" },
   h: { max: 900000, shotEvery: 45000, msg: "帮我调研 3 个开源 AI agent 框架：LangGraph、CrewAI、AutoGen。逐个用浏览器打开它们的 GitHub 仓库页面，记录 star 数、最新发布版本号和日期、主要编程语言，最后给我一个对比表和你的推荐理由。" },
 };
 const TASKS = (process.env.TASKS || "a").split(",");
@@ -56,7 +57,7 @@ try {
     arr.forEach((m, i) => { if (m.role === "tool") lastToolIdx = i; });
     arr.forEach((m, i) => { if (m.role === "assistant" && i > lastToolIdx) { const c = typeof m.content === "string" ? m.content : ""; if (c.trim()) finalText = c; } });
     const blocked = (tr.match(/\[blocked\]/g) || []).length;
-    const links = await page.locator('[data-slot="message-scroller-viewport"] a[href*="/files/download"]').evaluateAll((as) => as.map((a) => a.href)).catch(() => []);
+    const links = await page.locator('[data-slot="message-scroller-viewport"] a[href*="/files/download"], [data-slot="message-scroller-viewport"] a[href*="/api/chat-files/"]').evaluateAll((as) => as.map((a) => a.href)).catch(() => []);
     const linkChecks = [];
     for (const href of links.slice(0, 3)) linkChecks.push(await page.evaluate(async (h) => { const r = await fetch(h); const t = await r.text(); return { href: h.replace(location.origin, ""), status: r.status, type: r.headers.get("content-type"), disp: r.headers.get("content-disposition"), bytes: t.length, head: t.slice(0, 80) }; }, href).catch((e) => ({ href, error: String(e) })));
     const fallbackNotice = (tr.match(/已改用[^\n]*/g) || []).slice(0, 3);

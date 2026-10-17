@@ -38,6 +38,7 @@ import { workspaceUrlFor } from "./workspace-url";
 export {
   ComputerUnavailableError,
   ElementNotFoundError,
+  PageTimeoutError,
   HandoffRequestError,
   HumanHasControlError,
   NavigationRefusedError,

@@ -13,6 +13,9 @@ export function workspacePathOf(target: string): string | null {
   let t = target.trim();
   if (!t || t.startsWith("#") || t.startsWith("//")) return null;
   const lower = t.toLowerCase();
+  // 站内地址（「/api/chat-files/…」下载卡片的链接、「/p/…」网页）不是工作区文件：以「/」开头的只认 /workspace/…
+  // （以前被改写成 files/download?path=api/chat-files/… → 404，§101.11）。
+  if (t.startsWith("/") && !/^\/workspace\//i.test(t)) return null;
   if (lower.startsWith("https://workspace.local/") || lower.startsWith("http://workspace.local/")) {
     t = t.replace(/^https?:\/\/workspace\.local\//i, "");
   } else if (/^[a-z][a-z0-9+.-]*:/i.test(t)) {

@@ -12,6 +12,7 @@ import {
   type ComputerGateway,
   ComputerUnavailableError,
   ElementNotFoundError,
+  PageTimeoutError,
   HandoffRequestError,
   HumanHasControlError,
   NavigationRefusedError,
@@ -1112,7 +1113,7 @@ function handoffId(body: Record<string, unknown> | null): string {
   return body.requestId;
 }
 
-function statusFor(error: unknown): 400 | 403 | 404 | 409 | 413 | 500 | 503 {
+function statusFor(error: unknown): 400 | 403 | 404 | 409 | 413 | 422 | 500 | 503 {
   if (error instanceof HandoffRequestError) return error.status;
   if (error instanceof StaleSnapshotError) return 409;
   // Same status as a stale snapshot and for the same reason: nothing is broken, the caller has to do
@@ -1122,6 +1123,9 @@ function statusFor(error: unknown): 400 | 403 | 404 | 409 | 413 | 500 | 503 {
   // another snapshot. Not 503, which says the computer is unavailable and sends an operator hunting a
   // container that is running perfectly.
   if (error instanceof ElementNotFoundError) return 409;
+  // 页面没及时回应：不是 409（那会被说成「元素不在了」），也不是 503（电脑本身好好的）。不用 504：网关 / Cloudflare
+  // 会把 5xx 网关错误换成「正在更新」页，机器人拿不到这句说明。§101.12
+  if (error instanceof PageTimeoutError) return 422;
   // A person holding the wheel, or a person driving before taking it. Nothing is broken; the caller
   // has to wait or take control first, and 409 is how both of those are already reported.
   if (

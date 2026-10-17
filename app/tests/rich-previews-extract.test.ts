@@ -22,6 +22,11 @@ describe("聊天富预览：从文字里找链接和图片", () => {
     expect(urls("链接：\n  https://a.cn/p?x=1&y=2！  ")).toEqual(["https://a.cn/p?x=1&y=2"]);
   });
 
+  test("workspace.local 不是网页，不出链接卡（§101.11）", () => {
+    expect(urls("你可以从这里下载：\n[primes.py 下载](https://workspace.local/primes.py)")).toEqual([]);
+    expect(urls("https://workspace.local/a.csv")).toEqual([]);
+  });
+
   test("句子里的链接不出卡（DESIGN.md §48）", () => {
     expect(urls("看这个 https://example.com/a 还有 [文档](https://docs.example.com)")).toEqual([]);
     expect(urls("（来源：https://news.qq.com/x）")).toEqual([]);
