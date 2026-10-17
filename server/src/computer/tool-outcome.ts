@@ -13,6 +13,7 @@ import {
   ActionRefusedError,
   ComputerUnavailableError,
   ElementNotFoundError,
+  PageTimeoutError,
   HumanHasControlError,
   NavigationRefusedError,
   StaleSnapshotError,
@@ -54,6 +55,7 @@ export function computerFailureOutcome(
     };
   if (error instanceof ElementNotFoundError)
     return { ok: false, reason, staleRefs: true };
+  if (error instanceof PageTimeoutError) return { ok: false, reason, pageTimeout: true };
   if (
     error instanceof WorkspaceRequestError ||
     error instanceof WorkspaceNotFoundError ||

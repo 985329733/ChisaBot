@@ -2278,6 +2278,17 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
   用户点了停止不算超时、不换模型；没配备用模型时不设期限，照旧等。已经开始输出的流不受影响（读到的几段原样放回流的开头）。
 - 回归：`server/tests/model-fallback.test.ts`（卡住的 doGenerate / 只有 stream-start 的流换备用、按时输出的流原样、停止不换、没备用不设期限）。
 
+### 101.11 下载卡片的站内链接不再被当成工作区文件（`lib/chat/workspace-links.ts`）
+- 实测（e2，10-18 05:22）：机器人用 `file_share` 交了文件（聊天里有下载卡片，能下），又在回复里写了「[下载 primes.py](/api/chat-files/<id>)」，
+  §101.5 把它改写成 `files/download?path=api/chat-files/…` → 404。现在以「/」开头的目标只认 `/workspace/…`，其余站内地址（`/api/…`、`/p/…`、`/downloads/…`）原样。
+
+### 101.12 页面没及时回应 ≠「元素不在了」（`server/src/computer/client.ts` `PageTimeoutError`）
+- 实测（10-18 r7，hark.com 登录页）：截图、快照、打开网页全部回「That element is not on the page any more. Take a fresh snapshot…」，机器人照做、又超时，
+  原地快照了十来次（网页里看到的就是一串 409）。原因：Playwright 的任何「Timeout … exceeded」都被同一条正则说成「元素不在了」，连不指向元素的截图 / 快照超时也是。
+- 现在：只有带 `waiting for locator` / `aria-ref=` 的才是「元素不在了」（409 + staleRefs）；其余超时是「页面没及时回应，别循环重试，等几秒再试一次、改用 computer_read，或如实告诉用户」
+  （422 + `pageTimeout`；不用 504，网关会把 5xx 网关错误换成「正在更新」页）。
+- 回归：`server/tests/computer-client.test.ts`（截图超时 → PageTimeoutError；定位超时仍是 ElementNotFoundError）。
+
 - 回归：`app/tests/active-bot-routing.test.tsx`、`app/tests/cjk-emphasis.test.ts`、`app/tests/workspace-links.test.ts`、`server/tests/model-fallback.test.ts`（坏候选不挡路、冷却中主模型兜底、429 冷却）、
   `server/tests/confirmations.test.ts`（非网页回合放卡片、旧卡作废）、`server/tests/step-budget.test.ts`。PC 客户端加载服务器网页，不需要更新客户端。
 

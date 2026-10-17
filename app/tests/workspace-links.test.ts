@@ -13,7 +13,7 @@ describe("workspace file links (§101)", () => {
     expect(workspacePathOf("https://workspace.local/page.html")).toBe("page.html");
   });
   test("leaves everything else alone", () => {
-    for (const t of ["https://github.com/a", "mailto:a@b.c", "#top", "data:text/plain,x", "../etc/passwd", "看这里", "//cdn.x/y.js"])
+    for (const t of ["https://github.com/a", "mailto:a@b.c", "#top", "data:text/plain,x", "../etc/passwd", "看这里", "//cdn.x/y.js", "/api/chat-files/861666c0-849d-4d24-873a-f5655e2a0451", "/p/weekend/", "/downloads/pc/a.exe"])
       expect(workspacePathOf(t)).toBeNull();
   });
   test("rewrites links outside code only", () => {
