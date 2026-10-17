@@ -1,5 +1,6 @@
 import { Outlet, useRouterState } from "@tanstack/react-router";
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { KeepAliveStage } from "@/components/layout/keep-alive";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { GlassShell } from "@/components/layout/glass-shell";
 import type { ShellScope } from "@/components/layout/glass-topbar";
@@ -55,7 +56,7 @@ function ShellFrame({ pathname }: { pathname: string }) {
       scope={scope}
       sidebar={sidebar}
     >
-      <KeepAliveStage pathname={pathname} />
+      <ChatStage pathname={pathname} />
     </GlassShell>
   );
 }
@@ -90,92 +91,28 @@ function useChatAddress(): ChatAddress | null {
   return { channelId, ...(settings ? { settings: true } : {}), ...(watch === null ? {} : { watch }) };
 }
 
-const sameAddress = (a: ChatAddress | null, b: ChatAddress | null) =>
-  a === b || (a !== null && b !== null && a.channelId === b.channelId && a.settings === b.settings && a.watch === b.watch);
+const sameAddress = (a: ChatAddress, b: ChatAddress) =>
+  a.channelId === b.channelId && a.settings === b.settings && a.watch === b.watch;
 
-/** 藏着的聊天留多久（之后卸载，回来走正常的打开：先画上次的样子，再接入）。 */
-export const KEPT_CHAT_TTL_MS = 10 * 60_000;
-
-/**
- * 主区：留着的聊天 + 当前路由。
- *
- * - 地址是聊天（或 `/` 正在跳转到聊天）：留着的聊天看得见，路由那一层不占位置（聊天路由本身什么都不画）。
- * - 别的页面：路由那一层盖在上面（`absolute inset-0`，和主区一样的 flex 列），聊天藏在下面——
- *   `visibility: hidden` + `inert`，宽高冻在离开时的样子（右栏、横幅没了主区会变宽变高，不冻的话整段对话要重排，
- *   回来时滚动位置就对不上了）。
- */
-function KeepAliveStage({ pathname }: { pathname: string }) {
+/** 主区：留着的聊天 + 当前路由（`KeepAliveStage`，DESIGN.md §98）。`/` 正在跳到聊天时，留着的聊天照样露着。 */
+function ChatStage({ pathname }: { pathname: string }) {
   const address = useChatAddress();
-  const [kept, setKept] = useState<ChatAddress | null>(address);
-  if (address && !sameAddress(address, kept)) setKept(address);
-  const chatVisible = address !== null || (kept !== null && pathname === "/");
-  const visible = kept !== null && chatVisible;
-
-  // 回到看得见的次数：给聊天当「这是一次回来」的记号。
-  const [epoch, setEpoch] = useState(0);
-  const [wasVisible, setWasVisible] = useState(visible);
-  if (visible !== wasVisible) {
-    setWasVisible(visible);
-    if (visible) setEpoch((n) => n + 1);
-  }
-
-  // 藏太久就放掉（不再每 2 秒问服务器这段对话的动静）。
-  useEffect(() => {
-    if (visible || kept === null) return;
-    const timer = window.setTimeout(() => setKept(null), KEPT_CHAT_TTL_MS);
-    return () => window.clearTimeout(timer);
-  }, [visible, kept]);
-
-  // 看得见时一直记着尺寸；藏起来那一刻用记下的尺寸冻住（在新页面画出来之前，同一次提交里）。
-  const box = useRef<HTMLDivElement>(null);
-  const size = useRef<{ width: number; height: number } | null>(null);
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el || !visible) return;
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) size.current = { width: rect.width, height: rect.height };
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [visible, kept?.channelId]);
-
-  const frozen = !visible && size.current;
-  const keptStyle: CSSProperties | undefined = visible
-    ? undefined
-    : {
-        visibility: "hidden",
-        pointerEvents: "none",
-        ...(frozen ? { flex: "none", width: size.current?.width, height: size.current?.height } : {}),
-      };
-
   return (
-    <div className="keep-stage relative flex min-h-0 min-w-0 flex-1 flex-col" data-chat-visible={visible ? "true" : "false"}>
-      {kept ? (
-        <div
-          aria-hidden={visible ? undefined : true}
-          className="kept-chat flex min-h-0 min-w-0 flex-1 flex-col"
-          data-kept-chat={kept.channelId}
-          data-visible={visible ? "true" : "false"}
-          inert={!visible}
-          ref={box}
-          style={keptStyle}
-        >
-          <ChannelPage
-            channelId={kept.channelId}
-            epoch={epoch}
-            settings={kept.settings}
-            visible={visible}
-            watch={kept.watch}
-          />
-        </div>
-      ) : null}
-      {/* 同一个位置、只换样式：路由内容不会因为聊天留没留着而重新挂载。 */}
-      <div className={chatVisible ? "route-layer contents" : "route-layer absolute inset-0 z-[1] flex min-h-0 min-w-0 flex-col"}>
-        <Outlet />
-      </div>
-    </div>
+    <KeepAliveStage
+      address={address}
+      idleVisible={pathname === "/"}
+      renderKept={(kept, { visible, epoch }) => (
+        <ChannelPage
+          channelId={kept.channelId}
+          epoch={epoch}
+          settings={kept.settings}
+          visible={visible}
+          watch={kept.watch}
+        />
+      )}
+      same={sameAddress}
+    >
+      <Outlet />
+    </KeepAliveStage>
   );
 }

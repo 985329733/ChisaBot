@@ -130,7 +130,7 @@ describe("接线", () => {
   });
 
   test("对话页 / 空聊天都用按机器人记住的「计算机」", () => {
-    expect(route).toContain("useBotComputerTab(agentId, watch, writeWatch)");
+    expect(route).toContain("useBotComputerTab(agentId, watch, writeWatch, epoch)");
     expect(fresh).toContain("useBotComputerTab(");
     expect(src("components/channels/channel-chat.tsx")).toContain("draftKey={channel.id}");
     expect(src("components/channels/conversation-view.tsx")).toContain("{...(draftKey ? { draftKey } : {})}");

@@ -61,15 +61,10 @@ export function ChannelPage({ channelId, settings, watch, visible, epoch }: Chan
     ...channelQueryOptions(channelId),
     placeholderData: () => channelFromRoster(queryClient, channelId),
   });
-  const routeNavigate = useNavigate({ from: "/channel/$channelId" });
+  const navigate = useNavigate({ from: "/channel/$channelId" });
+  /** 藏着的时候（DESIGN.md §98），地址属于别的页面：这里不改地址。 */
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
-  /** 藏着的时候，地址属于别的页面：这里的任何导航都不做。 */
-  const navigate = useCallback(
-    (options: Parameters<typeof routeNavigate>[0]) =>
-      visibleRef.current ? routeNavigate(options) : Promise.resolve(),
-    [routeNavigate],
-  );
   const isSettingsOpen = settings === true;
   /**
    * Channel routing currently supports one coworker. 刷新时对话详情还没读到：先用这台设备记下的「这段对话是哪个
@@ -113,11 +108,13 @@ export function ChannelPage({ channelId, settings, watch, visible, epoch }: Chan
   // 计算机在右栏「面板 | 计算机」里（DESIGN.md §23）；设置窗格仍是聊天旁的详情栏，两者互不挤占。
   // 按机器人记住选的是哪个标签（DESIGN.md §88）：地址里没有 `watch` 时用上次的。
   const writeWatch = useCallback(
-    (open: boolean, replace: boolean) =>
+    (open: boolean, replace: boolean) => {
+      if (!visibleRef.current) return;
       void navigate({
         search: (previous) => ({ ...previous, watch: open ? true : undefined }),
         replace,
-      }),
+      });
+    },
     [navigate],
   );
   const [isWatching, setWatching] = useBotComputerTab(agentId, watch, writeWatch, epoch);
@@ -131,9 +128,9 @@ export function ChannelPage({ channelId, settings, watch, visible, epoch }: Chan
 
   return (
     <DetailPanel
-      onClose={() =>
-        void navigate({ search: (previous) => ({ ...previous, settings: undefined }) })
-      }
+      onClose={() => {
+        if (visibleRef.current) void navigate({ search: (previous) => ({ ...previous, settings: undefined }) });
+      }}
       // 设置窗格在窄窗口里是画在 body 上的抽屉：藏着时关掉，别盖在别的页面上。
       open={visible && isSettingsOpen && agentId !== undefined}
       detail={agentId === undefined ? null : <AgentProfile agentId={agentId} />}
