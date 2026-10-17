@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useKeptVisible } from "@/lib/kept-visible";
 import { readControl } from "@/lib/computers/control";
 import {
   forgetHandoff,
@@ -29,8 +30,10 @@ export function HandoffResumeNotice({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
+  // 聊天被外壳藏着时（DESIGN.md §98.3）不每秒问控制权；回来时马上再查一次。
+  const onScreen = useKeptVisible();
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !onScreen) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout>;
     const check = async () => {
@@ -67,9 +70,15 @@ export function HandoffResumeNotice({
     return () => {
       live = false;
       clearTimeout(timer);
-      controller.current?.abort("detached");
     };
-  }, [botId, agent, ready]);
+  }, [botId, agent, ready, onScreen]);
+  // 正在继续的任务只在换了机器人 / 对话或卸载时放弃——藏起来不算。
+  useEffect(
+    () => () => {
+      controller.current?.abort("detached");
+    },
+    [botId, agent],
+  );
 
   const resume = async () => {
     if (!pending || busy) return;

@@ -16,6 +16,8 @@ export function useBotComputerTab(
   agentId: string | undefined,
   watch: boolean | undefined,
   writeUrl: (open: boolean, replace: boolean) => void,
+  /** 聊天从藏着变回看得见时加一（DESIGN.md §98）：这期间地址的变化不是「浏览器后退关上」。 */
+  epoch = 0,
 ): [boolean, (open: boolean) => void] {
   const remembered = botUi(agentId)?.computer === true;
   const open = watch === true ? true : watch === false ? false : remembered;
@@ -34,14 +36,14 @@ export function useBotComputerTab(
   }, [agentId, open, watch, writeUrl]);
 
   // 同一个机器人页里，地址从「开着」变成没有（浏览器后退）= 关上。
-  const previous = useRef<{ agentId: string | undefined; watch: boolean | undefined }>({ agentId, watch });
+  const previous = useRef<{ agentId: string | undefined; watch: boolean | undefined; epoch: number }>({ agentId, watch, epoch });
   useEffect(() => {
     const was = previous.current;
-    previous.current = { agentId, watch };
-    if (agentId && was.agentId === agentId && was.watch === true && watch !== true) {
+    previous.current = { agentId, watch, epoch };
+    if (agentId && was.agentId === agentId && was.epoch === epoch && was.watch === true && watch !== true) {
       setBotUi(agentId, { computer: false });
     }
-  }, [agentId, watch]);
+  }, [agentId, watch, epoch]);
 
   const setOpen = useCallback((next: boolean) => {
     const { agentId: id, writeUrl: write } = latest.current;

@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
+import { useKeptVisible } from "@/lib/kept-visible";
 
 export function currentPageVisible(): boolean {
   if (typeof document === "undefined") return true;
   return document.visibilityState !== "hidden" && !document.hidden;
 }
 
+/** 页面在前台，且这块没被外壳藏起来（留着的聊天 / 右栏，DESIGN.md §98.3）。 */
 export function usePageVisible(): boolean {
+  const kept = useKeptVisible();
   const [visible, setVisible] = useState(currentPageVisible);
 
   useEffect(() => {
@@ -15,7 +18,7 @@ export function usePageVisible(): boolean {
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
 
-  return visible;
+  return visible && kept;
 }
 
 export function useElementVisible<T extends Element>(): [

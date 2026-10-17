@@ -1,3 +1,4 @@
+import { useKeptVisible } from "@/lib/kept-visible";
 import { useEffect, useSyncExternalStore } from "react";
 import { tryClient } from "@/lib/client";
 
@@ -124,7 +125,10 @@ const POLL_MS = 2_000;
 /**
  * 标签列表。`poll` 为真时（画面在屏幕上、没有直播 socket 在推）每 2 秒问一次。
  */
-export function useBrowserTabs(computerId: string, poll: boolean): TabsView | null {
+export function useBrowserTabs(computerId: string, pollWanted: boolean): TabsView | null {
+  // 藏着的聊天 / 右栏不轮询（DESIGN.md §98.3）。
+  const kept = useKeptVisible();
+  const poll = pollWanted && kept;
   const view = useSyncExternalStore(
     (listener) => subscribe(computerId, listener),
     () => views.get(computerId) ?? null,

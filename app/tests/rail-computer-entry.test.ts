@@ -19,7 +19,8 @@ const registration = (source: string) => {
 
 describe("右栏计算机入口", () => {
   test("已有对话登记了计算机开关", () => {
-    const tag = registration(read("$channelId.tsx"));
+    // 已有对话的整页在 components/channels/channel-page.tsx（外壳留着它，DESIGN.md §98）。
+    const tag = registration(readFileSync(join(import.meta.dir, "../src/components/channels/channel-page.tsx"), "utf8"));
     expect(tag).toContain("onComputerChange=");
     expect(tag).toContain("computerOpen=");
   });

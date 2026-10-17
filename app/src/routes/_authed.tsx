@@ -1,4 +1,5 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { AuthedShell } from "../components/layout/authed-shell";
 import { currentUserQueryOptions, needsOnboarding } from "../lib/auth/queries";
 import { ProfileSetupGate } from "../components/layout/profile-dialog";
 import { CopilotProvider } from "../lib/copilot/provider";
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/_authed")({
     <CopilotProvider>
       <AppHotkeys />
       <ScheduleNotifier />
-      <Outlet />
+      <AuthedShell />
       <ProfileSetupGate />
     </CopilotProvider>
   ),

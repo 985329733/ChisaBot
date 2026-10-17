@@ -1,6 +1,4 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { AdminSidebar } from "@/components/admin/admin-sidebar";
-import { GlassShell } from "@/components/layout/glass-shell";
 import { currentUserQueryOptions } from "../../../lib/auth/queries";
 
 export const Route = createFileRoute("/_authed/admin")({
@@ -15,10 +13,7 @@ export const Route = createFileRoute("/_authed/admin")({
   component: RouteComponent,
 });
 
+/** 外壳（管理左栏）由 `_authed` 的 `AuthedShell` 画（DESIGN.md §98）。 */
 function RouteComponent() {
-  return (
-    <GlassShell scope="admin" sidebar={<AdminSidebar className="glass-sidebar-container" />}>
-      <Outlet />
-    </GlassShell>
-  );
+  return <Outlet />;
 }

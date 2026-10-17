@@ -1,5 +1,6 @@
-import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useEffect } from "react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { type ReactNode, useEffect, useRef } from "react";
+import { KeptVisibleContext } from "@/lib/kept-visible";
 import { GlassTopBar, type ShellScope } from "@/components/layout/glass-topbar";
 import { PhoneGestures } from "@/components/layout/phone-gestures";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
@@ -19,6 +20,7 @@ export function GlassShell({
   scope,
   sidebar,
   right,
+  rightHidden = false,
   banner,
   mode,
   children,
@@ -28,6 +30,8 @@ export function GlassShell({
   mode?: string;
   sidebar: ReactNode;
   right?: ReactNode;
+  /** 右栏留着但不显示（设置 / 管理里），回到聊天时不重新挂载（DESIGN.md §98）。 */
+  rightHidden?: boolean;
   banner?: ReactNode;
   children: ReactNode;
 }) {
@@ -37,6 +41,7 @@ export function GlassShell({
         <GlassTopBar scope={scope} />
         <SearchHotkey scope={scope} />
         <DrawerCloser />
+        <CloseDrawerOnScope scope={scope} />
         <PhoneGestures />
         {sidebar}
         <div className="glass-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-scope={scope}>
@@ -44,7 +49,12 @@ export function GlassShell({
             {banner}
             <ShellBoundary>{children}</ShellBoundary>
           </main>
-          {right}
+          {right ? (
+            <div className={rightHidden ? "hidden" : "contents"} data-right-hidden={rightHidden ? "true" : undefined}>
+              {/* 藏着的右栏不轮询、不放画面（DESIGN.md §98.3）。 */}
+              <KeptVisibleContext.Provider value={!rightHidden}>{right}</KeptVisibleContext.Provider>
+            </div>
+          ) : null}
         </div>
       </SidebarShell>
     </TopBarOwnsSidebarToggle.Provider>
@@ -62,6 +72,35 @@ function DrawerCloser() {
     window.addEventListener(CLOSE_DRAWER_EVENT, close);
     return () => window.removeEventListener(CLOSE_DRAWER_EVENT, close);
   }, [sidebar]);
+  return null;
+}
+
+/** 地址属于外壳的哪一块（聊天 / 设置 / 管理）。 */
+export function scopeOfPath(pathname: string): ShellScope {
+  if (pathname === "/settings" || pathname.startsWith("/settings/")) return "settings";
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
+  return "app";
+}
+
+/**
+ * 外壳只有一个（DESIGN.md §98）：手机上抽屉的开关状态不再随外壳卸载而清掉。换区域（聊天 ↔ 设置 ↔ 管理）时
+ * 收起抽屉，而且要在**导航开始前**收：新区域的左栏是另一个组件，它的抽屉如果以「开着」挂上、紧接着在 effect
+ * 里关掉，退出动画永远不会开始，透明的抽屉就一直盖在页面上、点不动（2026-10-17 预览 390 实测）。
+ */
+function CloseDrawerOnScope({ scope }: { scope: ShellScope }) {
+  const sidebar = useOptionalSidebar();
+  const router = useRouter();
+  const latest = useRef({ scope, sidebar });
+  latest.current = { scope, sidebar };
+  useEffect(
+    () =>
+      router.subscribe("onBeforeNavigate", ({ toLocation }) => {
+        const { scope: current, sidebar: bar } = latest.current;
+        if (scopeOfPath(toLocation.pathname) === current) return;
+        if (bar?.isMobile && bar.openMobile) bar.setOpenMobile(false);
+      }),
+    [router],
+  );
   return null;
 }
 
