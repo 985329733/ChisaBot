@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { serve } from "bun";
 import type { BrowserContext, Page } from "playwright";
 import { downloadHeaders } from "../../shared/file-download";
+import { visiblePageText } from "./readable-text";
 import {
   cutAtCodeUnits,
   parseAriaSnapshot,
@@ -471,14 +472,8 @@ async function currentPage(
 async function readablePageText(
   target: Page,
 ): Promise<{ text: string; truncated: boolean }> {
-  const raw = await target.evaluate(() => {
-    const clone = document.body?.cloneNode(true) as HTMLElement | undefined;
-    if (!clone) return "";
-    for (const node of clone.querySelectorAll("script, style, noscript, svg")) {
-      node.remove();
-    }
-    return clone.innerText ?? "";
-  });
+  // 只要人看得见的字：藏着的备用提示不算（§101.8，readable-text.ts）。
+  const raw = await target.evaluate(visiblePageText);
 
   const collapsed = raw.replace(/\n{3,}/g, "\n\n").trim();
   return {

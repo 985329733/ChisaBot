@@ -92,7 +92,7 @@
 | [92](#92-窄窗口里输入框两边也留白2026-10-16) | 窄窗口里输入框两边也留白 | 2026-10-16，CB-078 |
 | [99](#99-云端浏览器卡死保护--已删除机器人的浏览器2026-10-17) | 云端浏览器卡死保护 + 已删除机器人的浏览器 | 2026-10-17 |
 | [100](#100-原生下拉框能选回合不再静默结束2026-10-17) | 原生下拉框能选、回合不再静默结束 | 2026-10-17 |
-| [101](#101-真实任务验收修复工具打到对的机器人备用模型定时任务的确认步数收尾2026-10-18) | 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾 | 2026-10-18 |
+| [101](#101-真实任务验收修复工具打到对的机器人备用模型定时任务的确认步数收尾python后台确认卡片2026-10-18) | 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾、Python、后台确认卡片、主模型卡住换备用 | 2026-10-18 |
 
 ## 0. 总原则
 
@@ -2209,7 +2209,7 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 
 - 回归：`agent-computer/tests/native-select.test.ts`（选项规则、快照折叠；`OPENBOT_COMPUTER_BROWSER=1` 时真 Chromium 选出 2000-07-12 并触发 change）、`server/tests/computer-tool-outcome.test.ts`（失败映射、路由 200 / 500）、`app/tests/turn-unfinished.test.tsx`（500 交回结果不抛、`neverThrow`、`unfinishedTurnReason`、提示文案）；端到端 `tests/native-select/turn.mjs`（预览 / 生产：API 选择、真模型对话选出 2000-07-12、模拟接力 run 500 出提示、模拟计算机请求 500 后机器人自己恢复）。
 
-## 101. 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾（2026-10-18）
+## 101. 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾、Python、后台确认卡片（2026-10-18）
 
 起因（用户 2026-10-18 01:39）：「目前chisabot用起来还是一堆问题……你试过真正让bot干一件事吗？现在是任何事都干不了，就是一个纯花架子」。
 做法：先只读查生产 10-17 18:00 之后用户真实机器人（星灵、Asuna）的每一轮（`openbot_local_runs` / 事件 / 审计 / 网关日志），再在生产用一次性机器人 + 临时会话，
@@ -2247,6 +2247,36 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 
 ### 101.6 云端浏览器能用 WebGL（`agent-computer/src/profiles.ts`）
 - 云端没有显卡，新版 Chromium 不再自动退回软件 WebGL，Hark 登录页等要 WebGL 的页面只显示「需要 WebGL」。容器里的 Chromium 加 `--enable-unsafe-swiftshader`（本机 Chrome 不加）。
+
+### 101.7 机器人的电脑里有 Python（仓库根 `Dockerfile`）
+- 实测（10-18）：「写一段 Python 代码……真的运行它」——镜像里没有解释器，机器人改用 Node 跑、回复里却给出它从没运行过的 Python。
+- 应用镜像装 `python3`、`python3-pip`、`python3-venv`、`python-is-python3`（`python` / `python3` 都能用）；`python -m venv` + pip 不用 sudo
+  （Ubuntu 的系统 pip 受 PEP 668 限制，装包走 venv）。依赖层变了 → 这一版是完整构建。
+- 验收：e2（写 primes.py 保存到工作区、真的运行、回复里给下载链接，链接能下载到同一份文件）。
+
+### 101.8 读网页只读人看得见的字（`agent-computer/src/readable-text.ts`）
+- 实测：Hark 登录页截图一切正常，机器人读到的第一句却是藏着的备用提示「This wallpaper needs WebGL…」，以为页面坏了。
+  原因：以前在 body 的**克隆**上取 innerText，克隆没有布局，innerText 退化成 textContent，`display:none` / `visibility:hidden` 的字全进来了。
+- 现在取活页面的 `innerText`（按布局：藏起来的不算，script / style 本来就不算）；活页面取到的是空的才退回原来的克隆做法。
+- 回归：`agent-computer/tests/readable-text.test.ts`（真 Chromium，`OPENBOT_COMPUTER_BROWSER=1`）。
+
+### 101.9 没绑到工具调用的确认卡片也画在聊天里（`components/chat/confirm-card.tsx` `LooseConfirmCards`）
+- 实测：定时任务到点在后台点网页上的「发送」→ 服务器照 §101.3 放了卡片，但聊天里看不到，只有「待处理」页有。
+  原因：网页上的点击走 `/api/approvals/computer`，服务器那边拿不到工具调用 id，卡片的 `toolCallId` 是空的；聊天只在工具调用那一行下面画卡片
+  （而且只在有「简单回合」时才取这段对话的卡片列表）。
+- 现在：这段对话里 `toolCallId` 为空、还在等的卡片画在对话最下面（chat-tail，和「思考中」「已停止」同一格，不在滚动区外面）。
+  这一页上看着它在等、点了确认 / 取消的，原地收成一行，直到服务器放进来的「用户确认了」那条（带卡片 id）出现——那一行就是记录，卡片让位，不画两遍；
+  打开对话之前就已经决定了的不画。后台回合的消息同步进来（列表变长）时再取一次卡片列表；有卡在等时照旧 1.5 秒一取。
+- 流程：定时任务到点 → 后台点「发送」→ 卡片放好 → 用户回到聊天看到卡片 → 点「确认」→ 服务器往对话发「用户确认了」→ 机器人接着做完。
+- 删掉机器人时它还在等的卡片作废（`agents/purge.ts`，状态 cancelled，记录留着）——以前删掉的测试机器人留下两张永远在等的卡片。
+- 回归：`app/tests/loose-confirm.test.ts`；生产实测 `tests/realtest/sched.mjs`。
+
+### 101.10 主模型一直不回也换备用模型（`server/src/agents/model-fallback.ts`）
+- 生产证据（10-18）：管理员自检 `codex/gpt-6-luna` 45007 ms 一个字没回、判失败，备用模型一次都没被用上——包装只在主模型**报错**时换，一直不回不算错。
+- 现在：有备用模型可换时，主模型的第一段输出有期限（默认 30 秒，`CHISABOT_MODEL_FIRST_OUTPUT_MS`，0 关闭）：流式算到第一段真正的内容
+  （`stream-start` 不算），非流式算到整个结果。到期中止这次请求、主模型冷却 1 分钟（日志 `primary-timeout`），换下一个候选，对话里照 §61 出「主模型暂时不可用，已改用 X」。
+  用户点了停止不算超时、不换模型；没配备用模型时不设期限，照旧等。已经开始输出的流不受影响（读到的几段原样放回流的开头）。
+- 回归：`server/tests/model-fallback.test.ts`（卡住的 doGenerate / 只有 stream-start 的流换备用、按时输出的流原样、停止不换、没备用不设期限）。
 
 - 回归：`app/tests/active-bot-routing.test.tsx`、`app/tests/cjk-emphasis.test.ts`、`app/tests/workspace-links.test.ts`、`server/tests/model-fallback.test.ts`（坏候选不挡路、冷却中主模型兜底、429 冷却）、
   `server/tests/confirmations.test.ts`（非网页回合放卡片、旧卡作废）、`server/tests/step-budget.test.ts`。PC 客户端加载服务器网页，不需要更新客户端。

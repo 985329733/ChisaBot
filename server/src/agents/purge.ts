@@ -215,6 +215,14 @@ export function createAgentPurge(options: {
       );
       if ((workers as { present?: boolean } | undefined)?.present)
         await tx.execute(sql`delete from chisabot_workers where agent_id = ${agentId}`);
+      // 这个机器人还在等确认的卡片（§58 / §101.9）：机器人没了，卡片永远等不到下文，作废（记录留着）。
+      const [confirms] = await tx.execute<{ present: boolean }>(
+        sql`select to_regclass('public.chisabot_confirm_requests') is not null as present`,
+      );
+      if ((confirms as { present?: boolean } | undefined)?.present)
+        await tx.execute(
+          sql`update chisabot_confirm_requests set status = 'cancelled', decided_at = now() where agent_id = ${agentId} and status = 'pending'`,
+        );
       // 全端同步的「当前对话」指针（bot-threads.ts，DESIGN.md §42）。
       const [pointers] = await tx.execute<{ present: boolean }>(
         sql`select to_regclass('public.chisabot_bot_threads') is not null as present`,

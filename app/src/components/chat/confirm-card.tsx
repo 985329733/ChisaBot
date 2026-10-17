@@ -10,7 +10,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { isChatRunning } from "@/lib/copilot/computer-activity";
 import {
   CONFIRM_CATEGORY_INFO,
@@ -245,6 +245,50 @@ function ToolConfirmCards({ ids, answered, recent }: { ids: readonly string[]; a
   if (!cards.length) return null;
   return (
     <div className="cf-stack">
+      {cards.map((request) => (
+        <ConfirmRequestCard key={request.id} request={request} threadId={threadId} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 没绑到工具调用的确认卡片（DESIGN.md §101.9）：网页上点「发送 / 删除」走 /api/approvals/computer，服务器那边拿不到
+ * 工具调用 id；定时任务 / IM 触发的后台回合放的卡片也一样（§101.3）。以前它们只在「待处理」页出现，聊天里看不到。
+ *
+ * 画法：还在等的画在对话最下面（chat-tail）；这一页上亲眼看着它在等、后来被决定的，原地收成一行留着，直到服务器
+ * 放进来的「用户确认了」那条（`resumed`，带这张卡的 id）出现——那一行就是它的记录，卡片让位，不画两遍。
+ * 打开对话前就已经决定了的不画（记录是那一行 / 「待处理」）。
+ */
+export function looseConfirmations(
+  list: readonly ConfirmRequestView[],
+  seen: ReadonlySet<string>,
+  resumed: ReadonlySet<string>,
+): ConfirmRequestView[] {
+  return list
+    .filter((request) => !request.toolCallId && !resumed.has(request.id) && (request.status === "pending" || seen.has(request.id)))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+const RESUME_ID = /^⟦chisabot:confirm:([^⟧]+)⟧/;
+/** 「用户确认了」那条消息里的卡片 id。 */
+export const confirmResumeId = (text: string): string | null => RESUME_ID.exec(text)?.[1] ?? null;
+
+export function LooseConfirmCards({ resumed, version }: { resumed: ReadonlySet<string>; version: number }) {
+  const chat = useCopilotChatConfiguration();
+  const threadId = chat?.threadId ?? null;
+  const list = useThreadConfirmations(threadId, false);
+  const queryClient = useQueryClient();
+  // 后台回合的消息同步进来（列表变长）时卡片多半也刚放好：再取一次。有卡在等时 useThreadConfirmations 自己 1.5 秒一取。
+  useEffect(() => {
+    if (threadId && version > 0) void queryClient.invalidateQueries({ queryKey: confirmKeys.thread(threadId) });
+  }, [threadId, version, queryClient]);
+  const seen = useRef<Set<string>>(new Set());
+  for (const request of list.data ?? []) if (request.status === "pending" && !request.toolCallId) seen.current.add(request.id);
+  const cards = looseConfirmations(list.data ?? [], seen.current, resumed);
+  if (!cards.length) return null;
+  return (
+    <div className="cf-stack cf-loose" data-testid="loose-confirm-cards">
       {cards.map((request) => (
         <ConfirmRequestCard key={request.id} request={request} threadId={threadId} />
       ))}

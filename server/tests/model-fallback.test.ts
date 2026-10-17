@@ -237,4 +237,95 @@ describe("model fallback on quota errors", () => {
     expect(fallbackNotice({ to: "clinepass/cline-free/step-5-preview", reason: "quota" })).toBe("主模型额度用完，已改用 step-5-preview");
     expect(fallbackNotice({ to: "codex/gpt-5.6-luna", reason: "unavailable" })).toBe("主模型暂时不可用，已改用 gpt-5.6-luna");
   });
+
+  // §101.10：主模型一直不回（不报错）时也换备用模型。
+  describe("primary that never answers", () => {
+    const parts = (stream: ReadableStream<{ type?: string }>) =>
+      (async () => {
+        const out: unknown[] = [];
+        const reader = stream.getReader();
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) return out;
+          out.push(next.value);
+        }
+      })();
+    const hangs = () =>
+      fakeModel("p", () => new Promise(() => {})).model;
+
+    test("doGenerate that hangs past the deadline goes to the backup and cools the primary 1 min", async () => {
+      const backup = fakeModel("b", async () => ({ ok: "b" }));
+      const logs: Record<string, unknown>[] = [];
+      const wrapped = fallbackLanguageModel(hangs(), "c/p", { candidates: async () => ["c/b"], build: () => backup.model, log: (l) => logs.push(l), firstOutputMs: 30 });
+      const seen: FallbackUse[] = [];
+      expect(await withFallbackListener((use) => seen.push(use), () => wrapped.doGenerate({}))).toEqual({ ok: "b" });
+      expect(seen).toEqual([{ from: "c/p", to: "c/b", reason: "unavailable" }]);
+      expect(logs.some((l) => l.event === "primary-timeout")).toBe(true);
+      expect(coolingDown("c/p", Date.now() + 30_000)).toBe(true);
+      expect(coolingDown("c/p", Date.now() + 61_000)).toBe(false);
+    });
+
+    test("doStream whose stream only says stream-start counts as no output; the hung request is aborted", async () => {
+      let signal: AbortSignal | undefined;
+      const primary = {
+        modelId: "p",
+        async doStream(options: { abortSignal?: AbortSignal }) {
+          signal = options.abortSignal;
+          return { stream: new ReadableStream({ start: (c) => c.enqueue({ type: "stream-start" }) }) };
+        },
+      };
+      const backup = fakeModel("b", async () => ({ ok: "b" }));
+      const wrapped = fallbackLanguageModel(primary, "c/p", { candidates: async () => ["c/b"], build: () => backup.model, log: () => {}, firstOutputMs: 30 });
+      expect(await wrapped.doStream({})).toEqual({ ok: "b" });
+      expect(signal?.aborted).toBe(true);
+    });
+
+    test("a primary that streams in time is untouched: same parts in order, nothing announced", async () => {
+      const primary = {
+        modelId: "p",
+        async doStream() {
+          return {
+            request: { id: 1 },
+            stream: new ReadableStream({
+              start(c) {
+                c.enqueue({ type: "stream-start" });
+                c.enqueue({ type: "text-delta", delta: "你" });
+                setTimeout(() => {
+                  c.enqueue({ type: "text-delta", delta: "好" });
+                  c.close();
+                }, 60);
+              },
+            }),
+          };
+        },
+      };
+      const wrapped = fallbackLanguageModel(primary, "c/p", { candidates: async () => ["c/b"], build: () => null, log: () => {}, firstOutputMs: 30 });
+      const seen: FallbackUse[] = [];
+      const result = (await withFallbackListener((use) => seen.push(use), () => wrapped.doStream({}))) as { request: unknown; stream: ReadableStream<{ type?: string }> };
+      expect(result.request).toEqual({ id: 1 });
+      expect(await parts(result.stream)).toEqual([{ type: "stream-start" }, { type: "text-delta", delta: "你" }, { type: "text-delta", delta: "好" }]);
+      expect(seen).toEqual([]);
+      expect(coolingDown("c/p")).toBe(false);
+    });
+
+    test("the person pressing stop is not a timeout: no backup", async () => {
+      const backup = fakeModel("b", async () => ({ ok: "b" }));
+      const primary = {
+        modelId: "p",
+        doGenerate: (options: { abortSignal?: AbortSignal }) =>
+          new Promise((_, reject) => options.abortSignal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))),
+      };
+      const wrapped = fallbackLanguageModel(primary, "c/p", { candidates: async () => ["c/b"], build: () => backup.model, log: () => {}, firstOutputMs: 5_000 });
+      const stop = new AbortController();
+      setTimeout(() => stop.abort(), 20);
+      await expect(wrapped.doGenerate({ abortSignal: stop.signal })).rejects.toThrow("aborted");
+      expect(backup.calls.length).toBe(0);
+    });
+
+    test("no backup configured: no deadline, the primary is waited for", async () => {
+      const primary = fakeModel("p", () => new Promise((resolve) => setTimeout(() => resolve({ ok: "slow" }), 80)));
+      const wrapped = fallbackLanguageModel(primary.model, "c/p", { candidates: async () => [], build: () => null, log: () => {}, firstOutputMs: 20 });
+      expect(await wrapped.doGenerate({})).toEqual({ ok: "slow" });
+    });
+  });
 });
