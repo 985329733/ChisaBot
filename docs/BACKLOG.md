@@ -1,5 +1,7 @@
 # Backlog（议题清单）
 
+> 状态最后核对：2026-10-17（origin/main `0e23321`）。
+>
 > **为什么是文件**：仓库的 GitHub Issues 目前是关闭的（fork 默认关闭，自动化令牌没有仓库管理权限，开不了）。在仓库所有者打开
 > Settings → General → Features → Issues 之前，这里就是 issue 列表；打开之后每一条按 ID 原样建成 GitHub issue，标签、里程碑、
 > 验收标准一致，这个文件改成索引（ID → issue 编号）。标签和里程碑已经在 GitHub 上建好。
@@ -15,7 +17,7 @@
 |---|---|---|---|
 | [CB-001](#cb-001) | 审批卡片与审批偏好（Hark parity 第 5 项） | Hark parity | `type: feat` · `area: approvals` · `area: chat` · `P1` · `status: done` |
 | [CB-002](#cb-002) | 生图 / 识图模型设置：管理员默认 + 每人可覆盖 | Hark parity | `type: feat` · `area: images` · `area: settings` · `P1` · `status: done` |
-| [CB-003](#cb-003) | 成熟度扫查：设备流程优先的全量体验检查 | 成熟度 Maturity | `type: chore` · `area: devices` · `area: chat` · `P1` · `status: in-progress` |
+| [CB-003](#cb-003) | 成熟度扫查：设备流程优先的全量体验检查 | 成熟度 Maturity | `type: chore` · `area: devices` · `area: chat` · `P1` · `status: done`（三轮已上线） |
 | [CB-004](#cb-004) | 设备上的编码工具：云端机器人读 / 改 / 写本地代码 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: pc` · `P0` · `status: done` |
 | [CB-005](#cb-005) | 无界面设备节点：Linux / macOS 服务器也能当设备 | 设备核心 Devices core | `type: feat` · `area: devices` · `area: infra` · `P1` · `status: done` |
 | [CB-006](#cb-006) | 设备「完全访问」模式（像本地 OpenClaw / Hermes） | 设备核心 Devices core | `type: feat` · `area: devices` · `area: approvals` · `P1` · `status: done` |
@@ -30,7 +32,7 @@
 | [CB-015](#cb-015) | 瘦身 P4c：合并重复系统（依赖并行功能） | 精简 Slim | `type: chore` · `area: slim` · `P2` · `status: blocked` |
 | [CB-016](#cb-016) | 瘦身 P5：DROP 上游空表（P4 稳定 ≥ 2 周后） | 精简 Slim | `type: chore` · `area: slim` · `area: infra` · `P2` · `status: blocked` |
 | [CB-017](#cb-017) | 真机验证：Windows PC 客户端与安卓手机 | 0.2.0 release | `type: chore` · `area: pc` · `area: android` · `P1` · `status: needs-user` |
-| [CB-018](#cb-018) | 用户的电脑需要手动重装 PC 0.1.7（0.2.x 不会自动更新） | 0.2.0 release | `type: chore` · `area: pc` · `P1` · `status: needs-user` |
+| [CB-018](#cb-018) | 用户的电脑需要手动重装 PC 0.1.x（现为 0.1.15）（0.2.x 不会自动更新） | 0.2.0 release | `type: chore` · `area: pc` · `P1` · `status: needs-user` |
 | [CB-019](#cb-019) | 发版 0.2.0（PC + Android） | 0.2.0 release | `type: chore` · `area: infra` · `area: pc` · `area: android` · `P1` |
 | [CB-020](#cb-020) | CI「ChisaBot checks」server-typecheck 在 main 上一直失败 | 精简 Slim | `type: bug` · `area: infra` · `P1` · `status: done` |
 | [CB-021](#cb-021) | 一轮里两次 page_update 会出两张同一页面的卡片 | 成熟度 Maturity | `type: bug` · `area: pages` · `area: chat` · `P2` · `status: done` |
@@ -52,10 +54,10 @@
 | [CB-041](#cb-041) | 真实聊天路径（频道聊天）刷新 / 断网后正在写的回答丢失 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-042](#cb-042) | 重新生成 / 编辑后重发 | 成熟度 Maturity | `type: feat` · `area: chat` · `P1` · `status: done` |
 | [CB-043](#cb-043) | 频道聊天的跨设备实时同步（手机发的桌面看不到） | 成熟度 Maturity | `type: bug` · `area: chat` · `area: pwa` · `P1` · `status: done` |
-| [CB-044](#cb-044) | 登录页预填管理员账号「Ayase」 | 成熟度 Maturity | `type: bug` · `area: infra` · `P1` · `status: done` |
+| [CB-044](#cb-044) | 登录页预填管理员账号名 | 成熟度 Maturity | `type: bug` · `area: infra` · `P1` · `status: done` |
 | [CB-045](#cb-045) | 每人模型额度 / 用量上限 | 成熟度 Maturity | `type: feat` · `area: models` · `P2` |
 | [CB-046](#cb-046) | 两套聊天实现（/bot 与 /channel）收成一套 | 成熟度 Maturity | `type: chore` · `area: chat` · `P1` · `status: done` |
-| [CB-047](#cb-047) | 很长的对话打开时历史晚到，画面停在上面 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` |
+| [CB-047](#cb-047) | 很长的对话打开时历史晚到，画面停在上面 | 成熟度 Maturity | `type: bug` · `area: chat` · `P2` · `status: done`（#146，继续观察） |
 | [CB-048](#cb-048) | 对话像发短信：先答、短气泡、不讲方法、草稿卡 / 代码卡 / 回复引用（完成） | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-049](#cb-049) | 主对话干活卡：当前步骤 + 用时，结束收成一行（完成） | Hark parity | `type: feature` · `area: chat` · `P1` |
 | [CB-050](#cb-050) | 商品 / 地点推荐用带图的卡片网格（完成） | Hark parity | `type: feature` · `area: chat` · `P2` |
@@ -67,15 +69,16 @@
 | [CB-056](#cb-056) | 管理页英文：插件目录说明、权限规则快捷规则说明、活动记录事件类型（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `P2` |
 | [CB-057](#cb-057) | 活动记录表格在 390 宽被截掉右边几列（完成） | 成熟度 Maturity | `type: bug` · `area: settings` · `area: pwa` · `P2` |
 | [CB-058](#cb-058) | 设置左栏在 1280×860 下「管理 / 高级」7 项在可视区外，只有淡出提示（完成） | 成熟度 Maturity | `type: chore` · `area: settings` · `P2` |
-| [CB-061](#cb-061) | 云端 Claude Code P1：云端工作区节点 + 网页登录 Claude | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: needs-user` |
-| [CB-062](#cb-062) | 云端 Claude Code P2：左栏切换、会话、对话、审批、右栏 / 手机抽屉 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: chat` · `P1` |
-| [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` · `status: needs-user` |
-| [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` |
+| [CB-061](#cb-061) | 云端 Claude Code P1：云端工作区节点 + 网页登录 Claude | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: done`（#149）· 真实 Claude 登录 `needs-user` |
+| [CB-062](#cb-062) | 云端 Claude Code P2：左栏切换、会话、对话、审批、右栏 / 手机抽屉 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: chat` · `P1` · `status: done`（#150） |
+| [CB-063](#cb-063) | 云端 Claude Code P3：GitHub 工作区（克隆、cc/ 分支、合入、推送并开 PR） | 设备核心 Devices core | `type: feat` · `area: agents` · `area: github` · `P1` · `status: done`（#151）· 连 GitHub `needs-user` |
+| [CB-064](#cb-064) | 云端 Claude Code P4：电脑文件夹同步（PC 新版） | 0.2.0 release | `type: feat` · `area: pc` · `area: agents` · `P2` · `status: done`（#159、#160，v0.1.11）· 真机待验证 |
 | [CB-065](#cb-065) | 云端 Claude Code P5：ChisaCloudCode 留还是下线 | 设备核心 Devices core | `type: chore` · `area: infra` · `P2` · `status: needs-user` |
-| [CB-066](#cb-066) | 在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: needs-user` |
-| [CB-067](#cb-067) | 新版本前功能精简：隐藏用不到的功能、新建机器人两格 | 精简 Slim | `type: chore` · `area: web` · `P1` |
-| [CB-069](#cb-069) | 新建 / 修改机器人统一表单 + 圆形头像（上传 / 表情 / 首字） | 成熟度 Maturity | `type: feat` · `area: web` · `P1` |
-| [CB-070](#cb-070) | 全站 UI 文字对齐 + 干活卡上下间距 | 成熟度 Maturity | `type: fix` · `area: web` · `P1` |
+| [CB-066](#cb-066) | 在云端完成 Claude 登录（远程浏览器）+ Claude 上游代理 | 设备核心 Devices core | `type: feat` · `area: agents` · `area: infra` · `P1` · `status: done`（#153、#158、#174、#177）· 登录 `needs-user` |
+| [CB-067](#cb-067) | 新版本前功能精简：隐藏用不到的功能、新建机器人两格 | 精简 Slim | `type: chore` · `area: web` · `P1` · `status: done`（#163）· 4 项待所有者决定 |
+| [CB-068](#cb-068) | Android 原生版（Kotlin + Compose） | 成熟度 Maturity | `type: feature` · `area: android` · `P1` · `status: done`（#168 v0.1.13、#176 v0.1.14） |
+| [CB-069](#cb-069) | 新建 / 修改机器人统一表单 + 圆形头像（上传 / 表情 / 首字） | 成熟度 Maturity | `type: feat` · `area: web` · `P1` · `status: done`（#170） |
+| [CB-070](#cb-070) | 全站 UI 文字对齐 + 干活卡上下间距 | 成熟度 Maturity | `type: fix` · `area: web` · `P1` · `status: done`（#172、#178、#182） |
 | [CB-071](#cb-071) | 打开对话落在最新一条、不跳；切机器人秒开；接入回放瘦身 | 成熟度 Maturity | `type: bug` · `area: chat` · `P0` · `status: done` |
 | [CB-072](#cb-072) | 机器人 ↔ Claude Code 切换整屏刷新 → 原地切换 | 成熟度 Maturity | `type: bug` · `area: web` · `P1` · `status: done` |
 | [CB-073](#cb-073) | Claude 上游代理支持 trojan / vless 等节点链接（sing-box 转换） | 云端 Claude Code | `type: feature` · `area: cloud-cc` · `P1` · `status: done` |
@@ -139,7 +142,7 @@
 ## CB-003
 
 **成熟度扫查：设备流程优先的全量体验检查**  
-里程碑：成熟度 Maturity · 标签：`type: chore` `area: devices` `area: chat` `P1` `status: in-progress`
+里程碑：成熟度 Maturity · 标签：`type: chore` `area: devices` `area: chat` `P1` `status: done`
 
 #### 背景
 
@@ -413,7 +416,7 @@ PARALLEL.md 里的可选第 9 项：每天固定时间机器人把天气、日�
 
 ## CB-018
 
-**用户的电脑需要手动重装 PC 0.1.7（0.2.x 不会自动更新）**  
+**用户的电脑需要手动重装 PC 0.1.x（现为 0.1.15）（0.2.x 不会自动更新）**  
 里程碑：0.2.0 release · 标签：`type: chore` `area: pc` `P1` `status: needs-user`
 
 #### 背景
@@ -829,11 +832,11 @@ PWA（§40）的跨部署旧分包自动刷新只在预览上验证过；生产�
 
 #### 背景
 
-生产登录页（网关手工部署的 login.html）账号框预填「Ayase」。分享给朋友前要去掉（也泄露管理员用户名）。
+生产登录页（网关手工部署的 login.html）账号框预填了管理员账号名。分享给朋友前要去掉（也泄露管理员用户名）。
 
 #### 验收标准
 
-- [x] 登录页账号框为空（浏览器自动填充照常）（2026-10-15：生产网关手工部署的 login.html / magpie-login.html 去掉 `value="Ayase"`；仓库 deploy/public 本来就是空；PC / 安卓不带预填）
+- [x] 登录页账号框为空（浏览器自动填充照常）（2026-10-15：生产网关手工部署的 login.html / magpie-login.html 去掉预填的 `value`；仓库 deploy/public 本来就是空；PC / 安卓不带预填）
 
 ## CB-045
 
