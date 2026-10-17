@@ -47,7 +47,97 @@ export type FallbackDeps = {
   build: (modelId: string) => unknown;
   now?: () => number;
   log?: (line: Record<string, unknown>) => void;
+  /**
+   * 主模型多久没有任何输出就当它卡住了、换备用模型（毫秒；0 = 不限）。doStream 算到第一段真正的内容
+   * （stream-start 不算），doGenerate 算到整个结果。只在有备用模型可换时生效。默认 {@link FIRST_OUTPUT_MS}。
+   */
+  firstOutputMs?: number;
 };
+
+/**
+ * 主模型卡住多久就换备用（DESIGN.md §101.10）。2026-10-18 生产：codex/gpt-6-luna 一次 45 秒一个字都没回
+ * （自检 45007 ms 失败），备用模型完全没被用上——包装只在主模型「报错」时换，一直不回不算错。
+ * 30 秒：正常的第一段输出 1–3 秒就到（流式时 Responses API 一开始就有 response.created），自检 45 秒的
+ * 上限里还留得出时间给备用模型答完。CHISABOT_MODEL_FIRST_OUTPUT_MS 可改，0 关闭。
+ */
+export const FIRST_OUTPUT_MS = (() => {
+  const raw = process.env.CHISABOT_MODEL_FIRST_OUTPUT_MS;
+  const n = raw === undefined || raw === "" ? NaN : Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 30_000;
+})();
+
+class FirstOutputTimeout extends Error {
+  constructor(readonly ms: number) {
+    super(`model gave no output in ${Math.round(ms / 1000)}s`);
+    this.name = "FirstOutputTimeout";
+  }
+}
+
+type StreamResult = { stream: ReadableStream<{ type?: string }> } & Record<string, unknown>;
+
+/**
+ * 带「第一段输出」期限地调用主模型。到期就中止这次请求、抛 FirstOutputTimeout；调用方自己的中止（用户点了停止）
+ * 原样传下去、不当成超时。流式结果把已经读到的几段放回流的开头，下游看到的是同一条流。
+ */
+async function withFirstOutputDeadline(
+  call: (options: unknown) => Promise<unknown>,
+  options: unknown,
+  property: "doStream" | "doGenerate",
+  ms: number,
+): Promise<unknown> {
+  const parent = (options as { abortSignal?: AbortSignal } | null)?.abortSignal;
+  const controller = new AbortController();
+  const forward = () => controller.abort(parent?.reason);
+  if (parent?.aborted) forward();
+  else parent?.addEventListener("abort", forward, { once: true });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new FirstOutputTimeout(ms));
+      reject(new FirstOutputTimeout(ms));
+    }, ms);
+  });
+  deadline.catch(() => {});
+  try {
+    const result = await Promise.race([call({ ...(options as object), abortSignal: controller.signal }), deadline]);
+    if (property !== "doStream" || !result || typeof result !== "object" || !("stream" in result)) return result;
+    const streamed = result as StreamResult;
+    const reader = streamed.stream.getReader();
+    const head: { type?: string }[] = [];
+    let done = false;
+    for (;;) {
+      const next = await Promise.race([reader.read(), deadline]);
+      if (next.done) {
+        done = true;
+        break;
+      }
+      head.push(next.value);
+      if (next.value?.type !== "stream-start") break;
+    }
+    const stream = new ReadableStream<{ type?: string }>({
+      start(out) {
+        for (const part of head) out.enqueue(part);
+        if (done) out.close();
+      },
+      async pull(out) {
+        const next = await reader.read();
+        if (next.done) out.close();
+        else out.enqueue(next.value);
+      },
+      cancel(reason) {
+        return reader.cancel(reason);
+      },
+    });
+    return { ...streamed, stream };
+  } catch (error) {
+    if (timedOut && !parent?.aborted) throw new FirstOutputTimeout(ms);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const cooldown = new Map<string, number>();
 /** 冷却的原因（后续回合直接跳过它时，提示仍然说得对）。 */
@@ -148,23 +238,36 @@ export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: Fall
     const primaryCall = (target[property] as Call).bind(model);
     let firstError: unknown = null;
     let reason: FallbackReason = "quota";
+    const list = await deps.candidates(primaryId).catch(() => [] as string[]);
+    const deadlineMs = deps.firstOutputMs ?? FIRST_OUTPUT_MS;
     if (!coolingDown(primaryId, now())) {
       try {
+        // 有备用模型可换时才给主模型设「第一段输出」期限（§101.10）；没得换就照旧等它。
+        if (deadlineMs > 0 && list.some((id) => id !== primaryId)) return await withFirstOutputDeadline(primaryCall, options, property, deadlineMs);
         return await primaryCall(options);
       } catch (error) {
-        const why = fallbackReason(error);
+        if (error instanceof FirstOutputTimeout) {
+          const ms = 60_000;
+          cooldown.set(primaryId, now() + ms);
+          cooledReason.set(primaryId, "unavailable");
+          firstError = error;
+          reason = "unavailable";
+          log({ type: "model-fallback", event: "primary-timeout", model: primaryId, cooldownSeconds: Math.round(ms / 1000), error: error.message });
+        }
+        const why = firstError ? "unavailable" : fallbackReason(error);
         if (!why) throw error;
-        const ms = cooldownFor(error, why);
-        cooldown.set(primaryId, now() + ms);
-        firstError = error;
-        reason = why;
-        log({ type: "model-fallback", event: why === "quota" ? "primary-quota" : "primary-unavailable", model: primaryId, cooldownSeconds: Math.round(ms / 1000), error: errorSnippet(error) });
+        if (!firstError) {
+          const ms = cooldownFor(error, why);
+          cooldown.set(primaryId, now() + ms);
+          firstError = error;
+          reason = why;
+          log({ type: "model-fallback", event: why === "quota" ? "primary-quota" : "primary-unavailable", model: primaryId, cooldownSeconds: Math.round(ms / 1000), error: errorSnippet(error) });
+        }
       }
     } else {
       reason = cooledReason.get(primaryId) ?? "quota";
     }
     if (firstError) cooledReason.set(primaryId, reason);
-    const list = await deps.candidates(primaryId).catch(() => [] as string[]);
     for (const id of list) {
       if (id === primaryId || coolingDown(id, now())) continue;
       const other = deps.build(id) as Model | null;

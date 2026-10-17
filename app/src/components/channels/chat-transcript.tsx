@@ -96,7 +96,7 @@ import {
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
 import { ToolRenderBoundary } from "./tool-boundary";
-import { ConfirmResumeRow, isConfirmResume, ToolCallConfirmCards } from "@/components/chat/confirm-card";
+import { ConfirmResumeRow, confirmResumeId, isConfirmResume, LooseConfirmCards, ToolCallConfirmCards } from "@/components/chat/confirm-card";
 import { ScheduleFiredRow } from "@/components/chat/schedule-row";
 import { WorkerResultRow } from "@/components/chat/worker-card";
 import { LocalAgentResultRow } from "@/components/chat/local-agent-card";
@@ -2476,6 +2476,13 @@ export function ChatTranscript({
   const confirmations = useThreadConfirmations(hasQuiet ? (chatConfig?.threadId ?? null) : null, false);
   const confirmed = new Set<string>();
   for (const request of confirmations.data ?? []) if (request.toolCallId) confirmed.add(request.toolCallId);
+  // 没绑到工具调用的确认卡片（§101.9）画在最下面；「用户确认了」那条已经进来的不再画（那一行就是记录）。
+  const resumedCards = new Set<string>();
+  for (const item of items) {
+    if (item.kind !== "text" || item.role !== "user") continue;
+    const id = confirmResumeId(item.text);
+    if (id) resumedCards.add(id);
+  }
   const quietRows = new Set<string>();
   if (hasQuiet) {
     for (const [anchor, work] of compact.work) {
@@ -2675,6 +2682,7 @@ export function ChatTranscript({
               ) : pausedAfterText !== null ? (
                 <PauseDots watch={pausedAfterText} />
               ) : null}
+              <LooseConfirmCards resumed={resumedCards} version={items.length} />
               {queued.map((message) => (
                 <Queued
                   attachments={message.attachments}
