@@ -2291,6 +2291,12 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
   （422 + `pageTimeout`；不用 504，网关会把 5xx 网关错误换成「正在更新」页）。
 - 回归：`server/tests/computer-client.test.ts`（截图超时 → PageTimeoutError；定位超时仍是 ElementNotFoundError）。
 
+### 101.13 直接贴出来的 workspace.local 地址也换成下载地址（`lib/chat/workspace-links.ts`）
+- 实测（10-18 06:11，PC 客户端模拟 + 备用模型 solar-mini4）：机器人没用 Markdown 链接，正文直接写「你可以下载工作区里的文件：https://workspace.local/primes.py 和 …」，
+  自动变成链接后指向 workspace.local，点了打不开（§101.11 只处理了 `[文字](目标)`）。
+- 现在：代码块、行内代码之外，裸的 / 尖括号里的 `https://workspace.local/<路径>` 换成 `[路径](下载地址)`；末尾的中英文标点不算地址；已经是 Markdown 链接的只改一次。
+- 回归：`app/tests/workspace-links.test.ts`（裸地址、尖括号、行内代码不动、末尾句点）。
+
 - 回归：`app/tests/active-bot-routing.test.tsx`、`app/tests/cjk-emphasis.test.ts`、`app/tests/workspace-links.test.ts`、`server/tests/model-fallback.test.ts`（坏候选不挡路、冷却中主模型兜底、429 冷却）、
   `server/tests/confirmations.test.ts`（非网页回合放卡片、旧卡作废）、`server/tests/step-budget.test.ts`。PC 客户端加载服务器网页，不需要更新客户端。
 

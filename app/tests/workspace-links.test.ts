@@ -23,4 +23,15 @@ describe("workspace file links (§101)", () => {
     );
     expect(workspaceLinks(md, undefined, O)).toBe(md);
   });
+  test("bare workspace.local URLs become download links (§101.13)", () => {
+    const md = "你可以下载工作区里的文件：https://workspace.local/primes.py 和 https://workspace.local/primes_result.txt。\n<https://workspace.local/out/a.csv>";
+    const d = (p: string) => `${O}/api/computers/agent_1/files/download?path=${encodeURIComponent(p)}`;
+    expect(workspaceLinks(md, "agent_1", O)).toBe(
+      `你可以下载工作区里的文件：[primes.py](${d("primes.py")}) 和 [primes_result.txt](${d("primes_result.txt")})。\n[out/a.csv](${d("out/a.csv")})`,
+    );
+    // 已是 Markdown 链接的只改一次；行内代码和代码块里不动
+    expect(workspaceLinks("[a](https://workspace.local/a.py) `https://workspace.local/b.py`", "agent_1", O)).toBe(`[a](${d("a.py")}) \`https://workspace.local/b.py\``);
+    expect(workspaceLinks("```\nhttps://workspace.local/c.py\n```", "agent_1", O)).toBe("```\nhttps://workspace.local/c.py\n```");
+    expect(workspaceLinks("看 https://workspace.local/c.py.", "agent_1", O)).toBe(`看 [c.py](${d("c.py")}).`);
+  });
 });

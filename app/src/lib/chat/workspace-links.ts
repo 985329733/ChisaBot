@@ -36,18 +36,37 @@ export function workspacePathOf(target: string): string | null {
   return t;
 }
 
+// 没写成 Markdown 链接、直接贴出来的「https://workspace.local/x」（自动变成链接，点了打不开，§101.13）。
+// 前面不能是「(」「<」「[」或字母数字（已在链接里 / 是别的地址的一部分）；末尾的标点不算地址。
+const BARE = /(^|[^(<\[\w/])<?(https?:\/\/workspace\.local\/[^\s<>()\[\]"'`，。；、！？）】」]+)>?/gi;
+const TRAIL = /[.,;:!?]+$/;
+
 export function workspaceLinks(markdown: string, botId: string | undefined, origin: string): string {
-  if (!botId || !markdown.includes("](")) return markdown;
+  if (!botId || (!markdown.includes("](") && !/workspace\.local\//i.test(markdown))) return markdown;
+  const download = (path: string) => `${origin}/api/computers/${encodeURIComponent(botId)}/files/download?path=${encodeURIComponent(path)}`;
   const parts = markdown.split(/(```[\s\S]*?(?:```|$))/);
   return parts
     .map((part, index) => {
       if (index % 2 === 1) return part;
-      return part.replace(LINK, (whole, target: string, title: string | undefined) => {
-        const path = workspacePathOf(target);
-        if (!path) return whole;
-        const url = `${origin}/api/computers/${encodeURIComponent(botId)}/files/download?path=${encodeURIComponent(path)}`;
-        return `](${url}${title ?? ""})`;
-      });
+      // 行内代码 `…` 里不动
+      return part
+        .split(/(`[^`\n]*`)/)
+        .map((seg, j) => {
+          if (j % 2 === 1) return seg;
+          const linked = seg.replace(LINK, (whole, target: string, title: string | undefined) => {
+            const path = workspacePathOf(target);
+            if (!path) return whole;
+            return `](${download(path)}${title ?? ""})`;
+          });
+          return linked.replace(BARE, (whole, lead: string, raw: string) => {
+            const tail = TRAIL.exec(raw)?.[0] ?? "";
+            const url = tail ? raw.slice(0, -tail.length) : raw;
+            const path = workspacePathOf(url);
+            if (!path) return whole;
+            return `${lead}[${path}](${download(path)})${tail}`;
+          });
+        })
+        .join("");
     })
     .join("");
 }
