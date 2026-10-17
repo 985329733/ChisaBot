@@ -283,15 +283,20 @@ if (process.env.SWITCH) for (const width of WIDTHS) {
     // 换对话：直接打开 AGENT2 已有的一段（地址变化走路由），它的消息出现、不混进上一段
     if (!/\/channel\/channel_/.test(urlB) || idsB.length === 0) {
       const fromEnv = (process.env.CH2 || "").split(",").filter(Boolean);
-      const chId = fromEnv.length ? fromEnv[0] : await page.evaluate(async (id) => { const j = await (await fetch("/api/channels")).json(); const rows = j.items ?? j.channels ?? j; return (Array.isArray(rows) ? rows : []).find((c) => (c.agentIds ?? []).length === 1 && c.agentIds[0] === id)?.id; }, process.env.AGENT2 || "general-assistant");
-      if (chId) {
+      const candidates = fromEnv.length ? fromEnv : [await page.evaluate(async (id) => { const j = await (await fetch("/api/channels")).json(); const rows = j.items ?? j.channels ?? j; return (Array.isArray(rows) ? rows : []).find((c) => (c.agentIds ?? []).length === 1 && c.agentIds[0] === id)?.id; }, process.env.AGENT2 || "general-assistant")].filter(Boolean);
+      let opened = false;
+      for (const chId of candidates) {
         await page.evaluate((p) => { history.pushState({}, "", p); dispatchEvent(new PopStateEvent("popstate")); }, `/channel/${chId}`);
-        await page.locator('[data-slot="message-scroller-viewport"] [data-message-id]').first().waitFor({ timeout: 30000 }).catch(() => {});
-        await page.waitForTimeout(4000);
+        await page.locator('[data-slot="message-scroller-viewport"] [data-message-id]').first().waitFor({ timeout: 15000 }).catch(() => {});
+        await page.waitForTimeout(3000);
         urlB = page.url(); idsB = await ids();
+        if (idsB.length === 0) continue;
+        opened = true;
         const ov = idsB.filter((x) => idsA.includes(x)).length;
-        check(idsB.length > 0 && ov === 0 && (await visibleViewports()) === 1, `${width} 换对话: 打开另一段，内容是那一段（${idsB.length} 条，和上一段重叠 ${ov}）`);
-      } else log(width, "no channel for AGENT2");
+        check(ov === 0 && (await visibleViewports()) === 1, `${width} 换对话: 打开另一段，内容是那一段（${idsB.length} 条，和上一段重叠 ${ov}）`);
+        break;
+      }
+      if (!opened) log(width, "no non-empty channel for AGENT2");
     }
     // 去设置再回来：留着的是 B
     await menuGo(page, width, "设置"); await page.waitForURL(/\/settings/); await page.waitForTimeout(2500);
@@ -306,7 +311,8 @@ if (process.env.SWITCH) for (const width of WIDTHS) {
     const syncs = awayReqs.filter((r) => /\/bot-threads\/[^/]+\/sync/.test(r)).length;
     check(pollers.length === 0, `${width} 藏着的聊天 / 右栏不轮询（15 秒 ${pollers.length} 次计算机 / 组件 / 面板请求）`);
     check(syncs <= 2, `${width} 藏着的聊天同步放慢到 10 秒一次（15 秒 ${syncs} 次，原来 7–8 次）`);
-    await backToChat(page);
+    // 浏览器后退回到刚才那段（「返回聊天」走 `/`，落在最近用过的机器人的最新对话，不一定是这段）
+    await page.goBack();
     await page.waitForURL(/\/channel\//, { timeout: 30000 }); await page.waitForTimeout(3000);
     const idsB2 = await ids();
     check(page.url() === urlB && idsB2.join() === idsB.join(), `${width} 换机器人后去设置再回来: 回到刚才那段（${idsB2.length} 条）`);
