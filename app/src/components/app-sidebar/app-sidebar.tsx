@@ -264,6 +264,11 @@ function BotRow({
   const paused = attention?.paused ?? false;
   // DESIGN v4.1：当前对话的机器人控件（设置窗格 / 计算机 / 新话题）由聊天页登记，在这一行里操作。
   const chat = useBotChat(bot.id);
+  // 手机抽屉里点机器人：进它的对话并收起抽屉（以前抽屉留着盖在对话上，要再点一下遮罩）。
+  const sidebar = useOptionalSidebar();
+  const closeDrawer = () => {
+    if (sidebar?.isMobile && sidebar.openMobile) sidebar.setOpenMobile(false);
+  };
   const content = (
     <>
       <span className="glass-bot-ava">
@@ -303,6 +308,7 @@ function BotRow({
         <Link
           aria-current={selected ? "page" : undefined}
           className="glass-bot-link"
+          onClick={closeDrawer}
           onFocus={() => prefetchBotChat(bot.id, latest)}
           onPointerEnter={() => prefetchBotChat(bot.id, latest)}
           onTouchStart={() => prefetchBotChat(bot.id, latest)}
@@ -316,6 +322,7 @@ function BotRow({
         <Link
           aria-current={selected ? "page" : undefined}
           className="glass-bot-link"
+          onClick={closeDrawer}
           search={{ agent: bot.id }}
           title={bot.name}
           to="/channel/new"

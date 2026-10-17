@@ -282,7 +282,8 @@ if (process.env.SWITCH) for (const width of WIDTHS) {
     check(urlB !== urlA && overlap === 0 && (await visibleViewports()) === 1, `${width} 换机器人: 换成那个机器人的对话（${idsB.length} 条，和上一个重叠 ${overlap}）`);
     // 换对话：直接打开 AGENT2 已有的一段（地址变化走路由），它的消息出现、不混进上一段
     if (!/\/channel\/channel_/.test(urlB) || idsB.length === 0) {
-      const chId = await page.evaluate(async (id) => { const j = await (await fetch("/api/channels")).json(); const rows = j.items ?? j.channels ?? j; return (Array.isArray(rows) ? rows : []).find((c) => (c.agentIds ?? []).length === 1 && c.agentIds[0] === id)?.id; }, process.env.AGENT2 || "general-assistant");
+      const fromEnv = (process.env.CH2 || "").split(",").filter(Boolean);
+      const chId = fromEnv.length ? fromEnv[0] : await page.evaluate(async (id) => { const j = await (await fetch("/api/channels")).json(); const rows = j.items ?? j.channels ?? j; return (Array.isArray(rows) ? rows : []).find((c) => (c.agentIds ?? []).length === 1 && c.agentIds[0] === id)?.id; }, process.env.AGENT2 || "general-assistant");
       if (chId) {
         await page.evaluate((p) => { history.pushState({}, "", p); dispatchEvent(new PopStateEvent("popstate")); }, `/channel/${chId}`);
         await page.locator('[data-slot="message-scroller-viewport"] [data-message-id]').first().waitFor({ timeout: 30000 }).catch(() => {});
@@ -300,9 +301,11 @@ if (process.env.SWITCH) for (const width of WIDTHS) {
     await page.waitForTimeout(15000);
     const m1 = Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]));
     const awayReqs = reqs.slice();
-    const pollers = awayReqs.filter((r) => /\/computers\/[^/]+\/(control|tabs|screen|frame)|\/components\/for-agent\/|\/live-panels|\/bot-threads\/[^/]+\/sync/.test(r));
+    const pollers = awayReqs.filter((r) => /\/computers\/[^/]+\/(control|tabs|screen|frame)|\/components\/for-agent\/|\/live-panels/.test(r));
     log(width, "away-cost", JSON.stringify({ reqs: awayReqs.length, script: Math.round((m1.ScriptDuration - m0.ScriptDuration) * 1000), layouts: m1.LayoutCount - m0.LayoutCount, pollers: pollers.slice(0, 8), all: awayReqs.slice(0, 30) }));
-    check(pollers.length === 0, `${width} 藏着的聊天 / 右栏不轮询（15 秒 ${pollers.length} 次计算机 / 组件 / 面板 / 同步请求）`);
+    const syncs = awayReqs.filter((r) => /\/bot-threads\/[^/]+\/sync/.test(r)).length;
+    check(pollers.length === 0, `${width} 藏着的聊天 / 右栏不轮询（15 秒 ${pollers.length} 次计算机 / 组件 / 面板请求）`);
+    check(syncs <= 2, `${width} 藏着的聊天同步放慢到 10 秒一次（15 秒 ${syncs} 次，原来 7–8 次）`);
     await backToChat(page);
     await page.waitForURL(/\/channel\//, { timeout: 30000 }); await page.waitForTimeout(3000);
     const idsB2 = await ids();

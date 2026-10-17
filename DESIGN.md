@@ -2138,7 +2138,8 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 不改地址（`?watch` / `?settings` 的写入都不做）、不标已读（回来时再标）、不登记左栏「⋯」和「新话题」快捷键（`RegisterBotChat` 不挂）、设置窗格的手机抽屉和「历史对话」弹窗关掉（它们画在 body 上）。
 - 回来时 `epoch` 加一：离开期间地址变了（比如回来的地址没带 `?watch`）不当成「浏览器后退关上计算机」（`useBotComputerTab` 的第 4 个参数）。
 - 滚动：不动，§35 / §94 的贴底与无跳动规则在藏着时照常工作（尺寸冻住，不触发重排）。藏着时关掉滚动锚定（`overflow-anchor: none`）：`visibility: hidden` 下 Chrome 会重新挑锚点、把对话挪几十像素（实测第一次去设置时 +69px）。
-- **藏着不耗资源**：`KeptVisibleContext`（`lib/kept-visible.ts`）在留着的聊天和藏着的右栏里为 `false`，读它的地方停下——计算机控制权每秒一次的轮询（`useComputerControl`：只剩藏着的订阅者时不问，回来第一个看得见的订阅者马上补读一次）、浏览器标签轮询、计算机画面（直播 / 截图，`usePageVisible`）、面板列表轮询；全局的组件授权轮询（GalleryTools / SandboxedTools）按 `useMarkBotHidden` 登记的机器人停下。**不停**的：正在写的回答（CopilotKit 的流）和后台交付收件箱（§38，只在服务器有活时才请求）。
+- **藏着不耗资源**：`KeptVisibleContext`（`lib/kept-visible.ts`）在留着的聊天和藏着的右栏里为 `false`，读它的地方停下——计算机控制权每秒一次的轮询（`useComputerControl`：只剩藏着的订阅者时不问，回来第一个看得见的订阅者马上补读一次）、浏览器标签轮询、计算机画面（直播 / 截图，`usePageVisible`）、面板列表轮询；全局的组件授权轮询（GalleryTools / SandboxedTools）按 `useMarkBotHidden` 登记的机器人停下。对话变化戳（§64 `useThreadActivity`）不停，从 2 秒放慢到 10 秒（藏着时别的设备写的东西藏着时就接上；回来才接会让发送键闪一下「停止」），回来时马上问一次。**不停**的：正在写的回答（CopilotKit 的流）和后台交付收件箱（§38，只在服务器有活时才请求）。
+- 手机：在抽屉里点机器人会收起抽屉（以前抽屉留着盖在对话上，main 上就这样）。
 
 ### 98.4 回归
 - 单元：`app/tests/keep-alive.test.tsx`（离开再回来同一个实例、藏着时不可见不可点、换对话、`/` 跳转时露着、路由层不重挂、10 分钟放掉、藏着读到「不在屏幕上」、机器人登记 / 撤销、控制权藏着不轮询回来补读、接线）。

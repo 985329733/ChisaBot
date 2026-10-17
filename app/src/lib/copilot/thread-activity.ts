@@ -10,10 +10,16 @@ import { useKeptVisible } from "@/lib/kept-visible";
  * 隐藏时不问，回到前台 / 获得焦点 / 网络恢复 / `kick()` 时马上问一次。拿到的戳交给订阅者
  * （`useConversationSync` 接上正在写的回答、拉别的设备发的消息；频道聊天自己在回答结束时重读一次对话）。
  */
+/** 藏着的聊天问变化戳的间隔（DESIGN.md §98.3）。 */
+export const HIDDEN_SYNC_INTERVAL_MS = 10_000;
+
 export function useThreadActivity(agentId: string, threadId: string | undefined) {
   const listenersRef = useRef(new Set<(activity: ThreadActivity) => void>());
   const kickRef = useRef<() => void>(() => {});
-  /** 聊天被外壳藏着（DESIGN.md §98.3）和页面在后台一样：不问；回来时马上问一次。 */
+  /**
+   * 聊天被外壳藏着（DESIGN.md §98.3）：放慢到 10 秒一次（不停——藏着时别的设备写了什么，藏着的时候就接上，
+   * 回来才接会让发送键闪一下「停止」）；回来时马上问一次。
+   */
   const onScreen = useKeptVisible();
   const onScreenRef = useRef(onScreen);
   const pauseRef = useRef<() => void>(() => {});
@@ -25,11 +31,13 @@ export function useThreadActivity(agentId: string, threadId: string | undefined)
     /** 服务器没有这个接口（旧版本 / 不是本地会话模式）：不再问。 */
     let unsupported = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const visible = () =>
-      onScreenRef.current && (typeof document === "undefined" || document.visibilityState !== "hidden");
+    const visible = () => typeof document === "undefined" || document.visibilityState !== "hidden";
     const schedule = () => {
       if (timer) clearTimeout(timer);
-      timer = alive && !unsupported && visible() ? setTimeout(() => void tick(), SYNC_INTERVAL_MS) : undefined;
+      timer =
+        alive && !unsupported && visible()
+          ? setTimeout(() => void tick(), onScreenRef.current ? SYNC_INTERVAL_MS : HIDDEN_SYNC_INTERVAL_MS)
+          : undefined;
     };
     const tick = async () => {
       if (!alive || busy || unsupported) return;
@@ -56,8 +64,7 @@ export function useThreadActivity(agentId: string, threadId: string | undefined)
     };
     kickRef.current = now;
     pauseRef.current = () => {
-      if (timer) clearTimeout(timer);
-      timer = undefined;
+      if (!busy) schedule();
     };
     const onVisibility = () => (visible() ? now() : timer && clearTimeout(timer));
     document.addEventListener("visibilitychange", onVisibility);
