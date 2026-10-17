@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { AccountCard, AccountMenu } from "@/components/layout/account-menu";
 import { Sidebar, SidebarContent, SidebarRail, useOptionalSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { scrollIntoViewWithin } from "@/lib/scroll-within";
 import { cn } from "@/lib/utils";
 
 /**
@@ -77,8 +78,10 @@ export function SectionRail({
   const scrollRef = useRef<HTMLDivElement>(null);
   // 当前页那一行在可视区外（矮屏、组都展开着）时，打开设置先把它滚进来。
   useEffect(() => {
-    const row = scrollRef.current?.querySelector<HTMLElement>(".nav-row.is-on");
-    row?.scrollIntoView({ block: "nearest" });
+    // 只滚左栏自己（§98.5）：原生 scrollIntoView 会连藏在下面的聊天一起挪。
+    const box = scrollRef.current;
+    const row = box?.querySelector<HTMLElement>(".nav-row.is-on");
+    if (box && row) scrollIntoViewWithin(row, { container: box });
   }, [pathname]);
 
   if (collapsed) {

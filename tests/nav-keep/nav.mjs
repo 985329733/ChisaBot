@@ -141,6 +141,7 @@ for (const width of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width, height: width < 600 ? 844 : 800 }, locale: "zh-CN", timezoneId: "Asia/Shanghai", isMobile: width < 600, hasTouch: width < 600 });
   await ctx.addInitScript(INIT);
   if (process.env.NAVDBG) await ctx.addInitScript(DBG);
+  if (process.env.SCROLLALL) await ctx.addInitScript(() => { window.__allScroll = []; document.addEventListener("scroll", (e) => { if (window.__phase !== "away") return; const t = e.target; window.__allScroll.push([Math.round(performance.now()), t === document ? "document" : (t.getAttribute?.("data-slot") || t.className?.toString() || t.tagName).slice(0, 70), t === document ? document.scrollingElement.scrollTop : t.scrollTop]); }, true); });
   const page = await ctx.newPage();
   if (process.env.LATENCY) { const cdp = await ctx.newCDPSession(page); await cdp.send("Network.enable"); await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: Number(process.env.LATENCY), downloadThroughput: 4e6, uploadThroughput: 2e6 }); }
   const errs = [];
@@ -168,6 +169,10 @@ for (const width of WIDTHS) {
       const back = await go();
       const away = await page.evaluate(() => { const out = []; let last = null; for (const f of window.__frames) { const k = `${f.top}|${f.firstId}|${f.firstTop}|${f.vw}|${f.vh}|${f.sh}`; if (k !== last) { out.push([f.t, f.path.slice(0, 12), f.top, f.firstTop, f.gap, f.vw, f.vh, f.sh]); last = k; } } return out.slice(0, 20); });
       log("away-scroll", JSON.stringify(away));
+      // §98.5：藏着的聊天在离开期间一像素都不动（设置左栏的 scrollIntoView 曾把它挪 46–182px）。
+      const awayTops = [...new Set(away.filter((f) => !String(f[1]).startsWith("/channel/")).map((f) => f[2]))];
+      check(awayTops.length === 0 || (awayTops.length === 1 && Math.abs(awayTops[0] - before.top) <= 1), `${width} ${label}: 离开期间藏着的聊天不被挪（${before.top} → ${awayTops.join("/") || "不变"}）`);
+      if (process.env.SCROLLALL) log("all-scroll", JSON.stringify(await page.evaluate(() => window.__allScroll.splice(0))));
       if (process.env.NAVDBG) log("scroll-log", JSON.stringify(await page.evaluate(() => window.__scrollLog.slice(0, 30).map((x) => x.slice(0, 3)))));
       reqs = [];
       await page.evaluate(() => { window.__phase = "back"; window.__frames = []; });

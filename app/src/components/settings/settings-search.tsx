@@ -2,6 +2,7 @@ import { IconSearch, IconX } from "@tabler/icons-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
+import { scrollIntoViewWithin } from "@/lib/scroll-within";
 import { findEntry, type SettingsViewer } from "@/lib/settings/registry";
 import { hitHash, type SettingsHit, searchSettings } from "@/lib/settings/search";
 import { cn } from "@/lib/utils";
@@ -180,7 +181,8 @@ export function SettingsFind() {
       const target =
         found.closest<HTMLElement>("[data-slot=item], .sg-srow, .sg-card, [data-slot=page-section], section") ?? found;
       const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      target.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+      // 只滚设置页自己的滚动容器（§98.5）：原生 scrollIntoView 会连藏在下面的聊天一起挪。
+      scrollIntoViewWithin(target, { block: "center", behavior: reduce ? "auto" : "smooth" });
       target.classList.remove("setting-flash");
       void target.offsetWidth;
       target.classList.add("setting-flash");
