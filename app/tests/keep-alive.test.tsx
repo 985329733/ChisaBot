@@ -254,3 +254,21 @@ test("接线：藏着的东西不轮询（§98.3）", () => {
   // 手机抽屉在导航开始前收起（不是新左栏挂上之后的 effect 里），否则透明抽屉盖住页面。
   expect(src("components/layout/glass-shell.tsx")).toContain('router.subscribe("onBeforeNavigate"');
 });
+
+test("藏起来那一刻浏览器挪了藏着的滚动容器：还原成离开前的位置（§98.5）", async () => {
+  function Scroller() {
+    return <div data-slot="message-scroller-viewport" data-testid="scroller" style={{ overflowY: "auto", height: 100 }}><div style={{ height: 1000 }} /></div>;
+  }
+  const page = () => <Scroller />;
+  const view = render(stage(page, { id: "c1" }));
+  const scroller = view.getByTestId("scroller");
+  scroller.scrollTop = 500;
+  scroller.dispatchEvent(new Event("scroll"));
+  view.rerender(stage(page, null, "设置"));
+  // 浏览器自己挪了（没有脚本调用）：收到 scroll 时还原。
+  scroller.scrollTop = 432;
+  scroller.dispatchEvent(new Event("scroll"));
+  expect(scroller.scrollTop).toBe(500);
+  view.rerender(stage(page, { id: "c1" }));
+  expect(scroller.scrollTop).toBe(500);
+});

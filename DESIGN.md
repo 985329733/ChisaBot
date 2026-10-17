@@ -2145,11 +2145,13 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 单元：`app/tests/keep-alive.test.tsx`（离开再回来同一个实例、藏着时不可见不可点、换对话、`/` 跳转时露着、路由层不重挂、10 分钟放掉、藏着读到「不在屏幕上」、机器人登记 / 撤销、控制权藏着不轮询回来补读、接线）。
 - 预览 e2e：`tests/nav-keep/nav.mjs`（1280 / 390；`STREAM=1` 离开期间回答不断、回来 2 秒内不重新接入、回来后新发的消息照常更新；`SWITCH=1` 左栏换机器人、换回上一段对话内容正确无残留、藏着 15 秒 0 次计算机 / 组件 / 面板请求；设置→「返回聊天」、待处理→左栏机器人、设置→设备→浏览器后退、设置→浏览器后退；逐帧：0 次文档加载、0 帧空白 / 骨架、首帧和最后滚动位置与离开前一致、回来后 0 次跳动、0 次读历史 / 接入、左栏元素保留；`LATENCY=250` 模拟慢网络）。修复前：每次回来读 5 次历史 + 1 次接入、发送键闪「停止」、慢网络下 35–49 帧忙碌态。
 
-### 98.5 藏着的聊天不被别的页面「滚进来」挪动（2026-10-17，#198）
-- 现象：#197 上线前后，1280 宽**第一次**从聊天去设置（设置 → 返回聊天、设置 → 电脑与设备 → 后退），回来时滚动位置差 46–182px；390 不出现。和对话长短无关（全新生产库副本、对话 7.6k px 一样 −68px，两次复现）。
-- 原因：设置左栏（`SectionRail`）打开时用原生 `scrollIntoView({ block: "nearest" })` 把当前那一行滚进来。逐帧记录：这一调用之后、同一帧里只有聊天的滚动容器（藏着的、不是这一行的祖先）收到 scroll，其它容器都没动；把这一调用换成空操作就 28/28 通过。Chrome 的 `scrollIntoView` 会顺着祖先链挑容器滚，在外壳里留着聊天时会误挪它。
-- 规则：**外壳里（设置 / 管理 / 待处理等和留着的聊天同屏的页面）不用原生 `scrollIntoView`**，用 `scrollIntoViewWithin(el, { container?, block, behavior })`（`app/src/lib/scroll-within.ts`）：只改一个容器的 `scrollTop`（不给 `container` 就找最近的可竖滚祖先）。已改：设置 / 管理左栏当前行（`section-rail.tsx`）、设置搜索跳转（`settings-search.tsx`，`block: "center"`，尊重减少动态效果）。
-- 回归：`app/tests/scroll-within.test.ts`（nearest / center 计算、两处不再用原生调用）；`tests/nav-keep/nav.mjs` 新增「离开期间藏着的聊天不被挪」逐帧断言，`SCROLLALL=1` 打印离开期间所有收到 scroll 的元素。
+### 98.5 藏着的聊天在离开那一刻不被挪动（2026-10-17，#198）
+- 现象：#197 前后，1280 宽**第一次**从聊天去设置（设置 → 返回聊天；对话更长时设置 → 电脑与设备 → 后退也会），回来时滚动位置差 46–182px；390 不出现。和对话长短无关（全新生产库副本、对话 7.6k px，两次复现，都是 −68px）。
+- 查到的：逐帧记录（`SCROLLALL=1`）离开期间只有藏着的聊天滚动容器收到一次 scroll，没有任何脚本改 `scrollTop` / 调 `scrollTo`，`scrollHeight` / `clientHeight` 不变，锚定已关。触发点是设置页挂载那一帧的**强制布局**：设置左栏 `SectionRail` 把当前行滚进来时调原生 `scrollIntoView({ block: "nearest" })`；把它换成空操作就 28/28，但换成只读 `getBoundingClientRect` + 改左栏自己的 `scrollTop` 仍然 −68px——Chrome 在这一刻自己挪了藏着的容器，具体机制没再深挖。
+- 规则（两层）：
+  1. **外壳里不用原生 `scrollIntoView`**（它顺着祖先链挑容器滚）：用 `scrollIntoViewWithin(el, { container?, block, behavior })`（`app/src/lib/scroll-within.ts`，只改一个容器的 `scrollTop`）。已改：设置 / 管理左栏当前行（`section-rail.tsx`）、设置搜索跳转（`settings-search.tsx`，`block: "center"`，尊重减少动态效果）。
+  2. **离开那一刻钉住滚动位置**（`KeepAliveStage`）：看得见时记着留着的那页里每个滚动容器最后的 `scrollTop`；藏起来后 `KEPT_SCROLL_HOLD_MS`（1.5 s）内，藏着的容器一收到 scroll 就还原成离开前的位置；之后放开（藏着时正在写、贴底的回答照常往下走，§35 / §94）。这一层才是真正修好 −68px 的。
+- 回归：`app/tests/scroll-within.test.ts`（nearest / center、两处不再用原生调用）；`app/tests/keep-alive.test.tsx`「藏起来那一刻浏览器挪了藏着的滚动容器：还原」；`tests/nav-keep/nav.mjs` 逐帧断言「离开期间藏着的聊天不被挪」，`SCROLLALL=1` 打印离开期间所有收到 scroll 的元素。修复后预览 nav e2e（1280 + 390，`STREAM=1 SWITCH=1`）86/86。
 
 ## 99. 云端浏览器卡死保护 + 已删除机器人的浏览器（2026-10-17）
 
