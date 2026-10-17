@@ -10,7 +10,21 @@ export type ComputerProfile = {
   egress?: string | null;
   /** True when it runs an older image than a new computer would. Absent where that cannot be told. */
   updateAvailable?: boolean;
+  /**
+   * Whose browser this is (DESIGN.md §99): a Bot's (with its name), the default one that belongs to
+   * no Bot, or left over from a deleted Bot. Absent on a server that does not say.
+   */
+  owner?: "bot" | "default" | "deleted";
+  botName?: string;
 };
+
+/** 已删除的机器人留下的浏览器排在最后（DESIGN.md §99）；同类之间保持服务器给的顺序。 */
+const OWNER_ORDER = { bot: 0, default: 1, deleted: 2 } as const;
+export function sortComputers(list: ComputerProfile[]): ComputerProfile[] {
+  return [...list].sort(
+    (a, b) => OWNER_ORDER[a.owner ?? "bot"] - OWNER_ORDER[b.owner ?? "bot"],
+  );
+}
 
 /** Whether each Bot has a browser profile of its own, or they share one. */
 export type ComputerIsolation = "per-bot" | "shared";

@@ -3,7 +3,11 @@ import type {
   HandoffRequest,
   HandoffSource,
 } from "../../shared/computer-control";
-import { createActionBarrier } from "./action-barrier";
+import {
+  createActionBarrier,
+  type ExpiredLease,
+  type Release,
+} from "./action-barrier";
 import type { ControlStore, StoredControl } from "./control-store";
 export type ControlState = ComputerControlState;
 export class ControlError extends Error {
@@ -38,6 +42,12 @@ type Options = {
   store?: ControlStore;
   invalidateSnapshot?: () => void;
   drainTimeoutMs?: number;
+  /** Default deadline for one admitted action (see action-barrier.ts). */
+  actionLeaseMs?: number;
+  /** An admitted action ran past its lease and the barrier gave it back on its own. */
+  onLeaseExpired?: (lease: ExpiredLease) => void;
+  /** Taking control timed out waiting for these. Logged so the next stuck take names its cause. */
+  onDrainTimeout?: (holders: ExpiredLease[]) => void;
 };
 
 /** Request identity is durable; secret values never enter this state machine. */
@@ -45,7 +55,10 @@ export function createControl(
   now: () => string = () => new Date().toISOString(),
   options: Options = {},
 ) {
-  const barrier = createActionBarrier();
+  const barrier = createActionBarrier({
+    leaseMs: options.actionLeaseMs,
+    onExpired: options.onLeaseExpired,
+  });
   const restored = options.store?.load();
   const data: StoredControl = restored ?? {
     version: 1,
@@ -262,7 +275,16 @@ export function createControl(
         );
       barrier.close();
       // Never await here from requestHelp: a navigation detector still owns its action lease.
-      await barrier.drain(options.drainTimeoutMs);
+      try {
+        await barrier.drain(options.drainTimeoutMs);
+      } catch (error) {
+        try {
+          options.onDrainTimeout?.(barrier.holders());
+        } catch {
+          // Diagnostics only.
+        }
+        throw error;
+      }
       const after = intended(requestId);
       if (after.status === "taken" && data.holder === "human") return get();
       if (after.status !== "waiting")
@@ -329,9 +351,17 @@ export function createControl(
       if (browserMutation && data.resumeSnapshotRequired)
         throw new SnapshotRequiredError();
     },
-    admitBotAction(browserMutation = false): () => void {
+    admitBotAction(
+      browserMutation = false,
+      label = "action",
+      leaseMs?: number,
+    ): Release {
       this.assertBotMayAct(browserMutation);
-      return barrier.enter();
+      return barrier.enter(label, leaseMs);
+    },
+    /** What is holding admission now (path and age). Diagnostics; never secrets. */
+    admittedActions(): ExpiredLease[] {
+      return barrier.holders();
     },
     humanMayDrive(): boolean {
       return data.holder === "human" && barrier.pending() === 0;

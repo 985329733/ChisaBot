@@ -108,6 +108,24 @@ describe("删机器人时它的面板", () => {
     expect(await rowOf(pc)).toBeUndefined();
   });
 
+  test("删除机器人时，它的云端浏览器经由浏览器进程删除（DESIGN.md §99）", async () => {
+    const c = await bot();
+    await database.update(agentProfiles).set({ deletedAt: new Date() }).where(eq(agentProfiles.agentId, c));
+    const forgotten: string[] = [];
+    const reset = { execute: async () => null } as unknown as BotReset;
+    const purge = createAgentPurge({
+      database,
+      reset,
+      profilesDir: "/tmp/does-not-exist-lpdel",
+      forgetComputer: async (agentId) => {
+        forgotten.push(agentId);
+      },
+    });
+    const report = await purge.purge({ id: userId, role: "admin" }, c);
+    expect(report.removed).toBe(true);
+    expect(forgotten).toEqual([c]);
+  });
+
   test("开机清孤儿：机器人行没了 / 资料已删的面板删掉，活着的机器人的面板不动", async () => {
     const alive = await bot();
     const pAlive = await panel(alive);

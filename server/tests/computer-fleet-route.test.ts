@@ -93,3 +93,86 @@ describe("listing every computer in the deployment", () => {
     expect(response.status).toBe(404);
   });
 });
+
+/**
+ * 2026-10-17 用户反馈：「bot删除后，这个浏览器居然还在」「没找到哪里可以删除掉这个」。
+ * 列表要说出每个浏览器属于谁（已删除的机器人要标明），并且只有没主人的浏览器能在这里删除。
+ */
+describe("browsers left over from deleted Bots (DESIGN.md §99)", () => {
+  function fleetApp(role: "admin" | "user" = "admin") {
+    const forgotten: string[] = [];
+    const asActor: MiddlewareHandler<{ Variables: AppVariables }> = async (
+      context,
+      next,
+    ) => {
+      context.set("actor", { ...ADMIN, role });
+      await next();
+    };
+    const gateway = {
+      computers: async () => ({
+        isolation: "shared",
+        computers: [
+          { botId: "agent_gone", running: false, startedAt: null },
+          { botId: "agent_live", running: true, startedAt: null },
+          { botId: "shared", running: false, startedAt: null },
+        ],
+      }),
+      forgetComputer: async (botId: string) => {
+        forgotten.push(botId);
+        return { cleared: true };
+      },
+    } as unknown as ComputerGateway;
+    const routes = createComputerRoutes(
+      gateway,
+      { get: () => ({ mode: "enforce", deny: [], allow: [] }) } as never,
+      asActor,
+      async () => false,
+      undefined,
+      undefined,
+      async (_actor, botId) => (botId === "agent_live" ? { name: "Asuna" } : null),
+    );
+    return {
+      forgotten,
+      hono: new Hono<{ Variables: AppVariables }>().route("/api/computers", routes),
+    };
+  }
+  const forget = (hono: Hono<{ Variables: AppVariables }>, botId: string) =>
+    hono.request("http://t/api/computers/fleet-forget", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ botId }),
+    });
+
+  test("the fleet names each browser's Bot and marks the left-over ones", async () => {
+    const { hono } = fleetApp();
+    const body = (await (await hono.request("http://t/api/computers/fleet")).json()) as {
+      computers: { botId: string; owner: string; botName?: string }[];
+    };
+    expect(body.computers).toEqual([
+      expect.objectContaining({ botId: "agent_gone", owner: "deleted" }),
+      expect.objectContaining({ botId: "agent_live", owner: "bot", botName: "Asuna" }),
+      expect.objectContaining({ botId: "shared", owner: "default" }),
+    ]);
+  });
+
+  test("a left-over browser can be deleted, even though its Bot no longer exists", async () => {
+    const { hono, forgotten } = fleetApp();
+    const response = await forget(hono, "agent_gone");
+    expect(response.status).toBe(200);
+    expect(forgotten).toEqual(["agent_gone"]);
+  });
+
+  test("a live Bot's browser and the default browser are refused", async () => {
+    const { hono, forgotten } = fleetApp();
+    expect((await forget(hono, "agent_live")).status).toBe(409);
+    expect((await forget(hono, "shared")).status).toBe(409);
+    expect((await forget(hono, "../etc")).status).toBe(400);
+    expect(forgotten).toEqual([]);
+  });
+
+  test("only an administrator may delete one", async () => {
+    const { hono, forgotten } = fleetApp("user");
+    expect((await forget(hono, "agent_gone")).status).toBe(403);
+    expect(forgotten).toEqual([]);
+  });
+});

@@ -59,3 +59,23 @@ export function saveActionPolicyMutationOptions(queryClient: QueryClient) {
     onSuccess: () => invalidateComputers(queryClient),
   });
 }
+
+/**
+ * Delete a browser left over from a deleted Bot (DESIGN.md §99): profile, sign-ins and handoff
+ * history. The server refuses a browser that still belongs to a Bot.
+ */
+export function forgetOrphanComputerMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (variables: { botId: string }) => {
+      await client("/api/computers/fleet-forget", {
+        method: "POST",
+        body: { botId: variables.botId },
+        fallback: "这个浏览器没能删除。",
+      });
+    },
+    onSuccess: (_result, variables) => {
+      clearActivity(variables.botId);
+      return invalidateComputers(queryClient);
+    },
+  });
+}

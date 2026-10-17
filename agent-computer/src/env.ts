@@ -81,3 +81,42 @@ export async function settleWithin(
     if (timer) clearTimeout(timer);
   }
 }
+
+/**
+ * `work`, or a rejection once `ms` has passed, whichever comes first.
+ *
+ * Unlike `settleWithin` the caller learns which: a launch that never starts must fail its callers,
+ * not quietly hand them nothing. `onTimeout` builds the error and is where the caller marks the
+ * work abandoned. The work itself is not cancelled (nothing here can), so its late result or
+ * rejection is swallowed.
+ */
+export function withDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  onTimeout: () => Error,
+): Promise<T> {
+  if (!(ms > 0)) return work;
+  return new Promise<T>((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      reject(onTimeout());
+    }, ms);
+    timer.unref?.();
+    work.then(
+      (value) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}

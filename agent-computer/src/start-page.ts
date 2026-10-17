@@ -1,4 +1,8 @@
 import type { Page } from "playwright";
+import { settleWithin, withDeadline } from "./env";
+
+/** 起始页检查 / 等待别人画完的上限。页面不再响应时不能把导航（和机器人的操作租约）一直挂住。 */
+const DRAW_WAIT_MS = 5_000;
 
 /**
  * 浏览器的「新标签页」。
@@ -29,7 +33,9 @@ export async function whileNavigating<T>(
   try {
     // 正在画起始页时先等它画完：setContent 用 document.open，和 goto 同时进行会取消导航。
     const inFlight = drawing.get(page);
-    if (inFlight) await inFlight.catch(() => undefined);
+    // Bounded: a draw whose page stopped answering must not hold a navigation (and the Bot's action
+    // lease) for ever. The draw itself has a 3 s content timeout; the evaluate before it had none.
+    if (inFlight) await settleWithin(inFlight, DRAW_WAIT_MS);
     return await work();
   } finally {
     const left = (navigating.get(page) ?? 1) - 1;
@@ -56,12 +62,12 @@ export async function ensureStartPage(
     try {
       // 网站弹出的窗口（OAuth、支付）在加载前也是 about:blank，不能往里画，否则会打断它的导航。
       if (await page.opener().catch(() => null)) return;
-      const empty = await page.evaluate(
+      const empty = await withDeadline(page.evaluate(
         (mark) =>
           !document.documentElement.dataset[mark] &&
           (document.body?.childElementCount ?? 0) === 0,
         START_PAGE_MARK,
-      );
+      ), DRAW_WAIT_MS, () => new Error("start page check timed out"));
       // 再查一次：evaluate 期间可能已经开始导航了。
       if (!empty || navigating.has(page) || page.url() !== "about:blank")
         return;

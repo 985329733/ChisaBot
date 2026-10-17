@@ -3624,6 +3624,17 @@ const app = createApp(
         reset: botReset,
         stopWorkers: async (agentId) => workerService?.stopForAgent(agentId),
         retirePanels: async (agentId) => livePanelService.retireBot(agentId),
+        ...(computerGateway
+          ? {
+              forgetComputer: (agentId: string, actor: { id: string }) =>
+                computerGateway.forgetComputer(
+                  agentId,
+                  // 不写 userId：内置管理员不一定是 users 表里的行（审计表外键），是谁记在内容里。
+                  { id: actor.id },
+                  "机器人被删除，它的浏览器（配置文件、登录状态、接管记录）随之删除",
+                ),
+            }
+          : {}),
       }),
       activity: createActivityStore(database),
       wakeUps: wakeUpStore,

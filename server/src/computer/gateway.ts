@@ -290,6 +290,15 @@ export interface ComputerGateway {
   ): Promise<{ cleared: boolean }>;
   /** Move a computer onto the current image, keeping its files and sign-ins. */
   updateComputer(botId: string, actor: ActionActor): Promise<ComputerUpdate>;
+  /**
+   * Delete a computer for good (its Bot was deleted): browser closed, profile + cookies + handoff
+   * history removed, snapshots and page pictures cleared. Audited as `computer.reset`.
+   */
+  forgetComputer(
+    botId: string,
+    actor: ActionActor,
+    reason?: string,
+  ): Promise<{ cleared: boolean }>;
 }
 
 export function createComputerGateway(
@@ -941,6 +950,20 @@ export function createComputerGateway(
             ? `the computer is restarting on ${result.to}, keeping its files and sign-ins`
             : `the computer will start on ${result.to} when it is next used`,
       });
+      return result;
+    },
+
+    async forgetComputer(botId: string, actor: ActionActor, reason?: string) {
+      const result = provider.forget
+        ? await provider.forget(botId)
+        : await provider.reset(botId);
+      await writeControlEvent(auditStore, "computer.reset", {
+        botId,
+        actor,
+        reason: reason ?? "这个机器人的浏览器（配置文件、登录状态、接管记录）被删除",
+      });
+      await snapshots.clear(botId);
+      await pageFrames?.clear(botId);
       return result;
     },
 
