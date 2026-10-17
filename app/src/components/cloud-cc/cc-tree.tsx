@@ -11,6 +11,7 @@ import { toast } from "@/components/ui/toast";
 import { CcNewWorkspaceDialog } from "./cc-github-dialogs";
 import { CcSyncDialog } from "./cc-sync";
 import { pcSyncBridge } from "@/lib/pc-bridge";
+import { useClaudeAuthRecheck } from "@/lib/claude-auth-recheck";
 import { ccApi, ccKeys, ccWorkspacesQueryOptions, cloudWorkspaceQueryOptions } from "@/lib/cloud-cc";
 import { cn } from "@/lib/utils";
 
@@ -181,10 +182,18 @@ export function CcTree({ onNavigate, variant = "rail" }: { onNavigate?: () => vo
 /** 左栏底部的节点状态卡：「云端工作区 · 在线 · Claude Pro · 正在运行 1 / 2」。 */
 export function CcNodeCard({ onNavigate }: { onNavigate?: () => void }) {
   const status = useQuery(cloudWorkspaceQueryOptions());
+  // 会话页也挂着这张卡：缓存的「未登录」可能过时，在这里后台复查（§73.2）。
+  const { checking } = useClaudeAuthRecheck();
   const d = status.data;
   if (!d) return null;
   const online = !!d.node?.online;
-  const plan = d.claude.plan ? `Claude ${d.claude.plan.charAt(0).toUpperCase()}${d.claude.plan.slice(1)}` : d.claude.loggedIn ? "Claude 已登录" : "Claude 未登录";
+  const plan = d.claude.plan
+    ? `Claude ${d.claude.plan.charAt(0).toUpperCase()}${d.claude.plan.slice(1)}`
+    : d.claude.loggedIn
+      ? "Claude 已登录"
+      : checking
+        ? "正在确认 Claude 登录…"
+        : "Claude 未登录";
   return (
     <Link className="cc-node-card" data-testid="cc-node-card" onClick={() => onNavigate?.()} to="/settings/cloud-workspace">
       <i aria-hidden className={cn("cc-node-dot", online ? "is-on" : "is-off")} />

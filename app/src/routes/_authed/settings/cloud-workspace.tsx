@@ -1,4 +1,4 @@
-import { IconKey, IconCloudComputing, IconExternalLink, IconRefresh, IconShieldCheck, IconTrash, IconWorldWww, IconPlugConnected, IconCircleCheck, IconCircleX, IconLink } from "@tabler/icons-react";
+import { IconKey, IconCloudComputing, IconExternalLink, IconRefresh, IconShieldCheck, IconTrash, IconWorldWww, IconPlugConnected, IconCircleCheck, IconCircleX, IconLink, IconLoader2 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody, EmptyState, ErrorCard, ListRow, SettingRow } from "@/components/ui/skyglass";
 import { Switch } from "@/components/ui/switch";
+import { useClaudeAuthRecheck } from "@/lib/claude-auth-recheck";
 import { ccApi, ccKeys, cloudWorkspaceQueryOptions } from "@/lib/cloud-cc";
 import { client } from "@/lib/client";
 import { agoText } from "@/lib/im";
@@ -76,6 +77,8 @@ function ClaudeAccount() {
   const status = useQuery(cloudWorkspaceQueryOptions());
   const claude = status.data?.claude;
   const online = !!status.data?.node?.online;
+  // 打开这一页 / 回到窗口时，缓存「未登录」或超过 60 秒就后台复查一次（§73.1）。
+  const { checking } = useClaudeAuthRecheck();
   const [login, setLogin] = useState<CcLoginStart | null>(null);
   const [cloud, setCloud] = useState(false);
   const browserLogin = !!status.data?.browserLogin;
@@ -212,6 +215,16 @@ function ClaudeAccount() {
                 </span>
               </form>
             </Step>
+          </CardBody>
+        ) : checking ? (
+          <CardBody className="cc-account-row" data-testid="cc-auth-checking">
+            <span className="cc-account-ic">
+              <IconLoader2 className="size-5 motion-safe:animate-spin" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="cc-account-t">{"正在确认登录状态…"}</div>
+              <div className="cc-account-s">{"正在向云端工作区确认 Claude 是否已登录。"}</div>
+            </div>
           </CardBody>
         ) : (
           <CardBody className="cc-account-row">

@@ -1,4 +1,4 @@
-import { IconCloudComputing, IconKey, IconTerminal2 } from "@tabler/icons-react";
+import { IconCloudComputing, IconKey, IconLoader2, IconTerminal2 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -8,6 +8,7 @@ import { PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { useOptionalSidebar } from "@/components/ui/sidebar";
 import { EmptyState, ErrorCard } from "@/components/ui/skyglass";
+import { useClaudeAuthRecheck } from "@/lib/claude-auth-recheck";
 import { ccWorkspacesQueryOptions, cloudWorkspaceQueryOptions, LAST_CC_SESSION_KEY } from "@/lib/cloud-cc";
 
 export const Route = createFileRoute("/_authed/_app/cc/")({
@@ -22,6 +23,8 @@ function CcHome() {
   const sidebar = useOptionalSidebar();
   const phone = !!sidebar?.isMobile;
   const status = useQuery(cloudWorkspaceQueryOptions());
+  // 缓存的登录状态可能过时（节点重连 / 检查后才刷新）：打开页面、回到窗口时后台复查（§73.5）。
+  const { checking } = useClaudeAuthRecheck();
   const workspaces = useQuery(ccWorkspacesQueryOptions(!!status.data?.node));
   const navigate = useNavigate();
   const latest = (workspaces.data ?? []).flatMap((w) => w.sessions).sort((a, b) => (b.lastTurnAt ?? b.createdAt).localeCompare(a.lastTurnAt ?? a.createdAt))[0];
@@ -53,6 +56,12 @@ function CcHome() {
       description="Claude Code 跑在服务器上一个独立的容器里（云端工作区）。先把它部署并配对好。"
       icon={<IconCloudComputing className="size-6" />}
       title="先连接云端工作区"
+    />
+  ) : !d.claude.loggedIn && checking ? (
+    <EmptyState
+      description="正在向云端工作区确认登录状态。"
+      icon={<IconLoader2 className="size-6 motion-safe:animate-spin" />}
+      title="正在确认 Claude 登录…"
     />
   ) : !d.claude.loggedIn ? (
     <EmptyState
