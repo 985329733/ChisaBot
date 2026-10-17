@@ -131,6 +131,9 @@ const LAUNCH_ARGS = [
   // may do; the governed path is unchanged. Full Chromium is selected explicitly in both modes;
   // headed mode also provides a window a person can use on the native desktop or virtual display.
   "--disable-blink-features=AutomationControlled",
+  // 云端没有显卡：不开这个，Chromium 不再自动退回软件 WebGL，要 WebGL 的网站（Hark 登录页的背景、地图、
+  // 很多 3D / 画布页面）只显示「需要 WebGL」（DESIGN.md §101，2026-10-18 实测）。本机 Chrome 有显卡，不加。
+  ...(LOCAL_CHROME ? [] : ["--enable-unsafe-swiftshader"]),
 ];
 
 /**

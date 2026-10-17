@@ -92,6 +92,7 @@
 | [92](#92-窄窗口里输入框两边也留白2026-10-16) | 窄窗口里输入框两边也留白 | 2026-10-16，CB-078 |
 | [99](#99-云端浏览器卡死保护--已删除机器人的浏览器2026-10-17) | 云端浏览器卡死保护 + 已删除机器人的浏览器 | 2026-10-17 |
 | [100](#100-原生下拉框能选回合不再静默结束2026-10-17) | 原生下拉框能选、回合不再静默结束 | 2026-10-17 |
+| [101](#101-真实任务验收修复工具打到对的机器人备用模型定时任务的确认步数收尾2026-10-18) | 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾 | 2026-10-18 |
 
 ## 0. 总原则
 
@@ -2207,3 +2208,46 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 机器人能操作的「电脑里的浏览器」是右栏「计算机」那台**云端浏览器**。PC 本机只开放截图、鼠标键盘输入和「打开」网址 / 文件（`pc/src/agent/core.js`），没有网页元素级的浏览器控制。
 
 - 回归：`agent-computer/tests/native-select.test.ts`（选项规则、快照折叠；`OPENBOT_COMPUTER_BROWSER=1` 时真 Chromium 选出 2000-07-12 并触发 change）、`server/tests/computer-tool-outcome.test.ts`（失败映射、路由 200 / 500）、`app/tests/turn-unfinished.test.tsx`（500 交回结果不抛、`neverThrow`、`unfinishedTurnReason`、提示文案）；端到端 `tests/native-select/turn.mjs`（预览 / 生产：API 选择、真模型对话选出 2000-07-12、模拟接力 run 500 出提示、模拟计算机请求 500 后机器人自己恢复）。
+
+## 101. 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾（2026-10-18）
+
+起因（用户 2026-10-18 01:39）：「目前chisabot用起来还是一堆问题……你试过真正让bot干一件事吗？现在是任何事都干不了，就是一个纯花架子」。
+做法：先只读查生产 10-17 18:00 之后用户真实机器人（星灵、Asuna）的每一轮（`openbot_local_runs` / 事件 / 审计 / 网关日志），再在生产用一次性机器人 + 临时会话，
+用有界面的 Chrome 打开真实网页界面，像用户一样在输入框里发任务（搜新闻、开网页读信息、填表提交、建文件、跑代码、多步整理表格、提醒 / 记忆 / 技能 / 网页、长任务），逐项截图。
+验收脚本 `tests/realtest/`（见 docs/testing.md）。
+
+### 101.1 计算机工具打到这次调用所属对话的机器人（`active-bot.tsx`、`approval-tools.tsx`、`channel-chat.tsx`）
+- 生产证据（10-17 22:44，网关日志 + 审计）：用户在 Asuna 的对话里让它登录 Hark，Asuna 的 `computer_navigate` 打到了 **星灵** 的浏览器（`POST /api/computers/<星灵>/navigate`），
+  登录请求也记在星灵名下 → Asuna 那边 15 分钟后只拿到「Nobody signed in」，接着「请你接管」也过期。原因：所有计算机工具读同一个「当前看着的机器人」（holder），
+  一轮由好几个 run 接力，只要另一段对话后挂载 / 用户切走，后面的操作就打到别的机器人。
+- 修复：每段对话把自己的 agent 对象登记到它的机器人（`bindAgentBot`）；工具处理函数先按这次调用的 `context.agent` 找机器人（`botForAgent`），找不到才退回 holder；
+  处理函数同步读 `bot.current` 的地方在 `withRunBot` 里读到的就是这次调用的机器人。计算机改动的审批请求同样发到这个机器人。
+
+### 101.2 备用模型不再一错就整段停摆（`server/src/agents/model-fallback.ts`）
+- 生产证据（10-18 02:1x）：主模型 `codex/gpt-6-luna` 一次 429（没写原因）→ 冷却 10 分钟 → 换备用 `step-5-preview`，它已下线（404「model not found」）→ 直接抛出，
+  后面的候选和主模型都没机会；10 分钟里每一轮都是「找不到所选模型」。
+- 修复：备用模型的任何错误都不挡下一个候选（坏掉的候选 30 分钟内跳过，日志 `candidate-failed`）；主模型这次是因冷却被跳过、候选又全失败时再试一次主模型；
+  没写原因的 429（一时限流）冷却 1 分钟，写着额度 / 每日限额的仍 10 分钟、写了「Try again in …」的按它；日志带一小段原始错误。
+- 运维（不在代码里）：生产备用列表 step-5-preview → solar-mini4、mimo-v2.6-flash（都实测能调工具）。
+
+### 101.3 定时任务里要先确认的步骤：放卡片、不再直接拒绝（`server/src/confirmations/service.ts`）
+- 生产证据：星灵的定时任务「和 Claude 聊电车」每 3 小时跑一次，每次都停在「这一轮不在网页聊天里，弹不出确认卡片，所以没有执行」——这件事永远做不成。
+- 修复：用户不在场的回合（定时任务、IM 触发）遇到「先问我」的类别，照样放一张确认卡片（聊天里和「待处理」都看得到，24 小时有效），这一轮不等，
+  工具结果告诉机器人「已放卡片、等用户确认、不要换办法」；用户之后点「确认」，服务器照 §58 往这段对话发「用户确认了」叫机器人接着做（重试同一工具放行一次）。
+  同一段对话同一个工具还没人理的旧卡片作废，只留最新一张。没有对话可挂的后台调用仍是原来的拒绝说明。
+
+### 101.4 工具步数快用完时提醒收尾（`server/src/copilot.ts` `withStepBudgetNote`）
+- 一个 run 最多 12 步工具（`TOOL_STEPS`）。实测备用模型搜了 11 次新闻、到上限时最后一步还在调工具 → 没有回答，只出「这一轮没有做完」。
+- 修复：按这一轮已执行的工具次数，最后三次的工具结果后面加一句「步数快用完了，停止调用工具，用已有信息直接回答」。
+
+### 101.5 回复显示
+- **中文加粗**（`lib/chat/cjk-emphasis.ts`）：「**标题：**OpenAI…」这类收尾星号前是标点、后面紧跟文字的，CommonMark 不认，整段带星号显示。交给 Markdown 前把挨着星号的标点挪到外面（「**标题**：OpenAI」）；代码不动。
+- **工作区文件链接**（`lib/chat/workspace-links.ts`）：「[primes.py](primes.py)」「file:///workspace/…」「sandbox:/…」「https://workspace.local/…」以前被画成「primes.py [blocked]」；
+  现在换成这个机器人计算机的下载地址 `/api/computers/<bot>/files/download?path=…`（同源、要登录、照常审计）。
+
+### 101.6 云端浏览器能用 WebGL（`agent-computer/src/profiles.ts`）
+- 云端没有显卡，新版 Chromium 不再自动退回软件 WebGL，Hark 登录页等要 WebGL 的页面只显示「需要 WebGL」。容器里的 Chromium 加 `--enable-unsafe-swiftshader`（本机 Chrome 不加）。
+
+- 回归：`app/tests/active-bot-routing.test.tsx`、`app/tests/cjk-emphasis.test.ts`、`app/tests/workspace-links.test.ts`、`server/tests/model-fallback.test.ts`（坏候选不挡路、冷却中主模型兜底、429 冷却）、
+  `server/tests/confirmations.test.ts`（非网页回合放卡片、旧卡作废）、`server/tests/step-budget.test.ts`。PC 客户端加载服务器网页，不需要更新客户端。
+

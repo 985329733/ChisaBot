@@ -33,7 +33,7 @@ import {
 import type { AgentActor } from "./agents/profile-types";
 import { modelOverrideFromValue } from "./agents/model-selection";
 import { thinkTagLanguageModel } from "./agents/think-tags";
-import { withConfirmToolCall } from "./confirmations/context";
+import { currentConfirmTurn, withConfirmToolCall } from "./confirmations/context";
 import { fallbackCandidates, fallbackLanguageModel } from "./agents/model-fallback";
 import {
   executeNativeApprovalTool,
@@ -569,9 +569,9 @@ export function builtInAgentConfiguration(
       ? {
           tools: allTools.map((tool) => ({
             ...tool,
-            execute: (args: unknown, execution?: { toolCallId?: string }) =>
+            execute: async (args: unknown, execution?: { toolCallId?: string }) => {
               // 确认卡片要画在这条工具调用下面：把 toolCallId 带给 server/src/confirmations。
-              withConfirmToolCall(execution?.toolCallId, tool.name, () =>
+              const result = await withConfirmToolCall(execution?.toolCallId, tool.name, () =>
                 executeNativeApprovalTool(
                   tool.name,
                   args,
@@ -579,7 +579,10 @@ export function builtInAgentConfiguration(
                   tools.find((granted) => granted.name === tool.name)?.initiator,
                   () => tool.execute(args),
                 ),
-              ),
+              );
+              // 步数快用完时提醒收尾（§101）。
+              return withStepBudgetNote(result);
+            },
           })),
           maxSteps: TOOL_STEPS,
         }
@@ -594,6 +597,29 @@ export function builtInAgentConfiguration(
  * Beyond that a model is not making progress, and every extra step is somebody's money.
  */
 const TOOL_STEPS = 12;
+
+/**
+ * 步数快用完时提醒模型收尾（DESIGN.md §101）。
+ *
+ * 到了 TOOL_STEPS 这一轮就硬停：模型最后一步还在调工具，就没有最终回答，界面只能显示「这一轮没有做完」
+ * （2026-10-18 实测：搜了 11 次新闻，一句结论都没给）。这里按这一轮（同一个 run）已经执行的工具次数，
+ * 从倒数第三次起在工具结果后面加一句「停止调用工具，直接回答」。只加在字符串 / 普通对象结果上，不改别的。
+ */
+const stepCounts = new WeakMap<object, number>();
+const STEP_NOTE = (left: number) =>
+  `【系统提示】这一轮的工具步数快用完了（最多还能再调 ${left} 次）。现在停止调用工具，用已经拿到的信息直接给用户完整的回答；信息不全就说明缺什么。`;
+export function withStepBudgetNote<T>(result: T, turn: object | undefined = currentConfirmTurn()): T {
+  if (!turn) return result;
+  const used = (stepCounts.get(turn) ?? 0) + 1;
+  stepCounts.set(turn, used);
+  const left = TOOL_STEPS - used;
+  if (left > 2) return result;
+  const note = STEP_NOTE(Math.max(left, 0));
+  if (typeof result === "string") return `${result}\n\n${note}` as T;
+  if (result && typeof result === "object" && !Array.isArray(result) && Object.getPrototypeOf(result) === Object.prototype)
+    return { ...(result as Record<string, unknown>), systemNote: note } as T;
+  return result;
+}
 
 /**
  * Build the built-in and remote AG-UI agent map the runtime serves.

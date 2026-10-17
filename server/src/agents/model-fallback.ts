@@ -82,6 +82,12 @@ function errorParts(error: unknown): { status?: number; text: string } {
   return { status, text: texts.join(" ") };
 }
 
+/** 日志里留一小段原始错误，事后能看出主模型到底为什么被拒。 */
+function errorSnippet(error: unknown): string {
+  const { status, text } = errorParts(error);
+  return `${status ?? ""} ${text}`.replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
 const QUOTA_TEXT = /quota|rate.?limit|daily.*limit|free (tier|limit)|limit reached|insufficient.*(credit|balance)|exceeded|额度|限额|余额/i;
 
 /** 这个错误是不是「这个模型暂时用不了（额度 / 限流）」，换一个模型有意义。 */
@@ -106,7 +112,15 @@ export function fallbackReason(error: unknown): FallbackReason | null {
   return null;
 }
 
-/** 「Try again in 19h 51m」/「retry after 30s」→ 毫秒；读不出来就 10 分钟，最多 24 小时。 */
+/** 一天 / 免费额度这类「短时间不会恢复」的字样；没有它的 429 多半只是一时限流。 */
+const LONG_QUOTA_TEXT = /quota|daily|free (tier|limit)|limit reached|insufficient|exceeded|额度|限额|余额/i;
+
+/**
+ * 「Try again in 19h 51m」/「retry after 30s」→ 毫秒；读不出来时：写着额度 / 每日限额的 10 分钟，
+ * 只是一时限流（429 没说原因，DESIGN.md §101）的 1 分钟——以前一律 10 分钟，主模型偶尔一次 429，
+ * 后面 10 分钟的每一轮都只能用备用模型，备用模型又下线了，整整 10 分钟什么都做不了（2026-10-18 生产）。
+ * 最多 24 小时。
+ */
 export function cooldownMs(error: unknown): number {
   const { text } = errorParts(error);
   const m = /(?:try again|retry)[^0-9]{0,20}(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?:in)?)?\s*(?:(\d+)\s*s)?/i.exec(text);
@@ -114,8 +128,11 @@ export function cooldownMs(error: unknown): number {
     const ms = (Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0)) * 1000;
     if (ms > 0) return Math.min(ms, 24 * 3600_000);
   }
-  return 10 * 60_000;
+  return LONG_QUOTA_TEXT.test(text) ? 10 * 60_000 : 60_000;
 }
+
+/** 备用模型自己坏了（不存在 / 参数不收 / 密钥不对）：这么久之内不再试它。 */
+const BROKEN_CANDIDATE_MS = 30 * 60_000;
 
 /** 冷却多久：额度按错误里写的恢复时间；服务不可用 2 分钟（多半是一时的）。 */
 function cooldownFor(error: unknown, reason: FallbackReason): number {
@@ -141,7 +158,7 @@ export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: Fall
         cooldown.set(primaryId, now() + ms);
         firstError = error;
         reason = why;
-        log({ type: "model-fallback", event: why === "quota" ? "primary-quota" : "primary-unavailable", model: primaryId, cooldownMinutes: Math.round(ms / 60000) });
+        log({ type: "model-fallback", event: why === "quota" ? "primary-quota" : "primary-unavailable", model: primaryId, cooldownSeconds: Math.round(ms / 1000), error: errorSnippet(error) });
       }
     } else {
       reason = cooledReason.get(primaryId) ?? "quota";
@@ -159,16 +176,16 @@ export function fallbackLanguageModel<T>(model: T, primaryId: string, deps: Fall
         announce({ from: primaryId, to: id, reason });
         return result;
       } catch (error) {
+        // 备用模型的任何错误都不该挡住下一个候选（以前 404「model not found」直接抛出，后面的候选和主模型都没机会，§101）。
         const why = fallbackReason(error);
-        if (!why) throw error;
-        cooldown.set(id, now() + cooldownFor(error, why));
-        cooledReason.set(id, why);
-        firstError ??= error;
+        cooldown.set(id, now() + (why ? cooldownFor(error, why) : BROKEN_CANDIDATE_MS));
+        cooledReason.set(id, why ?? "unavailable");
+        log({ type: "model-fallback", event: "candidate-failed", model: primaryId, fallback: id, reason: why ?? "broken", error: errorSnippet(error) });
       }
     }
-    if (firstError) throw firstError;
-    // 主模型在冷却、又没有候选：照常调一次（可能已经恢复）。
-    return primaryCall(options);
+    // 这一次主模型是因为冷却被跳过的（没真的试）：候选都不行就再试一次主模型，它可能已经恢复了。
+    if (!firstError) return primaryCall(options);
+    throw firstError;
   };
   return new Proxy(model as unknown as object, {
     get(object, property) {

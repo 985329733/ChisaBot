@@ -36,7 +36,7 @@ import {
   type ChannelSummary,
   channelKeys,
 } from "@/lib/channels/queries";
-import { useActiveBot } from "@/lib/copilot/active-bot";
+import { bindAgentBot, useActiveBot } from "@/lib/copilot/active-bot";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import type { ThreadActivity } from "@/lib/copilot/bot-thread";
@@ -330,6 +330,8 @@ export function ChannelChat({
     ],
   });
   useEffect(() => observeApprovalAgent(agent), [agent]);
+  // 这段对话的工具调用操作这个机器人的计算机，不管用户此刻在看哪段对话（§101）。
+  bindAgentBot(agent, runtimeAgentId);
 
   /**
    * First-message seed from the compose screen. It is taken once per mount and retained until the
