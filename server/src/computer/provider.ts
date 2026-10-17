@@ -63,9 +63,12 @@ export function describeComputerIsolation(
 
   return {
     isolation: "one shared computer",
-    note: "No supervisor is configured, so every Bot uses the same browser. Sessions, files and logins are shared between them.",
+    // 2026-10-17 核对（审查 P2-16 / CB-098）：没有 supervisor 时所有机器人在同一个 agent-computer 进程里，
+    // 但每个机器人有自己的 Chromium 持久配置目录（profiles.ts：一个机器人一个 launchPersistentContext），
+    // Cookie、登录、存储、标签各自独立；共享的是进程、/workspace 文件和出口 IP。旧文案说「共用一个浏览器」不对。
+    note: "No supervisor is configured: every Bot's browser runs in this one computer process. Each Bot has its own browser profile, so cookies, sign-ins, storage and tabs are separate; the /workspace files, the process and the outbound IP are shared.",
     warning:
-      "Every Bot shares one browser.",
+      "Bots share one computer process and its /workspace files (browser profiles are per Bot).",
   };
 }
 

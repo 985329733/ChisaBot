@@ -9,6 +9,7 @@ import { InlineApproval } from "@/components/approvals/inline-approval";
 import { tryClient } from "@/lib/client";
 import { useActiveBotHolder } from "./active-bot";
 import { frontendApprovalSnapshot } from "./approval-context";
+import { markApprovalPause } from "./stopped-turn";
 
 type RenderProps = { toolCallId: string; [key: string]: unknown };
 
@@ -19,6 +20,33 @@ const writes = new Set([
   "computer_run_command",
   "computer_write_file",
 ]);
+
+/**
+ * 工具处理函数绝不抛错（DESIGN.md §100）。
+ *
+ * CopilotKit 的 `executeSpecificTool` 只有在处理函数没出错时才发起下一轮：一抛错，错误文字记成工具结果，
+ * 这一轮就停在那里，没有最终回答、也没有任何提示（2026-10-17 用户截图：「做了 3 步」后什么都没有）。
+ * 所以任何异常都变成 `{ ok: false, reason }` 交回去，机器人看得到、能换个办法或照实告诉用户。
+ * 用户按了停止（signal 已中止）照旧抛：那一轮本来就该停，结果会被丢弃。
+ */
+export async function neverThrow<T>(
+  signal: AbortSignal | undefined,
+  run: () => Promise<T>,
+): Promise<T | { ok: false; reason: string }> {
+  try {
+    return await run();
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    console.warn("[chisabot] frontend tool failed", message);
+    return {
+      ok: false,
+      reason: message
+        ? `这一步没有成功：${message}`
+        : "这一步没有成功。",
+    };
+  }
+}
 
 /**
  * Route computer changes through the server's durable approval gate, and draw a pending decision
@@ -59,7 +87,8 @@ export function useFrontendTool<T extends Record<string, unknown>>(
         }
       : {}),
     handler: tool.handler
-      ? async (args, context) => {
+      ? async (args, context) =>
+          neverThrow(context.signal, async () => {
           if (!writes.has(tool.name)) return tool.handler?.(args, context);
           let snapshot: ReturnType<typeof frontendApprovalSnapshot>;
           try {
@@ -93,6 +122,7 @@ export function useFrontendTool<T extends Record<string, unknown>>(
               };
             }
             if (!context.agent) throw new Error("中断的对话不可用。");
+            markApprovalPause();
             // Stop signals the SDK to discard this handler's unfinished result. The server owns
             // resume: the decision executes the action once and continues this conversation.
             copilotkit.stopAgent({ agent: context.agent });
@@ -100,19 +130,25 @@ export function useFrontendTool<T extends Record<string, unknown>>(
             void queryClient.invalidateQueries({ queryKey: ["approvals"] });
             return { waiting: true };
           }
-          if (!response.ok)
-            throw new Error(
+          if (!response.ok) {
+            const error =
               payload &&
-                typeof payload === "object" &&
-                "error" in payload &&
-                typeof payload.error === "string"
+              typeof payload === "object" &&
+              "error" in payload &&
+              typeof payload.error === "string"
                 ? payload.error
-                : "无法批准计算机操作。",
-            );
+                : "";
+            // 交回一个「没做成」的结果而不是抛错：抛错会让 CopilotKit 不再发起下一轮，这一轮静默结束（§100）。
+            return {
+              ok: false,
+              reason: error || `计算机操作没有成功（HTTP ${response.status}）。`,
+              ...(response.status === 400 || response.status === 403 ? { refused: true } : {}),
+            };
+          }
           if (!payload || typeof payload !== "object" || !("result" in payload))
-            throw new Error("计算机操作未返回结果。");
+            return { ok: false, reason: "计算机操作没有返回结果。" };
           return payload.result;
-        }
+        })
       : undefined,
   });
 }

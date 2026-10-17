@@ -140,6 +140,8 @@ export type SnapshotElement = {
   type?: string;
   disabled?: boolean;
   checked?: boolean;
+  /** 原生下拉框的选项文字（DESIGN.md §100）。用 computer_type 填其中一项即可选中。 */
+  options?: string[];
 };
 
 export type SnapshotResult = {

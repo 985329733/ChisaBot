@@ -91,6 +91,7 @@
 | [91](#91-pc-本机小窗口无边框圆角只有一道边2026-10-16) | PC 本机小窗口无边框、圆角、只有一道边 | 2026-10-16，PC 0.1.15 |
 | [92](#92-窄窗口里输入框两边也留白2026-10-16) | 窄窗口里输入框两边也留白 | 2026-10-16，CB-078 |
 | [99](#99-云端浏览器卡死保护--已删除机器人的浏览器2026-10-17) | 云端浏览器卡死保护 + 已删除机器人的浏览器 | 2026-10-17 |
+| [100](#100-原生下拉框能选回合不再静默结束2026-10-17) | 原生下拉框能选、回合不再静默结束 | 2026-10-17 |
 
 ## 0. 总原则
 
@@ -2179,3 +2180,30 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 服务器 `POST /api/computers/fleet-forget {botId}`：只给管理员；这个 id 仍是某个机器人（`agentProfileStore.get` 能读到）或是默认浏览器时 409，并说用「重置」。`/fleet` 每行多 `owner: bot | default | deleted` 和 `botName`。
 - 对话框标题改成中文语序：「重置「X」的浏览器？」「更新「X」的计算机？」（以前是「重置X's 计算机？」）。
 
+## 100. 原生下拉框能选、回合不再静默结束（2026-10-17）
+
+起因（用户 2026-10-17 22:47，PC 0.1.15，机器人「星灵」）：「问题很多，无法操作电脑里的浏览器，操作会断，也不知道是报错了还是啥，也没有提示。」
+截图：让机器人在 Hark 注册页填生日 2000-07-12，第一轮「做了 4 步」、第二轮「做了 3 步」后什么都没有；右栏「计算机」里月份的系统下拉列表展开着。
+生产证据（审计 `computer.action_failed` + 网关日志）：机器人点了月份 `<select>`（有界面的 Chromium 弹出系统列表），之后 `computer_type` 和第二次 `computer_key` 在 agent-computer 里等到超时，
+服务器报「Element f4e36 is not on the page any more」，`POST /api/approvals/computer/:bot` 回 **500**；网页里的工具处理函数一抛错，CopilotKit 的 `executeSpecificTool` 就**不再发起下一轮**
+（它只在处理函数没出错时 follow-up），最后一条是 `Error: …` 工具结果，没有回答、没有提示。同时 `channel-chat` 在一轮的**第一个** run 结束时就放下了 `awaitingReply`，后面接力的 run 出错也不会报。
+
+### 100.1 原生 `<select>`（agent-computer `native-select.ts`）
+- **快照**：`combobox` 下面直接挂着一串 `option` = 原生下拉框。选项收进这个元素的 `options`（最多 60 项，超出写「……共 N 项」），`value` = 当前选中项；不再一项一项占快照名额（年份一百多项会把 200 个元素撑满）。自定义下拉框（选项在别处的 `listbox` 里）不变，选项照样能点。
+- **填写（`computer_type`）原生下拉框 = 选中**：按「文字完全一样 → 月份写法互通（7 / 07 / Jul / July / 七月 / 7月；月份值从 0 开始的网站也对）→ 值完全一样 → 数字一样（7 对 07、7日）→ 唯一前缀」挑一项，`selectOption` 选中（和人选一样触发 input / change），先失焦收起可能弹出的系统列表。找不到 → 400「这个下拉框里没有「X」对应的选项。可选：…」，机器人换个写法。
+- **点击原生下拉框本身**：不真的点开（避免系统列表卡住后续操作），只聚焦，结果带 `nativeSelect: true`、`options`、`selected` 和一句提示「用 computer_type 把要选的选项文字或值填进去」。点下拉框里的某个 option = 选中它。
+- **在原生下拉框上按键**：先收起系统列表；Enter / 空格 / F4 / Alt+↑↓（会再弹出列表）不按，方向键、字母照常；结果同样带提示。
+- 工具说明（网页 `computer-tools.tsx` 与无人值守 `headless-tools.ts`）写明：下拉框用 computer_type 填选项，不要点开或按键。聊天里这一步显示「已选择 Month：Jul」（选项是页面上的文字，不是输入的内容，可以显示）。
+
+### 100.2 回合不能静默结束
+- **服务器**：`POST /api/approvals/computer/:bot` 把普通的计算机失败（元素过期、找不到、下拉框没有这个选项、被规则拒绝、人在接管、电脑暂时不可用）作为 `200 { result: { ok:false, reason, staleRefs | refused | humanHasControl | unavailable } }` 交回（`server/src/computer/tool-outcome.ts`），只有真正的程序错误才 500。
+- **网页工具处理函数绝不抛错**（`approval-tools.tsx` 的 `neverThrow`）：非 2xx、网络异常、处理函数自己抛错都交回 `{ ok:false, reason }`，机器人照常拿到结果、接着做（重新读页面 / 换办法 / 照实告诉用户）。用户按停止（signal 已中止）照旧抛。
+- **`awaitingReply` 等整轮跑完才放下**：一轮里接力的任何一个 run 出错 / 失败都进 `fail`，出「这一轮没有完成」卡片 + 「重试」。等审批卡那次 `stopAgent` 的中止不算出错（`markApprovalPause`，15 s 内的中止不报）。
+- **整轮结束后兜底检查**（`unfinishedTurnReason`）：这一轮新加的最后一条是工具结果（工具出错、续轮到上限 100 次）或一条空回复 → 出卡片，标题「这一轮没有做完」，提示直接写原因，例如「机器人在「按键」这一步出错，这一轮没有做完：页面已经变了，它要找的元素不在了。点「重试」再来一次。」；最后一条是回答、没有结果的工具调用或 `{waiting:true}`（在等审批 / 等用户）不算。卡片和「重试」沿用 §88.4（中途断的一轮重试 = 从这条消息起重新生成）。
+- PC 客户端加载服务器网页，**不需要更新客户端**。
+
+### 100.3 顺带核实：「Every Bot shares one browser」
+- 启动日志 `computer-isolation` 在没有 supervisor（provider = shared）时说「Every Bot shares one browser」，与实际不符：agent-computer 给每个机器人一个独立的 Chromium 持久配置目录（`profiles.ts`，一个机器人一个 `launchPersistentContext`），Cookie、登录、存储、标签各自独立；共享的是进程、`/workspace` 文件和出口 IP。文案改为如实描述（`provider.ts`），与本次问题无关。
+- 机器人能操作的「电脑里的浏览器」是右栏「计算机」那台**云端浏览器**。PC 本机只开放截图、鼠标键盘输入和「打开」网址 / 文件（`pc/src/agent/core.js`），没有网页元素级的浏览器控制。
+
+- 回归：`agent-computer/tests/native-select.test.ts`（选项规则、快照折叠；`OPENBOT_COMPUTER_BROWSER=1` 时真 Chromium 选出 2000-07-12 并触发 change）、`server/tests/computer-tool-outcome.test.ts`（失败映射、路由 200 / 500）、`app/tests/turn-unfinished.test.tsx`（500 交回结果不抛、`neverThrow`、`unfinishedTurnReason`、提示文案）；端到端 `tests/native-select/turn.mjs`（预览 / 生产：API 选择、真模型对话选出 2000-07-12、模拟接力 run 500 出提示、模拟计算机请求 500 后机器人自己恢复）。
