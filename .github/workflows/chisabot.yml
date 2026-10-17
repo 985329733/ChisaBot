@@ -57,7 +57,7 @@ jobs:
       # need a live API and never ran here while typecheck was failing; see docs/slimming.md P3).
       - name: Chat UI checks
         working-directory: app
-        run: bun test tests/no-group-has.test.ts tests/stopped-turn.test.ts tests/bot-message-list.test.tsx tests/link-cards.test.tsx tests/rich-previews-extract.test.ts tests/ui-align.test.ts tests/connection-drop.test.ts tests/fold-narration.test.ts tests/chat-unify.test.ts tests/turn-unfinished.test.tsx
+        run: bun test tests/no-group-has.test.ts tests/stopped-turn.test.ts tests/bot-message-list.test.tsx tests/link-cards.test.tsx tests/rich-previews-extract.test.ts tests/ui-align.test.ts tests/connection-drop.test.ts tests/fold-narration.test.ts tests/chat-unify.test.ts tests/turn-unfinished.test.tsx tests/workspace-links.test.ts
       - name: Cloud browser native select (DESIGN.md §100)
         working-directory: agent-computer
         run: bun install --frozen-lockfile && bun test tests/native-select.test.ts tests/aria-snapshot.test.ts
