@@ -1126,6 +1126,8 @@ html[data-sky-ease] body::before {
 
 /* ---------- Centre: conversation ---------- */
 .glass-main > div > .border-b,
+.glass-main .route-layer > div > .border-b,
+.glass-main .kept-chat > div > .border-b,
 .glass-main .sticky.border-b {
   border-bottom-color: transparent;
 }

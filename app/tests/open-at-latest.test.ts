@@ -43,6 +43,6 @@ describe("打开对话落在最新一条", () => {
   test("离开对话时记下样子、切回来先画它；左栏的行当对话详情先用", () => {
     expect(chat).toContain("rememberTranscript(threadId, agentRef.current.messages)");
     expect(chat).toContain("cachedTranscript(channel.threadId)");
-    expect(src("routes/_authed/_app/channel/$channelId.tsx")).toContain("placeholderData: () => channelFromRoster(queryClient, channelId)");
+    expect(src("components/channels/channel-page.tsx")).toContain("placeholderData: () => channelFromRoster(queryClient, channelId)");
   });
 });

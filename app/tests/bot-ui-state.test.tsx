@@ -108,7 +108,7 @@ const src = (p: string) => readFileSync(join(import.meta.dir, "../src", p), "utf
 
 describe("接线", () => {
   const transcript = src("components/channels/chat-transcript.tsx");
-  const route = src("routes/_authed/_app/channel/$channelId.tsx");
+  const route = src("components/channels/channel-page.tsx");
   const fresh = src("routes/_authed/_app/channel/new.tsx");
 
   test("只有刚发出去的那一条带对齐标记（历史里的用户消息不会被拉到顶上）", () => {

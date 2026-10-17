@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { GlassTopBar, type ShellScope } from "@/components/layout/glass-topbar";
 import { PhoneGestures } from "@/components/layout/phone-gestures";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
@@ -19,6 +19,7 @@ export function GlassShell({
   scope,
   sidebar,
   right,
+  rightHidden = false,
   banner,
   mode,
   children,
@@ -28,6 +29,8 @@ export function GlassShell({
   mode?: string;
   sidebar: ReactNode;
   right?: ReactNode;
+  /** 右栏留着但不显示（设置 / 管理里），回到聊天时不重新挂载（DESIGN.md §98）。 */
+  rightHidden?: boolean;
   banner?: ReactNode;
   children: ReactNode;
 }) {
@@ -37,6 +40,7 @@ export function GlassShell({
         <GlassTopBar scope={scope} />
         <SearchHotkey scope={scope} />
         <DrawerCloser />
+        <CloseDrawerOnScope scope={scope} />
         <PhoneGestures />
         {sidebar}
         <div className="glass-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-scope={scope}>
@@ -44,7 +48,7 @@ export function GlassShell({
             {banner}
             <ShellBoundary>{children}</ShellBoundary>
           </main>
-          {right}
+          {right ? <div className={rightHidden ? "hidden" : "contents"} data-right-hidden={rightHidden ? "true" : undefined}>{right}</div> : null}
         </div>
       </SidebarShell>
     </TopBarOwnsSidebarToggle.Provider>
@@ -62,6 +66,21 @@ function DrawerCloser() {
     window.addEventListener(CLOSE_DRAWER_EVENT, close);
     return () => window.removeEventListener(CLOSE_DRAWER_EVENT, close);
   }, [sidebar]);
+  return null;
+}
+
+/**
+ * 外壳只有一个（DESIGN.md §98）：手机上从设置抽屉里点「返回聊天」，换的是抽屉里的内容，抽屉本身不会跟着
+ * 卸载——换区域时把它收起来，落地看到的是聊天，不是还开着的抽屉。
+ */
+function CloseDrawerOnScope({ scope }: { scope: ShellScope }) {
+  const sidebar = useOptionalSidebar();
+  const previous = useRef(scope);
+  useEffect(() => {
+    if (previous.current === scope) return;
+    previous.current = scope;
+    if (sidebar?.isMobile && sidebar.openMobile) sidebar.setOpenMobile(false);
+  }, [scope, sidebar]);
   return null;
 }
 
