@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { InlineApproval } from "@/components/approvals/inline-approval";
 import { tryClient } from "@/lib/client";
-import { useActiveBotHolder } from "./active-bot";
+import { botForAgent, useActiveBotHolder, withRunBot } from "./active-bot";
 import { frontendApprovalSnapshot } from "./approval-context";
 import { markApprovalPause } from "./stopped-turn";
 
@@ -89,17 +89,19 @@ export function useFrontendTool<T extends Record<string, unknown>>(
     handler: tool.handler
       ? async (args, context) =>
           neverThrow(context.signal, async () => {
-          if (!writes.has(tool.name)) return tool.handler?.(args, context);
+          // 这次调用属于哪段对话的机器人（§101），不是「现在看着的」那个。
+          const runBot = botForAgent(context.agent) ?? bot.current;
+          if (!writes.has(tool.name)) return withRunBot(bot, runBot, () => tool.handler?.(args, context));
           let snapshot: ReturnType<typeof frontendApprovalSnapshot>;
           try {
             snapshot = frontendApprovalSnapshot(context);
           } catch {
             // A surface with no observed conversation. The server still gates the action; it can
             // run it when nothing asks, and says why when something does.
-            return tool.handler?.(args, context);
+            return withRunBot(bot, runBot, () => tool.handler?.(args, context));
           }
           const response = await tryClient(
-            `/api/approvals/computer/${encodeURIComponent(bot.current)}`,
+            `/api/approvals/computer/${encodeURIComponent(runBot)}`,
             { method: "POST", body: snapshot, signal: context.signal },
           );
           const payload: unknown = await response.json();

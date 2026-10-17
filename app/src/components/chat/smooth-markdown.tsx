@@ -1,5 +1,8 @@
 import type { ComponentProps } from "react";
 import { Streamdown } from "streamdown";
+import { cjkFriendlyEmphasis } from "@/lib/chat/cjk-emphasis";
+import { workspaceLinks } from "@/lib/chat/workspace-links";
+import { useDeclaredBotId } from "@/lib/copilot/active-bot";
 import { STREAMDOWN_ZH } from "@/lib/chat/streamdown-zh";
 import { useSmoothText } from "@/lib/chat/use-smooth-text";
 
@@ -11,9 +14,12 @@ import { useSmoothText } from "@/lib/chat/use-smooth-text";
  */
 export function SmoothStreamdown({ children, ...props }: Omit<ComponentProps<typeof Streamdown>, "children"> & { children: string }) {
   const shown = useSmoothText(children ?? "");
+  // 工作区文件链接换成这个机器人的下载地址（§101）；在看的就是这个机器人的对话。
+  const bot = useDeclaredBotId();
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
   return (
     <Streamdown translations={STREAMDOWN_ZH} {...props}>
-      {shown}
+      {workspaceLinks(cjkFriendlyEmphasis(shown), bot, origin)}
     </Streamdown>
   );
 }

@@ -54,6 +54,14 @@ export const STOPPED = "用户停止了这一轮，确认卡片已关闭，这�
 export const NOT_INTERACTIVE = (label: string) =>
   `这一步属于「${label}」，用户的审批偏好是「先问我」，但这一轮不在网页聊天里，弹不出确认卡片，所以没有执行。告诉用户：在 ChisaBot 网页聊天里让你再做一次（会出确认卡片），或在 设置 → 权限与审批 把这一类改成「直接做」。`;
 
+/**
+ * 定时任务等「用户不在场」的回合（DESIGN.md §101）：以前直接拒绝，定时任务里要发消息的那一步永远做不成
+ * （2026-10-17 生产：「和 Claude 聊电车」每 3 小时跑一次，次次都停在「弹不出确认卡片」）。现在照样放一张
+ * 确认卡片（聊天里和「待处理」都看得到，24 小时有效），这一轮不等；用户之后点「确认」，服务器叫机器人接着做。
+ */
+export const DEFERRED = (label: string) =>
+  `这一步属于「${label}」，要先经用户确认。这一轮是定时任务 / 后台触发，用户不在场，所以没有等：已经在聊天和「待处理」里放了一张确认卡片（24 小时内有效）。用户点「确认」后会自动叫你接着做。现在不要换别的办法去做这一步；一两句话告诉用户你准备做什么、在等他确认。`;
+
 type PrefRow = { category: ConfirmCategory; mode: ConfirmMode; note: string | null; updated_at: Date | string };
 type RuleRow = {
   id: string;
@@ -478,7 +486,28 @@ export function createConfirmations(database: Database, options: { auditStore?: 
     const turn = currentConfirmTurn();
     const call = currentConfirmToolCall();
     if (turn?.threadId && (await consumeGrant(input.ownerUserId, turn.threadId, { digest: input.digest }))) return { ok: true, via: "grant" };
-    if (!interactiveInitiator(input.initiator) || !turn?.threadId) return { ok: false, message: NOT_INTERACTIVE(CONFIRM_CATEGORY_INFO[input.category].label) };
+    if (!turn?.threadId) return { ok: false, message: NOT_INTERACTIVE(CONFIRM_CATEGORY_INFO[input.category].label) };
+    if (!interactiveInitiator(input.initiator)) {
+      // 同一段对话里同一个工具还没人理的旧卡片作废（定时任务每次触发都会再放一张，只留最新的）。
+      await sql.unsafe(
+        `UPDATE chisabot_confirm_requests SET status = 'cancelled', decided_at = now()
+         WHERE owner_user_id = $1 AND thread_id = $2 AND tool = $3 AND category = $4 AND status = 'pending' AND NOT (id = ANY(string_to_array($5::text, ',')))`,
+        [input.ownerUserId, turn.threadId, input.tool, input.category, [...waiting].join(",")],
+      );
+      await insertRequest({
+        ownerUserId: input.ownerUserId,
+        agentId: input.agentId,
+        threadId: turn.threadId,
+        toolCallId: call?.toolCallId ?? null,
+        category: input.category,
+        tool: input.tool,
+        title: input.title,
+        target: input.target ?? null,
+        details: input.details ?? [],
+        digest: input.digest,
+      });
+      return { ok: false, message: DEFERRED(CONFIRM_CATEGORY_INFO[input.category].label) };
+    }
     const row = await insertRequest({
       ownerUserId: input.ownerUserId,
       agentId: input.agentId,

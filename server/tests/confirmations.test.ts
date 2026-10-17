@@ -139,11 +139,19 @@ describe.skipIf(!url)("confirmations service", () => {
     expect((await pendingFor("call-3")).status).toBe("cancelled");
   });
 
-  test("non-web turn cannot show a card", async () => {
+  test("non-web turn leaves a card for later instead of refusing (§101)", async () => {
     const [wrapped] = confirm.wrap([deleteTool], { ownerUserId: owner, agentId: "bot-1", initiator: { kind: "routine", id: "im:abc" } });
     const out = await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "r4" }));
-    expect(out).toContain("弹不出确认卡片");
+    expect(out).toContain("用户不在场");
     expect(executed.length).toBe(1);
+    const cards = (await confirm.list(owner, { threadId: thread })).filter((c) => c.status === "pending" && c.tool === "delete_routine");
+    expect(cards.length).toBe(1);
+    // 再触发一次：旧卡片作废，只留最新的一张
+    await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "r4b" }));
+    const after = (await confirm.list(owner, { threadId: thread })).filter((c) => c.status === "pending" && c.tool === "delete_routine");
+    expect(after.length).toBe(1);
+    expect(after[0]!.id).not.toBe(cards[0]!.id);
+    for (const c of after) await confirm.decide(owner, c.id, "deny");
   });
 
   test("a late approval resumes the conversation and lets the retry through once", async () => {
@@ -165,7 +173,7 @@ describe.skipIf(!url)("confirmations service", () => {
     expect(await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "r5" }))).toBe("deleted");
     // 只放行一次：再来一次又要确认（非网页回合 → 拒绝而不是挂起）。
     const [again] = confirm.wrap([deleteTool], { ownerUserId: owner, agentId: "bot-1", initiator: { kind: "routine", id: "im:x" } });
-    expect(await withConfirmTurn(turn(), () => again!.execute({ routineId: "r5" }))).toContain("弹不出");
+    expect(await withConfirmTurn(turn(), () => again!.execute({ routineId: "r5" }))).toContain("用户不在场");
   });
 
   test("auto preference and keyword rules skip the card", async () => {
@@ -173,7 +181,7 @@ describe.skipIf(!url)("confirmations service", () => {
     const [wrapped] = confirm.wrap([deleteTool], { ownerUserId: owner, agentId: "bot-1", initiator: { kind: "routine", id: "im:x" } });
     expect(await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "r6" }))).toBe("deleted");
     await confirm.addRule(owner, { text: "删除重要任务要先问我", category: "delete", mode: "ask", keywords: ["重要"] });
-    expect(await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "重要-r7" }))).toContain("弹不出");
+    expect(await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "重要-r7" }))).toContain("用户不在场");
     expect(await withConfirmTurn(turn(), () => wrapped!.execute({ routineId: "r8" }))).toBe("deleted");
   });
 

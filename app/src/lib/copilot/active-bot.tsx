@@ -22,6 +22,52 @@ const DEFAULT_BOT_ID = "default";
 
 type BotHolder = { current: string };
 
+/**
+ * 每段对话的 agent 对象 → 它的机器人（DESIGN.md §101）。
+ *
+ * 工具处理函数以前只读「当前看着的机器人」（holder）。可一轮是好几个 run 接力的：用户在 A 的对话里发了消息，
+ * 中途切到 B，或者 B 的对话因为保活 / 重新挂载晚一步声明了自己，A 后面的计算机操作就打到了 B 的浏览器上
+ * （2026-10-17 22:44 生产：Asuna 的「打开 hark.com/login」进了星灵的浏览器，登录请求也记在星灵名下，
+ * Asuna 那边永远等不到「已登录」）。现在先看这一次工具调用属于哪段对话的 agent，再退回 holder。
+ */
+const agentBots = new WeakMap<object, string>();
+
+/** 由每段对话声明：这个 agent 的工具调用操作这个机器人的计算机。agent 和机器人一一对应，不用撤销。 */
+export function bindAgentBot(agent: object | null | undefined, botId: string | undefined) {
+  if (agent && botId) agentBots.set(agent, botId);
+}
+
+/** 这次工具调用（handler 的 context.agent）属于哪个机器人；不知道时 undefined。 */
+export function botForAgent(agent: unknown): string | undefined {
+  return agent && typeof agent === "object" ? agentBots.get(agent) : undefined;
+}
+
+/**
+ * 在 `run` 同步执行期间，让 holder.current 读到这次调用所属的机器人。
+ * 处理函数都在第一个 await 之前读 `bot.current`，所以同步覆盖就够；之后立刻还原。
+ */
+export function withRunBot<T>(holder: BotHolder, botId: string | undefined, run: () => T): T {
+  if (!botId || !(holder instanceof RunScopedHolder)) return run();
+  const previous = holder.run;
+  holder.run = botId;
+  try {
+    return run();
+  } finally {
+    holder.run = previous;
+  }
+}
+
+class RunScopedHolder implements BotHolder {
+  base = DEFAULT_BOT_ID;
+  run: string | undefined = undefined;
+  get current() {
+    return this.run ?? this.base;
+  }
+  set current(value: string) {
+    this.base = value;
+  }
+}
+
 const ActiveBotContext = createContext<BotHolder | null>(null);
 const ActiveBotValueContext = createContext<{
   botId: string;
@@ -29,7 +75,7 @@ const ActiveBotValueContext = createContext<{
 } | null>(null);
 
 export function ActiveBotProvider({ children }: { children: ReactNode }) {
-  const holder = useRef<BotHolder>({ current: DEFAULT_BOT_ID });
+  const holder = useRef<BotHolder>(new RunScopedHolder());
   const [botId, setBotId] = useState(DEFAULT_BOT_ID);
   const value = useRef({ botId, announce: setBotId });
   value.current = { botId, announce: setBotId };
@@ -54,7 +100,7 @@ export function useActiveBot(botId: string | undefined): void {
   const value = useContext(ActiveBotValueContext);
   useEffect(() => {
     if (!holder) return;
-    const previous = holder.current;
+    const previous = holder instanceof RunScopedHolder ? holder.base : holder.current;
     holder.current = botId ?? DEFAULT_BOT_ID;
     value?.announce(botId ?? DEFAULT_BOT_ID);
     return () => {

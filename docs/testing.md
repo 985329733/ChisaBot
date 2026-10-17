@@ -34,6 +34,7 @@ ChisaBot 的测试分四层：**单元 / 集成测试 → 预览容器里的端�
 | 套件 | 何时必须跑 | 说明 |
 |---|---|---|
 | `tests/chat-scroll/regression.sh` | **任何改动聊天 / 同步 / 滚动** | 贴底不跳、发送不跳、轮询、窄屏、失败重发、上滑不拽（wide、narrow、failtwice、narrowfail、polltick、narrowpoll、up）；发送后任何消息被删也算失败。需要一段**长对话复制到预览里的一次性机器人**。见 [README](../tests/chat-scroll/README.md) |
+| `tests/realtest/` | 改到机器人能不能把事办成（工具、模型、确认、计算机） | 有界面 Chrome 走真实网页聊天、真模型、一次性机器人：搜新闻、读网页、填表、文件、代码、多步表格、提醒 / 记忆 / 技能 / 网页、长任务，逐项截图（§101）。见 [README](../tests/realtest/README.md) |
 | `tests/send-scroll/` | 改发送时的滚动 | 5 分钟规则、带干活卡的连续发送（§94） |
 | `tests/bot-state/` | 改按机器人记住的状态 | 面板 / 计算机、草稿、滚动（§88） |
 | `tests/open-scroll/` | 改打开对话 | 打开落在最新一条（§83） |

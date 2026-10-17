@@ -51,7 +51,9 @@ describe("model fallback on quota errors", () => {
   test("reads the retry hint", () => {
     expect(cooldownMs(DAILY)).toBe((19 * 3600 + 51 * 60) * 1000);
     expect(cooldownMs(apiError(429, "rate limited, retry after 30s"))).toBe(30_000);
-    expect(cooldownMs(apiError(429, "slow down"))).toBe(10 * 60_000);
+    // 没写原因的 429 是一时限流：1 分钟；写着额度 / 每日限额的 10 分钟（§101）。
+    expect(cooldownMs(apiError(429, "slow down"))).toBe(60_000);
+    expect(cooldownMs(apiError(429, "quota exceeded"))).toBe(10 * 60_000);
   });
 
   test("switches to the next candidate, then skips the cooled model on later turns", async () => {
@@ -113,6 +115,46 @@ describe("model fallback on quota errors", () => {
       log: () => {},
     });
     await expect(wrapped.doStream({})).rejects.toBe(DAILY);
+  });
+
+  test("a broken candidate (404 model not found) does not stop the next one (§101)", async () => {
+    const primary = fakeModel("p", async () => {
+      throw apiError(429, "rate limited");
+    });
+    const gone = fakeModel("gone", async () => {
+      throw apiError(404, "ClinePass: model not found");
+    });
+    const ok = fakeModel("ok", async () => ({ stream: "ok" }));
+    const wrapped = fallbackLanguageModel(primary.model, "c/p", {
+      candidates: async () => ["c/gone", "c/ok"],
+      build: (id) => (id === "c/gone" ? gone.model : ok.model),
+      log: () => {},
+    });
+    expect(await wrapped.doStream({})).toEqual({ stream: "ok" });
+    expect(gone.calls.length).toBe(1);
+    // 坏掉的候选冷却 30 分钟，下一轮直接跳过
+    expect(await wrapped.doStream({})).toEqual({ stream: "ok" });
+    expect(gone.calls.length).toBe(1);
+  });
+
+  test("primary skipped by cooldown is tried again when every candidate fails (§101)", async () => {
+    let primaryFails = true;
+    const primary = fakeModel("p", async () => {
+      if (primaryFails) throw apiError(429, "rate limited");
+      return { stream: "primary-back" };
+    });
+    const gone = fakeModel("gone", async () => {
+      throw apiError(404, "ClinePass: model not found");
+    });
+    const wrapped = fallbackLanguageModel(primary.model, "c/p", {
+      candidates: async () => ["c/gone"],
+      build: () => gone.model,
+      log: () => {},
+    });
+    await expect(wrapped.doStream({})).rejects.toMatchObject({ statusCode: 429 });
+    primaryFails = false;
+    // 主模型还在冷却里，候选也冷却了：直接再试主模型
+    expect(await wrapped.doStream({})).toEqual({ stream: "primary-back" });
   });
 
   test("keeps other properties of the wrapped model", () => {
