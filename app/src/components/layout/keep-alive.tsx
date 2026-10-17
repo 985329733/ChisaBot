@@ -4,6 +4,13 @@ import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef,
 /** 藏着的聊天留多久（之后卸载，回来走正常的打开：先画上次的样子，再接入）。 */
 export const KEPT_TTL_MS = 10 * 60_000;
 
+/**
+ * 藏起来之后多久内「滚动位置钉住」（DESIGN.md §98.5）：离开那一刻浏览器会把藏着的滚动容器挪几十像素
+ * （Chrome，1280 宽第一次去设置：设置页挂载时的强制布局，−68px，没有任何脚本改 scrollTop），回聊天位置就对不上。
+ * 这段时间里藏着的容器一收到 scroll 就还原成离开前的位置；之后放开（藏着时贴底的回答照常往下走，§35 / §94）。
+ */
+export const KEPT_SCROLL_HOLD_MS = 1500;
+
 export type KeptState = {
   /** 地址正停在留着的这一页上（或 `idleVisible`）。 */
   visible: boolean;
@@ -74,6 +81,35 @@ export function KeepAliveStage<T>({
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
+  }, [visible, hasKept]);
+
+  // 看得见时记着每个滚动容器最后的位置；藏起来后 KEPT_SCROLL_HOLD_MS 内被挪了就还原（§98.5）。
+  const tops = useRef(new WeakMap<Element, number>());
+  useEffect(() => {
+    const el = box.current;
+    if (!el || !visible) return;
+    const remember = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && el.contains(target)) tops.current.set(target, target.scrollTop);
+    };
+    el.addEventListener("scroll", remember, { capture: true, passive: true });
+    return () => el.removeEventListener("scroll", remember, { capture: true });
+  }, [visible, hasKept]);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || visible) return;
+    const hold = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !el.contains(target)) return;
+      const saved = tops.current.get(target);
+      if (saved !== undefined && Math.abs(target.scrollTop - saved) >= 1) target.scrollTop = saved;
+    };
+    el.addEventListener("scroll", hold, { capture: true, passive: true });
+    const timer = window.setTimeout(() => el.removeEventListener("scroll", hold, { capture: true }), KEPT_SCROLL_HOLD_MS);
+    return () => {
+      window.clearTimeout(timer);
+      el.removeEventListener("scroll", hold, { capture: true });
+    };
   }, [visible, hasKept]);
 
   const frozen = visible ? null : size.current;

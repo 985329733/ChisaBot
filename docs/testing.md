@@ -40,7 +40,7 @@ ChisaBot 的测试分四层：**单元 / 集成测试 → 预览容器里的端�
 | `tests/fold-narration/`、`tests/quiet-turn/` | 改干活卡 | 中途说明收进卡（§90）、简单回合不出卡（§93） |
 | `tests/composer-gutter/gutter.mjs` | 改输入框布局 | 只读的宽度扫描（§92） |
 | `tests/mode-switch/` | 改左栏切换 | 机器人 ↔ Claude Code 不重挂（§84） |
-| `tests/nav-keep/` | 改外壳 / 路由布局 / 留着的聊天 | 从设置 / 待处理 / 设备切回聊天不刷新、滚动原样、流式不断、藏着不轮询（§98） |
+| `tests/nav-keep/` | 改外壳 / 路由布局 / 留着的聊天 / 设置里的滚动 | 从设置 / 待处理 / 设备切回聊天不刷新、滚动原样、离开期间藏着的聊天不被挪（§98.5）、流式不断、藏着不轮询（§98）。预览里跑：全新生产库副本 + 假模型，`WIDTHS=1280,390 STREAM=1 SWITCH=1`；调试加 `NAVDBG=1 SCROLLALL=1`。一个预览容器只跑一轮 |
 | `tests/rail-computer/` | 改右栏 | 空聊天也有「计算机」（§79） |
 | `tests/ui-align/` | 改字体 / 按钮 / 标签 | 文字垂直居中审计（§82） |
 | `tests/chat-concurrency/` | 改回答中发消息 / 后台任务 | §38 |
