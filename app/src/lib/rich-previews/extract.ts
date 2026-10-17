@@ -41,6 +41,8 @@ export function normalizeLink(raw: string): string | null {
     if (url.username || url.password) return null;
     if (!url.hostname.includes(".") && !url.hostname.startsWith("["))
       return null;
+    // 模型虚构的「工作区」网址不是网页：不出链接卡，留在正文里由 workspace-links 换成下载地址（§101.11）。
+    if (url.hostname.toLowerCase() === "workspace.local") return null;
     return url.toString();
   } catch {
     return null;

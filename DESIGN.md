@@ -2281,6 +2281,8 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 ### 101.11 下载卡片的站内链接不再被当成工作区文件（`lib/chat/workspace-links.ts`）
 - 实测（e2，10-18 05:22）：机器人用 `file_share` 交了文件（聊天里有下载卡片，能下），又在回复里写了「[下载 primes.py](/api/chat-files/<id>)」，
   §101.5 把它改写成 `files/download?path=api/chat-files/…` → 404。现在以「/」开头的目标只认 `/workspace/…`，其余站内地址（`/api/…`、`/p/…`、`/downloads/…`）原样。
+- 同一轮实测（PC 模拟 + 备用模型）：单独一行的「[primes.py 下载](https://workspace.local/primes.py)」被做成了 workspace.local 的链接卡（点了没用），正文里的链接也被拿掉。
+  现在 `workspace.local` 不出链接卡（`lib/rich-previews/extract.ts` `normalizeLink`），链接留在正文里、换成下载地址。
 
 ### 101.12 页面没及时回应 ≠「元素不在了」（`server/src/computer/client.ts` `PageTimeoutError`）
 - 实测（10-18 r7，hark.com 登录页）：截图、快照、打开网页全部回「That element is not on the page any more. Take a fresh snapshot…」，机器人照做、又超时，
