@@ -53,6 +53,15 @@ export function createComputerRoutes(
    * endpoint says it cannot answer rather than answering from nothing.
    */
   auditReader?: AuditReader,
+  /**
+   * The Bot a computer belongs to, as this person may see it, or null when there is none (deleted,
+   * or never a Bot). Lets the fleet name each computer and say which ones are left over from a
+   * deleted Bot, and is the check the delete route asks before it removes anything.
+   */
+  describeBot?: (
+    actor: AppVariables["actor"],
+    botId: string,
+  ) => Promise<{ name: string } | null>,
 ) {
   const routes = new Hono<{ Variables: AppVariables }>();
 
@@ -395,7 +404,62 @@ export function createComputerRoutes(
     if (denied) return denied;
 
     try {
-      return context.json(await gateway.computers());
+      const fleet = await gateway.computers();
+      if (!describeBot) return context.json(fleet);
+      const actor = context.var.actor;
+      return context.json({
+        ...fleet,
+        computers: await Promise.all(
+          fleet.computers.map(async (computer) => {
+            const owner = await describeBot(actor, computer.botId).catch(() => null);
+            return {
+              ...computer,
+              ...ownerFields(computer.botId, owner),
+            };
+          }),
+        ),
+      });
+    } catch (error) {
+      return context.json(errorBody(error), statusFor(error));
+    }
+  });
+
+  /**
+   * Delete a computer whose Bot no longer exists (DESIGN.md §99).
+   *
+   * Only for a left-over one: a computer of a live Bot is reset from its own row (that keeps the
+   * Bot and signs it out), never deleted from here. Single segment and named in DEPLOYMENT_ROUTES for
+   * the reason `/fleet` is: the Bot in question does not exist, so the bot-access middleware would
+   * answer 404 for it, which is exactly why these rows could not be removed before.
+   */
+  routes.post("/fleet-forget", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    const body = (await context.req.json().catch(() => null)) as {
+      botId?: unknown;
+    } | null;
+    const botId = typeof body?.botId === "string" ? body.botId.trim() : "";
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(botId))
+      return context.json({ error: "要说明删除哪一个浏览器（botId）。" }, 400);
+    if (!describeBot)
+      return context.json({ error: "这个部署无法判断浏览器属于哪个机器人。" }, 409);
+    if (botId === SHARED_COMPUTER_ID)
+      return context.json({ error: "默认浏览器不属于某个机器人，不能在这里删除；需要时用「重置」。" }, 409);
+    const owner = await describeBot(context.var.actor, botId);
+    if (owner)
+      return context.json(
+        { error: `这个浏览器属于机器人「${owner.name}」。要清除它的登录状态请用「重置」。` },
+        409,
+      );
+    try {
+      return context.json({
+        botId,
+        ...(await gateway.forgetComputer(
+          botId,
+          actorOf(context.var.actor),
+          "已删除的机器人留下的浏览器被删除（配置文件、登录状态、接管记录）",
+        )),
+      });
     } catch (error) {
       return context.json(errorBody(error), statusFor(error));
     }
@@ -1072,4 +1136,17 @@ function statusFor(error: unknown): 400 | 403 | 404 | 409 | 413 | 500 | 503 {
   if (error instanceof WorkspaceTooLargeError) return 413;
   if (error instanceof ComputerUnavailableError) return 503;
   return 500;
+}
+
+/** The default computer's id (agent-computer COMPUTER_BOT_ID default): calls that name no Bot. */
+const SHARED_COMPUTER_ID = "shared";
+
+/** How the fleet labels one computer: a Bot's, the default one, or left over from a deleted Bot. */
+export function ownerFields(
+  botId: string,
+  owner: { name: string } | null,
+): { owner: "bot"; botName: string } | { owner: "default" } | { owner: "deleted" } {
+  if (owner) return { owner: "bot", botName: owner.name };
+  if (botId === SHARED_COMPUTER_ID) return { owner: "default" };
+  return { owner: "deleted" };
 }

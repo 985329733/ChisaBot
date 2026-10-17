@@ -40,7 +40,7 @@ import { profileDirectoryFor } from "./bot-id";
 import { chooseEvictions, chooseIdle } from "./browser-eviction";
 import { browserRuntimeFromEnv } from "./browser-runtime";
 import { egressFor, egressLabel } from "./egress";
-import { numberFromEnv, settleWithin } from "./env";
+import { numberFromEnv, settleWithin, withDeadline } from "./env";
 import { chooseLivePage } from "./live-page";
 import { whileNavigating } from "./start-page";
 import {
@@ -208,6 +208,36 @@ const ANNOUNCE_BUDGET_MS = 2_000;
  */
 const LAUNCH_WAIT_MS = 30_000;
 
+/**
+ * The longest one launch may take before it is abandoned.
+ *
+ * A launch is awaited by every caller asking for this Bot's page (`starting`), so one that never
+ * settles pins the Bot: every navigate hangs, every admitted action keeps its barrier lease, and
+ * 「接管」 times out until the container restarts (2026-10-17 production incident, where a half-dead
+ * browser's cleanup never answered). Past this the launch is dropped, the next call starts a fresh
+ * one, and whatever the abandoned launch produces later is closed instead of installed.
+ */
+const LAUNCH_DEADLINE_MS = numberFromEnv("COMPUTER_LAUNCH_DEADLINE_MS", 90_000);
+
+/** Chromium's own start timeout, inside the deadline above. */
+const CHROMIUM_LAUNCH_TIMEOUT_MS = 60_000;
+
+/** A half-dead browser's leftovers (cookie keeper, context close) get this long, then are dropped. */
+const TEARDOWN_BUDGET_MS = 5_000;
+
+/** A close that never answers must not hold a stop, an eviction or a launch open. */
+const CLOSE_BUDGET_MS = 10_000;
+
+export class LaunchAbandonedError extends Error {
+  constructor(botId: string, ms: number) {
+    super(
+      `The browser did not start within ${Math.round(ms / 1000)} seconds and was abandoned; the next request starts a fresh one.`,
+    );
+    this.name = "LaunchAbandonedError";
+    void botId;
+  }
+}
+
 /** What a Bot's browser looks like from outside. */
 export type BotBrowser = {
   botId: string;
@@ -233,7 +263,7 @@ export type ProfileSummary = {
  * would rather lose the last few seconds of cookies than never restart.
  */
 async function closeAndWait(context: BrowserContext): Promise<void> {
-  await context.close().catch(() => undefined);
+  await settleWithin(context.close(), CLOSE_BUDGET_MS);
   // A fixed settle is used because persistent contexts do not expose a reliable browser-exit signal.
   await new Promise((resolve) => setTimeout(resolve, CLOSE_SETTLE_MS));
 }
@@ -554,7 +584,9 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
     async page(botId: string): Promise<Page> {
       // Only when something is closing: an unconditional await would let a stop slip in ahead of the launch.
       const closingNow = closing.get(botId);
-      if (closingNow) await closingNow;
+      // Bounded: every step of a close is bounded, but a close that still never ends must not pin
+      // this Bot's page for ever (the launch below sweeps the profile's locks either way).
+      if (closingNow) await settleWithin(closingNow, LAUNCH_WAIT_MS);
       /*
        * One launch at a time per Bot. Calls that arrive during a launch wait for that launch instead
        * of starting another browser against the same profile directory.
@@ -576,6 +608,7 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
       }
       // 半死的旧浏览器在 launch 里清理：先登记 starting，再等待关闭，避免并发请求各自拉起一个 Chromium
       // 抢同一个配置目录（审查发现：崩溃恢复时可能同时开两个浏览器、损坏配置）。
+      let abandoned = false;
       const launch = (async () => {
         if (existing) {
           // Half-dead: the browser went away, or its page did. Dropped rather than repaired, because a
@@ -585,9 +618,11 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
           // next line and the live screen's follow loop re-attaches to it within the second, so this is
           // a browser being swapped rather than one going away. Telling the viewer here would end a
           // screen that is about to be fine, which is the opposite of what the announcement is for.
-          await existing.sessionCookies?.stop();
-          await existing.context.close().catch(() => undefined);
+          // Bounded: a browser that went away can leave a cookie read or a close that never answers,
+          // and this sits inside `starting`, which every caller for this Bot is waiting on.
           live.delete(botId);
+          await settleWithin(existing.sessionCookies?.stop(), TEARDOWN_BUDGET_MS);
+          await settleWithin(existing.context.close(), TEARDOWN_BUDGET_MS);
         }
 
         const dir = directoryFor(botId);
@@ -617,8 +652,14 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
           handleSIGTERM: false,
           handleSIGINT: false,
           handleSIGHUP: false,
+          timeout: CHROMIUM_LAUNCH_TIMEOUT_MS,
           ...(proxy ? { proxy } : {}),
         });
+        if (abandoned) {
+          // Too late: callers were told it failed and a newer launch may already own the profile.
+          await settleWithin(context.close(), CLOSE_BUDGET_MS);
+          throw new LaunchAbandonedError(botId, LAUNCH_DEADLINE_MS);
+        }
         /*
          * Session cookies back before anything navigates, so the first request a site sees from this
          * launch is already signed in. Not for a native Chrome: its cookies are protected by the OS
@@ -705,6 +746,11 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
           record.retarget();
           record.tabsChanged();
         });
+        if (abandoned) {
+          await settleWithin(sessionCookies?.stop(), TEARDOWN_BUDGET_MS);
+          await settleWithin(context.close(), CLOSE_BUDGET_MS);
+          throw new LaunchAbandonedError(botId, LAUNCH_DEADLINE_MS);
+        }
         live.set(botId, record);
         // 上次关浏览器时开着的标签（重启、部署、空闲关闭之后）。不等它们加载完。
         if (RESTORE_TABS && !LOCAL_CHROME) {
@@ -719,14 +765,48 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
         return record.page;
       })();
 
-      starting.set(botId, launch);
+      const bounded = withDeadline(launch, LAUNCH_DEADLINE_MS, () => {
+        abandoned = true;
+        console.info(
+          JSON.stringify({
+            type: "computer-launch-abandoned",
+            botId,
+            afterMs: LAUNCH_DEADLINE_MS,
+          }),
+        );
+        return new LaunchAbandonedError(botId, LAUNCH_DEADLINE_MS);
+      });
+      starting.set(botId, bounded);
       try {
-        return await launch;
+        return await bounded;
       } finally {
         // Cleared whether it worked or not so a failed launch does not pin future calls to a rejected
-        // promise.
-        starting.delete(botId);
+        // promise. Only our own entry: an abandoned launch must not clear its replacement's.
+        if (starting.get(botId) === bounded) starting.delete(botId);
       }
+    },
+
+    /**
+     * Drop this Bot's browser without waiting on anything it is doing.
+     *
+     * For an action that ran past its lease: something on this browser never answered, so the
+     * graceful paths (which wait on the launch in flight and on the close) are exactly the ones that
+     * may not come back. The launch in flight is forgotten, the browser is closed in the background,
+     * and the next request starts a fresh one from the same profile, logins intact.
+     */
+    abandon(botId: string, reason: string): void {
+      const launching = starting.get(botId);
+      starting.delete(botId);
+      if (launching) launching.catch(() => undefined);
+      const running = live.get(botId);
+      if (!running) return;
+      live.delete(botId);
+      console.info(JSON.stringify({ type: "computer-browser-closed", botId, reason }));
+      void (async () => {
+        await settleWithin(Promise.resolve(onClosed(botId)), ANNOUNCE_BUDGET_MS);
+        await keepSessionCookies(running);
+        await closeAndWait(running.context);
+      })().catch(() => undefined);
     },
 
     /**

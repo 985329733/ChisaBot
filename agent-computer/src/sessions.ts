@@ -25,6 +25,7 @@
  * separate control store retains their outcomes and marks active handoffs interrupted on reload.
  */
 import type { Page } from "playwright";
+import type { ExpiredLease } from "./action-barrier";
 import { type Control, createControl } from "./control";
 import { createControlStore } from "./control-store";
 import { createViewerSlot, type ViewerSlot } from "./viewer";
@@ -64,6 +65,10 @@ export type SessionsOptions = {
   profilesDirectory?: string;
   /** Injected so a test can name the run it expects rather than match a uuid. */
   mintRun?: () => string;
+  /** An admitted action on this Bot's computer ran past its lease (action-barrier.ts). */
+  onLeaseExpired?: (botId: string, lease: ExpiredLease) => void;
+  /** Taking control of this Bot's computer timed out waiting for these actions. */
+  onDrainTimeout?: (botId: string, holders: ExpiredLease[]) => void;
 };
 
 /**
@@ -118,6 +123,8 @@ export function createSessions(options: SessionsOptions) {
         invalidateSnapshot: () => {
           generation += 1;
         },
+        onLeaseExpired: (lease) => options.onLeaseExpired?.(botId, lease),
+        onDrainTimeout: (holders) => options.onDrainTimeout?.(botId, holders),
       }),
       get snapshotId() {
         return generation;
@@ -170,6 +177,11 @@ export function createSessions(options: SessionsOptions) {
      * on its own when a session is genuinely new, and zeroing it here would hand the server a fresh
      * generation one under a fresh run for a counter that never restarted.
      */
+    /** Drop this Bot's session outright: its computer has been deleted, not just reset. */
+    forget(botId: string): void {
+      sessions.delete(botId);
+    },
+
     renewRun(botId: string): string {
       const existing = sessions.get(botId);
       // Nothing to renew: a Bot nobody has touched yet gets a session, and its run is already new.

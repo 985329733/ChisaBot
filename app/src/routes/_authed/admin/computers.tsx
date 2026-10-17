@@ -26,12 +26,20 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { useBotNames } from "@/lib/agents/bot-names";
-import { setComputerStateMutationOptions } from "@/lib/computers/mutations";
-import { computerFleetQueryOptions } from "@/lib/computers/queries";
+import {
+  forgetOrphanComputerMutationOptions,
+  setComputerStateMutationOptions,
+} from "@/lib/computers/mutations";
+import {
+  type ComputerProfile,
+  computerFleetQueryOptions,
+  sortComputers,
+} from "@/lib/computers/queries";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
   component: ComputersPage,
 });
+
 
 function ComputersPage() {
   /** Bot id currently running a stop/reset request. */
@@ -40,19 +48,44 @@ function ComputersPage() {
   const [confirming, setConfirming] = useState<string | null>(null);
   /** Updating restarts a running computer mid-task, so it is confirmed too. */
   const [confirmingUpdate, setConfirmingUpdate] = useState<string | null>(null);
+  /** Deleting a left-over browser removes its sign-ins for good, so it is confirmed too. */
+  const [confirmingForget, setConfirmingForget] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const nameFor = useBotNames();
 
   const fleet = useQuery(computerFleetQueryOptions());
   const setState = useMutation(setComputerStateMutationOptions(queryClient));
+  const forget = useMutation(forgetOrphanComputerMutationOptions(queryClient));
 
-  const computers = fleet.data?.computers ?? null;
+  const computers = fleet.data?.computers ? sortComputers(fleet.data.computers) : null;
+  /** 名字：机器人的名字；默认浏览器；已删除的机器人。服务器没说的时候退回旧的按 id 查名字。 */
+  const titleOf = (computer: ComputerProfile) =>
+    computer.owner === "deleted"
+      ? "已删除的机器人"
+      : computer.owner === "default"
+        ? "默认浏览器"
+        : (computer.botName ?? nameFor(computer.botId));
+  const titleFor = (botId: string | null) => {
+    const found = computers?.find((computer) => computer.botId === botId);
+    return found ? titleOf(found) : botId ? nameFor(botId) : "";
+  };
   const isolation = fleet.data?.isolation ?? null;
   /*
    * A list that could not be read. A refused stop, reset or update is said beside the buttons
    * instead, because the top of this page is a long scroll away from them.
    */
   const problem = fleet.error ? "无法列出计算机。" : null;
+
+  const runForget = (botId: string) => {
+    setBusy(botId);
+    forget.mutate(
+      { botId },
+      {
+        onSettled: () => setBusy(null),
+        onSuccess: () => setConfirmingForget(null),
+      },
+    );
+  };
 
   const run = (botId: string, action: "stop" | "reset" | "update") => {
     setBusy(botId);
@@ -90,12 +123,12 @@ function ComputersPage() {
       ) : null}
 
       <PageSection title={"此部署中的计算机"}>
-        {setState.error ? (
+        {setState.error || (forget.error && confirmingForget === null) ? (
           <p
             className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
             role="alert"
           >
-            {setState.error.message}
+            {(setState.error ?? forget.error)?.message}
           </p>
         ) : null}
         {computers === null && problem ? (
@@ -111,8 +144,14 @@ function ComputersPage() {
                 <Item size="sm">
                   <ItemContent>
                     <ItemTitle title={computer.botId}>
-                      {nameFor(computer.botId)}
+                      {titleOf(computer)}
                     </ItemTitle>
+                    {computer.owner === "deleted" ? (
+                      <ItemDescription>
+                        <span className="font-mono text-xs">{computer.botId}</span>
+                        {" · 机器人已经删除，这个浏览器还留着它的配置文件和登录状态。"}
+                      </ItemDescription>
+                    ) : null}
                     <ItemDescription>
                       {computer.running
                         ? `浏览器运行于 ${new Date(computer.startedAt ?? "").toLocaleTimeString("zh-CN")}`
@@ -127,6 +166,20 @@ function ComputersPage() {
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
+                    {computer.owner === "deleted" ? (
+                      <Button
+                        disabled={busy === computer.botId}
+                        onClick={() => {
+                          forget.reset();
+                          setConfirmingForget(computer.botId);
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {"删除"}
+                      </Button>
+                    ) : (
+                      <>
                     {computer.updateAvailable ? (
                       <Button
                         disabled={busy === computer.botId}
@@ -153,6 +206,8 @@ function ComputersPage() {
                     >
                       {"重置"}
                     </Button>
+                      </>
+                    )}
                   </ItemActions>
                 </Item>
                 {index !== computers.length - 1 && <Separator />}
@@ -177,9 +232,7 @@ function ComputersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {"重置"}
-              {confirming ? nameFor(confirming) : ""}
-              {"'s 计算机？"}
+              {`重置「${titleFor(confirming)}」的浏览器？`}
             </DialogTitle>
             <DialogDescription>
               {
@@ -218,9 +271,7 @@ function ComputersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {"更新"}
-              {confirmingUpdate ? nameFor(confirmingUpdate) : ""}
-              {"'s 计算机？"}
+              {`更新「${titleFor(confirmingUpdate)}」的计算机？`}
             </DialogTitle>
             <DialogDescription>
               {
@@ -249,6 +300,57 @@ function ComputersPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open && busy !== confirmingForget) setConfirmingForget(null);
+        }}
+        open={confirmingForget !== null}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{"删除这个浏览器？"}</DialogTitle>
+            <DialogDescription>
+              {
+                "它属于一个已经删除的机器人。浏览器的配置文件、登录状态（cookies）和接管记录会一起删除，不能撤销。"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          {confirmingForget ? (
+            <p className="font-mono text-muted-foreground text-xs">
+              {confirmingForget}
+            </p>
+          ) : null}
+          {forget.error && confirmingForget !== null ? (
+            <p
+              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+              role="alert"
+            >
+              {forget.error.message}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              disabled={busy === confirmingForget}
+              onClick={() => setConfirmingForget(null)}
+              size="sm"
+              variant="ghost"
+            >
+              {"取消"}
+            </Button>
+            <Button
+              disabled={busy === confirmingForget}
+              onClick={() => {
+                if (confirmingForget) runForget(confirmingForget);
+              }}
+              size="sm"
+              variant="destructive"
+            >
+              {busy === confirmingForget ? "正在删除…" : "删除"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <p className="mt-4 text-muted-foreground text-sm">
         <strong>{"停止"}</strong>{" "}
         {
@@ -256,6 +358,8 @@ function ComputersPage() {
         }{" "}
         <strong>{"重置"}</strong>{" "}
         {"删除配置文件，这样机器人退出所有内容并干净开始。"}
+        <strong>{"删除"}</strong>{" "}
+        {"只出现在已删除的机器人留下的浏览器上：连同它的登录状态一起删掉。删除机器人时它的浏览器会自动删除。"}
         <strong>{"更新计算机"}</strong>{" "}
         {
           "当计算机运行比此部署更旧的镜像时出现，并将其移动到新版本，保留其文件和登录记录。三者都记录在"

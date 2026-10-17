@@ -185,3 +185,28 @@ describe("secret entry remains scoped and ephemeral", () => {
     expect(control.pendingSecret()).toBeNull();
   });
 });
+
+describe("2026-10-17: a stuck action cannot block 接管 for ever", () => {
+  test("take succeeds once the stuck action's lease expires, and names it while waiting", async () => {
+    const expired: string[] = [];
+    const waiting: string[][] = [];
+    const control = createControl(undefined, {
+      actionLeaseMs: 40,
+      drainTimeoutMs: 10,
+      onLeaseExpired: (lease) => expired.push(lease.label),
+      onDrainTimeout: (holders) => waiting.push(holders.map((h) => h.label)),
+    });
+    control.admitBotAction(false, "/navigate"); // never released
+    const help = control.requestHelp("我来接管浏览器。").request!;
+    // Before the lease runs out: the old behaviour, but now it says what it waited for.
+    await expect(control.take(help.id)).rejects.toThrow(/still finishing/);
+    expect(waiting).toEqual([["/navigate"]]);
+    expect(control.admittedActions().map((a) => a.label)).toEqual(["/navigate"]);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(expired).toEqual(["/navigate"]);
+    const taken = await control.take(help.id);
+    expect(taken.holder).toBe("human");
+    control.release(help.id);
+    expect(control.get().holder).toBe("bot");
+  });
+});

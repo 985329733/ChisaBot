@@ -37,6 +37,7 @@ import {
 } from "./navigation";
 import { createProfiles, numberFromEnv, VIEWPORT } from "./profiles";
 import {
+  EXEC_MAX_TIMEOUT_MS,
   parseExecTimeout,
   parseInputMessage,
   parseNavigateUrl,
@@ -50,6 +51,8 @@ import {
   SENSITIVE_FIELD_SELECTOR,
   sensitiveRefs,
 } from "./secret-masking";
+import type { Release } from "./action-barrier";
+import { forgetControlState } from "./control-store";
 import { type BotSession, createSessions } from "./sessions";
 import {
   DEFAULT_START_LINKS,
@@ -178,7 +181,45 @@ const TEXT_EXTRACT_LIMIT = 6000;
 const sessions = createSessions({
   isLive: (botId) => profiles.isLive(botId),
   profilesDirectory: process.env.PROFILES_DIR?.trim() || "/profiles",
+  // 2026-10-17：一个从没结束的操作（半死浏览器上的调用）一直占着租约，「接管」每次 30 秒超时，
+  // 这个机器人的浏览器直到容器重启都用不了。租约到期后屏障自己放行；浏览器操作还要把那台浏览器丢掉，
+  // 这样卡住的 Playwright 调用随浏览器关闭而失败，下一次请求从同一个配置目录（登录都在）重新启动。
+  onLeaseExpired: (botId, lease) => {
+    console.info(
+      JSON.stringify({
+        type: "computer-action-lease-expired",
+        botId,
+        action: lease.label,
+        heldMs: lease.heldMs,
+      }),
+    );
+    if (lease.label !== "/exec" && !lease.label.startsWith("/files/"))
+      profiles.abandon(botId, `an action (${lease.label}) never finished`);
+  },
+  onDrainTimeout: (botId, holders) => {
+    console.info(
+      JSON.stringify({
+        type: "computer-take-control-waiting",
+        botId,
+        holders: holders.map((h) => ({ action: h.label, heldMs: h.heldMs })),
+      }),
+    );
+  },
 });
+
+/**
+ * How long one admitted action may hold the wheel (action-barrier.ts) before it is given back.
+ *
+ * Longer than anything the action may legitimately take: a cold launch (bounded by
+ * COMPUTER_LAUNCH_DEADLINE_MS) plus its own work. A command carries its own timeout.
+ */
+/** After the caller hung up, how long an unfinished browser action may still hold the wheel. */
+const CALLER_GONE_GRACE_MS = numberFromEnv("COMPUTER_CALLER_GONE_GRACE_MS", 15_000);
+
+function actionLeaseMs(pathname: string): number {
+  if (pathname === "/exec") return EXEC_MAX_TIMEOUT_MS + 60_000;
+  return 150_000 + NAVIGATION_TIMEOUT_MS;
+}
 
 /**
  * Sent by the server as a header on every call. Absent means the caller does not know or does not
@@ -857,12 +898,23 @@ serve<StreamData>({
      * the browser at a login wall. `actsOnTheComputer` is the list, and a new acting endpoint is
      * refused by being added to it rather than by remembering to repeat this.
      */
-    let releaseAction: (() => void) | undefined;
+    let releaseAction: Release | undefined;
     try {
       if (actsOnTheComputer(url.pathname)) {
-        releaseAction = session.control.admitBotAction(
+        const admitted = session.control.admitBotAction(
           mutatesBrowser(url.pathname),
+          url.pathname,
+          actionLeaseMs(url.pathname),
         );
+        releaseAction = admitted;
+        // 调用方断开（服务器那边 45 秒超时放弃、客户端关了）：没人再等这个结果。宽限
+        // CALLER_GONE_GRACE_MS 之后它还没结束就按卡死处理（放行租约、丢弃浏览器），不再等满整份租约。
+        // 命令（/exec）不缩短：它有自己的超时，服务器也可能故意不等它。
+        if (url.pathname !== "/exec" && !url.pathname.startsWith("/files/")) {
+          const onGone = () => admitted.shorten(CALLER_GONE_GRACE_MS);
+          if (request.signal.aborted) onGone();
+          else request.signal.addEventListener("abort", onGone, { once: true });
+        }
       }
 
       if (url.pathname === "/stream") {
@@ -1155,6 +1207,16 @@ serve<StreamData>({
          * resolving. A new run is what makes those two distinguishable at the far end.
          */
         sessions.renewRun(botId);
+        // ?forget=1：机器人已经删除（或这份浏览器配置没有主人了）。连接管记录一起删，进程里也不留它的会话，
+        // 这样「云端浏览器」列表里它就消失了（列表来自磁盘上的配置目录，见 profiles.known）。
+        if (url.searchParams.get("forget") === "1") {
+          sessions.forget(botId);
+          await forgetControlState(
+            process.env.PROFILES_DIR?.trim() || "/profiles",
+            botId,
+          ).catch(() => undefined);
+          return json({ reset: true, forgotten: true, botId });
+        }
         return json({ reset: true, botId });
       }
 

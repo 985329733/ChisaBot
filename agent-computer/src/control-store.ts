@@ -148,3 +148,13 @@ export function createControlStore(
     },
   };
 }
+
+/** Delete a Bot's handoff history. Only for a computer that is being deleted for good. */
+export async function forgetControlState(
+  profilesDirectory: string,
+  botId: string,
+): Promise<void> {
+  if (!isPlainBotId(botId)) return;
+  const { rm } = await import("node:fs/promises");
+  await rm(join(profilesDirectory, ".control", `${botId}.json`), { force: true });
+}

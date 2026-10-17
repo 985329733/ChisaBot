@@ -43,6 +43,12 @@ export type AgentProfileStore = {
   list(actor: AgentActor, hidden?: boolean): Promise<AgentProfile[]>;
   get(actor: AgentActor, id: string): Promise<AgentProfile | null>;
   /**
+   * The raw record behind a Bot id, ignoring who is asking: its name, and whether it was deleted
+   * (profile stamped deleted, or no `agents` row at all → null). For deployment-wide housekeeping
+   * that must not mistake a Bot it cannot see for a deleted one (云端浏览器列表，DESIGN.md §99).
+   */
+  record?(id: string): Promise<{ name: string; deleted: boolean } | null>;
+  /**
    * `get`, but on the caller's own transaction and holding the profile against deletion until that
    * transaction ends.
    *
@@ -542,6 +548,16 @@ export function createAgentProfileStore(
 
     get(actor, id) {
       return findAccessibleProfile(database, actor, id);
+    },
+
+    async record(id) {
+      const [row] = await database
+        .select({ name: agents.name, deletedAt: agentProfiles.deletedAt })
+        .from(agents)
+        .leftJoin(agentProfiles, eq(agentProfiles.agentId, agents.id))
+        .where(eq(agents.id, id))
+        .limit(1);
+      return row ? { name: row.name, deleted: row.deletedAt !== null } : null;
     },
 
     async getWithin(executor, actor, id) {

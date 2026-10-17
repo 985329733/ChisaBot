@@ -88,6 +88,11 @@ export interface ComputerProvider {
   stop(botId: string): Promise<{ wasRunning: boolean }>;
   /** Remove the computer state for this Bot if it exists. */
   reset(botId: string): Promise<{ cleared: boolean }>;
+  /**
+   * Delete this Bot's computer for good: profile, cookies, handoff history. For a Bot that has been
+   * deleted. Absent → the gateway falls back to `reset`.
+   */
+  forget?(botId: string): Promise<{ cleared: boolean }>;
   /** List the computers that this provider owns. */
   list(): Promise<ComputerLocation[]>;
   /**
@@ -251,6 +256,13 @@ export function createSharedComputerProvider(
       return {
         cleared: body?.cleared ?? body?.reset ?? false,
       };
+    },
+
+    async forget(botId: string): Promise<{ cleared: boolean }> {
+      const body = (await call("/computers/reset?forget=1", "POST", botId)) as {
+        reset?: boolean;
+      } | null;
+      return { cleared: body?.reset ?? false };
     },
 
     async list(): Promise<ComputerLocation[]> {

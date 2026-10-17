@@ -87,6 +87,13 @@ export function createAgentPurge(options: {
    * 不管机器人是否留成墓碑都先做；真正删掉机器人时再连行删除（removeForGood）。
    */
   retirePanels?: (agentId: string) => Promise<unknown>;
+  /**
+   * 删掉这个机器人的云端浏览器：经由浏览器进程自己关掉正在运行的浏览器、删配置目录（cookies、会话）
+   * 和接管记录，并清掉快照 / 页面截图（DESIGN.md §99）。以前这里只在 API 进程里 rm 目录：浏览器进程
+   * 还开着它、目录属于浏览器进程的用户，删不掉也不报错，「云端浏览器」列表里就一直留着已删除机器人的 id。
+   * 没配或失败时退回直接删目录。
+   */
+  forgetComputer?: (agentId: string, actor: AgentActor) => Promise<unknown>;
 }): AgentPurge {
   const { database, reset } = options;
   const profilesDir = options.profilesDir ?? process.env.PROFILES_DIR ?? "/profiles";
@@ -269,7 +276,19 @@ export function createAgentPurge(options: {
       );
       report.panelsRemoved = await removeForGood(agentId);
       report.removed = true;
-      await removeProfileDir(agentId);
+      let forgotten = false;
+      if (options.forgetComputer) {
+        try {
+          await options.forgetComputer(agentId, actor);
+          forgotten = true;
+        } catch (error) {
+          console.warn(
+            `[agents] deleting the browser of ${agentId} failed:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
+      if (!forgotten) await removeProfileDir(agentId);
     }
     return report;
   }

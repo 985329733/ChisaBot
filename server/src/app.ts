@@ -1124,6 +1124,15 @@ export function createApp(
         agentProfileStore ? computerAccessCheck(agentProfileStore) : canUseBot,
         pageFrames,
         auditReader,
+        agentProfileStore
+          ? async (actor, botId) => {
+              const profile = await agentProfileStore.get(actor, botId);
+              if (profile) return { name: profile.name };
+              // 看不到不等于删了：没有资料行的机器人、别人的私有机器人都算「还在」，不能被当成孤儿删掉。
+              const record = await agentProfileStore.record?.(botId);
+              return record && !record.deleted ? { name: record.name } : null;
+            }
+          : undefined,
       ),
     );
   }
