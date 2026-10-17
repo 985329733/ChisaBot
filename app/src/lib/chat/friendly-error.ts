@@ -75,6 +75,11 @@ const RULES: Array<{ test: RegExp; title: string; hint?: string; retryable?: boo
 
 export function friendlyError(raw: string): FriendlyError {
   const detail = raw.trim();
+  // 做到一半就停了（工具出错 / 续轮到上限 / 空回复，DESIGN.md §100）：原因本身已经是给人看的中文，
+  // 放在提示里直接显示；放在规则前面，免得里面带的英文原文（如 timeout）被认成「模型超时」。
+  if (/^机器人(在「[^」]*」这一步出错|做完「[^」]*」之后没有接着做|这一轮没有给出任何回复)/.test(detail)) {
+    return { title: "这一轮没有做完", hint: detail, detail: "", retryable: true };
+  }
   for (const rule of RULES) {
     if (rule.test.test(detail)) {
       return {

@@ -87,6 +87,88 @@ export function markUserStop(): void {
 }
 const stoppedByUser = () => Date.now() - userStoppedAt < 15_000;
 
+let approvalPausedAt = 0;
+/**
+ * 一步要用户批准，这一轮先停下等审批卡（approval-tools 里 stopAgent）。这是正常的暂停，不是出错：
+ * 之后 15 秒内那次中止不报，也不当成「没说完就停了」（§100）。
+ */
+export function markApprovalPause(): void {
+  approvalPausedAt = Date.now();
+}
+export const pausedForApproval = () => Date.now() - approvalPausedAt < 15_000;
+
+/** 一个 run 失败是不是因为中止（停止 / 等审批），而不是出错。 */
+export function isAbortFailure(error: unknown): boolean {
+  if (!error) return false;
+  if (typeof error === "object" && "name" in error && (error as { name?: unknown }).name === "AbortError") return true;
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return /\babort(ed)?\b/i.test(message);
+}
+
+/**
+ * 这一轮做完一步之后没有接着做、也没有任何说明就结束了（§100）。
+ *
+ * 浏览器里的工具（点击、填写…）每做一步，CopilotKit 都要再发起一轮把结果交给模型。工具处理函数出错、
+ * 续轮次数到上限，都会让它不再发起——最后一条是工具结果，后面什么都没有，界面上就是「做了 N 步」然后安静了。
+ * 返回要显示的中文原因；这一轮正常结束（最后是回答，或是在等审批 / 等用户处理）返回 null。
+ *
+ * 只看这一轮新加的消息（`before` 是发送前已有的消息 id），不翻旧账。
+ */
+export function unfinishedTurnReason(
+  messages: readonly { id: string; role: string; content?: unknown; toolCallId?: string; toolCalls?: readonly { id: string; function?: { name?: string } }[] }[],
+  before: ReadonlySet<string>,
+): string | null {
+  const last = messages[messages.length - 1];
+  if (!last || before.has(last.id)) return null;
+  if (last.role === "tool") {
+    const content = typeof last.content === "string" ? last.content : "";
+    // 在等审批卡 / 等用户处理（approval-tools 交回 { waiting: true }），之后会由服务器接上这一轮。
+    if (/^\s*\{\s*"waiting"\s*:\s*true/.test(content)) return null;
+    const call = messages
+      .flatMap((message) => (message.role === "assistant" ? (message.toolCalls ?? []) : []))
+      .find((toolCall) => toolCall.id === last.toolCallId);
+    const step = stepName(call?.function?.name);
+    if (content.startsWith("Error:")) {
+      const detail = content.slice("Error:".length).trim();
+      return `机器人在「${step}」这一步出错，这一轮没有做完${detail ? `：${friendlyToolError(detail)}` : "。"}点「重试」再来一次。`;
+    }
+    return `机器人做完「${step}」之后没有接着做，这一轮没有做完。点「重试」再来一次。`;
+  }
+  if (last.role === "assistant") {
+    const text = typeof last.content === "string" ? last.content.trim() : "";
+    const calls = last.toolCalls ?? [];
+    if (!text && calls.length === 0) return "机器人这一轮没有给出任何回复。点「重试」再来一次；一直这样就换一个模型。";
+  }
+  return null;
+}
+
+const STEP_NAMES: Record<string, string> = {
+  computer_navigate: "打开网页",
+  computer_read: "读取页面",
+  computer_snapshot: "查看页面上的按钮和输入框",
+  computer_screenshot: "截图",
+  computer_click: "点击",
+  computer_type: "填写",
+  computer_key: "按键",
+  computer_scroll: "滚动",
+  computer_tabs: "标签页",
+  computer_bookmarks: "收藏夹",
+  computer_run_command: "运行命令",
+  computer_read_file: "读取文件",
+  computer_write_file: "写入文件",
+  computer_list_files: "查看文件",
+};
+function stepName(tool: string | undefined): string {
+  return (tool && STEP_NAMES[tool]) || (tool ? tool : "上一步");
+}
+/** 工具报错多是英文的内部说法；认得的翻成人话，其余原样（保留原文便于排查）。 */
+function friendlyToolError(detail: string): string {
+  if (/not on the page any more|Nothing on this page has the ref|out of date/i.test(detail))
+    return "页面已经变了，它要找的元素不在了。";
+  if (/could not be reached|unavailable|ECONNREFUSED|fetch failed/i.test(detail)) return "云端电脑暂时连不上。";
+  return detail.length > 160 ? `${detail.slice(0, 160)}…` : detail;
+}
+
 /** 订阅者本身（纯函数，便于测试）：每一轮开始清掉，出错 / 失败记下原因（用户自己按停止的除外）。 */
 export function stoppedTurnSubscriber(setStopped: (reason: string | null) => void) {
   return {

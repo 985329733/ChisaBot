@@ -73,7 +73,39 @@ export type SnapshotElement = {
   value?: string;
   disabled?: boolean;
   checked?: boolean;
+  /**
+   * 原生下拉框的选项文字（§100）。选项收在这里，不再一项一项占快照名额（年份下拉一百多项会把快照撑满），
+   * 机器人用 computer_type 把其中一项填进去就能选中。
+   */
+  options?: string[];
 };
+
+/** 下拉框选项在快照里最多列这么多项。 */
+const OPTION_LIMIT = 60;
+
+/**
+ * 一个 combobox 下面直接挂着一串 option：这是原生下拉框（自定义下拉框的选项在别处的 listbox 里）。
+ * 返回选项文字和选中项；不是这种形状返回 null。
+ */
+function nativeOptions(value: unknown): { labels: string[]; selected?: string; total: number } | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const labels: string[] = [];
+  let selected: string | undefined;
+  for (const child of value) {
+    const key =
+      typeof child === "string"
+        ? child
+        : child && typeof child === "object" && Object.keys(child).length === 1
+          ? Object.keys(child)[0]!
+          : null;
+    const descriptor = key ? parseDescriptor(key) : null;
+    if (!descriptor || descriptor.role !== "option") return null;
+    const label = cutAtCodeUnits(descriptor.name, 100);
+    labels.push(label);
+    if (descriptor.flags.has("selected") && descriptor.flags.get("selected") !== "false") selected = label;
+  }
+  return { labels, ...(selected !== undefined ? { selected } : {}), total: labels.length };
+}
 
 /** The descriptor half of an entry: everything before the colon. */
 type Descriptor = {
@@ -263,6 +295,18 @@ export function parseAriaSnapshot(yaml: string): {
     if (node && typeof node === "object") {
       for (const [key, value] of Object.entries(node)) {
         const descriptor = parseDescriptor(key);
+        const options = descriptor?.role === "combobox" ? nativeOptions(value) : null;
+        if (descriptor && options) {
+          const element = toElement(descriptor, undefined);
+          if (element) {
+            element.options = options.labels.slice(0, OPTION_LIMIT);
+            if (options.total > OPTION_LIMIT) element.options.push(`……共 ${options.total} 项`);
+            if (options.selected !== undefined && !element.value) element.value = options.selected;
+            push(element);
+          }
+          // 选项已经收进 options，不再逐项列出。
+          continue;
+        }
         const element = descriptor ? toElement(descriptor, value) : null;
         if (element) push(element);
         // Descend regardless of whether this entry was actionable: a `group "Pizza Size"` is not, and

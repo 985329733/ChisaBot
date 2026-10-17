@@ -154,6 +154,16 @@ function labelOf(result: string | undefined): string | undefined {
   return typeof name === "string" && name.trim() ? name.trim() : undefined;
 }
 
+/** 原生下拉框选中的那一项（computer_type / computer_click 结果里的 selected.label，§100）。 */
+export function selectedLabel(result: string | undefined): string | undefined {
+  const selected = (outcomeOf(result) as { selected?: unknown }).selected;
+  const label =
+    selected && typeof selected === "object" && "label" in selected
+      ? (selected as { label?: unknown }).label
+      : undefined;
+  return typeof label === "string" && label.trim() ? label.trim() : undefined;
+}
+
 /**
  * A compact transcript line that distinguishes policy refusals from ordinary failures.
  */
@@ -464,7 +474,8 @@ export function ComputerTools() {
       "List the things on the current page you can act on: fields, buttons, links and checkboxes, " +
       "each with a ref, its label and its current value. Call this BEFORE clicking or typing, and " +
       "use the refs it returns. Always send back the snapshotId it gives you. If an action reports " +
-      "that your refs are stale, the page changed: call this again and use the new refs.",
+      "that your refs are stale, the page changed: call this again and use the new refs. " +
+      "A dropdown (<select>) appears as a combobox with an `options` list: choose with computer_type.",
     parameters: z.object({}),
     handler: async (
       _input: Record<string, never>,
@@ -497,7 +508,9 @@ export function ComputerTools() {
     description:
       "Enter text into a field on the page. Give the ref of the field from your most recent " +
       "snapshot and the snapshotId it came from. This replaces whatever the field already contains. " +
-      "Set submit to true to press Enter afterwards.",
+      "Set submit to true to press Enter afterwards. For a dropdown (a combobox with `options` in the " +
+      "snapshot) give one option's text or value, e.g. \"Jul\" or \"7\" for a month, \"2000\" for a year: " +
+      "this selects it directly. Do not click a dropdown open or press keys on it.",
     parameters: z.object({
       ref: z
         .string()
@@ -527,19 +540,26 @@ export function ComputerTools() {
         },
         signal,
       ),
-    render: ({ args, result, status }) => (
-      <ActionLine
-        running={status !== "complete"}
-        label={"已填写"}
-        detail={
-          // Never show typed values; identify only the target field.
-          labelOf(result) ??
-          (typeof args?.ref === "string" ? args.ref : undefined)
-        }
-        refused={outcomeOf(result).refused === true}
-        failed={didNotWork(outcomeOf(result))}
-      />
-    ),
+    render: ({ args, result, status }) => {
+      const field =
+        labelOf(result) ?? (typeof args?.ref === "string" ? args.ref : undefined);
+      // 原生下拉框（§100）：选中的是页面上的一个选项，不是输入的内容，可以显示。
+      const picked = selectedLabel(result);
+      return (
+        <ActionLine
+          running={status !== "complete"}
+          label={picked ? "已选择" : "已填写"}
+          detail={
+            picked
+              ? `${field ? `${field}：` : ""}${picked}`
+              : // Never show typed values; identify only the target field.
+                field
+          }
+          refused={outcomeOf(result).refused === true}
+          failed={didNotWork(outcomeOf(result))}
+        />
+      );
+    },
   });
 
   useFrontendTool({
@@ -547,7 +567,8 @@ export function ComputerTools() {
     name: "computer_click",
     description:
       "Click something on the page: a button, a link, a checkbox or a radio option. Give the ref " +
-      "from your most recent snapshot and the snapshotId it came from.",
+      "from your most recent snapshot and the snapshotId it came from. To choose in a dropdown " +
+      "(<select>), use computer_type with the option's text instead of clicking it.",
     parameters: z.object({
       ref: z
         .string()
@@ -574,12 +595,13 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label={"已点击"}
+          label={selectedLabel(result) ? "已选择" : "已点击"}
           detail={
             // Show refusal reason instead of an internal element ref.
             outcome.refused === true
               ? String(outcome.reason ?? "")
-              : (labelOf(result) ??
+              : (selectedLabel(result) ??
+                labelOf(result) ??
                 (typeof args?.ref === "string" ? args.ref : undefined))
           }
           refused={outcome.refused === true}

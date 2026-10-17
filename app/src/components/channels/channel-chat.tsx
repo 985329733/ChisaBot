@@ -51,7 +51,7 @@ import {
 } from "@/lib/copilot/regenerate";
 import { useConversationSync } from "@/lib/copilot/use-conversation-sync";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
-import { stoppedReason } from "@/lib/copilot/stopped-turn";
+import { isAbortFailure, pausedForApproval, stoppedReason, unfinishedTurnReason } from "@/lib/copilot/stopped-turn";
 import { readSync } from "@/lib/copilot/bot-thread";
 import { CONNECTION_LOST_REASON, isConnectionDrop, settleDroppedTurn, storedTurnAnswered } from "@/lib/copilot/connection-drop";
 import { useFallbackTurns, useLastSentAt, useStoppedTurnIds } from "@/lib/copilot/turn-compaction";
@@ -758,6 +758,7 @@ export function ChannelChat({
   /** 这一轮的流在浏览器这头断了（不是模型出错，DESIGN.md §89）：先不报，run 结束后问服务器这一轮怎样了。 */
   const connectionDropped = useRef(false);
   const assistantMessagesBeforeRun = useRef<Set<string>>(new Set());
+  const lastReportedReply = useRef<string | null>(null);
 
   /*
    * TWO DIFFERENT FACTS ABOUT ONE TURN, AND NEITHER OF THEM IS `agent.isRunning`.
@@ -945,6 +946,19 @@ export function ChannelChat({
     }
 
     /*
+     * 整轮跑完了，既没报错、也不是断流（§100）：看看是不是「做了几步就没下文」。最后一条是工具结果
+     * （工具出错 / 续轮到上限，CopilotKit 不再发起下一轮），或者一条空回复——都要在聊天里说清楚并给「重试」，
+     * 不能静默结束。等审批卡、用户自己按停止的不算（awaitingReply 已被放下 / 最后一条是没有结果的工具调用）。
+     */
+    if (awaitingReply.current && turnFailure.current === null && !pausedForApproval()) {
+      const unfinished = unfinishedTurnReason(agentRef.current.messages as never, existingMessageIds);
+      if (unfinished) failRef.current(unfinished);
+      else awaitingReply.current = false;
+    } else if (pausedForApproval()) {
+      awaitingReply.current = false;
+    }
+
+    /*
      * A TURN THAT DID NOT HAPPEN FAILS THE SEND, which is the only way anything upstream can tell.
      * See `turnFailure` for why the resolved promise above says nothing about that.
      *
@@ -1046,6 +1060,8 @@ export function ChannelChat({
       // both is not told two different things about the same silence.
       onRunErrorEvent: ({ event }) => fail(stoppedReason(event?.message)),
       onRunFailed: ({ error }) => {
+        // 等审批卡时的那次中止是正常暂停，不是出错（§100）。
+        if (pausedForApproval() && isAbortFailure(error)) return;
         // 浏览器这头的连接断了：先别报（更别说成「连不上模型服务」），deliver 里问过服务器再定（§89）。
         if (awaitingReply.current && isConnectionDrop(error)) {
           connectionDropped.current = true;
@@ -1054,9 +1070,12 @@ export function ChannelChat({
         fail(stoppedReason(error));
       },
       onRunFinishedEvent: () => {
-        const wasOurs = awaitingReply.current;
-        awaitingReply.current = false;
-        if (!wasOurs) return;
+        /*
+         * 不在这里把 awaitingReply 放下（DESIGN.md §100）。一轮里用浏览器做事是好几个 run 接力：第一个 run
+         * 以工具调用结束，浏览器做完再发起下一个。以前第一个 run 一结束就放下，后面接力的 run 出错、断流，
+         * `fail` 一看 awaitingReply 是 false 就不报了——这一轮静默结束。现在等 `deliver` 里整轮跑完才放下。
+         */
+        if (!awaitingReply.current) return;
 
         const reply = [...agent.messages]
           .reverse()
@@ -1066,7 +1085,11 @@ export function ChannelChat({
               !assistantMessagesBeforeRun.current.has(message.id),
           );
         const content = typeof reply?.content === "string" ? reply.content : "";
-        if (content) reportRef.current(content, runtimeAgentId);
+        // 一轮里每个接力的 run 结束都会来这里；同一条回答只报一次。
+        if (content && reply && lastReportedReply.current !== `${reply.id}:${content.length}`) {
+          lastReportedReply.current = `${reply.id}:${content.length}`;
+          reportRef.current(content, runtimeAgentId);
+        }
       },
     });
     return () => subscription?.unsubscribe();

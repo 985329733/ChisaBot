@@ -463,7 +463,7 @@ export function createHeadlessComputerTools(options: {
     ),
     tool(
       "computer_snapshot",
-      "List fields, buttons and links with refs. Call before clicking or typing and pass the returned snapshotId with every ref. If refs are stale take a fresh snapshot.",
+      "List fields, buttons and links with refs. Call before clicking or typing and pass the returned snapshotId with every ref. If refs are stale take a fresh snapshot. A dropdown (<select>) is a combobox with an options list: choose with computer_type.",
       noArgs,
       async () => ({ ok: true, ...(await gateway.snapshot(botId)) }),
     ),
@@ -484,7 +484,7 @@ export function createHeadlessComputerTools(options: {
     ),
     tool(
       "computer_type",
-      "Replace a field's contents using its ref and snapshotId. Set submit to press Enter afterwards.",
+      "Replace a field's contents using its ref and snapshotId. Set submit to press Enter afterwards. For a dropdown (combobox with options) give one option's text or value (e.g. Jul or 7 for a month, 2000 for a year) to select it; never click it open.",
       z.strictObject({
         ref,
         snapshotId,

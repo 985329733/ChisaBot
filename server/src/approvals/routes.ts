@@ -34,6 +34,7 @@ const ruleChange = z
   );
 
 import { HeadlessToolSuspension } from "../computer/headless-tools";
+import { computerFailureOutcome } from "../computer/tool-outcome";
 
 export function createApprovalRoutes(
   service: ApprovalService,
@@ -80,6 +81,11 @@ export function createApprovalRoutes(
           },
           202,
         );
+      // 普通的计算机失败（元素过期、下拉框没有这个选项、电脑暂时不可用…）是这一步的结果，不是 500：
+      // 交回 { ok:false, reason } 让机器人接着做。抛 500 会让网页里的工具处理函数报错，CopilotKit 就不再
+      // 发起下一轮，这一轮静默结束（DESIGN.md §100，2026-10-17 用户截图）。
+      const outcome = computerFailureOutcome(error);
+      if (outcome) return context.json({ result: outcome });
       throw error;
     }
   });

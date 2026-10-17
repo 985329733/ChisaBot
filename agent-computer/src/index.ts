@@ -66,6 +66,14 @@ import { createShell } from "./shell";
 import { fillSignIn, parseSignInFill } from "./sign-in";
 import { startVirtualDisplay } from "./virtual-display";
 import {
+  chooseClickedOption,
+  chooseNativeOption,
+  focusNativeSelect,
+  NATIVE_SELECT_HINT,
+  nativeSelectKind,
+  SelectOptionError,
+} from "./native-select";
+import {
   contentTypeFor,
   workspacePathFromUrl,
   workspaceProblemPage,
@@ -1648,6 +1656,10 @@ serve<StreamData>({
           if (error instanceof StaleSnapshotError) {
             return json({ error: error.message, stale: true }, 409);
           }
+          // 下拉框里没有这个选项：换个写法就能成，是 400 而不是「电脑坏了」的 502（§100）。
+          if (error instanceof SelectOptionError) {
+            return json({ error: error.message }, 400);
+          }
           return json({ error: describe(error, "The action failed.") }, 502);
         }
       }
@@ -1798,7 +1810,26 @@ async function performAction(
 
   if (action === "/click") {
     if (!ref) throw new Error("A click needs the ref of an element to click.");
-    await (await resolveRef(session, target, ref, expected)).click(acting);
+    const element = await resolveRef(session, target, ref, expected);
+    // 原生下拉框（§100）：点开会弹出页面外的系统列表，之后填写 / 按键都会卡到超时。
+    // 点下拉框本身只聚焦并列出选项；点其中一项就直接选中它。
+    const native = await nativeSelectKind(element, ACTION_TIMEOUT_MS);
+    if (native === "select") {
+      const listed = await focusNativeSelect(element, ACTION_TIMEOUT_MS);
+      return {
+        action: "click",
+        ref,
+        nativeSelect: true,
+        ...listed,
+        hint: NATIVE_SELECT_HINT,
+        url: target.url(),
+      };
+    }
+    if (native === "option") {
+      const chosen = await chooseClickedOption(element, acting);
+      return { action: "select", ref, selected: chosen, url: target.url() };
+    }
+    await element.click(acting);
     return { action: "click", ref, url: target.url() };
   }
 
@@ -1808,6 +1839,16 @@ async function performAction(
       throw new Error("Typing needs the text to enter.");
     }
     const field = await resolveRef(session, target, ref, expected);
+    // 原生下拉框（§100）：「填写」= 选中文字或值对应的那一项。select 不是输入框，`fill` 会一直等到超时。
+    if ((await nativeSelectKind(field, ACTION_TIMEOUT_MS)) === "select") {
+      const chosen = await chooseNativeOption(field, body.text, acting);
+      return {
+        action: "select",
+        ref,
+        selected: { label: chosen.label, value: chosen.value },
+        url: target.url(),
+      };
+    }
     // `fill` rather than keystrokes: it clears the field first, which is what "put this value in
     // this box" means. Typing into a field a previous attempt half-filled otherwise appends, and the
     // form ends up with "AlicAlice" in it.
@@ -1832,10 +1873,27 @@ async function performAction(
       throw new Error("A key press needs a key name, such as Enter or Tab.");
     }
     if (ref) {
-      await (await resolveRef(session, target, ref, expected)).press(
-        body.key,
-        acting,
-      );
+      const element = await resolveRef(session, target, ref, expected);
+      // 原生下拉框上按键：弹出的系统列表会让按键卡到超时（用户截图里的第二轮）。先收起列表，
+      // 结果里提醒机器人用 computer_type 选（§100）。
+      if ((await nativeSelectKind(element, ACTION_TIMEOUT_MS)) === "select") {
+        await element.evaluate((el) => (el as HTMLElement).blur(), undefined, { timeout: ACTION_TIMEOUT_MS }).catch(() => undefined);
+        await element.focus({ timeout: ACTION_TIMEOUT_MS }).catch(() => undefined);
+        // Enter / 空格 / F4 / Alt+↓ 会再弹出系统列表，不按；方向键、字母照常（收起状态下直接换选中项）。
+        if (!/^(Enter|NumpadEnter|Space| |F4|Alt\+ArrowDown|Alt\+ArrowUp)$/i.test(body.key))
+          await target.keyboard.press(body.key);
+        const listed = await focusNativeSelect(element, ACTION_TIMEOUT_MS).catch(() => null);
+        return {
+          action: "key",
+          key: body.key,
+          ref,
+          nativeSelect: true,
+          ...(listed?.selected ? { selected: listed.selected } : {}),
+          hint: NATIVE_SELECT_HINT,
+          url: target.url(),
+        };
+      }
+      await element.press(body.key, acting);
     } else {
       await target.keyboard.press(body.key);
     }
