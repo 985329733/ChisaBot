@@ -56,7 +56,7 @@ ChisaBot 有两种「发布」：
 
 推荐顺序（仓库没有签名 Secrets 时）：只构建 dispatch → 下载 artifact → 在自己的机器上用同一把签名密钥签两份 APK →
 带 `tag` + `signed_apk_url` 的 dispatch 出 Release → 用只构建的自建版 artifact 更新自己的更新源（核对 `latest.yml` 的 sha512）。
-签名密钥绝不进仓库；CI 内签名需要仓库所有者配 4 个 `ANDROID_*` Secrets（CB-032）。
+签名密钥绝不进仓库；CI 内签名需要仓库所有者配 4 个 `ANDROID_*` Secrets（CB-032）。服务器端的更新源目录、签名与上传步骤见 [ops/client-release.md](ops/client-release.md)。
 
 ### 3.3 PC 外壳指纹与「重新安装」
 

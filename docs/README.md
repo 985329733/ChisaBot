@@ -15,6 +15,7 @@ ChisaBot 是 CopilotKit/OpenBot 的中文私人助手分支：一台云端服务
 | 知道为什么这样做、有哪些长期规则 | [产品决策与需求原则 decisions](decisions.md) · [ADR](adr/README.md) |
 | 改界面 | [DESIGN.md](../DESIGN.md)（顶部章节索引）· [设置的信息结构](settings-ia.md) |
 | 提交改动 | [CONTRIBUTING](../CONTRIBUTING.md) · [并行开发协议](dev/parallel-work.md) |
+| 自己部署、运维一套 ChisaBot | [运维手册 ops/](ops/README.md)（主机端口、容器、目录、部署回滚、网关、云端节点、发版、模型、测试环境、巡检、清理、故障复盘） |
 | 发版、上线、回滚 | [发布流程 release](release.md) · [部署、回滚与上线检查](ops/deploy.md) · [在线更新](online-update.md) |
 | 测试 | [测试与验证 testing](testing.md) |
 | 看懂中文术语 | [术语表 glossary](glossary.md) |
@@ -66,7 +67,19 @@ ChisaBot 是 CopilotKit/OpenBot 的中文私人助手分支：一台云端服务
 | --- | --- |
 | [快速开始](getting-started.md) | 第一次部署，配置完成后怎样开始聊天 |
 | [自托管部署](../deploy/README.zh-CN.md) | 镜像、持久化、认证网关与 Magpie 部署模板 |
-| [部署、回滚与上线检查](ops/deploy.md) | 合并后怎么上线、怎么回滚、上线后检查什么 |
+| [**运维手册（总览）**](ops/README.md) | 自己部署后长期运维的全部章节入口与一页速查 |
+| [主机与端口规划](ops/hosts.md) | 机器配置、公网端口、只绑 loopback 的端口、防火墙 |
+| [容器与服务](ops/containers.md) | 每个容器、镜像、卷、systemd 单元的用途 |
+| [目录布局与凭据存放](ops/layout.md) | 宿主机目录、各类密钥应放在哪里与权限 |
+| [部署、回滚与上线检查](ops/deploy.md) | 合并后怎么上线、更新器怎么工作、怎么回滚、上线后检查什么 |
+| [网关与登录服务](ops/gateway.md) | nginx 规则、登录服务、多账号开关、签名身份密钥、证书 |
+| [云端工作区节点](ops/cloud-node.md) | 节点部署与安全边界、防火墙、同步边车看门狗、可选出口路由 |
+| [客户端发布（运维）](ops/client-release.md) | 更新源目录、APK 签名、发版上传与临时文件安全删除 |
+| [模型配置运维](ops/model-config.md) | 默认 / 备用模型、生图识图、额度用完怎么办 |
+| [预览与测试环境](ops/preview.md) | 预览容器、出网封锁、生产测试守则与只读检查 |
+| [监控与巡检](ops/monitoring.md) | 每日 / 上线后的只读巡检清单、定时任务、日志 |
+| [磁盘清理指南](ops/cleanup.md) | 保留什么、可以删什么、不要碰什么 |
+| [常见故障与事故复盘](ops/incidents.md) | 典型故障处理、过去事故的教训、整机迁移 |
 | [发布流程](release.md) | 版本号规则、服务器上线、客户端发版、外壳指纹与「重新安装」、自测规则 |
 | [测试与验证](testing.md) | 单元测试、预览约定、回归套件、生产只读检查、已知不稳定测试 |
 | [在线更新](online-update.md) | 网页提示刷新、PC / Android 自动更新、系统更新（宿主机更新器） |
