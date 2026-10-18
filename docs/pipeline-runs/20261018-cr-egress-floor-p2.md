@@ -51,4 +51,11 @@ CB-CR-05（CR-P1-04）+ CB-CR-06…17（P2）。实现：`/workspace/ChisaBot/re
 - Release: v0.1.24
 
 ## Deploy
-- （deploy-serial 后填）
+- done
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #216 squash-merged as `00acb60f`
+- Release **v0.1.24** — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.24
+- Deploy: `deploy-serial.sh bd25568 grok-bot` → image `local/chisabot:auto-202610181546-bd25568`
+- `/api/version` = **0.1.24**；容器 healthy
+- **未** resume 电车定时
