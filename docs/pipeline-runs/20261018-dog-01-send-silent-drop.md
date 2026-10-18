@@ -45,3 +45,11 @@ Prod 当前 v0.1.17 可聊；本修是客户端硬化。部署新版后在 星�
 - PR: https://github.com/ChisaAlter/ChisaBot/pull/210
 - Merge: `cdcc7346ee6284df20957bc13fa7c1ca0155f821`
 - Release: v0.1.18
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #210 squash-merged as `cdcc7346`
+- Release **v0.1.18** tag `581e0985` — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.18
+- Haupt deploy via `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180710-581e098`
+- `/api/version` = 0.1.18; 容器 healthy；模型自检通过；无 thread lock
+- 线上前端包已含「可能没发出去」文案与 ERR_TUNNEL 识别
+- Live UI 星灵发送：本 agent 无用户会话 Cookie，未在浏览器实发；请硬刷新后在星灵发一句确认
