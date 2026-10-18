@@ -50,3 +50,9 @@ CB-CR-01…04（审查 CR-P0-01 / CR-P1-01 / CR-P1-02 / CR-P1-03）。
 - Release **v0.1.23** — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.23
 - 本地回归：web-tools-ssrf + guarded-fetch-ssrf + gateway-identity + connection-drop + auth accounts — pass
 - **未** resume 电车定时
+
+## Deploy
+- 2026-10-18 Asia/Shanghai: `deploy-serial.sh 54c54d3 grok-bot` → image `local/chisabot:auto-202610181347-54c54d3`
+- `/api/version` = **0.1.23**；容器 healthy；本机 smoke（带 X-ChisaBot-Local-Caller）ok=true
+- 首次 health 内嵌自检曾因旧 smoke 未带头而 401（脚本在同次更新末尾才换上）；事后 `smoke.sh` 已通过
+- **未** resume 电车定时
