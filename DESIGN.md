@@ -2332,3 +2332,5 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
   - Bun fetch 自带 5 分钟空闲计时：服务器调 agent-computer 时，调用方给了自己的期限（命令 615 秒、下载 300 秒）就关掉空闲计时（`timeout: false`），期限由 AbortSignal 管。
 - 回归：`server/tests/command-timeout.test.ts`（折算、收边界、schema、透传到 /exec、超时说明、长动作流式响应和正文里的状态）、`app/tests/long-action-status.test.ts`。
   真实 UI 复测：`tests/realtest/rt.mjs` 的 L2（约 4 分钟前台命令，要求在自己的电脑上跑完；结果里 `deviceShell` 必须为 false），`HOST_MAP` 指向 Cloudflare 时走公网入口。
+- 上线复测（10-18 09:13–09:18 CST，PR #206 `e003981`，经 Cloudflare 公网入口）：L2 机器人一次 `computer_run_command`（`timeoutSec: 600`）在自己的电脑上前台跑完 220 秒、给出完整输出，
+  没有用 `device_run_shell`；e2（短命令 + 下载链接，经 Cloudflare）和 b（浏览器读 GitHub）回归通过。
