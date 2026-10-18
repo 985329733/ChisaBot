@@ -31,4 +31,12 @@ CB-UX-DOG-05：计算机面板「机器人在用浏览器」+ 陈旧截图，活
 3. 机器人正在打开网页时，状态行 + 底栏可以说「在用浏览器」。
 
 ## PR / release
-- （填合入后）
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/214
+- Merge: squash on main as `25deaec8`
+- Release: v0.1.22
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #214 squash-merged as `25deaec8`
+- Release **v0.1.22** — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.22
+- 本地回归：`bun test app/tests/browser-presence.test.ts` + computer-control / preview-visibility / rail / blank-page — pass
+- **未** resume 电车定时
