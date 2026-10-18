@@ -41,4 +41,12 @@ CB-CR-01…04（审查 CR-P0-01 / CR-P1-01 / CR-P1-02 / CR-P1-03）。
 - CB-CR-05…17（P1-04 + P2）
 
 ## PR / release
--（填）
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/215
+- Merge: squash on main as `fc8ca300`
+- Release: v0.1.23
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #215 squash-merged as `fc8ca300`
+- Release **v0.1.23** — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.23
+- 本地回归：web-tools-ssrf + guarded-fetch-ssrf + gateway-identity + connection-drop + auth accounts — pass
+- **未** resume 电车定时

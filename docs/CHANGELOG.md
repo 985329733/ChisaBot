@@ -12,16 +12,26 @@ ChisaBot 自己的版本史，从 0.1.0（首个公开版本）起，按**发版
 
 | 项 | 值 |
 |---|---|
-| 服务器 / 网页（main） | 本发版提交，`/api/version` = **0.1.22** |
-| 最新客户端发版 | **v0.1.22**（2026-10-18） |
+| 服务器 / 网页（main） | 本发版提交，`/api/version` = **0.1.23** |
+| 最新客户端发版 | **v0.1.23**（2026-10-18） |
 | PC 外壳指纹 `chisabotShell` | `059438f4e6c98c74`（0.1.12 起；0.1.11 及更早更新时提示「重新安装」） |
-| Android versionCode | 228（只增不减） |
+| Android versionCode | 229（只增不减） |
 
 ---
 
 ## 未发版（main 上，已随服务器上线）
 
 （无）
+
+## v0.1.23 — 2026-10-18
+
+PC 0.1.23（外壳未变，原地更新）· Android 0.1.23（vc 229）。主线：代码审查安全批 [#215](https://github.com/ChisaAlter/ChisaBot/pull/215)（SSRF / 本机信任边界 / 发送看门狗）。
+
+| PR | 日 | 说明 | 合入 |
+|----|----|------|------|
+| [#215](https://github.com/ChisaAlter/ChisaBot/pull/215) | 10-18 | guardedFetch SSRF；X-ChisaBot-Local-Caller；reply watchdog | `fc8ca300` |
+
+---
 
 ## v0.1.22 — 2026-10-18
 
