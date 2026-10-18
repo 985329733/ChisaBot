@@ -29,7 +29,7 @@ PC 0.1.25（外壳未变，原地更新）· Android 0.1.25（vc 231）。主线
 
 | PR | 日 | 说明 | 合入 |
 |----|----|------|------|
-| [#217](https://github.com/ChisaAlter/ChisaBot/pull/217) | 10-19 | 直播屏 ping/pong；OAuth/media SSRF 残留；日志脱敏；version 烟雾 | （合并后） |
+| [#217](https://github.com/ChisaAlter/ChisaBot/pull/217) | 10-19 | 直播屏 ping/pong；OAuth/media SSRF 残留；日志脱敏；version 烟雾 | `6d2fd497` |
 
 ---
 

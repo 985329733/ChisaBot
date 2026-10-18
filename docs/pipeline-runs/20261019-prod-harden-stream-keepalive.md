@@ -35,5 +35,17 @@
 - 无表结构变更；PC 外壳指纹未变
 
 ## PR / release
-- PR: 217
-- Release: v0.1.25
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/217
+- Merge: squash on main as `6d2fd497`
+- Release: v0.1.25 — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.25
+
+## Deploy
+- done
+
+## Ship result (2026-10-19 Asia/Shanghai)
+- PR #217 squash-merged as `6d2fd497`
+- Release **v0.1.25** — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.25
+- Deploy: `deploy-serial.sh 6d2fd49 grok-bot` → image `local/chisabot:auto-202610181652-6d2fd49`
+- `/api/version` = **0.1.25**；容器 healthy（commit `6d2fd497`）
+- **未** resume 电车定时
+- 路线图：`/workspace/ChisaBot-production-readiness.md`
