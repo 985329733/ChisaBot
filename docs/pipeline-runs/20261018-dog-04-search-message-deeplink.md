@@ -34,3 +34,12 @@ CB-UX-DOG-04 · FIX-03 follow-up：Ctrl+K 正文命中能打开会话，但 URL 
 - PR: https://github.com/ChisaAlter/ChisaBot/pull/213
 - Merge: squash on main as `5d9f6294`
 - Release: v0.1.21
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #213 squash-merged as `5d9f6294`
+- Release **v0.1.21** tag `991865bc` — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.21
+- Haupt deploy `deploy-serial.sh 991865b grok-bot` → image `local/chisabot:auto-202610180827-991865b`
+- `/api/version` = 0.1.21；容器 healthy；模型自检通过；behind=0
+- 本地回归：`bun test app/tests/focus-message.test.ts app/tests/scroll-within.test.ts server/src/channels/search.test.ts` 14 pass
+- **未** resume 电车定时；DOG-05 未做
+- Live UI：硬刷新后芯片应显示 0.1.21；Ctrl+K 点正文命中应滚到消息并闪一下
