@@ -36,3 +36,12 @@ DOG-01 live verify on **v0.1.18 failed**: 星灵 send `DOGFOOD018-VERIFY…` →
 - PR: https://github.com/ChisaAlter/ChisaBot/pull/212
 - Merge: squash on main as `f2de07e1`
 - Release: v0.1.19 (pending deploy)
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #212 squash-merged as `f2de07e1`
+- Release **v0.1.19** tag `00046661` — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.19
+- Haupt deploy `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180730-0004666`
+- `/api/version` = 0.1.19; 容器 healthy；模型自检通过
+- DB evidence for dogfood thread: messages ~117KB / 284 rows vs events ~1.3MB / 3882（connect 现走消息快照）
+- 前端包含「迟迟没发出去」文案
+- **Live UI**：本 agent 无用户会话 Cookie，未在浏览器实发；请硬刷新后芯片确认 0.1.19，再在星灵发一句验证
