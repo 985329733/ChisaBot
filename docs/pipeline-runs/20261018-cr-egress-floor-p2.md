@@ -46,7 +46,9 @@ CB-CR-05（CR-P1-04）+ CB-CR-06…17（P2）。实现：`/workspace/ChisaBot/re
 - 未 resume 电车定时
 
 ## PR / release
-- （合并后填）
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/216
+- Merge: squash on main as `00acb60f`
+- Release: v0.1.24
 
 ## Deploy
-- （合并后填）
+- （deploy-serial 后填）

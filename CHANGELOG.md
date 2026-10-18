@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.24
+
+- Bot egress floor denies RFC1918 / loopback even under `allow_all` (aligned with navigation).
+- Honest UI: search errors, install-hint cancel, deep-link keep-alive, late page-frame retry.
+- Hardening: MCP resolve check, stream proxy errors, preview browser cache, Secure cookies on https, vault POST via guardedFetch.
+
+
 What changed, for somebody deciding whether to upgrade. Written for the person running OpenBot, not
 for the person who wrote the commit: a line belongs here when a deployment behaves differently
 afterwards, and does not when only the code moved.
