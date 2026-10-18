@@ -9,6 +9,12 @@ import { tryClient } from "@/lib/client";
 import { syncStartLinks } from "@/lib/browser-bookmarks";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { callComputer, type ToolOutcome } from "@/lib/computers/call";
+import {
+  COMMAND_DEFAULT_TIMEOUT_SEC,
+  COMMAND_MAX_TIMEOUT_SEC,
+  COMMAND_TIMEOUT_GUIDE,
+  normalizeCommandTimeout,
+} from "../../../../shared/command-timeout";
 import { type ControlState, readControl } from "@/lib/computers/control";
 import {
   runBrowserRead,
@@ -882,7 +888,9 @@ export function ComputerTools() {
       "installing a tool you need, processing a file you saved, running a script. The working " +
       "directory is your workspace, so paths are relative to it and files you write here are the " +
       "same ones the file tools see. Commands run in bash, so pipes and && work. Long output is " +
-      "truncated from the start, and a command that runs too long is stopped. " +
+      "truncated from the start. " +
+      COMMAND_TIMEOUT_GUIDE +
+      " " +
       "You are not the root user, so anything that writes outside your workspace needs sudo, " +
       "which asks for no password: installing a package is " +
       "`sudo apt-get update && sudo apt-get install -y <package>`. If sudo is refused, this " +
@@ -891,16 +899,37 @@ export function ComputerTools() {
       command: z
         .string()
         .describe("The command to run, such as: sudo apt-get install -y jq"),
+      // §102：秒（推荐）或毫秒都收，超出 1–600 秒收到边界上（shared/command-timeout.ts）。
+      timeoutSec: z
+        .number()
+        .optional()
+        .describe(
+          `Seconds before the command is stopped. Default ${COMMAND_DEFAULT_TIMEOUT_SEC}, max ${COMMAND_MAX_TIMEOUT_SEC}. Set it for long commands.`,
+        ),
+      timeoutMs: z
+        .number()
+        .optional()
+        .describe("Same limit in milliseconds; prefer timeoutSec."),
     }),
     handler: async (
-      input: { command: string },
+      input: { command: string; timeoutSec?: number; timeoutMs?: number },
       { signal }: { signal?: AbortSignal } = {},
     ) => {
       const computerId = bot.current;
+      // 直连 /exec 时（没有对话快照的界面）也要折算：路由只认整数毫秒 1000–600000。
+      const timeout = normalizeCommandTimeout(input);
       const result = await callComputer(
         computerId,
         "/exec",
-        { method: "POST", body: input },
+        {
+          method: "POST",
+          body: {
+            command: input.command,
+            ...(timeout.timeoutMs !== undefined
+              ? { timeoutMs: timeout.timeoutMs }
+              : {}),
+          },
+        },
         signal,
       );
       /*
