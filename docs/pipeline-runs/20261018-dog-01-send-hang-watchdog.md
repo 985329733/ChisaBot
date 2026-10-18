@@ -33,4 +33,6 @@ DOG-01 live verify on **v0.1.18 failed**: 星灵 send `DOGFOOD018-VERIFY…` →
 4. Optional: throttle CPU / block `/run` only → ~12s hang reason.
 
 ## PR / release
-- (filled after ship)
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/212
+- Merge: squash on main as `f2de07e1`
+- Release: v0.1.19 (pending deploy)

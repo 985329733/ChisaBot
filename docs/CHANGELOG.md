@@ -23,6 +23,17 @@ ChisaBot 自己的版本史，从 0.1.0（首个公开版本）起，按**发版
 
 （无）
 
+## v0.1.19 — 2026-10-18
+
+PC 0.1.19（外壳未变，原地更新）· Android 0.1.19（vc 225）。主线：狗粮 DOG-01 深挖 [#212](https://github.com/ChisaAlter/ChisaBot/pull/212)（v0.1.18 实机仍假成功 → connect 快照 + send watchdog）。
+
+| PR | 日 | 说明 | 合入 |
+|---|---|---|---|
+| [#212](https://github.com/ChisaAlter/ChisaBot/pull/212) | 10-18 | DOG-01：connect 消息快照 + 12s send watchdog + 发送中可停 | `f2de07e1` |
+| — | 10-18 | **release v0.1.19**（三处版本 + Android vc 225） | — |
+
+---
+
 ## v0.1.18 — 2026-10-18
 
 PC 0.1.18（外壳未变，原地更新）· Android 0.1.18（vc 224）。主线：狗粮 DOG-01 [#210](https://github.com/ChisaAlter/ChisaBot/pull/210)（隧道挂掉发消息假成功 → 短时明确报错并恢复草稿）。
