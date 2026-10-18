@@ -33,3 +33,16 @@ Repo: `/workspace/ChisaBot/repo` · no Cursor cloud agents
 - FIX-15 archives (soft delete); empty drafts disappear from list but DB row remains
 - FIX-16 requires bot list loaded; active orphans under deleted bots still need manual cancel
 - Historical chat bubbles that already say 「今天」 / 「请点交还」 are not rewritten
+
+## Release
+
+- 2026-10-18 — squash-merge #209 → `2be44adf` on main
+- 2026-10-18 — release **v0.1.17**（三处版本 0.1.16→0.1.17，Android vc 222→223）
+- Release: https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.17
+- Note: #208 / FIX-01..04 already in **v0.1.16**; this tag is FIX-05..16 only
+- Deploy: **not** done from this agent (VPS key pending); parent deploys after password
+
+## CB-UX status
+
+- CB-UX-05 / CB-UX-06 → `released` in `/workspace/ChisaBot/requirements.md` on v0.1.17
+
