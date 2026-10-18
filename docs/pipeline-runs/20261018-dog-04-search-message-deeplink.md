@@ -31,5 +31,6 @@ CB-UX-DOG-04 · FIX-03 follow-up：Ctrl+K 正文命中能打开会话，但 URL 
 4. 回归：无 `messageId` 的标题命中仍只进频道；设置搜索闪一下仍正常。
 
 ## PR / release
-- PR: (pending)
-- Release: v0.1.21 (pending)
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/213
+- Merge: squash on main as `5d9f6294`
+- Release: v0.1.21
