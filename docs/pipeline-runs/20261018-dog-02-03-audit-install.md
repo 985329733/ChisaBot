@@ -7,7 +7,7 @@ DOG-01（发消息假成功）已在 v0.1.18，**不重开**。
 
 ## Status log
 - 2026-10-18 ~15:30 CST Asia/Shanghai — 分支 `fix/dog-02-03-audit-install`；审计中文标签 + 安装横幅占位/永久关闭。
-- 单测绿 → PR → 合入 → 发版 0.1.19+ → Haupt updater 部署。
+- 单测绿 → PR #211 → HOLD 等聊天 P0 → v0.1.19 实机通过后 rebase main → 合入 → 发版 **v0.1.20** → Haupt updater 部署。
 
 ## Root cause
 
@@ -41,5 +41,6 @@ DOG-01（发消息假成功）已在 v0.1.18，**不重开**。
 3. 回归：聊天发消息仍正常（DOG-01）；接管时横幅仍隐藏。
 
 ## PR / release
-- PR: https://github.com/ChisaAlter/ChisaBot/pull/211 （open，**HOLD**：不 merge / 不发版 / 不部署，等聊天 P0（v0.1.18 仍假成功）先合入）
-- 分支: `fix/dog-02-03-audit-install` @ `50c0ac8b`
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/211
+- Merge: squash on main as `1fe795cd`（rebase onto main after #212 / v0.1.19）
+- Release: v0.1.20（pending deploy）

@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- 活动记录中文工具名/拒因 + 安装横幅不挡标题（#211，v0.1.20 / DOG-02/03）：审计页 computer_* 映射为打开网页/填写/运行命令等；接管英文拒因译中文；横幅显示时正文让位，安装失败/超时/关闭均永久记住。PC / Android 外壳未变，版本号对齐到 0.1.20（Android vc 226）。
 > **按版本看**：下面这一节从 0.1.7 之后一直累积，实际已经分别随 v0.1.8 … v0.1.19 发布（服务器改动合并即上线）。
 > 每条属于哪个版本、哪个 PR，见 [docs/CHANGELOG.md](docs/CHANGELOG.md)（按发版标签分组）。
 
