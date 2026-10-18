@@ -43,4 +43,13 @@ DOG-01（发消息假成功）已在 v0.1.18，**不重开**。
 ## PR / release
 - PR: https://github.com/ChisaAlter/ChisaBot/pull/211
 - Merge: squash on main as `1fe795cd`（rebase onto main after #212 / v0.1.19）
-- Release: v0.1.20（pending deploy）
+- Release: v0.1.20
+
+## Ship result (2026-10-18 Asia/Shanghai)
+- PR #211 squash-merged as `1fe795cd`（rebase onto main after #212 / v0.1.19；无冲突）
+- Release **v0.1.20** tag `bcd0b3ec` — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.20
+- Haupt deploy `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180819-bcd0b3e`
+- `/api/version` = 0.1.20；容器 healthy；模型自检通过；thread locks=0
+- 本地回归：`bun test app/tests/audit-action-label.test.ts app/tests/audit-outcome.test.ts` 18 pass
+- **未** resume 电车定时
+- Live UI：硬刷新后芯片应显示 0.1.20；活动记录中文操作列；安装横幅不挡标题
