@@ -23,6 +23,7 @@ const T = {
   h2: { max: 900000, shotEvery: 45000, msg: "逐个用你的浏览器打开这 8 个官网：python.org、nodejs.org、www.rust-lang.org、go.dev、kotlinlang.org、www.ruby-lang.org、www.php.net、dart.dev。每个页面都要真的打开，读出页面上写的最新稳定版本号（页面上没写就打开它的下载页找），全部看完后整理成一张表（语言、最新版本、你在哪个页面看到的）。" },
   h3: { max: 1500000, shotEvery: 60000, msg: "帮我做一份开源项目近况表。逐个用你的浏览器打开下面 12 个 GitHub 仓库：先打开仓库主页读 star 数，再打开它的 Releases 页面（仓库地址后面加 /releases）读最新正式版本号和发布日期。仓库：microsoft/vscode、facebook/react、vuejs/core、sveltejs/svelte、vitejs/vite、denoland/deno、oven-sh/bun、rust-lang/rust、golang/go、python/cpython、nodejs/node、tauri-apps/tauri。每个都要真的打开两页，不要凭记忆。全部看完后给我一张表（仓库、star、最新版本、发布日期），最后说一句你觉得哪个最近最活跃、为什么。" },
   L: { max: 900000, shotEvery: 30000, msg: "在工作区写一个 Python 脚本 slow.py：循环 4 次，每次先 sleep 55 秒，再打印「第 N 轮」和当前时间，最后打印 done。然后真的用命令运行它（前台运行，整个大约要 4 分钟，请耐心等它自己跑完，不要放到后台、不要中途停止、不要改短时间），跑完把完整输出原样发给我，并说一下总共用了多少秒。" },
+  L2: { max: 900000, shotEvery: 30000, msg: "在你自己的电脑的工作区里写一个 Python 脚本 long_calc.py：先循环 4 次，每次 sleep 55 秒并打印「第 N 轮」和当前时间；然后计算 2 到 2000000 之间质数的个数并打印出来，最后打印 done。然后真的在你自己的电脑上用命令前台运行它（整个大约要 4 分钟，请耐心等它跑完，不要放到后台、不要中途停止、不要改短时间），跑完把完整输出原样发给我，并说一下总共用了多少秒。" },
   h: { max: 900000, shotEvery: 45000, msg: "帮我调研 3 个开源 AI agent 框架：LangGraph、CrewAI、AutoGen。逐个用浏览器打开它们的 GitHub 仓库页面，记录 star 数、最新发布版本号和日期、主要编程语言，最后给我一个对比表和你的推荐理由。" },
 };
 const TASKS = (process.env.TASKS || "a").split(",");
@@ -66,10 +67,11 @@ try {
     const wsLocal = await page.locator('[data-slot="message-scroller-viewport"] a[href*="workspace.local"]').count().catch(() => -1);
     const wsCards = (await page.locator('[data-slot="message-scroller-viewport"] :text("workspace.local")').count().catch(() => -1));
     const fallbackNotice = (tr.match(/已改用[^\n]*/g) || []).slice(0, 3);
-    const res = { task: k, finalText: finalText.slice(0, 1500), finalOk: !!finalText.trim(), blocked, linkChecks, wsLocal, wsCards, fallbackNotice, webgl: /WebGL/i.test(tr), secs: Math.round((Date.now() - t0) / 1000), timedOut: w.timedOut, events: w.events, stoppedCard: stopped, tools: summarize(msgs, before) };
+    const toolText = summarize(msgs, before); const deviceShell = /device_run_shell/.test(toolText); const runCmds = (toolText.match(/computer_run_command\([^\n]*/g) || []).map((x) => x.slice(0, 200));
+    const res = { task: k, deviceShell, runCmds, finalText: finalText.slice(0, 1500), finalOk: !!finalText.trim(), blocked, linkChecks, wsLocal, wsCards, fallbackNotice, webgl: /WebGL/i.test(tr), secs: Math.round((Date.now() - t0) / 1000), timedOut: w.timedOut, events: w.events, stoppedCard: stopped, tools: summarize(msgs, before) };
     results.push(res);
     fs.writeFileSync(`/out/${k}.txt`, `${t.msg}\n\n=== tools/messages ===\n${res.tools}\n\n=== transcript tail ===\n${tr.slice(-3000)}\n`);
-    log("TASK", k, `final=${res.finalOk} blocked=${blocked} links=${JSON.stringify(linkChecks)} wsLocalA=${wsLocal} wsLocalText=${wsCards} fb=${JSON.stringify(fallbackNotice)} ${res.secs}s timedOut=${w.timedOut} stopped=${stopped} events=${JSON.stringify(w.events)}`);
+    log("TASK", k, `deviceShell=${deviceShell} runCmds=${JSON.stringify(runCmds)} final=${res.finalOk} blocked=${blocked} links=${JSON.stringify(linkChecks)} wsLocalA=${wsLocal} wsLocalText=${wsCards} fb=${JSON.stringify(fallbackNotice)} ${res.secs}s timedOut=${w.timedOut} stopped=${stopped} events=${JSON.stringify(w.events)}`);
     console.log(res.tools.slice(-2500));
   }
 } catch (error) {

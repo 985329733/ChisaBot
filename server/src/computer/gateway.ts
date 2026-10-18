@@ -18,6 +18,10 @@
  * The refs are opaque to the caller precisely so that the server holds the mapping.
  */
 
+import {
+  COMMAND_DEFAULT_TIMEOUT_SEC,
+  commandTimeoutNote,
+} from "../../../shared/command-timeout";
 import { type ApprovalGate, currentApprovalContext } from "../approvals/types";
 import {
   type AuditInitiator,
@@ -1277,10 +1281,24 @@ export function createComputerGateway(
             caller,
             COMMAND_BACKSTOP_MS,
           ),
-      ).then((result) =>
+      ).then((result) => {
         // What a command prints can be anything it fetched, so the output is marked.
-        withUntrustedNotice(result, "command output", ["stdout", "stderr"]),
-      );
+        const marked = withUntrustedNotice(result, "command output", [
+          "stdout",
+          "stderr",
+        ]);
+        // §102：被超时停掉时说清楚停在几秒、下一步该怎么做，避免机器人原样重跑或换到别的设备上绕路。
+        if (!result?.timedOut) return marked;
+        const sec =
+          typeof input.timeoutMs === "number"
+            ? input.timeoutMs / 1000
+            : COMMAND_DEFAULT_TIMEOUT_SEC;
+        return {
+          ...marked,
+          timeoutSec: sec,
+          timeoutNote: commandTimeoutNote(sec),
+        };
+      });
     },
 
     writeFile(botId: string, actor: ActionActor, input: WriteFileInput) {

@@ -259,6 +259,9 @@ export type RunCommandResult = {
   truncated: boolean;
   timedOut: boolean;
   elapsedMs: number;
+  /** §102：被超时停掉时，生效的超时秒数和给机器人的下一步说明。 */
+  timeoutSec?: number;
+  timeoutNote?: string;
 };
 
 export type WriteFileInput = {

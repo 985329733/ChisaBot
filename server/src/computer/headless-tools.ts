@@ -28,6 +28,12 @@ import {
 import { HUMAN_CONTROL_ZH, noteHumanControlBlock, suspendsOnHumanControl } from "./control-blocks";
 import type { ControlState } from "./schema";
 import { withConfirmActor } from "../confirmations/context";
+import {
+  COMMAND_DEFAULT_TIMEOUT_SEC,
+  COMMAND_MAX_TIMEOUT_SEC,
+  COMMAND_TIMEOUT_GUIDE,
+  normalizeCommandTimeout,
+} from "../../../shared/command-timeout";
 
 /** Client tools supplied by OpenBot when the caller has no browser. */
 export type HeadlessTool = {
@@ -555,12 +561,45 @@ export function createHeadlessComputerTools(options: {
     ),
     tool(
       "computer_run_command",
-      "Run a bash shell command in your workspace. Pipes and && work; long output is truncated and long commands are stopped. For package installation use sudo apt-get; if refused say so rather than retrying.",
-      z.strictObject({ command: text }),
-      async (input, { signal }) => ({
-        ok: true,
-        ...(await gateway.runCommand(botId, actor, input, signal)),
+      "Run a bash shell command in your workspace on your own computer. Pipes and && work; long output is truncated. " +
+        COMMAND_TIMEOUT_GUIDE +
+        " For package installation use sudo apt-get; if refused say so rather than retrying.",
+      z.strictObject({
+        command: text,
+        // §102：秒（推荐）或毫秒都收；超出 1–600 秒收到边界上，不拒绝。
+        timeoutSec: z.coerce
+          .number()
+          .optional()
+          .describe(
+            `Seconds before the command is stopped. Default ${COMMAND_DEFAULT_TIMEOUT_SEC}, max ${COMMAND_MAX_TIMEOUT_SEC}. Set it for long commands.`,
+          ),
+        timeoutMs: z.coerce
+          .number()
+          .optional()
+          .describe("Same limit in milliseconds; prefer timeoutSec."),
       }),
+      async ({ command, timeoutSec, timeoutMs }, { signal }) => {
+        const timeout = normalizeCommandTimeout({ timeoutSec, timeoutMs });
+        return {
+          ok: true,
+          ...(await gateway.runCommand(
+            botId,
+            actor,
+            {
+              command,
+              ...(timeout.timeoutMs !== undefined
+                ? { timeoutMs: timeout.timeoutMs }
+                : {}),
+            },
+            signal,
+          )),
+          ...(timeout.clamped
+            ? {
+                timeoutAdjusted: `The requested timeout was outside 1–${COMMAND_MAX_TIMEOUT_SEC} seconds, so ${timeout.effectiveSec} seconds was used.`,
+              }
+            : {}),
+        };
+      },
     ),
     tool(
       "computer_request_help",

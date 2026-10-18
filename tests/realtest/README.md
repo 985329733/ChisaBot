@@ -13,6 +13,8 @@
 - `MODEL=<模型 id>`（rt / sched）：把一次性机器人设成这个模型（例如强制用备用模型跑一遍）。
 - 每个任务的结果里有 `finalOk`（最后一次工具结果之后有文字回答）、`blocked`（对话里出现「[blocked]」的次数）、`linkChecks`（工作区文件链接逐个下载的状态码）。
 - 途中出现确认卡片时像用户一样点「确认」（只点文字恰好是「确认 / 批准 / 允许」的按钮；「我已自己完成」这类要人亲自做的不点）。
+- `L2`（§102）：约 4 分钟的前台命令（sleep + 算质数），要求机器人在自己的电脑上跑完；结果里 `deviceShell` 必须是 false（没有退到云端工作区节点 `device_run_shell`），
+  `runCmds` 里应带 `timeoutSec`。`HOST_MAP="MAP <域名> <Cloudflare IP>"` 让浏览器走 Cloudflare 公网入口（默认直连本机，测不到 Cloudflare 的 100 秒限制）。
 - `PC=1`：模拟 PC 客户端加载服务器网页（Electron UA、1280×840、注入 `window.chisabotWindow`）。
 - 输出（`/out`）：每个任务 `<id>.png` / `<id>-full.png` / `<id>.txt`（工具调用 + 回复 + 对话末尾文字）、`results.json`、`run.log`。
 

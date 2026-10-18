@@ -49,6 +49,20 @@ export async function neverThrow<T>(
 }
 
 /**
+ * §102：长动作的响应先以 200 开始、结果流式写出，原来的状态码（202 等待、4xx/5xx 错误）放在正文的 `status`。
+ * 普通响应没有这个字段，照旧用 HTTP 状态码。
+ */
+export function effectiveStatus(httpStatus: number, payload: unknown): number {
+  return httpStatus === 200 &&
+    payload &&
+    typeof payload === "object" &&
+    "status" in payload &&
+    typeof (payload as { status: unknown }).status === "number"
+    ? (payload as { status: number }).status
+    : httpStatus;
+}
+
+/**
  * Route computer changes through the server's durable approval gate, and draw a pending decision
  * inline where the action would have been.
  *
@@ -105,7 +119,13 @@ export function useFrontendTool<T extends Record<string, unknown>>(
             { method: "POST", body: snapshot, signal: context.signal },
           );
           const payload: unknown = await response.json();
-          if (response.status === 202) {
+          /*
+           * §102：动作跑得久（长命令）时服务器先回 200 再流式写结果，等待 / 错误的状态码写在正文的 `status` 里。
+           * 这里按正文还原成原来的状态，后面的判断不用变。
+           */
+          const status = effectiveStatus(response.status, payload);
+          const ok = status >= 200 && status < 300;
+          if (status === 202) {
             const kind =
               payload && typeof payload === "object" && "kind" in payload && typeof payload.kind === "string"
                 ? payload.kind
@@ -132,7 +152,7 @@ export function useFrontendTool<T extends Record<string, unknown>>(
             void queryClient.invalidateQueries({ queryKey: ["approvals"] });
             return { waiting: true };
           }
-          if (!response.ok) {
+          if (!ok) {
             const error =
               payload &&
               typeof payload === "object" &&
@@ -143,8 +163,8 @@ export function useFrontendTool<T extends Record<string, unknown>>(
             // 交回一个「没做成」的结果而不是抛错：抛错会让 CopilotKit 不再发起下一轮，这一轮静默结束（§100）。
             return {
               ok: false,
-              reason: error || `计算机操作没有成功（HTTP ${response.status}）。`,
-              ...(response.status === 400 || response.status === 403 ? { refused: true } : {}),
+              reason: error || `计算机操作没有成功（HTTP ${status}）。`,
+              ...(status === 400 || status === 403 ? { refused: true } : {}),
             };
           }
           if (!payload || typeof payload !== "object" || !("result" in payload))

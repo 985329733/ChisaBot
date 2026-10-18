@@ -36,10 +36,19 @@ const ruleChange = z
 import { HeadlessToolSuspension } from "../computer/headless-tools";
 import { computerFailureOutcome } from "../computer/tool-outcome";
 
+/** §102：动作超过这么久还没结果，就先回响应头、改为带心跳的流式响应（见 POST /computer/:botId）。 */
+export const LONG_ACTION_STREAM_AFTER_MS = 20_000;
+/** 心跳间隔：远小于 Cloudflare 的 100 秒读超时。 */
+export const LONG_ACTION_HEARTBEAT_MS = 15_000;
+
 export function createApprovalRoutes(
   service: ApprovalService,
   requireUser: MiddlewareHandler<{ Variables: AppVariables }>,
+  /** 测试用：长动作改流式的等待时间和心跳间隔（§102）。 */
+  longAction: { streamAfterMs?: number; heartbeatMs?: number } = {},
 ) {
+  const streamAfterMs = longAction.streamAfterMs ?? LONG_ACTION_STREAM_AFTER_MS;
+  const heartbeatMs = longAction.heartbeatMs ?? LONG_ACTION_HEARTBEAT_MS;
   const routes = new Hono<{ Variables: AppVariables }>();
   routes.use("*", requireUser);
   routes.onError((error, context) =>
@@ -61,33 +70,98 @@ export function createApprovalRoutes(
     context.json(await service.inbox(context.var.actor.id)),
   );
   routes.post("/computer/:botId", async (context) => {
-    try {
-      return context.json({
-        result: await service.frontendAction(
-          context.var.actor.id,
-          context.req.param("botId"),
-          await context.req.json(),
-        ),
-      });
-    } catch (error) {
-      if (error instanceof HeadlessToolSuspension)
-        return context.json(
-          {
-            waiting: true,
-            // 前端据此区分：审批卡会接上这一轮；别的等待（例如交还计算机）不会，前端就不能悄悄停掉回合。
-            kind: error.waiting.kind,
-            approvalId: error.waiting.requestId,
-            reason: error.message,
-          },
-          202,
-        );
-      // 普通的计算机失败（元素过期、下拉框没有这个选项、电脑暂时不可用…）是这一步的结果，不是 500：
-      // 交回 { ok:false, reason } 让机器人接着做。抛 500 会让网页里的工具处理函数报错，CopilotKit 就不再
-      // 发起下一轮，这一轮静默结束（DESIGN.md §100，2026-10-17 用户截图）。
-      const outcome = computerFailureOutcome(error);
-      if (outcome) return context.json({ result: outcome });
-      throw error;
-    }
+    const botId = context.req.param("botId");
+    const input = await context.req.json();
+    /*
+     * 结果 → 状态码 + 内容。和以前一样：200 { result }、202 { waiting… }，别的错误交给 onError 的规则。
+     * 抽成一个函数，是因为长动作（§102，最长 600 秒的前台命令）要在响应已经开始之后才知道结果。
+     */
+    const settle = async (): Promise<{ status: 200 | 202 | 400 | 404 | 500; body: Record<string, unknown> }> => {
+      try {
+        return {
+          status: 200,
+          body: { result: await service.frontendAction(context.var.actor.id, botId, input) },
+        };
+      } catch (error) {
+        if (error instanceof HeadlessToolSuspension)
+          return {
+            status: 202,
+            body: {
+              waiting: true,
+              // 前端据此区分：审批卡会接上这一轮；别的等待（例如交还计算机）不会，前端就不能悄悄停掉回合。
+              kind: error.waiting.kind,
+              approvalId: error.waiting.requestId,
+              reason: error.message,
+            },
+          };
+        // 普通的计算机失败（元素过期、下拉框没有这个选项、电脑暂时不可用…）是这一步的结果，不是 500：
+        // 交回 { ok:false, reason } 让机器人接着做。抛 500 会让网页里的工具处理函数报错，CopilotKit 就不再
+        // 发起下一轮，这一轮静默结束（DESIGN.md §100，2026-10-17 用户截图）。
+        const outcome = computerFailureOutcome(error);
+        if (outcome) return { status: 200, body: { result: outcome } };
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          status:
+            error instanceof ApprovalNotFoundError
+              ? 404
+              : error instanceof ApprovalRefusedError || error instanceof z.ZodError || error instanceof SyntaxError
+                ? 400
+                : 500,
+          body: { error: error instanceof SyntaxError ? "Supply a valid request." : message },
+        };
+      }
+    };
+    const work = settle();
+    const quick = await Promise.race([
+      work,
+      Bun.sleep(streamAfterMs).then(() => null),
+    ]);
+    if (quick) return context.json(quick.body, quick.status);
+    /*
+     * §102：动作还在跑（多半是长命令）。浏览器直接等这个请求，中间隔着 Cloudflare：100 秒内源站一个字节
+     * 都不回就 524，网页里的工具只看到一页 HTML。所以先回 200 和响应头，每 15 秒写一个空格（JSON 允许前导
+     * 空白，前端照样 response.json()），结果出来再写正文。状态码已经发出去了，等待 / 错误就写进正文
+     * （`status` 字段），前端按正文判断（app/src/lib/copilot/approval-tools.tsx）。
+     * text/event-stream：nginx 的 gzip 不压它（不攒缓冲），Cloudflare 也按流式转发。
+     */
+    const encoder = new TextEncoder();
+    let beat: ReturnType<typeof setInterval> | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const write = (text: string) => {
+          try {
+            controller.enqueue(encoder.encode(text));
+          } catch {
+            // 浏览器已经断开：动作照样在服务器上跑完、记进审计，只是没人收结果了。
+          }
+        };
+        write(" ");
+        beat = setInterval(() => write(" "), heartbeatMs);
+        void work.then((settled) => {
+          clearInterval(beat);
+          write(
+            JSON.stringify(
+              settled.status === 200 ? settled.body : { ...settled.body, status: settled.status },
+            ),
+          );
+          try {
+            controller.close();
+          } catch {}
+        });
+      },
+      cancel() {
+        clearInterval(beat);
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-store",
+        "x-accel-buffering": "no",
+        "x-chisabot-long-action": "1",
+      },
+    });
   });
   routes.patch("/preferences", async (context) => {
     const input = z

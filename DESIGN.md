@@ -93,6 +93,7 @@
 | [99](#99-云端浏览器卡死保护--已删除机器人的浏览器2026-10-17) | 云端浏览器卡死保护 + 已删除机器人的浏览器 | 2026-10-17 |
 | [100](#100-原生下拉框能选回合不再静默结束2026-10-17) | 原生下拉框能选、回合不再静默结束 | 2026-10-17 |
 | [101](#101-真实任务验收修复工具打到对的机器人备用模型定时任务的确认步数收尾python后台确认卡片2026-10-18) | 真实任务验收修复：工具打到对的机器人、备用模型、定时任务的确认、步数收尾、Python、后台确认卡片、主模型卡住换备用 | 2026-10-18 |
+| [102](#102-机器人自己电脑上的长命令前台超时最多-600-秒2026-10-18) | 机器人自己电脑上的长命令：前台超时最多 600 秒 | 2026-10-18 |
 
 ## 0. 总原则
 
@@ -2305,3 +2306,29 @@ CB-050。审计里「推荐三款 2000 元以内的降噪耳机」画成纯文�
 - 回归：`app/tests/active-bot-routing.test.tsx`、`app/tests/cjk-emphasis.test.ts`、`app/tests/workspace-links.test.ts`、`server/tests/model-fallback.test.ts`（坏候选不挡路、冷却中主模型兜底、429 冷却）、
   `server/tests/confirmations.test.ts`（非网页回合放卡片、旧卡作废）、`server/tests/step-budget.test.ts`。PC 客户端加载服务器网页，不需要更新客户端。
 
+## 102. 机器人自己电脑上的长命令：前台超时最多 600 秒（2026-10-18）
+
+- 起因：真实 UI 长任务（§101 复测 L，前台跑约 4 分钟的脚本）里，`computer_run_command` 的工具参数只有 `command`，前台命令一律 120 秒被停；
+  模型传 `timeoutSec` 被严格校验拒掉（`Unrecognized key: "timeoutSec"`），两次都退到云端工作区节点 `device_run_shell` 才跑完，还在用户的云端工作区里留下文件。
+  底层 agent-computer `/exec` 一直支持 `timeoutMs`（1000–600000）。所有者 10-18 08:17 同意放宽到 10 分钟。
+
+### 102.1 两套工具都开放超时（`shared/command-timeout.ts`）
+- 网页聊天（`app/src/lib/copilot/computer-tools.tsx`）和无人值守 / 审批网关（`server/src/computer/headless-tools.ts`）的 `computer_run_command` 都多了
+  `timeoutSec`（推荐）和 `timeoutMs`。默认仍是 120 秒；上限 600 秒；超出 1–600 秒的收到边界上并在结果里写 `timeoutAdjusted`（不拒绝，拒绝只会让模型绕路）；
+  两个都给时 `timeoutSec` 优先；`timeoutMs` 小于 1000 按秒理解（模型常把 300 写进 timeoutMs）；字符串数字也收。别的未知参数照旧拒绝。
+- 工具说明（两边同一段 `COMMAND_TIMEOUT_GUIDE`）：可能超过一分钟的命令一开始就传大一点的 timeoutSec（约 4 分钟的任务传 300），超过 600 秒改后台运行（`nohup … > log 2>&1 &`）再查日志；
+  结果里有 timedOut 就不要原样重跑。
+
+### 102.2 超时后说清楚（`server/src/computer/gateway.ts` `runCommand`）
+- 被停掉的命令结果多带 `timeoutSec`（生效的秒数）和 `timeoutNote`：停在几秒、不要原样重跑；没到 600 秒的提示「需要更久就用更大的 timeoutSec 再跑一次」，
+  已经是 600 秒的提示「改后台运行再查日志，或如实告诉用户」。避免机器人循环重试或换到别的设备上绕路。
+
+### 102.3 长请求一路不被中途切断
+- 浏览器 → Cloudflare → 网关 → 服务器 → agent-computer 这一路上，前台命令在跑完之前一个字节都不回：
+  - Cloudflare 100 秒收不到源站字节就 524。`POST /api/approvals/computer/:bot`（网页聊天里的计算机动作都走它）20 秒还没结果，就先回 200 + 响应头，
+    每 15 秒写一个空格（JSON 允许前导空白，前端照样 `response.json()`），结果出来再写正文；`content-type: text/event-stream`（nginx 的 gzip 不攒它，Cloudflare 按流式转发）、
+    `x-accel-buffering: no`、`x-chisabot-long-action: 1`。状态码已发出，等待 / 错误写进正文的 `status`（202 / 4xx / 5xx），前端 `effectiveStatus` 还原。20 秒内结束的动作和以前完全一样。
+  - Bun.serve 默认空闲超时：服务器和 `app/serve.ts` 对 `/api/approvals/computer/` 关闭（和 `/api/computers/` 一样）。
+  - Bun fetch 自带 5 分钟空闲计时：服务器调 agent-computer 时，调用方给了自己的期限（命令 615 秒、下载 300 秒）就关掉空闲计时（`timeout: false`），期限由 AbortSignal 管。
+- 回归：`server/tests/command-timeout.test.ts`（折算、收边界、schema、透传到 /exec、超时说明、长动作流式响应和正文里的状态）、`app/tests/long-action-status.test.ts`。
+  真实 UI 复测：`tests/realtest/rt.mjs` 的 L2（约 4 分钟前台命令，要求在自己的电脑上跑完；结果里 `deviceShell` 必须为 false），`HOST_MAP` 指向 Cloudflare 时走公网入口。

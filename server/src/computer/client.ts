@@ -225,7 +225,13 @@ export function createComputerTransport(
         signal: caller
           ? AbortSignal.any([caller, AbortSignal.timeout(timeoutMs)])
           : AbortSignal.timeout(timeoutMs),
-      });
+        /*
+         * §102：Bun 的 fetch 自带 5 分钟「空闲」计时（BUN_CONFIG_HTTP_IDLE_TIMEOUT），/exec 在命令跑完之前
+         * 一个字节都不回，所以超过约 5 分钟的前台命令会在这里先被切断，报成「电脑没有响应」。
+         * 调用方给了自己的期限（命令 615 秒、下载 300 秒…）时，期限由上面的 AbortSignal 管，空闲计时关掉。
+         */
+        ...(timeoutMsOverride !== undefined ? { timeout: false } : {}),
+      } as RequestInit);
     } catch (error) {
       /*
        * The caller's own abort is answered first, and says what the check above the fetch says.
