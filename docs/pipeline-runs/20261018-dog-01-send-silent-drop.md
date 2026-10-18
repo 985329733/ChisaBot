@@ -40,3 +40,8 @@ Prod: https://ayase.cn:8443 v0.1.17. 实现：`/workspace/ChisaBot/repo`（不�
 
 ## Ops
 Prod 当前 v0.1.17 可聊；本修是客户端硬化。部署新版后在 星灵 实发一条验证。
+
+## PR / release
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/210
+- Merge: `cdcc7346ee6284df20957bc13fa7c1ca0155f821`
+- Release: v0.1.18
