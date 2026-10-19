@@ -5,6 +5,7 @@
 #   request.sh check                  从 GitHub 拉 main，刷新「待更新提交」
 #   request.sh update [--full]        更新到本机镜像 main 的最新提交；依赖变了自动完整构建，--full 强制完整构建
 #   request.sh rollback               回滚到上一版
+#   request.sh magpie                 更新自托管 Magpie 网关到镜像标签的当前版本（原地重建，失败自动回退）
 #   request.sh status                 打印当前任务（步骤、最后几行日志）
 #   request.sh smoke                  跑部署后烟雾（含 Local-Caller；不排队更新）
 #
@@ -17,7 +18,7 @@ ACTION=${1:-}
 MODE=""
 [ "${2:-}" = "--full" ] && MODE=full
 case "$ACTION" in
-  check|update|rollback) ;;
+  check|update|rollback|magpie) ;;
   smoke)
     EXPECT=""
     . "$U/config.env"
@@ -38,7 +39,7 @@ for line in (j.get("log") or [])[-12:]:
     print("  ", line)
 PY
     exit 0 ;;
-  *) echo "用法：$0 check | update [--full] | rollback | status | smoke" >&2; exit 64 ;;
+  *) echo "用法：$0 check | update [--full] | rollback | magpie | status | smoke" >&2; exit 64 ;;
 esac
 ID="$ACTION-host-$(date -u +%Y%m%d%H%M%S)"
 ACTOR=$(printf %s "${ACTOR:-host:$(id -un)}" | tr -cd "A-Za-z0-9_.:@-" | cut -c1-60)

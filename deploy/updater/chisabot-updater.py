@@ -45,7 +45,7 @@ MIRROR = os.path.join(U, "mirror.git")
 TOKEN_FILE = os.path.join(U, "github-token")
 BASE_ENV = os.path.join(U, "base.env")
 # 和 server 的 SYSTEM_UPDATE_UPDATER_VERSION（shared/system-update.ts）一起改：页面据此提示「更新程序是旧版本」。
-VERSION = "3"
+VERSION = "4"
 PUBLIC_HEALTH_EXAMPLE = "chisabot.example.com"
 
 try:
@@ -59,9 +59,11 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_-]{6,64}\.json$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # ANSI 颜色序列要先整段去掉，否则只去掉 ESC、留下 "[31m"。
 CTRL_RE = re.compile(u"\x1b\\[[0-9;]*[A-Za-z]|[\x00-\x08\x0b-\x1f\x7f]")
-ACTIONS = ("check", "update", "rollback")
+ACTIONS = ("check", "update", "rollback", "magpie")
 
 CHECK_EVERY = 30 * 60
+# 自托管 Magpie 的镜像摘要检查：只查 registry 的 manifest，不拉镜像、不碰容器，所以不占更新锁。
+MAGPIE_CHECK_EVERY = 30 * 60
 REFRESH_EVERY = 30
 
 
@@ -167,6 +169,8 @@ class Updater(object):
         self.snapshot = {}
         self.last_refresh = 0
         self.last_check = 0
+        self.last_magpie_check = 0
+        self.magpie_checking = False
         self.checking = False
 
     # ---------- 持久化 ----------
@@ -443,6 +447,8 @@ class Updater(object):
         actor = clean(req.get("actor", ""), 80)
         if action == "check":
             self.start_check()
+            # 「检查更新」也顺手刷一次 Magpie 的镜像摘要，否则页面上的「有没有新版」要等下一个 30 分钟。
+            self.start_magpie_check()
             return
         if self.busy():
             return self.reject(req, u"已经有一个更新或回滚在进行")
@@ -466,6 +472,15 @@ class Updater(object):
             mode = "full" if (full or snap.get("depsChanged")) else "code"
             job = {"id": req["id"], "action": "update", "status": "running", "step": "prepare", "startedAt": now_iso(),
                    "actor": actor, "targetCommit": main, "mode": mode, "log": []}
+        elif action == "magpie":
+            # 自托管模型网关的原地更新（管理后台 → 模型平台 Magpie）。和 ChisaBot 更新共用一把锁：
+            # 两者都动 docker，不能同时跑。
+            script = os.path.join(U, "magpie.sh")
+            if not os.path.exists(script):
+                return self.reject(req, u"宿主机上的更新程序还没有 magpie.sh；先做一次「系统更新」把更新程序升上来")
+            args = ["/bin/bash", script, "--update", "--job", req["id"]]
+            job = {"id": req["id"], "action": "magpie", "status": "running", "step": "prepare", "startedAt": now_iso(),
+                   "actor": actor, "log": []}
         else:
             if not snap.get("previous"):
                 return self.reject(req, u"没有可以回滚到的上一版")
@@ -496,6 +511,32 @@ class Updater(object):
                 self.refresh()
             finally:
                 self.checking = False
+
+        t = threading.Thread(target=work)
+        t.daemon = True
+        t.start()
+
+    def start_magpie_check(self):
+        """查一次自托管 Magpie 的镜像摘要，写 spool/state/magpie.json。
+
+        页面（管理后台 → 模型平台 Magpie）据此显示「有没有新版」。只读：buildx imagetools / docker
+        manifest，不拉镜像、不碰容器，所以不拿更新锁，也不会打断正在跑的一轮对话。
+        """
+        if self.magpie_checking:
+            return
+        self.magpie_checking = True
+
+        def work():
+            try:
+                script = os.path.join(U, "magpie.sh")
+                if os.path.exists(script):
+                    run(["/bin/bash", script, "--check"], timeout=120)
+            except Exception as error:  # 一次查不到不该让守护进程有意见
+                sys.stderr.write("chisabot-updater: magpie check %r\n" % (error,))
+                sys.stderr.flush()
+            finally:
+                self.magpie_checking = False
+                self.last_magpie_check = time.time()
 
         t = threading.Thread(target=work)
         t.daemon = True
@@ -602,7 +643,9 @@ class Updater(object):
                 self.poll_job()
                 if time.time() - self.last_check > CHECK_EVERY:
                     self.start_check()
-                elif time.time() - self.last_refresh > REFRESH_EVERY:
+                if time.time() - self.last_magpie_check > MAGPIE_CHECK_EVERY:
+                    self.start_magpie_check()
+                if time.time() - self.last_check > CHECK_EVERY or time.time() - self.last_refresh > REFRESH_EVERY:
                     self.refresh()
             except Exception as error:  # 守护进程不因一次异常退出
                 sys.stderr.write("chisabot-updater: %r\n" % (error,))

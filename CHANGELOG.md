@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### 模型网关 Magpie：不再写死版本，页面上可以一键升到最新
+
+- **镜像不再钉死摘要**：`deploy/magpie.compose.yaml` 改成 `${MAGPIE_IMAGE:-ghcr.io/yetone/magpie:latest}`。
+  想钉住自己验证过的版本，就把 `MAGPIE_IMAGE` 设成一个摘要（`deploy/.env`、compose 的 `environment`，
+  或 `deploy/updater/config.env`）。
+- **管理后台 → 模型平台 Magpie 多了一张「网关版本与更新」卡**：当前版本、镜像摘要、「已是最新 / 有新版本 / 未知」，
+  两个按钮——「检查更新」和「更新到最新版」（宿主机上还没有这个容器时写「安装最新版」）。
+- **宿主机每 30 分钟查一次** registry 的 manifest（`deploy/updater/magpie.sh --check`：只读，不拉镜像、不碰容器，
+  所以不占更新锁），结果写 `spool/state/magpie.json`；点「检查更新」会立刻查一次。
+- **「更新到最新版」**排队一个新的 `magpie` 动作：先 `pull`（拉不动就不动正在跑的容器）→ `up -d` 重建 → 健康检查，
+  **不过就自动回退到上一版摘要**，并把这次更新报成失败。它和 ChisaBot 自己的更新共用一把锁，不会同时跑。
+- **更新程序版本 3 → 4**（`deploy/updater/chisabot-updater.py` 的 `VERSION` 与 `shared/system-update.ts` 的
+  `SYSTEM_UPDATE_UPDATER_VERSION` 一起改）。旧更新程序认不出 `magpie` 动作，页面会提示先做一次系统更新——
+  而这次更新本身就会把更新程序升上来。
+- 判断有没有新版比的是**镜像摘要**，不是版本号：Magpie 的镜像只有标签，版本号要问它自己的接口。**查不到远端摘要时说「未知」，
+  不说「已是最新」**。
+- 回归：`shared/system-update.test.ts`（投影：摘要决定一切、缺摘要时不宣称有新版）。
+
 ### 机器人自己的机器：`npm i -g` 不再要 root；ops 预算真正落盘
 
 - **`npm install -g` 以 `pwuser` 跑**（`agent-computer/src/shell.ts`，命令的 `HOME` 是 `/workspace`），而 npm 的全局前缀原本是

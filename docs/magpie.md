@@ -217,3 +217,30 @@ install -m 400 -o 1002 -g 1002 /opt/magpie/private/web.key /opt/openbot-zh/secre
 ## 回滚
 
 `/opt/openbot-zh/rollback-to-glass-20261010k.sh`：恢复 `compose.yaml.before-glass-20261010l`（镜像 `glass-20261010k`，去掉 Magpie 环境变量和挂载）并重建容器。
+
+## 版本与更新（一键升到最新）
+
+镜像是**标签**，不是写死的摘要（`deploy/magpie.compose.yaml` 里是 `${MAGPIE_IMAGE:-ghcr.io/yetone/magpie:latest}`）。
+「管理后台 → 模型平台 Magpie」的「网关版本与更新」卡可以就地升到该标签的当前版本，不用上服务器敲命令。
+
+- **「有没有新版」比的是镜像摘要**，不是版本号：Magpie 的镜像只有标签，版本号要问它自己的接口（卡片上「当前版本」那一行）。
+  摘要一样 = 没有新版；**查不到远端摘要时说「未知」，不说「已是最新」**。
+- **宿主机每 30 分钟查一次** registry 的 manifest（`deploy/updater/magpie.sh --check`：只读，不拉镜像、不碰容器，
+  所以不占更新锁），结果写 `spool/state/magpie.json`；点「检查更新」会立刻查一次。
+- **点「更新到最新版」**排队一个 `magpie` 请求，宿主机 `chisabot-updater` 执行：先 `docker compose pull`（拉不动就
+  不动正在跑的容器）→ `up -d` 重建 → 健康检查。**健康检查不过会自动回退到上一版摘要**，并把这次更新报成失败。
+  它和 ChisaBot 自己的更新**共用一把锁**，两者不会同时跑。
+- **应用容器没有 docker socket**，所以页面上的按钮只是排队，真正干活的是宿主机上的更新程序（[online-update.md](online-update.md)）。
+  更新程序太旧（低于 `SYSTEM_UPDATE_UPDATER_VERSION`）时页面不给按钮，而是提示先做一次系统更新。
+- **想钉住自己验证过的版本**：把 `MAGPIE_IMAGE` 设成一个摘要（`deploy/.env`、compose 的 `environment`，或
+  `deploy/updater/config.env`）。钉住之后仍然按摘要比，只是要手动改那个值。
+
+配置项（`deploy/updater/config.env`）：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `MAGPIE_DIR` | `/opt/magpie` | 目录里要有 `compose.yaml` |
+| `MAGPIE_IMAGE` | `ghcr.io/yetone/magpie:latest` | 镜像引用；想钉版本就写摘要 |
+| `MAGPIE_CONTAINER` | `magpie` | 容器名 |
+| `MAGPIE_PROBE_URL` | `http://127.0.0.1:3430/` | 健康探测地址（有 HTTP 响应就算活着） |
+| `MAGPIE_HEALTH_TIMEOUT_SEC` | `60` | 健康检查等多久才判失败并回退 |

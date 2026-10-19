@@ -1,8 +1,10 @@
 import {
   IconActivity,
+  IconAlertTriangle,
   IconArrowRight,
   IconBrain,
   IconClock,
+  IconDownload,
   IconExternalLink,
   IconNetwork,
   IconPlugConnected,
@@ -10,7 +12,9 @@ import {
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import type { MagpieOverview } from "../../../../../../shared/model-selection";
+import type { SystemUpdateOverview } from "../../../../../../shared/system-update";
 import { ProviderMark } from "@/components/agents/model-picker";
 import { PageSection, PageShell, PageSkeleton } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -20,6 +24,7 @@ import { MAGPIE_CONSOLE_PATH, agoText, loadMagpieOverview, magpieKeys, magpieOve
 import { loadModelCatalog } from "@/lib/model-selection/queries";
 import { modelSelectionKeys } from "@/lib/model-selection/queries";
 import { notifyModelSelectionChanged } from "@/lib/model-selection/sync";
+import { requestSystemUpdate, systemUpdateKeys, systemUpdateQueryOptions } from "@/lib/system-update";
 
 export const Route = createFileRoute("/_authed/admin/magpie/")({
   component: MagpiePage,
@@ -132,6 +137,8 @@ function Overview({ data, onSync }: { data: MagpieOverview; onSync: () => Promis
         />
       </div>
 
+      <GatewayUpdateSection magpieVersion={data.version} />
+
       <PageSection
         action={
           <RefreshButton feedback={SYNC_FEEDBACK} onRefresh={onSync} size="sm" variant="outline">
@@ -230,5 +237,135 @@ function Overview({ data, onSync }: { data: MagpieOverview; onSync: () => Promis
         </Card>
       </PageSection>
     </>
+  );
+}
+
+const MAGPIE_UPDATE_STEPS: Record<string, string> = {
+  prepare: "准备",
+  pull: "拉取镜像",
+  swap: "重建容器",
+  health: "健康检查",
+  done: "完成",
+};
+
+function stepLabel(step?: string) {
+  return (step && MAGPIE_UPDATE_STEPS[step]) || "进行中";
+}
+
+function shortDigest(digest: string) {
+  return digest.replace(/^sha256:/u, "").slice(0, 12);
+}
+
+/**
+ * 网关版本与更新（宿主机 deploy/updater/magpie.sh）。
+ *
+ * 「有没有新版」比的是**镜像摘要**，不是版本号：Magpie 的镜像只有标签，版本号要问它自己的接口
+ * （上面那张卡里的 Magpie 版本）。宿主机每 30 分钟查一次 registry 的 manifest —— 只读，不拉镜像、
+ * 不碰容器，所以不占更新锁；点「更新到最新版」才排队重建容器，健康检查不过会自动回退到上一版。
+ *
+ * 应用容器没有 docker socket，所以这两个按钮只是往 spool 里放一个请求，真正干活的是宿主机上的
+ * chisabot-updater（docs/online-update.md）。它和 ChisaBot 自己的更新共用一把锁。
+ */
+function GatewayUpdateSection({ magpieVersion }: { magpieVersion?: string }) {
+  const queryClient = useQueryClient();
+  const update = useQuery(systemUpdateQueryOptions());
+  const [busy, setBusy] = useState<"check" | "magpie" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const data: SystemUpdateOverview | undefined = update.data;
+  const gateway = data?.magpie;
+  const job = data?.job?.action === "magpie" ? data.job : null;
+  const running = job?.status === "running" || job?.status === "queued";
+  const blocked = data ? !data.configured || data.updaterOutdated : false;
+  const lastLog = job?.log?.length ? job.log[job.log.length - 1] : undefined;
+
+  async function run(action: "check" | "magpie") {
+    setBusy(action);
+    setError(null);
+    try {
+      await requestSystemUpdate(action);
+      await queryClient.invalidateQueries({ queryKey: systemUpdateKeys.overview });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "请求失败。");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <PageSection
+      action={
+        <div className="flex items-center gap-2">
+          <Button
+            disabled={busy !== null || running}
+            onClick={() => void run("check")}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {"检查更新"}
+          </Button>
+          <Button disabled={busy !== null || running || blocked} onClick={() => void run("magpie")} size="sm" type="button">
+            <IconDownload />
+            {gateway?.installed === false ? "安装最新版" : "更新到最新版"}
+          </Button>
+        </div>
+      }
+      description="Magpie 是自托管的模型网关，可以就地升到镜像标签的当前版本。升级只重建这一个容器，正在回答的对话不受影响。"
+      title="网关版本与更新"
+    >
+      {error ? <ErrorCard description={error} title="操作没有完成" /> : null}
+      {blocked ? (
+        <Card className="magpie-empty">
+          <p className="flex items-start gap-2">
+            <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+            {data?.configured
+              ? "宿主机上的更新程序还是旧版本，认不出 Magpie 更新。先在「系统更新」里更新一次，更新程序会跟着升级。"
+              : "这个部署没有安装宿主机更新程序，页面不能更新 Magpie。在服务器上装一次更新程序之后就能用了。"}
+          </p>
+        </Card>
+      ) : null}
+      <Card>
+        <SettingRow description="Magpie 自己报的版本。" title="当前版本">
+          <code className="magpie-code">{magpieVersion ?? "—"}</code>
+        </SettingRow>
+        <SettingRow
+          description={
+            gateway?.error
+              ? `上次检查失败：${gateway.error}`
+              : gateway?.checkedAt
+                ? `宿主机 ${agoText(Date.parse(gateway.checkedAt))}查过镜像仓库。`
+                : "宿主机还没写过检查结果（更新程序每 30 分钟查一次，也可以点「检查更新」）。"
+          }
+          title="镜像版本"
+        >
+          <span className={gateway?.updateAvailable ? "magpie-badge is-warn" : "magpie-badge is-ok"}>
+            {gateway?.updateAvailable ? "有新版本" : gateway ? "已是最新" : "未知"}
+          </span>
+        </SettingRow>
+        {gateway?.currentDigest ? (
+          <SettingRow
+            description={
+              gateway.latestDigest && gateway.updateAvailable
+                ? `镜像仓库上现在是 ${shortDigest(gateway.latestDigest)}。`
+                : "与镜像仓库上的摘要一致。"
+            }
+            title="当前镜像摘要"
+          >
+            <code className="magpie-code">{shortDigest(gateway.currentDigest)}</code>
+          </SettingRow>
+        ) : null}
+        {running ? (
+          <SettingRow description={lastLog ?? "正在准备。"} title="正在更新">
+            <span className="magpie-badge is-warn">{stepLabel(job?.step)}</span>
+          </SettingRow>
+        ) : null}
+        {job && !running && job.status === "failed" ? (
+          <SettingRow description={job.error ?? "详细日志见「系统更新」页的历史。"} title="上次更新失败">
+            <span className="magpie-badge is-danger">失败</span>
+          </SettingRow>
+        ) : null}
+      </Card>
+    </PageSection>
   );
 }
