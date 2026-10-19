@@ -1,6 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### 机器人自己的机器：`npm i -g` 不再要 root；ops 预算真正落盘
+
+- **`npm install -g` 以 `pwuser` 跑**（`agent-computer/src/shell.ts`，命令的 `HOME` 是 `/workspace`），而 npm 的全局前缀原本是
+  root 拥有的 `/usr/local`：每次安装都在一两秒内 `EACCES` 失败，模型把结果读成「调用被中断」而不是权限错误，于是退回「后台安装」
+  再失败一次。`Dockerfile` 把全局前缀改到 `/workspace/.npm-global`，并**追加**（不是前置）到 `PATH`——装好的工具随工作区卷留到
+  下一轮，也不会遮蔽镜像自己用的 `node` / `bun`。
+- **ops 预算终于写得进盘**：`/workspace/.chisabot-ops/budgets.json` 在 `pwuser` 拥有的工作区卷里，而 API 跑在 `apiuser`，于是
+  每次 flush 都 `EACCES`、`GET /api/admin/health/budgets` 永远是空的（只有一行 `[ops-metrics] flush failed` 警告）。
+  `docker/s6/s6-rc.d/api/run` 在降权之前建好目录并 `chown apiuser`。
+- **部署注意**：两处都在镜像里，`Dockerfile` 变了会触发一次完整构建。已有的工作区卷不用动，目录在容器启动时补建。
+  npm 的 install script 仍然默认被拦（npm 11 的 `allow-scripts`），装带 postinstall 的包（例如 `@anthropic-ai/claude-code`）
+  仍需要在机器人里跑一次 `npm approve-scripts <包名>`——这次没有改那个默认值，它是一道有意的供应链闸门。
+
 ## 0.1.41 — 2026-10-19
+
 
 ### 生产成熟度 · 截图 503 根因（LiveScreen ↔ HTTP 协调）
 

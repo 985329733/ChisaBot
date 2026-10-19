@@ -91,6 +91,10 @@ Kotlin + Jetpack Compose 原生应用（v0.1.13 起，DESIGN §80、[android-nat
 `https://workspace.local/` 给浏览器看。用户可以在右栏「计算机」接管 / 交还（§23、§39）。真标签最多 8 个、人和机器人同一组，
 每账号一份收藏夹（§95、§96，[browser-tabs.md](browser-tabs.md)）。
 
+机器人的 shell（`computer_run_command`）也在这个容器里：以 `pwuser` 运行，每条命令的 `HOME` 是 `/workspace`（`agent-computer/src/shell.ts`），
+所以 `~` 写的就是工作区。npm 的全局前缀指到 `/workspace/.npm-global` 并追加进 `PATH`（`Dockerfile`）——`npm i -g` 不需要 root，
+装好的工具随工作区卷一起留到下一轮。此前前缀是 root 拥有的 `/usr/local`，机器人每次 `npm i -g` 都在一两秒内 EACCES 失败。
+
 ### 2.8 云端工作区节点（`deploy/cloud-node/`、`server/src/cloud-cc/`）
 
 手工部署的容器（非 root、只读根文件系统、没有 docker.sock、不发布端口、防火墙只放公网），里面是 Claude Code CLI + chisabot-node，
