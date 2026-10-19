@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### PC 在线更新：真正的 NSIS 卸载器名是 `Uninstall ChisaBotPC.exe`
+
+- **根因**：`isInstalledBuild` 只检查 `Uninstall ${productName}.exe`，也就是带空格的 `Uninstall ChisaBot PC.exe`；electron-builder 实际写的是按 `executableName` 命名的 `Uninstall ChisaBotPC.exe`。安装版因此被当成免安装版，`supported = false`，「检查更新」直接返回，不会请求 `latest.yml`。
+- **修**：同时接受带空格和去掉空格的卸载器名；补一条使用真实文件名的测试。
+- **影响**：0.1.11–0.1.45 的已安装版本都有这个判断，无法自更新；需要手动装一次 0.1.46，之后才能正常收到新版本。
+
 ## 0.1.45 — 2026-10-19
 
 ### Claude Code 左栏：新建工作区上移，目录 → 会话更简

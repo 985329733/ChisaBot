@@ -8,7 +8,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const fp = require("../scripts/shell-fingerprint");
-const { createUpdater, requiresFullInstall } = require("../src/updater");
+const { createUpdater, isInstalledBuild, requiresFullInstall } = require("../src/updater");
 const shellRefresh = require("../src/shell-refresh");
 
 const PC = path.join(__dirname, "..");
@@ -111,6 +111,18 @@ function fakeAutoUpdater(info, { installerPath = "C:\\Users\\u\\AppData\\Local\\
 const execPath = path.join(os.tmpdir(), "chisabot-pc-shell-check", "ChisaBotPC.exe");
 fs.mkdirSync(path.dirname(execPath), { recursive: true });
 fs.writeFileSync(path.join(path.dirname(execPath), "Uninstall ChisaBot PC.exe"), "");
+
+test("installed build accepts electron-builder's no-space uninstaller name", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chisabot-pc-uninstaller-"));
+  const exe = path.join(dir, "ChisaBotPC.exe");
+  fs.writeFileSync(exe, "");
+  fs.writeFileSync(path.join(dir, "Uninstall ChisaBotPC.exe"), "");
+  try {
+    assert.strictEqual(isInstalledBuild({ execPath: exe, productName: "ChisaBot PC" }), true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 function make(info, { shellHash = "aaaa", installerPath } = {}) {
   const autoUpdater = fakeAutoUpdater(info, installerPath === undefined ? {} : { installerPath });
