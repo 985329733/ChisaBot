@@ -31,5 +31,5 @@ v0.1.40 只做了客户端诚实（展开停轮询 / 退避）。根因仍是 Li
 
 - PR: https://github.com/ChisaAlter/ChisaBot/pull/248 (squash → `ae79f5e9`)
 - Release: https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.41
-- Deploy: Haupt live `0.1.41` / `auto-202610182115-a394d9a` / commit `a394d9ad` (verified 2026-10-19 07:46 Asia/Shanghai via SSH localhost health `ok:true`; earlier box→SSH timeout was transient)
+- Deploy: `<PROD_HOST>` live `0.1.41` / `auto-202610182115-a394d9a` / commit `a394d9ad` (verified 2026-10-19 07:46 Asia/Shanghai via SSH localhost health `ok:true`; earlier box→SSH timeout was transient)
 - **未** resume 电车定时

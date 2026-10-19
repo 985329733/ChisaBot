@@ -3,7 +3,7 @@
 ## Scope
 生产成熟度残余 PRD-P1-02…06（baseline v0.1.27）：
 1. SEND/STREAM/SSRF **counters** → `/api/admin/health`.budgets + logs
-2. Backup/rollback **dry-run** recorded on Haupt
+2. Backup/rollback **dry-run** recorded on <PROD_HOST>
 3. Gateway/node **trust diagram**
 4. CI **SSRF red-line** tests
 5. readiness / requirements / dogfood 更新

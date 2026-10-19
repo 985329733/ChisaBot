@@ -11,7 +11,7 @@
 # 预览（dev 免登录）
 BASE=http://127.0.0.1:3193 node tests/rail-computer/rail-computer.mjs
 # 生产只读（带一个临时登录 cookie）
-BASE=https://ayase.cn:8443 TOK=<session> node tests/rail-computer/rail-computer.mjs
+BASE=https://example.com:8443 TOK=<session> node tests/rail-computer/rail-computer.mjs
 ```
 
 需要 `playwright-core` 和 Chromium（应用镜像里的 `/ms-playwright` 即可，或用 `CHROME=` 指定）。截图在 `$OUT_DIR/rail-computer-<TAG>/`，退出码非 0 = 有入口不见了。

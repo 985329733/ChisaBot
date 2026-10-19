@@ -34,7 +34,7 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const exe = process.env.CHROME || (() => {
   try { const d = fs.readdirSync("/ms-playwright").find((x) => x.startsWith("chromium-") && !x.includes("headless")); return d ? `/ms-playwright/${d}/chrome-linux64/chrome` : undefined; } catch { return undefined; }
 })();
-const browser = await chromium.launch({ headless: true, executablePath: exe, args: ["--no-sandbox", "--disable-dev-shm-usage", "--host-resolver-rules=MAP ayase.cn 127.0.0.1"] });
+const browser = await chromium.launch({ headless: true, executablePath: exe, args: ["--no-sandbox", "--disable-dev-shm-usage", "--host-resolver-rules=MAP example.com 127.0.0.1"] });
 
 // 在应用代码之前装上：每一帧画完后记一次（人看到的那一帧）。
 const SAMPLER = () => {

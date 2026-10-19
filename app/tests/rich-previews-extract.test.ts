@@ -117,9 +117,9 @@ describe("聊天富预览：从文字里找链接和图片", () => {
 
 describe("链接卡：正文拿掉出卡的行、流式时最后一行（DESIGN.md §48）", () => {
   test("出卡的行从正文里拿掉，句中链接和其余文字原样保留", () => {
-    const text = "新版本好了：\n\n[下载 0.1.7](https://github.com/a/b/releases)\nhttps://ayase.cn/downloads/\n\n详见 [文档](https://docs.x.com)。";
+    const text = "新版本好了：\n\n[下载 0.1.7](https://github.com/a/b/releases)\nhttps://example.com/downloads/\n\n详见 [文档](https://docs.x.com)。";
     const out = splitLinkLines(text, { final: true });
-    expect(out.links.map((l) => l.url)).toEqual(["https://github.com/a/b/releases", "https://ayase.cn/downloads/"]);
+    expect(out.links.map((l) => l.url)).toEqual(["https://github.com/a/b/releases", "https://example.com/downloads/"]);
     expect(out.display).toBe("新版本好了：\n\n详见 [文档](https://docs.x.com)。");
     expect(out.pending).toBe(false);
   });

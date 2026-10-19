@@ -18,7 +18,7 @@ const fails = [];
 const check = (ok, msg) => { if (!EXPECT) return log("INFO", ok ? "ok" : "no", msg); log(ok ? "PASS" : "FAIL", msg); if (!ok) fails.push(msg); };
 const exe = process.env.CHROME || (() => { const d = fs.existsSync("/ms-playwright") ? fs.readdirSync("/ms-playwright").find((x) => x.startsWith("chromium-") && !x.includes("headless")) : null; return d ? `/ms-playwright/${d}/chrome-linux64/chrome` : undefined; })();
 const host = new URL(base).hostname;
-const browser = await chromium.launch({ headless: true, executablePath: exe, args: ["--no-sandbox", "--disable-dev-shm-usage", ...(host === "ayase.cn" ? ["--host-resolver-rules=MAP ayase.cn 127.0.0.1"] : [])] });
+const browser = await chromium.launch({ headless: true, executablePath: exe, args: ["--no-sandbox", "--disable-dev-shm-usage", ...(host === "example.com" ? ["--host-resolver-rules=MAP example.com 127.0.0.1"] : [])] });
 
 const SAMPLER = () => {
   window.__frames = [];

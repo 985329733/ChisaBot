@@ -10,7 +10,7 @@
 | 项 | 值 |
 |----|-----|
 | 日期 | 2026-10-19（Asia/Shanghai） |
-| 主机 | Haupt（生产；本文不写公网 IP） |
+| 主机 | <PROD_HOST>（生产；本文不写公网 IP） |
 | 当时运行 | `local/chisabot:auto-202610181706-76cf6b6` · **v0.1.27** · health=healthy |
 | 操作者 | Grok Bot（ops 列车） |
 | 方式 | SSH 只读盘点 + `pg_restore --list` + `tar -tzf` + `bash -n`；**未** `sh rollback-to-*.sh` |

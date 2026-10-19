@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { workspaceLinks, workspacePathOf } from "../src/lib/chat/workspace-links";
 
-const O = "https://ayase.cn:8443";
+const O = "https://example.com:8443";
 describe("workspace file links (§101)", () => {
   test("recognises workspace file targets", () => {
     expect(workspacePathOf("primes_1_to_1000000.py")).toBe("primes_1_to_1000000.py");
