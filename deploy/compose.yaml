@@ -34,7 +34,8 @@ services:
       COPILOTKIT_TELEMETRY_DISABLED: "true"
       DO_NOT_TRACK: "1"
       OPENBOT_SINGLE_USER: "true"
-      TRUSTED_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      # .env 优先：允许部署者按需扩展（如内网地址），未设置时回退到安全的 loopback 默认值。
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
       TENANT_PACKAGE_DIR: ../examples/zh-CN
       BOT_PROVIDER: ${BOT_PROVIDER:-openai}
       BOT_MODEL: ${BOT_MODEL:-your-model-id}
