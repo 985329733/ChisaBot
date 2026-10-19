@@ -92,8 +92,12 @@ Kotlin + Jetpack Compose 原生应用（v0.1.13 起，DESIGN §80、[android-nat
 每账号一份收藏夹（§95、§96，[browser-tabs.md](browser-tabs.md)）。
 
 机器人的 shell（`computer_run_command`）也在这个容器里：以 `pwuser` 运行，每条命令的 `HOME` 是 `/workspace`（`agent-computer/src/shell.ts`），
-所以 `~` 写的就是工作区。npm 的全局前缀指到 `/workspace/.npm-global` 并追加进 `PATH`（`Dockerfile`）——`npm i -g` 不需要 root，
-装好的工具随工作区卷一起留到下一轮。此前前缀是 root 拥有的 `/usr/local`，机器人每次 `npm i -g` 都在一两秒内 EACCES 失败。
+所以 `~` 写的就是工作区。三处安装位置都在工作区卷里、都归 `pwuser`：npm 的全局前缀 `/workspace/.npm-global`（`Dockerfile` 的
+`npm config set prefix`）、bun 的 `$HOME/.bun`、`pip install --user` 的 `.local`。**`PATH` 由 `shell.ts` 拼**，不靠镜像里的
+`ENV PATH`：那条 `ENV` 到不了运行中的容器（s6-overlay 启动时重建 `PATH`，镜像与容器的 `Config.Env` 里都没有它），所以
+`environmentForCommand` 把这三个 `bin` 目录**追加**在部署给的 `PATH` 之后——不前置，装的包不会遮蔽镜像自己的 `node` / `bun`。
+少了这一步，机器人 `npm i -g` 成功、下一条命令 `command not found`，它就把装好了读成装失败（2026-10-19 在测试机上实测）。
+此前前缀还是 root 拥有的 `/usr/local`，机器人每次 `npm i -g` 都在一两秒内 EACCES 失败。
 
 ### 2.8 云端工作区节点（`deploy/cloud-node/`、`server/src/cloud-cc/`）
 
