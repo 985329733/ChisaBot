@@ -6,9 +6,9 @@ import {
 } from "@/lib/computers/browser-presence";
 import {
   applyScreenshotPollResult,
+  LIVE_CAST_PROBE_MS,
   nextScreenshotPollDelay,
-  SCREENSHOT_POLL_PAUSE_AFTER,
-  shouldPauseScreenshotPoll,
+  SCREENSHOT_POLL_MAX_DELAY_MS,
 } from "@/lib/computers/screenshot-poll";
 import {
   SCREEN_BUSY_ZH,
@@ -102,16 +102,26 @@ describe("nextScreenshotPollDelay", () => {
   });
 });
 
-describe("shouldPauseScreenshotPoll", () => {
-  test("pauses after consecutive 503 streak", () => {
-    expect(shouldPauseScreenshotPoll(0)).toBe(false);
-    expect(shouldPauseScreenshotPoll(SCREENSHOT_POLL_PAUSE_AFTER - 1)).toBe(false);
-    expect(shouldPauseScreenshotPoll(SCREENSHOT_POLL_PAUSE_AFTER)).toBe(true);
+describe("a poll that stops can never come back", () => {
+  // 线上 bug：遇到一次 liveCast 就 return，定时器不再排，大屏关掉卡片也不会自己回来，
+  // 而底栏文案还写着「稍后会自动重试」。所以这里断言的是「放慢」而不是「停」。
+  test("liveCast slows to a probe instead of stopping", () => {
+    expect(nextScreenshotPollDelay(0, 1000, { liveCast: true })).toBe(LIVE_CAST_PROBE_MS);
+    expect(nextScreenshotPollDelay(99, 1000, { liveCast: true })).toBe(LIVE_CAST_PROBE_MS);
+    expect(LIVE_CAST_PROBE_MS).toBeGreaterThan(0);
+    expect(LIVE_CAST_PROBE_MS).toBeLessThanOrEqual(SCREENSHOT_POLL_MAX_DELAY_MS);
   });
 
-  test("pauses immediately when liveCast (HTTP yields to LiveScreen)", () => {
-    expect(shouldPauseScreenshotPoll(0, { liveCast: true })).toBe(true);
-    expect(shouldPauseScreenshotPoll(1, { liveCast: true })).toBe(true);
+  test("the worst backoff is still a delay, never a dead one", () => {
+    expect(nextScreenshotPollDelay(1000, 1000)).toBe(SCREENSHOT_POLL_MAX_DELAY_MS);
+    expect(Number.isFinite(nextScreenshotPollDelay(1000, 1000))).toBe(true);
+    expect(nextScreenshotPollDelay(1000, 1000)).toBeGreaterThan(0);
+  });
+
+  test("a broken interval argument falls back to one second", () => {
+    for (const bad of [Number.NaN, 0, -1]) {
+      expect(nextScreenshotPollDelay(0, bad)).toBe(1000);
+    }
   });
 });
 

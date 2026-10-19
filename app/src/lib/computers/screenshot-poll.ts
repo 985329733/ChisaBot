@@ -21,26 +21,24 @@ export function applyScreenshotPollResult(result: {
 
 /**
  * 连续失败时放慢轮询，避免电脑 503 时每秒打一次；成功后调用方把 streak 归零。
- * 上限 30s：大屏走 LiveScreen 时 HTTP 轮询会停，卡片侧失败也不要刷爆控制台。
+ *
+ * `liveCast`：大屏正在出图，agent-computer 会拒绝 HTTP 截图（captureBusy + liveCast）。这是**暂时的**，
+ * 所以是固定慢速探，而不是停 —— 停下来等用户点「重试」，就会出现「大屏早就关了、卡片还写着暂时看不到」
+ * 这种自己回不来的卡死状态（线上见过）。
  */
-export function nextScreenshotPollDelay(failStreak: number, baseMs: number): number {
+export const LIVE_CAST_PROBE_MS = 10_000;
+
+/** 放慢的上限。再慢也是在探，不是停：停了就再也自己回不来。 */
+export const SCREENSHOT_POLL_MAX_DELAY_MS = 30_000;
+
+export function nextScreenshotPollDelay(
+  failStreak: number,
+  baseMs: number,
+  options: { liveCast?: boolean } = {},
+): number {
   const base = Number.isFinite(baseMs) && baseMs > 0 ? baseMs : 1000;
+  if (options.liveCast) return LIVE_CAST_PROBE_MS;
   if (failStreak <= 0) return base;
   const exp = Math.min(failStreak - 1, 5);
-  return Math.min(base * 2 ** exp, 30_000);
-}
-
-/** 连续失败到此次数后停止自动轮询，等「重试」或展开/收起再开（避免 503 刷屏）。 */
-export const SCREENSHOT_POLL_PAUSE_AFTER = 5;
-
-/**
- * 是否停自动轮询。
- * `liveCast`：agent-computer 说大屏正在出图 — HTTP 再打只会 captureBusy，立刻停，等收起/重试。
- */
-export function shouldPauseScreenshotPoll(
-  failStreak: number,
-  options: { liveCast?: boolean } = {},
-): boolean {
-  if (options.liveCast) return true;
-  return failStreak >= SCREENSHOT_POLL_PAUSE_AFTER;
+  return Math.min(base * 2 ** exp, SCREENSHOT_POLL_MAX_DELAY_MS);
 }
