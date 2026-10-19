@@ -134,7 +134,11 @@ do_update() {
   if ! wait_healthy; then
     log "新镜像没通过健康检查，回退到 ${before:-上一个镜像}"
     if [ -n "$before" ]; then
-      MAGPIE_IMAGE="$before" docker compose -f "$MAGPIE_COMPOSE" up -d magpie >/dev/null 2>&1 || true
+      # 把旧镜像打回这个标签，再重建。这样不管 compose 里写的是 ${MAGPIE_IMAGE} 还是一个
+      # 字面标签，回退都真的会把旧镜像换回来 —— 只靠环境变量插值时，字面标签的 compose
+      # 会静默不生效，看起来回退了其实还在跑新镜像，那比不回退更糟。
+      docker tag "$before" "$MAGPIE_IMAGE" >/dev/null 2>&1 || true
+      docker compose -f "$MAGPIE_COMPOSE" up -d magpie >/dev/null 2>&1 || true
       if wait_healthy; then
         fail "新版本健康检查失败，已回退到 $before"
       fi

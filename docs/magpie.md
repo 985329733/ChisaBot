@@ -230,6 +230,8 @@ install -m 400 -o 1002 -g 1002 /opt/magpie/private/web.key /opt/openbot-zh/secre
 - **点「更新到最新版」**排队一个 `magpie` 请求，宿主机 `chisabot-updater` 执行：先 `docker compose pull`（拉不动就
   不动正在跑的容器）→ `up -d` 重建 → 健康检查。**健康检查不过会自动回退到上一版摘要**，并把这次更新报成失败。
   它和 ChisaBot 自己的更新**共用一把锁**，两者不会同时跑。
+  - 回退的做法是把旧镜像**重新打回那个标签**再重建，所以 compose 里写 `${MAGPIE_IMAGE}` 还是写一个固定标签都成立。
+    早期实现只靠环境变量插值，遇到固定标签会**静默不生效**（看起来回退了、其实还在跑新镜像）——回退不能交给插值。
 - **应用容器没有 docker socket**，所以页面上的按钮只是排队，真正干活的是宿主机上的更新程序（[online-update.md](online-update.md)）。
   更新程序太旧（低于 `SYSTEM_UPDATE_UPDATER_VERSION`）时页面不给按钮，而是提示先做一次系统更新。
 - **想钉住自己验证过的版本**：把 `MAGPIE_IMAGE` 设成一个摘要（`deploy/.env`、compose 的 `environment`，或
