@@ -35,8 +35,10 @@ ChisaBot 需求多、并行开发多，所以每个改动都按同一套流程�
 - **BACKLOG / ROADMAP**：勾掉验收标准，条目移到「最近完成」，写 PR 号。
 - **docs/CHANGELOG.md**：在「未发版」表里加一行（PR、合并时间、提交、内容、DESIGN / 条目）；客户端发版时把这些行移进新版本。
 - **docs/features.md / data-model.md**：新功能、新入口、新开关、新表都要登记；长期规则变化记到 docs/decisions.md。发版流程和测试约定见 docs/release.md、docs/testing.md。
-- **内部记录**：维护者自己的运行记录（部署机路径、镜像标签、回滚脚本）记在仓库之外；**仓库是公开的**，不要提交服务器 IP、私人主机路径、
-  密钥、真实用户数据。
+- **内部记录**：维护者自己的运行记录（部署机路径、镜像标签、回滚脚本）记在仓库之外；**仓库是公开的**，不要提交服务器 IP、真实域名、主机名、
+  内网 DNS、密钥、真实用户数据。CI 里有一条「Private host info guard」按仓库变量 `PRIVATE_HOST_DENY` 检查这些标识（分号分隔的正则；
+  维护者在 GitHub 的 Settings → Secrets and variables → Actions → Variables 里配置）——**模式本身不进仓库**，因为 CI 日志是公开的，
+  守卫里写出地址等于它自己泄漏一次。变量没配时这一步只告警、不拦截。
 
 ## 3. 合并与部署
 

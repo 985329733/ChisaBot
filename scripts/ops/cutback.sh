@@ -5,7 +5,7 @@
 # print the exact command that would cut traffic. Never touches prod unless
 # CUTBACK_EXECUTE=1 is set explicitly.
 #
-# Usage (on Haupt as root, or with CHISABOT_* overrides):
+# Usage (on <PROD_HOST> as root, or with CHISABOT_* overrides):
 #   sh cutback.sh                         # dry-run → previous rollback target
 #   sh cutback.sh --tag auto-YYYY…-abcdef # dry-run for a specific tag
 #   sh cutback.sh --list                  # list keepable auto- images + rollback scripts

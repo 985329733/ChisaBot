@@ -30,6 +30,6 @@
 - Release: https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.34
 - Deploy: `deploy-serial.sh 7364fe5 grok-bot` → `local/chisabot:auto-202610181844-7364fe5`
 - `/api/version` = **0.1.34**; post-deploy-smoke **PASSED** (含模型 + 匿名 admin 401)
-- `sync-nginx --apply` on Haupt → ALL GREEN (domain derived from live `ayase.cn`); nginx -t + reload
+- `sync-nginx --apply` on <PROD_HOST> → ALL GREEN (domain derived from live `example.com`); nginx -t + reload
 - **未** resume 电车定时（`和 Claude 聊电车` = paused）
 - **未** `CUTBACK_EXECUTE`；**未**默认多用户 UI

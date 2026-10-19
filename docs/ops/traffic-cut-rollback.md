@@ -44,11 +44,11 @@ bash /opt/chisabot-updater/post-deploy-smoke.sh
 
 `deploy-serial.sh` 用于**向前**部署某个 main 提交；切回已构建过的旧镜像请用本页 cutback / `rollback-to-*.sh`，不要为了回滚去「部署一个旧 sha」除非镜像已不在。
 
-## 3. Haupt dry-run 记录（2026-10-19）
+## 3. <PROD_HOST> dry-run 记录（2026-10-19）
 
 | 项 | 值 |
 |----|-----|
-| 主机 | Haupt（生产；本文不写公网 IP） |
+| 主机 | <PROD_HOST>（生产；本文不写公网 IP） |
 | 当时运行 | `local/chisabot:auto-202610181759-7132ff3` · **v0.1.31** |
 | 上一版脚本 | `rollback-to-auto-202610181747-eb83b73.sh`（v0.1.30） |
 | `docker image inspect` 上一版 | **存在** |

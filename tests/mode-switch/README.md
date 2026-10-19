@@ -13,7 +13,7 @@
 # 预览（dev 免登录，管理员）
 BASE=http://127.0.0.1:3211 node tests/mode-switch/mode-switch.mjs
 # 生产只读（临时登录 cookie）
-BASE=https://ayase.cn:8443 TOK=<session> node tests/mode-switch/mode-switch.mjs
+BASE=https://example.com:8443 TOK=<session> node tests/mode-switch/mode-switch.mjs
 # 对照修复前的版本：只记录不判定
 EXPECT=0 BASE=… node tests/mode-switch/mode-switch.mjs
 ```

@@ -139,7 +139,7 @@ case "$MODE" in
       ENV_FILE=$PUBLIC_DIR/../.env
       export ENV_FILE
     fi
-    # Prefer CHISABOT_DOMAIN from ENV_FILE; else derive from live nginx (Haupt often has domain only in conf).
+    # Prefer CHISABOT_DOMAIN from ENV_FILE; else derive from live nginx (<PROD_HOST> often has domain only in conf).
     has_domain=0
     if [ -n "${ENV_FILE:-}" ] && [ -f "$ENV_FILE" ]; then
       if sed -n 's/^CHISABOT_DOMAIN=//p' "$ENV_FILE" | head -1 | grep -q .; then

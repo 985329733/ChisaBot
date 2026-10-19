@@ -27,7 +27,7 @@ DOG-01 live verify on **v0.1.18 failed**: 星灵 send `DOGFOOD018-VERIFY…` →
 - FIX-10/11 backlog items.
 
 ## How to verify
-1. Hard refresh https://ayase.cn:8443 → chip **0.1.19**.
+1. Hard refresh https://example.com:8443 → chip **0.1.19**.
 2. 星灵 send a short unique line: within a few seconds expect either a reply **or** visible error + draft restored — never silent 40s then vanish on reload.
 3. DevTools Network: `/connect` body should be on the order of messages size (tens of KB), not ~825KB; `/run` should appear shortly after send.
 4. Optional: throttle CPU / block `/run` only → ~12s hang reason.
@@ -40,7 +40,7 @@ DOG-01 live verify on **v0.1.18 failed**: 星灵 send `DOGFOOD018-VERIFY…` →
 ## Ship result (2026-10-18 Asia/Shanghai)
 - PR #212 squash-merged as `f2de07e1`
 - Release **v0.1.19** tag `00046661` — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.19
-- Haupt deploy `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180730-0004666`
+- <PROD_HOST> deploy `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180730-0004666`
 - `/api/version` = 0.1.19; 容器 healthy；模型自检通过
 - DB evidence for dogfood thread: messages ~117KB / 284 rows vs events ~1.3MB / 3882（connect 现走消息快照）
 - 前端包含「迟迟没发出去」文案

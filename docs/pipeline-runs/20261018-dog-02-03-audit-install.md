@@ -7,7 +7,7 @@ DOG-01（发消息假成功）已在 v0.1.18，**不重开**。
 
 ## Status log
 - 2026-10-18 ~15:30 CST Asia/Shanghai — 分支 `fix/dog-02-03-audit-install`；审计中文标签 + 安装横幅占位/永久关闭。
-- 单测绿 → PR #211 → HOLD 等聊天 P0 → v0.1.19 实机通过后 rebase main → 合入 → 发版 **v0.1.20** → Haupt updater 部署。
+- 单测绿 → PR #211 → HOLD 等聊天 P0 → v0.1.19 实机通过后 rebase main → 合入 → 发版 **v0.1.20** → <PROD_HOST> updater 部署。
 
 ## Root cause
 
@@ -48,7 +48,7 @@ DOG-01（发消息假成功）已在 v0.1.18，**不重开**。
 ## Ship result (2026-10-18 Asia/Shanghai)
 - PR #211 squash-merged as `1fe795cd`（rebase onto main after #212 / v0.1.19；无冲突）
 - Release **v0.1.20** tag `bcd0b3ec` — https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.20
-- Haupt deploy `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180819-bcd0b3e`
+- <PROD_HOST> deploy `ACTOR=grok-bot request.sh check|update` → image `local/chisabot:auto-202610180819-bcd0b3e`
 - `/api/version` = 0.1.20；容器 healthy；模型自检通过；thread locks=0
 - 本地回归：`bun test app/tests/audit-action-label.test.ts app/tests/audit-outcome.test.ts` 18 pass
 - **未** resume 电车定时

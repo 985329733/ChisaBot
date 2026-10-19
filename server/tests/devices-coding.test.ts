@@ -260,10 +260,10 @@ describe("node pairing + install script", () => {
   });
 
   test("install script pairs, downloads the bundle and installs a service", () => {
-    const s = installScript("https://ayase.cn:8443");
+    const s = installScript("https://example.com:8443");
     expect(s).toContain("/api/devices/agent/node/chisabot-node.cjs");
     expect(s).toContain("install-service");
-    expect(s).toContain('SERVER="https://ayase.cn:8443"');
+    expect(s).toContain('SERVER="https://example.com:8443"');
     expect(installScript("https://x$(rm -rf /)")).not.toContain("$(rm");
   });
 });

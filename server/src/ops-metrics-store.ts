@@ -3,7 +3,7 @@
  *
  * Default path: `/workspace/.chisabot-ops/budgets.json` (compose `workspace` volume).
  * Override with `CHISABOT_OPS_METRICS_PATH`. Load once at boot; debounce-flush after bumps
- * and on an interval so Haupt survives restarts without a metrics vendor.
+ * and on an interval so <PROD_HOST> survives restarts without a metrics vendor.
  *
  * See docs/ops/monitoring.md §「错误预算时序」.
  */

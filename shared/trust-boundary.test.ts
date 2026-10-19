@@ -24,8 +24,8 @@ describe("loopback hostname / origin", () => {
 
   test("LAN / public / garbage denied", () => {
     expect(isLoopbackHostname("192.168.1.1")).toBe(false);
-    expect(isLoopbackHostname("ayase.cn")).toBe(false);
-    expect(isLoopbackOrigin("https://ayase.cn:8443")).toBe(false);
+    expect(isLoopbackHostname("example.com")).toBe(false);
+    expect(isLoopbackOrigin("https://example.com:8443")).toBe(false);
     expect(isLoopbackOrigin("http://192.168.1.10:3001")).toBe(false);
     expect(isLoopbackOrigin("not-a-url")).toBe(false);
   });
@@ -41,7 +41,7 @@ describe("TRUSTED_ORIGINS friend-pack rule", () => {
   });
 
   test("https or LAN refused", () => {
-    expect(assertTrustedOriginsLoopbackOnly("https://ayase.cn").ok).toBe(false);
+    expect(assertTrustedOriginsLoopbackOnly("https://example.com").ok).toBe(false);
     expect(
       assertTrustedOriginsLoopbackOnly("http://192.168.1.10:3001").ok,
     ).toBe(false);

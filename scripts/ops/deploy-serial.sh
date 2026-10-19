@@ -58,7 +58,7 @@ else
 fi
 
 # v0.1.39: Magpie/sidecar -> app:3001 isolation (PRD-P0-02). apply-or-fail + live verify.
-# Set CHISABOT_ISOLATE_SIDECAR=skip to skip (not recommended on Haupt).
+# Set CHISABOT_ISOLATE_SIDECAR=skip to skip (not recommended on <PROD_HOST>).
 ISOLATE=${CHISABOT_ISOLATE_SIDECAR:-apply}
 ISO_SH=""
 for cand in "$REPO_OPS/scripts/ops/isolate-sidecar-app.sh" /opt/chisabot-ops/isolate-sidecar-app.sh "$HERE_OPS/scripts/ops/isolate-sidecar-app.sh"; do

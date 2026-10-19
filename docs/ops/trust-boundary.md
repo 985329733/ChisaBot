@@ -14,7 +14,7 @@ flowchart TB
     IM["IM 机器人<br/>OneBot / Telegram"]
   end
 
-  subgraph Host["宿主机 Haupt（默认端口）"]
+  subgraph Host["宿主机 <PROD_HOST>（默认端口）"]
     GW["openbot-public-gateway<br/>nginx · host 网络<br/>:8443 / :2053 TLS"]
     Auth["openbot-web-auth<br/>127.0.0.1:3002<br/>会话 SQLite"]
     App["openbot-zh<br/>127.0.0.1:3001<br/>应用 + 网页"]

@@ -97,7 +97,7 @@
 
 - Ops maturity (PRD-P1-02…06): process-local SEND/STREAM/SSRF error-budget counters on `GET /api/admin/health` (`budgets`); client beacon `POST /api/ops/budget`; `guardedFetch` / computer-stream proxy bump on deny/disconnect.
 - CI SSRF red-line suite (`server/tests/ssrf-redline.test.ts`) — redirect→internal + mapped IPv6 must stay green.
-- Docs: gateway/node trust-boundary diagram; recorded backup/rollback dry-run on Haupt (`docs/ops/backup-rollback-drill.md`).
+- Docs: gateway/node trust-boundary diagram; recorded backup/rollback dry-run on <PROD_HOST> (`docs/ops/backup-rollback-drill.md`).
 
 ## 0.1.27
 

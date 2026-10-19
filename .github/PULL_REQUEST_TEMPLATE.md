@@ -14,7 +14,7 @@ Backlog：CB-xxx <!-- GitHub Issues 打开后改为 Closes #编号 -->
 - [ ] **CHANGELOG.md**：`Unreleased` 加了一行，或说明为什么部署行为不变
 - [ ] **BACKLOG / ROADMAP**：验收标准已勾，条目已移到「最近完成」
 - [ ] **数据与回滚**：新表 / 新列能安全回滚到上一版镜像吗？（开机建表、只加可空列 = 能）
-- [ ] **公开仓库**：没有提交密钥、私人主机信息或真实用户数据
+- [ ] **公开仓库**：没有提交密钥、私人主机信息（公网 IP、真实域名、主机名、内网 DNS）或真实用户数据；CI 的「Private host info guard」按仓库变量 `PRIVATE_HOST_DENY` 检查，模式本身不进仓库
 
 ## 部署
 

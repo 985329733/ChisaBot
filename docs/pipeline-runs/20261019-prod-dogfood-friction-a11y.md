@@ -1,7 +1,7 @@
 # Pipeline run: dogfood friction a11y / stop chip / install banner (2026-10-19)
 
 ## Scope
-生产成熟度狗粮摩擦（baseline **v0.1.34** → **v0.1.35**），来自 ayase.cn:8443 星灵浏览器 E2E：
+生产成熟度狗粮摩擦（baseline **v0.1.34** → **v0.1.35**），来自 example.com:8443 星灵浏览器 E2E：
 1. 「已停止」挂错轮（修服务器锚点 + 客户端停止选人发消息 + 折叠仍画标记）
 2. 「安装 ChisaBot 应用」横幅常驻聊天顶（可安装才显示；× 永久；取消 snooze 14 天）
 3. 复制 / 重新生成 a11y 叠层标签 → 单一 live aria-label

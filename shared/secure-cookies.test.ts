@@ -3,7 +3,7 @@ import { useSecureCookies } from "./secure-cookies";
 
 describe("useSecureCookies (Track D / PRD-P2-04)", () => {
   test("https auth base URL forces Secure", () => {
-    expect(useSecureCookies({ authBaseUrl: "https://ayase.cn:8443" })).toBe(true);
+    expect(useSecureCookies({ authBaseUrl: "https://example.com:8443" })).toBe(true);
   });
 
   test("https public URL forces Secure even when auth base is http loopback", () => {
