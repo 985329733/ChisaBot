@@ -63,6 +63,24 @@ export type ShellResult = {
  * HOME is the workspace. A command that writes to ~ should write where the Bot's files already are.
  */
 const PATH_NAMES = ["PATH"] as const;
+
+/**
+ * Where a Bot's own installs land, relative to its workspace.
+ *
+ * The image makes exactly these writable for the Bot, so that installing a tool needs no root:
+ * npm's global prefix is the workspace's `.npm-global` (`Dockerfile`), bun writes a global install
+ * under `$HOME/.bun` and HOME is the workspace, and `pip install --user` (with the
+ * `--break-system-packages` Ubuntu's PEP 668 lock makes necessary) lands in `.local`. None of the
+ * three is on the PATH the computer process itself was started with, and the `Dockerfile`'s PATH
+ * entry does not reach the running container, so a Bot that installed a tool and called it on the
+ * next command read a successful install as a failure — `command not found` — and either retried or
+ * told the person the install had failed. That is the whole reason this list exists.
+ *
+ * Appended, never prepended: a package a Bot installs must not shadow the image's own `node` or
+ * `bun`. An entry an operator already put on PATH keeps the position they chose.
+ */
+const WORKSPACE_BIN_DIRS = [".npm-global/bin", ".bun/bin", ".local/bin"] as const;
+
 const LOCALE_NAMES = ["LANG", "LANGUAGE"] as const;
 const TERMINAL_NAMES = ["TERM", "TERMINFO", "COLORTERM"] as const;
 const PROXY_NAMES = [
@@ -105,6 +123,26 @@ export function environmentForCommand(
   for (const name of TERMINAL_NAMES) copy(name);
   for (const name of PROXY_NAMES) copyProxy(name);
   for (const name of extraShellEnvNames(source.COMPUTER_SHELL_ENV)) copy(name);
+
+  /*
+   * The Bot's own install directories, appended to whatever PATH the deployment gave the computer
+   * (see WORKSPACE_BIN_DIRS). A command that installs a tool and the command that runs it are two
+   * different calls, so this cannot be left to the caller. The separator is written rather than
+   * resolved through `node:path`: this map is always handed to `/bin/bash` on Linux (see the spawn
+   * below), so a host running the tests on Windows must not turn it into a backslash path.
+   *
+   * A trailing slash on WORKSPACE_DIR would otherwise produce `//` entries that PATH never matches,
+   * and an entry already present is left where the operator put it.
+   */
+  const path = env.PATH;
+  if (path !== undefined && path.length > 0) {
+    const base = workspaceDir.replace(/\/+$/u, "");
+    const present = new Set(path.split(":"));
+    const missing = WORKSPACE_BIN_DIRS.map((dir) => `${base}/${dir}`).filter(
+      (dir) => !present.has(dir),
+    );
+    if (missing.length > 0) env.PATH = [path, ...missing].join(":");
+  }
 
   env.HOME = workspaceDir;
   /*

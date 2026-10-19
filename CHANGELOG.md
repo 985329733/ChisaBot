@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### 机器人装好的工具真的在 PATH 上：`npm i -g` 之后下一条命令就能跑
+
+- **根因**：`npm i -g` 已经装到 `/workspace/.npm-global`（0.1.41 的修复），但**运行中的容器里 `PATH` 没有这个目录**：
+  `Dockerfile` 那条 `ENV PATH=…:/workspace/.npm-global/bin` 到不了运行时（s6-overlay 启动时重建 `PATH`，镜像与容器的
+  `Config.Env` 里都没有这一项），而 `computer_run_command` 把进程的 `PATH` 原样交给机器人。于是安装那一轮成功、
+  下一轮 `claude: not found`，机器人把自己**装成功**读成**装失败**，再改成「后台安装」又失败一次——测试机上
+  `npm install -g @anthropic-ai/claude-code` 退出码 0、`/workspace/.npm-global/bin/claude --version` 正常，
+  但 `command -v claude` 找不到，就是这么来的。
+- **修**：`agent-computer/src/shell.ts` 的 `environmentForCommand` 在部署给的 `PATH` **之后**追加机器人自己的三个安装目录
+  （`HOME` 就是工作区）：`.npm-global/bin`（npm 全局）、`.bun/bin`（bun 全局，`HOME` 是工作区时 bun 的默认位置）、
+  `.local/bin`（`pip install --user`）。追加而非前置，装的包不会遮蔽镜像自己的 `node` / `bun`；已经在 `PATH` 里的条目
+  保持原位；`WORKSPACE_DIR` 末尾带 `/` 也不会拼出 `//`。`PATH` 由这个函数拼，不再依赖镜像里的 `ENV PATH`。
+- **验证**：在真实镜像里跑 `agent-computer/tests/shell.test.ts`，32 项全过（新增 5 项：目录追加顺序、重复不重加、
+  尾斜杠、父进程没有 `PATH` 时不臆造、以及「装好的工具下一条命令能跑」的端到端用例）。同一镜像里用真实代码跑真实装好的
+  `claude`：旧代码 `MISSING`，新代码 `2.1.303 (Claude Code)`。
+- 仍然没改：npm 11 的 `allow-scripts` 默认闸门（装带 postinstall 的包仍需 `npm approve-scripts <包名>`，或接受它只装不跑脚本）；
+  Ubuntu 的 PEP 668 也仍然拦 `pip install`（镜像里给了 `python3-venv`，`python -m venv` + pip 照常可用）。
+
 ## 0.1.43 — 2026-10-19
 
 ### 客户端发版补齐：PC / Android 对齐到 0.1.43

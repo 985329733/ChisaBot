@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createShell, environmentForCommand } from "../src/shell";
@@ -42,13 +42,56 @@ function source(
 describe("what a command inherits", () => {
   test("PATH, locale, terminal and proxy variables pass", () => {
     const env = environmentForCommand(source(), workspaceHome);
-    expect(env.PATH).toBe(allowed.PATH);
+    // The deployment's own PATH stays first; the Bot's install directories are appended (below).
+    expect(env.PATH.startsWith(`${allowed.PATH}:`)).toBe(true);
     expect(env.LANG).toBe(allowed.LANG);
     expect(env.LC_ALL).toBe(allowed.LC_ALL);
     expect(env.TERM).toBe(allowed.TERM);
     expect(env.HTTP_PROXY).toBe(allowed.HTTP_PROXY);
     expect(env.http_proxy).toBe(allowed.http_proxy);
     expect(env.HTTPS_PROXY).toBe(allowed.HTTPS_PROXY);
+  });
+
+  test("the Bot's own install directories are appended to PATH", () => {
+    // The failure this pins: `npm i -g <tool>` writes to the workspace's .npm-global, the next
+    // command cannot find the tool, and the Bot reports a successful install as a failed one.
+    // bun and pip write to their own workspace directories, so they are on the same list.
+    const env = environmentForCommand(source(), workspaceHome);
+
+    expect(env.PATH.split(":")).toEqual([
+      "/usr/bin",
+      "/bin",
+      `${workspaceHome}/.npm-global/bin`,
+      `${workspaceHome}/.bun/bin`,
+      `${workspaceHome}/.local/bin`,
+    ]);
+  });
+
+  test("an install directory already on PATH keeps its place", () => {
+    const env = environmentForCommand(
+      source({ PATH: `/usr/bin:${workspaceHome}/.npm-global/bin:/bin` }),
+      workspaceHome,
+    );
+    const entries = env.PATH.split(":");
+
+    expect(entries.filter((entry) => entry === `${workspaceHome}/.npm-global/bin`)).toHaveLength(1);
+    expect(entries.indexOf(`${workspaceHome}/.npm-global/bin`)).toBe(1);
+    expect(entries).toContain(`${workspaceHome}/.bun/bin`);
+  });
+
+  test("a workspace with a trailing slash does not double the separator", () => {
+    const env = environmentForCommand(source(), `${workspaceHome}/`);
+
+    expect(env.PATH).toContain(`${workspaceHome}/.npm-global/bin`);
+    expect(env.PATH).not.toContain("//");
+  });
+
+  test("no PATH in the parent leaves PATH absent rather than inventing one", () => {
+    // Inheriting nothing is a deployment mistake, but the child then gets the exec default PATH
+    // rather than a PATH that names only the workspace.
+    const env = environmentForCommand({ HOME: "/root" }, workspaceHome);
+
+    expect(env.PATH).toBeUndefined();
   });
 
   test("a secret sitting in the process environment does not", () => {
@@ -208,6 +251,22 @@ describe("the command that actually runs", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim()).toBe("/opt/java");
   });
+  test("a tool the Bot installed is runnable by the next command", async () => {
+    // Two calls, not one: `npm i -g <tool>` in one turn, `<tool>` in the next. The install lands in
+    // the workspace, so the PATH a later command receives has to name that directory — otherwise the
+    // Bot reads its own successful install as a failure, which is what it used to do.
+    const bins = join(root, ".npm-global", "bin");
+    await mkdir(bins, { recursive: true });
+    const tool = join(bins, "bot-tool");
+    await Bun.write(tool, "#!/bin/sh\necho installed-tool-ran\n");
+    await chmod(tool, 0o755);
+
+    const result = await createShell(root, source()).run({ command: "bot-tool" });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe("installed-tool-ran");
+  });
+
   test("a package install is not left waiting for a prompt", async () => {
     // apt-get reads DEBIAN_FRONTEND. Interactive, it stops for an answer nobody is there to give,
     // and the command reaches its timeout looking like a broken package rather than a question.
