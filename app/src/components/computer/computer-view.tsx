@@ -15,8 +15,6 @@ import {
 import {
   applyScreenshotPollResult,
   nextScreenshotPollDelay,
-  SCREENSHOT_POLL_PAUSE_AFTER,
-  shouldPauseScreenshotPoll,
 } from "@/lib/computers/screenshot-poll";
 import { useComputerControl } from "@/lib/computers/use-control";
 import { useComputerStatus } from "@/lib/computers/use-status";
@@ -431,8 +429,6 @@ export function ComputerView({
           failStreak += 1;
           setShot(null);
           setProblem(next.problem);
-          // 大屏正在直播：服务端 captureBusy+liveCast，立刻停 HTTP，别跟流抢。
-          if (liveCastBusy) failStreak = SCREENSHOT_POLL_PAUSE_AFTER;
         } else {
           failStreak = 0;
           // Exact byte comparison is the settling signal.
@@ -446,10 +442,15 @@ export function ComputerView({
         }
       } finally {
         if (generation.current !== mine) return;
-        // 连续 503 / liveCast 后停自动轮询，等「重试」；避免控制台刷屏。
-        if (shouldPauseScreenshotPoll(failStreak, { liveCast: liveCastBusy })) return;
-        if (shouldContinue()) {
-          timer = setTimeout(tick, nextScreenshotPollDelay(failStreak, intervalMs));
+        // 不变式：**只要还显示着「暂时看不到屏幕」，就必须继续重试**。底栏文案承诺「稍后会自动重试」，
+        // 而停下来等用户点「重试」的话，大屏关掉、电脑恢复之后卡片都不会自己回来（线上卡死状态）。
+        // 所以「慢」是允许的，「停」不是：liveCast 固定 10s 探一次，连续失败按退避上限 30s 探。
+        const recovering = liveCastBusy || failStreak > 0;
+        if (shouldContinue() || recovering) {
+          timer = setTimeout(
+            tick,
+            nextScreenshotPollDelay(failStreak, intervalMs, { liveCast: liveCastBusy }),
+          );
         }
       }
     };

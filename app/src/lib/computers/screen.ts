@@ -24,9 +24,9 @@ export const SCREEN_UNAVAILABLE_ZH = "暂时看不到屏幕。";
 /** 503 / 电脑未就绪时的说明（DOG-05）。 */
 export const SCREEN_BUSY_ZH = "电脑正忙或还没就绪，屏幕暂时拿不到。";
 
-/** 大屏 LiveScreen 正在出图时，HTTP 截图主动让路（0.1.41）。 */
+/** 大屏 LiveScreen 正在出图时，HTTP 截图主动让路（0.1.41）。让是暂时的：大屏一关就自己回来。 */
 export const SCREEN_LIVE_CAST_ZH =
-  "大屏正在直播，卡片截图已暂停，避免抢电脑。";
+  "大屏正在直播，卡片截图先让给直播；关掉大屏后会自动回来。";
 
 /** 页面绘制超时（422 / pageTimeout），不是电脑挂了。 */
 export const SCREEN_PAGE_TIMEOUT_ZH =
