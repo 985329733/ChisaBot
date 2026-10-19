@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.42 — 2026-10-19
+
 ### 接管后点不动、滚不动：输入不再被一次失败的查询关掉
 
 - **根因**：大屏的输入（点击 / 键盘 / 地址栏 / 滚轮）除了 `driving`（控制权轮询给的那个事实）之外，还要看
@@ -20,6 +22,13 @@
 - 回归：`app/tests/screen-connection.test.ts`（重连即 ready）、
   `app/tests/live-screen-mouse.test.tsx`（重连后滚轮照样带坐标发出去）、
   `app/tests/live-screen-blank-page.test.ts`（拒因说中文、认不出的不吞）。只改网页，不动数据。
+
+
+### 计算机卡片：大屏直播后不再永久停轮询
+
+- **根因**：`shouldPauseScreenshotPoll` 在 `liveCast`（或连续失败）时直接 `return`，不再排下一次定时器——大屏关了也不会自己回来。
+- **修**：停改成慢。liveCast 固定 10s 探一次；连续失败指数退避（上限 30s）；底栏文案改成真实承诺。
+- PR: https://github.com/ChisaAlter/ChisaBot/pull/256
 
 ### 模型网关 Magpie：不再写死版本，页面上可以一键升到最新
 
