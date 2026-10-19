@@ -65,7 +65,10 @@ function defaultQuit() {
 /** NSIS 安装版：安装目录里有卸载程序。免安装 zip 解压出来的没有。 */
 function isInstalledBuild({ execPath, productName, exists = fs.existsSync }) {
   const dir = path.dirname(execPath);
-  return exists(path.join(dir, `Uninstall ${productName}.exe`));
+  // electron-builder 的 NSIS 卸载程序用 executableName（ChisaBotPC），不带 productName 里的空格。
+  // 先找带空格的名字（旧安装器 / 测试），再找去掉空格的名字（当前安装包）。
+  const compact = String(productName).replace(/\s+/g, "");
+  return [`Uninstall ${productName}.exe`, `Uninstall ${compact}.exe`].some((name) => exists(path.join(dir, name)));
 }
 
 function createUpdater({ autoUpdater, feedUrl, isPackaged, platform, execPath, productName, shellHash = "", getAutoUpdate, onState, onDownloaded, logger, spawn = defaultSpawn, quitApp = defaultQuit, timers = { setTimeout, setInterval, clearTimeout, clearInterval }, now = () => new Date() }) {
