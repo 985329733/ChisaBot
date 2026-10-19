@@ -25,5 +25,5 @@
 ## PR / release / deploy
 - PR: https://github.com/ChisaAlter/ChisaBot/pull/257 (squash → `5cc58caf`)
 - Release: https://github.com/ChisaAlter/ChisaBot/releases/tag/v0.1.42
-- Deploy: pending Haupt `deploy-serial.sh`（本轮 inactivity 未 SSH）
+- Deploy: `deploy-serial.sh e3c555e4 grok-bot` → `local/chisabot:auto-202610190958-e3c555e`; `/api/version` **0.1.42**; post-deploy-smoke **PASSED**; sync-nginx ALL GREEN
 - **未** resume 电车定时
