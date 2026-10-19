@@ -1,6 +1,15 @@
 #!/command/with-contenv sh
 # The API, and the app it serves. Started after the browser so a Bot's first action does not race a
 # computer that is still coming up.
+#
+# The ops metrics file lives in the workspace volume (server/src/ops-metrics-store.ts:
+# /workspace/.chisabot-ops/budgets.json), but that volume belongs to pwuser and this service drops to
+# apiuser. Unless the directory exists and belongs to us before the drop, every flush fails EACCES
+# and the budgets are silently never written: a warning line in the log, an empty chart afterwards.
+if [ -d /workspace ]; then
+  mkdir -p /workspace/.chisabot-ops
+  chown apiuser:apiuser /workspace/.chisabot-ops
+fi
 cd /app/server
 export HOME=/home/apiuser
 exec s6-setuidgid apiuser /usr/local/bin/bun src/index.ts

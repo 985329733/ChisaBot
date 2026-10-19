@@ -267,6 +267,23 @@ ENV AGENT_COMPUTER_URL=http://127.0.0.1:4100
 # The two directories the browser writes are its workspace and its profile, the second being what
 # keeps a Bot signed in between turns. Owned here, because a non-root process cannot create them at
 # the root of the filesystem and the failure surfaces as EACCES on the first navigation.
+#
+# `npm install -g` MUST NOT NEED ROOT.
+#
+# The Bot's shell runs as `pwuser` (agent-computer/src/shell.ts), but npm's built-in prefix is
+# /usr/local, which is root-owned. Every `npm i -g` a Bot ran therefore died with EACCES a second or
+# two in, and a model reading that result narrated it as "the call was interrupted" rather than as a
+# permission error: a Bot that cannot install a tool describes the task instead of doing it, which is
+# the whole reason the shell exists.
+#
+# The prefix moves to the workspace volume — the Bot's own writable home (HOME is /workspace for a
+# command, see shell.ts) — so an installed tool survives a restart with the Bot's files. Its bin is
+# APPENDED to PATH, not prepended: a package the Bot installs must not shadow the `node` and `bun`
+# this image runs on.
+RUN mkdir -p /usr/local/etc \
+  && npm config set prefix /workspace/.npm-global --global
+ENV PATH="${PATH}:/workspace/.npm-global/bin"
+
 RUN mkdir -p /workspace /profiles \
   && chown -R pwuser:pwuser /workspace /profiles /app
 

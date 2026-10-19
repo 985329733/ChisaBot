@@ -71,7 +71,7 @@ openssl x509 -enddate -noout -in /etc/letsencrypt/live/<YOUR_DOMAIN>/fullchain.p
 | `budgets.rates` | `last1h` / `last6h` / `last24h` 事件数；`perHour1h` / `perHour6h` |
 | `budgets.series.points` | 近 60 分钟**非零**分钟桶（稀疏） |
 | `GET /api/admin/health/budgets?hours=1\|6\|24` | 刮数友好：同结构 + 更长 `points` |
-| 磁盘文件 | 默认 `/workspace/.chisabot-ops/budgets.json`（compose `workspace` 卷）；`CHISABOT_OPS_METRICS_PATH` 可覆盖。重启后 `import` 进分钟环 |
+| 磁盘文件 | 默认 `/workspace/.chisabot-ops/budgets.json`（compose `workspace` 卷）；`CHISABOT_OPS_METRICS_PATH` 可覆盖。重启后 `import` 进分钟环。目录由 `docker/s6/s6-rc.d/api/run` 在降权前建好并 `chown apiuser`——工作区卷属 `pwuser`，少了这一步每次 flush 都 EACCES，预算永远是空的 |
 
 本机读取示例：
 
