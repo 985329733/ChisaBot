@@ -7791,3 +7791,53 @@ html[data-phone] .chat-composer-box { padding-bottom: calc(1rem + var(--safe-b, 
 }
 .cc-sess-row:hover .cc-sess-del, .cc-sess-row:focus-within .cc-sess-del, .cc-sess-del:focus-visible { opacity: 1; }
 .cc-sess-del:hover { background: var(--glass-hover); color: var(--destructive, #dc2626); }
+
+/* Claude Code 左栏落地（原型 v3）：目录 → 对话；新建工作区固定在模式切换下面。 */
+.cc-new-ws-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  width: 100%;
+  min-height: 42px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--glass-2);
+  color: var(--ink-2);
+  text-align: left;
+  transition: background var(--dur-1), border-color var(--dur-1), color var(--dur-1);
+}
+.cc-new-ws-top:hover { background: var(--glass-hover); border-color: color-mix(in srgb, var(--accent-blue) 35%, var(--line)); color: var(--ink-1); }
+.cc-new-ws-top > svg { flex: none; color: var(--accent-blue); }
+.cc-new-ws-top-main { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.cc-new-ws-top-t { font-size: 13px; font-weight: 600; color: var(--ink-1); }
+.cc-new-ws-top-s { font-size: 11px; color: var(--ink-4); }
+.cc-tree { gap: 10px; padding: 2px 2px 8px; }
+.cc-ws { border-radius: 8px; }
+.cc-ws-head { gap: 7px; min-height: 32px; padding: 0 8px; border-radius: 8px; color: var(--ink-2); transition: background var(--dur-1); }
+.cc-ws-head:hover { background: var(--glass-hover); }
+.cc-ws.is-active > .cc-ws-head { background: var(--glass-hover); }
+.cc-ws.is-active > .cc-ws-more { opacity: 1; }
+.cc-ws-caret { width: 12px; height: 12px; color: var(--ink-4); }
+.cc-ws-head > svg:not(.cc-ws-caret) { width: 15px; height: 15px; opacity: 1; color: var(--ink-3); }
+.cc-ws-name { font-size: 13.2px; font-weight: 500; }
+.cc-ws-spin { display: inline-grid; place-items: center; flex: none; color: var(--accent-blue); }
+.cc-ws:has(> .cc-ws-more) > .cc-ws-head { padding-right: 34px; }
+.cc-ws-more { top: 1px; right: 2px; width: 28px; height: 28px; border-radius: 7px; color: var(--ink-4); opacity: 0; transition: opacity var(--dur-1), background var(--dur-1), color var(--dur-1); }
+.cc-ws:hover > .cc-ws-more, .cc-ws:focus-within > .cc-ws-more, .cc-ws-more:focus-visible { opacity: 1; }
+.cc-ws-more:hover { background: var(--glass-hover); color: var(--ink-1); }
+.cc-ws-fold-in { gap: 1px; padding-left: 23px; }
+.cc-sess { gap: 0; min-height: 30px; padding: 5px 26px 5px 8px; border: 0; border-radius: 7px; color: var(--ink-2); }
+.cc-sess:hover { background: var(--glass-hover); }
+.cc-sess.is-active { background: var(--glass-hover); border-color: transparent; color: var(--ink-1); }
+.cc-sess-title { flex: 1; min-width: 0; font-size: 12.9px; font-weight: 400; line-height: 1.45; }
+.cc-sess.is-active .cc-sess-title { font-weight: 500; }
+.cc-sess-row { gap: 0; }
+.cc-sess-del { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 6px; color: var(--ink-4); }
+.cc-sess-row:hover .cc-sess-del, .cc-sess-row:focus-within .cc-sess-del, .cc-sess.is-active + .cc-sess-del, .cc-sess-del:focus-visible { opacity: 1; }
+.cc-sess-del:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+.cc-new-sess { min-height: 28px; margin: 1px 0 0 1px; padding: 0 8px; border-radius: 7px; color: var(--ink-4); font-size: 12px; font-weight: 400; }
+.cc-new-sess:hover { background: var(--glass-hover); color: var(--accent-blue); }
+.cc-new-sess svg { width: 12px; height: 12px; }
+.cc-ws-src, .cc-sess-dot, .cc-sess-main, .cc-sess-sub, .cc-sess-state { display: none; }
