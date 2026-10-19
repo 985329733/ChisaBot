@@ -14,7 +14,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { readControl } from "@/lib/computers/control";
 import { setTabsView } from "@/lib/computers/tabs";
 import {
   connectScreen,
@@ -136,6 +135,27 @@ type FrameMessage = {
   url?: string;
 };
 
+/**
+ * 计算机回过来的拒绝，说成这个界面里的中文。
+ *
+ * 这些句子在直播这条路上原来是到不了的：只有 App 自己那份控制权状态说「有人在开车」时才会发输入，
+ * 而计算机和那份状态一致，所以它不会拒绝。现在由计算机来判断并回话，它说的是英文；这个界面里其他
+ * 每一句都是中文，把英文原样盖在画面上就等于没有好好说话。认不出的错误照原样显示，不吞掉。
+ */
+const SCREEN_REFUSALS: [RegExp, string][] = [
+  [/take control before/i, "请先点下面的「接管控制」，再操作机器人浏览器。"],
+  [/still starting/i, "屏幕正在打开，稍等一下再试。"],
+  [/no longer live/i, "这块屏幕已经不归这个窗口了，关掉大屏重开再试。"],
+  [/somewhere else/i, "这块屏幕现在在另一个窗口看着，这边停下了。"],
+  [/computer stopped|screen ended/i, "这台电脑已经停了，屏幕结束了。需要的话重新打开电脑。"],
+];
+
+export function screenProblem(error: string): string {
+  for (const [pattern, text] of SCREEN_REFUSALS)
+    if (pattern.test(error)) return text;
+  return error;
+}
+
 /** 浏览器还没打开任何网页：about:blank 或空网址。没带网址的帧当作真页面。 */
 export function isBlankPageUrl(url: string | undefined): boolean {
   if (url === undefined) return false;
@@ -228,10 +248,8 @@ export function LiveScreen({
   const [pageUrl, setPageUrl] = useState("");
   const [navBusy, setNavBusy] = useState(false);
   const [navProblem, setNavProblem] = useState<string | null>(null);
-  const inputReady = useRef(false);
   /** 用户最后一次在地址栏里要打开的网址。 */
   const lastAttempt = useRef("");
-  const previouslyDriving = useRef(driving);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: explicit Retry restarts this connection.
   useEffect(() => {
@@ -241,7 +259,6 @@ export function LiveScreen({
     setHasFrame(false);
     reconnectingRef.current = false;
     setReconnecting(false);
-    inputReady.current = false;
     frameSize.current = null;
     latestFrame.current = null;
     latestFrameId.current++;
@@ -372,7 +389,7 @@ export function LiveScreen({
         return;
       }
       if (message.type === "error") {
-        onProblem?.(message.error ?? "无法显示屏幕。");
+        onProblem?.(screenProblem(message.error ?? "无法显示屏幕。"));
         return;
       }
       if (message.type !== "frame" || !message.data) return;
@@ -447,15 +464,11 @@ export function LiveScreen({
           close: () => socket.close(),
         };
       },
-      verifyOwnership: async () => {
-        const state = await readControl(computerId);
-        return state?.holder === "human" && !state.transitioning;
-      },
       onReady: (ready) => {
-        inputReady.current = ready;
         setConnected(ready);
       },
-      onProblem: (problem) => onProblem?.(problem),
+      onProblem: (problem) =>
+        onProblem?.(problem === null ? null : screenProblem(problem)),
       onDisconnect: () => {
         frameSize.current = null;
         latestFrame.current = null;
@@ -478,41 +491,21 @@ export function LiveScreen({
     };
   }, [computerId, onProblem, retryKey]);
 
-  useEffect(() => {
-    const wasDriving = previouslyDriving.current;
-    previouslyDriving.current = driving;
-    if (
-      wasDriving ||
-      !driving ||
-      inputReady.current ||
-      socketRef.current?.readyState !== WebSocket.OPEN
-    )
-      return;
-    let live = true;
-    void readControl(computerId)
-      .then((state) => {
-        if (!live || socketRef.current?.readyState !== WebSocket.OPEN) return;
-        inputReady.current = state?.holder === "human" && !state.transitioning;
-        setConnected(inputReady.current);
-      })
-      .catch(() => {
-        inputReady.current = false;
-      });
-    return () => {
-      live = false;
-    };
-  }, [computerId, driving]);
-
+  /**
+   * Send one thing the person did, if this socket can carry it.
+   *
+   * `driving` is the whole permission check, and it is the same fact the footer and the address bar
+   * are drawn from. Whether the person really holds the wheel is the computer's answer to give, and
+   * it gives it: input from someone who is not driving comes back as a refusal the view puts on
+   * screen. A second, cached copy of that answer used to live here, and once it went stale every
+   * click and keystroke was dropped with nothing said.
+   */
   const send = useCallback(
     (message: Record<string, unknown>) => {
       const socket = socketRef.current;
-      if (
-        !driving ||
-        !inputReady.current ||
-        socket?.readyState !== WebSocket.OPEN
-      )
-        return;
+      if (!driving || socket?.readyState !== WebSocket.OPEN) return false;
       socket.send(JSON.stringify(message));
+      return true;
     },
     [driving],
   );
@@ -571,6 +564,12 @@ export function LiveScreen({
   /**
    * Keystrokes, forwarded while driving.
    *
+   * Gated on `driving` alone. It used to need `connected` too, and `connected` answered "the socket
+   * is open AND the ownership read that ran when it opened said a person still had the wheel" — so
+   * one failed read after a reconnect took the keyboard away for good while the picture kept
+   * coming. Whether the socket can carry a keystroke is `send`'s question, asked at the moment of
+   * sending, and whether the person may drive is the computer's to refuse.
+   *
    * Listen on window because canvas cannot hold focus. `preventDefault` keeps Tab and typing directed
    * at the remote page while takeover is active.
    *
@@ -582,7 +581,7 @@ export function LiveScreen({
    * page, and neither is a keystroke typed into one of this page's own fields.
    */
   useEffect(() => {
-    if (!driving || !connected) return;
+    if (!driving) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") return; // Escape still closes the view.
       if (isPasteShortcut(event) || isLocalField(event.target)) {
@@ -632,7 +631,7 @@ export function LiveScreen({
       window.removeEventListener("paste", onPaste);
       localKeyUps.current.clear();
     };
-  }, [driving, connected, send]);
+  }, [driving, send]);
 
   /**
    * The wheel, forwarded while driving, from a listener that is allowed to stop it here.
@@ -641,32 +640,50 @@ export function LiveScreen({
    * `preventDefault` in it was ignored ("Unable to preventDefault inside passive event listener
    * invocation."). The wheel reached the Bot's page and also scrolled whatever on this page was
    * under it, the frame that holds this screen included, and Ctrl and the wheel zoomed this page.
+   *
+   * Gated on `driving` alone for the reason the keyboard is: a reconnect that could not confirm
+   * ownership used to take the wheel away silently, which is the one thing a person scrolling a
+   * page notices immediately.
    */
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!driving || !connected || !canvas) return;
+    if (!driving || !canvas) return;
     const onWheel = (event: WheelEvent) => {
       const point = at(event);
       if (!point) return;
       event.preventDefault();
+      /*
+       * Chrome's `Input.dispatchMouseEvent` reads the delta as pixels. A browser that reports the
+       * wheel in lines (`deltaMode` 1) or pages (2) sends 3 rather than ~100, so a notch of the
+       * wheel moved the Bot's page by three pixels and read as "the wheel does nothing". One line is
+       * 16px, which is what Chrome itself uses, and one page is the height of the page being
+       * scrolled -- the frame Chrome is casting, not this canvas, which is scaled to fit.
+       */
+      const perPage = frameSize.current?.height ?? canvas.clientHeight;
+      const scale =
+        event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? Math.max(1, perPage) : 1;
       send({
         type: "wheel",
         ...point,
-        deltaX: event.deltaX,
-        deltaY: event.deltaY,
+        deltaX: event.deltaX * scale,
+        deltaY: event.deltaY * scale,
         modifiers: modifierBits(event),
       });
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
-  }, [driving, connected, at, send]);
+  }, [driving, at, send]);
 
   const [draft, setDraft] = useState<string | null>(null);
   const navigate = (message: Record<string, unknown>) => {
-    if (!driving || !inputReady.current) return;
+    if (!driving) return;
     setNavProblem(null);
     setNavBusy(true);
-    send(message);
+    // A socket that is not up yet gets said out loud rather than leaving a spinner that never stops.
+    if (!send(message)) {
+      setNavBusy(false);
+      setNavProblem("屏幕正在重新连接，稍后再试。");
+    }
   };
   const submitAddress = (event: FormEvent) => {
     event.preventDefault();
@@ -681,7 +698,7 @@ export function LiveScreen({
   const toolbarDisabled = !driving || !connected;
   const openUrlRef = useRef<(url: string) => boolean>(() => false);
   openUrlRef.current = (url: string) => {
-    if (!driving || !inputReady.current) return false;
+    if (!driving) return false;
     setDraft(null);
     lastAttempt.current = url;
     setPageUrl(url);
@@ -692,7 +709,9 @@ export function LiveScreen({
     if (!controllerRef) return;
     controllerRef.current = {
       openUrl: (url) => openUrlRef.current(url),
-      ready: () => inputReady.current,
+      // Whether the screen's socket can carry input right now. Who may drive it is another question,
+      // answered by the control state and enforced by the computer.
+      ready: () => socketRef.current?.readyState === WebSocket.OPEN,
     };
     return () => {
       controllerRef.current = null;

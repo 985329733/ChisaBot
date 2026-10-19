@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { LiveScreen } from "@/components/computer/live-screen";
 
 /**
@@ -204,4 +204,54 @@ test("a turn of the wheel is stopped here as well as sent there", async () => {
   } finally {
     HTMLCanvasElement.prototype.addEventListener = addEventListener;
   }
+});
+
+/**
+ * A dropped socket must not take the mouse, the keyboard or the wheel with it.
+ *
+ * `connected` used to answer two questions at once — "is the socket open" and "did the ownership
+ * read taken at connect time say a person holds the wheel" — and input needed both. One failed
+ * ownership read after a reconnect therefore disabled every input for the rest of the session while
+ * the screencast carried on: a live picture that ignored clicks, keystrokes and the wheel, with
+ * nothing on screen to say why. This is that reconnect, and the wheel still has to arrive.
+ */
+test("input still goes through after the screen reconnects", async () => {
+  const { canvas, socket } = await liveCanvas();
+  const first = socket;
+
+  // Drop the stream and let the view's own backoff bring it back. The close arrives from a socket
+  // callback rather than a user event, so React has to be told about it; the reconnect that follows
+  // runs inside `waitFor`, which is wrapped in `act` already.
+  act(() => {
+    first.close();
+  });
+  await waitFor(() => expect(SocketDouble.latest).not.toBe(first), {
+    timeout: 3000,
+  });
+  const reconnected = SocketDouble.latest as SocketDouble;
+
+  // The reconnected socket sends its own opening frame, which is what the coordinates are mapped to.
+  act(() => {
+    reconnected.onmessage?.({
+      data: JSON.stringify({ type: "frame", data: "AAAA", ...FRAME }),
+    });
+  });
+  expect(reconnected.readyState).toBe(SocketDouble.OPEN);
+
+  const wheel = new MouseEvent("wheel", {
+    clientX: 40,
+    clientY: 30,
+    bubbles: true,
+    cancelable: true,
+  });
+  Object.defineProperties(wheel, {
+    deltaX: { value: 0 },
+    deltaY: { value: 120 },
+  });
+  canvas.dispatchEvent(wheel);
+
+  expect(wheel.defaultPrevented).toBe(true);
+  expect(reconnected.sent).toEqual([
+    { type: "wheel", x: 40, y: 30, deltaX: 0, deltaY: 120, modifiers: 0 },
+  ]);
 });
