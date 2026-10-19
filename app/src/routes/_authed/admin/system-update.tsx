@@ -62,7 +62,7 @@ const STATUS_TEXT: Record<SystemUpdateHistoryEntry["status"], { text: string; to
   rejected: { text: "未执行", tone: "muted" },
 };
 
-const ACTION_TEXT = { check: "检查更新", update: "更新", rollback: "回滚" } as const;
+const ACTION_TEXT = { check: "检查更新", update: "更新", rollback: "回滚", magpie: "更新 Magpie" } as const;
 
 function isActive(data?: SystemUpdateOverview) {
   return (
