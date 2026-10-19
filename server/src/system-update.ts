@@ -11,6 +11,7 @@ import path from "node:path";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import {
+  projectMagpieGatewayState,
   projectSystemUpdateState,
   SYSTEM_UPDATE_ACTIONS,
   type SystemUpdateAction,
@@ -28,10 +29,12 @@ import type { RunningBuild } from "./build-info";
  * deploy/updater/）执行；两边只通过两个挂载目录说话：
  *
  *  - `<dir>/requests/`（读写，只有 API 用户和宿主机 root 能写）：这里写请求文件
- *    `<id>.json` = { id, action: check | update | rollback, actor, requestedAt, expectCommit? }。
- *    宿主机只认这三种动作，其余字段只用于记录；它从不执行请求里的任何字符串。
+ *    `<id>.json` = { id, action: check | update | rollback | magpie, actor, requestedAt, expectCommit? }。
+ *    宿主机只认这四种动作，其余字段只用于记录；它从不执行请求里的任何字符串。
  *  - `<dir>/state/`（只读挂载）：宿主机写的 state.json —— 当前镜像、main 上的新提交、正在跑的任务
  *    和日志尾巴、历史。读出来后经 `projectSystemUpdateState` 白名单投影再给浏览器。
+ *    同目录还有 magpie.json（deploy/updater/magpie.sh 写的自托管模型网关状态），
+ *    经 `projectMagpieGatewayState` 投影后挂在 overview.magpie 上。
  *
  * 身份认证就是文件系统权限：公网网关先认证会话，这里再要求管理员；请求目录只挂进这一个容器。
  */
@@ -62,6 +65,7 @@ export function createSystemUpdateService(options: {
   const now = options.now ?? Date.now;
   const requestsDir = dir ? path.join(dir, "requests") : "";
   const stateFile = dir ? path.join(dir, "state", "state.json") : "";
+  const magpieFile = dir ? path.join(dir, "state", "magpie.json") : "";
   const auditedFile = dir ? path.join(requestsDir, ".audited.json") : "";
   const configured = Boolean(dir && existsSync(requestsDir) && existsSync(path.dirname(stateFile)));
 
@@ -69,6 +73,17 @@ export function createSystemUpdateService(options: {
     if (!configured) return null;
     try {
       const text = readFileSync(stateFile, "utf8");
+      if (text.length > MAX_STATE_BYTES) return null;
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+
+  function readMagpie(): unknown {
+    if (!configured || !magpieFile) return null;
+    try {
+      const text = readFileSync(magpieFile, "utf8");
       if (text.length > MAX_STATE_BYTES) return null;
       return JSON.parse(text);
     } catch {
@@ -106,7 +121,12 @@ export function createSystemUpdateService(options: {
         ...source,
       };
     }
-    return { ...projectSystemUpdateState(readState(), options.running, pending(), now()), ...source };
+    const magpie = projectMagpieGatewayState(readMagpie());
+    return {
+      ...projectSystemUpdateState(readState(), options.running, pending(), now()),
+      ...(magpie ? { magpie } : {}),
+      ...source,
+    };
   }
 
   return {

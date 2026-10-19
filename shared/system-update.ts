@@ -16,13 +16,13 @@ export type BuildVersion = {
   builtAt?: string;
 };
 
-export const SYSTEM_UPDATE_ACTIONS = ["check", "update", "rollback"] as const;
+export const SYSTEM_UPDATE_ACTIONS = ["check", "update", "rollback", "magpie"] as const;
 
 /**
  * 页面要求的宿主机更新程序版本（deploy/updater/chisabot-updater.py 的 VERSION，state.json 的 updaterVersion）。
  * 低于它就提示「更新程序是旧版本」和升级命令。两边一起改。
  */
-export const SYSTEM_UPDATE_UPDATER_VERSION = 3;
+export const SYSTEM_UPDATE_UPDATER_VERSION = 4;
 
 /** 宿主机报告的配置问题（只给代号；文字在页面上，`SYSTEM_UPDATE_WARNING_TEXT`）。不阻止更新。 */
 export const SYSTEM_UPDATE_WARNINGS = [
@@ -90,6 +90,31 @@ export type SystemUpdateHistoryEntry = {
   durationSec?: number;
 };
 
+/**
+ * 自托管 Magpie 网关的更新状态（宿主机 `spool/state/magpie.json`，由 `deploy/updater/magpie.sh` 写）。
+ *
+ * 判断「有没有新版」比的是**镜像摘要**，不是版本号：Magpie 的镜像只有 `latest` 这类标签，
+ * 版本号要问它自己的接口（那份在 `MagpieOverview.version` 里）。摘要一样就是没有新版，
+ * 查不到远端摘要就什么都不说。
+ */
+export type MagpieGatewayUpdate = {
+  /** 宿主机上有没有这个容器。没有时页面说「还没安装」，按钮是「安装最新版」。 */
+  installed: boolean;
+  /** 正在用的镜像引用（例如 `ghcr.io/yetone/magpie:latest`，钉摘要时就是摘要）。 */
+  image?: string;
+  container?: string;
+  /** 本机这个标签指向的摘要。 */
+  currentDigest?: string;
+  /** registry 上这个标签现在的摘要。 */
+  latestDigest?: string;
+  /** 两个摘要都在、而且不一样。任一缺失时为 false（宁可说「不知道」）。 */
+  updateAvailable: boolean;
+  /** 宿主机上次检查的时间。 */
+  checkedAt?: string;
+  /** 查询失败的原因（网络或 registry 不可达）。 */
+  error?: string;
+};
+
 export type SystemUpdateOverview = {
   /** 宿主机更新程序是否在线（state.json 最近 2 分钟内写过）。 */
   updaterOnline: boolean;
@@ -130,6 +155,8 @@ export type SystemUpdateOverview = {
   /** 还在队列里、宿主机没取走的请求。 */
   pending: SystemUpdateAction[];
   history: SystemUpdateHistoryEntry[];
+  /** 自托管 Magpie 网关的更新状态；宿主机没写过 magpie.json 时为 undefined。 */
+  magpie?: MagpieGatewayUpdate;
 };
 
 export const UPDATE_STEPS: ReadonlyArray<{ key: string; label: string }> = [
@@ -389,6 +416,35 @@ export function projectSystemUpdateState(
         .filter((h): h is SystemUpdateHistoryEntry => !!h)
     : [];
   return base;
+}
+
+const DIGEST = /^sha256:[0-9a-f]{64}$/u;
+
+/**
+ * 宿主机 `magpie.json` → 页面用的形状。和 state.json 一样：只认白名单字段，不认识的丢掉。
+ * 没有文件、或文件不是一个对象时返回 undefined（页面据此不显示这张卡）。
+ */
+export function projectMagpieGatewayState(raw: unknown): MagpieGatewayUpdate | undefined {
+  if (!record(raw)) return undefined;
+  const out: MagpieGatewayUpdate = {
+    installed: raw.installed === true,
+    updateAvailable: raw.updateAvailable === true,
+  };
+  const image = safeImage(raw.image);
+  if (image) out.image = image;
+  const container = safeText(raw.container, 80);
+  if (container) out.container = container;
+  for (const key of ["currentDigest", "latestDigest"] as const) {
+    const value = raw[key];
+    if (typeof value === "string" && DIGEST.test(value)) out[key] = value;
+  }
+  const checkedAt = safeDate(raw.checkedAt);
+  if (checkedAt) out.checkedAt = checkedAt;
+  const error = safeText(raw.error, 300);
+  if (error) out.error = error;
+  // 摘要不齐就不宣称有新版：说「不知道」比说错好。
+  if (!out.currentDigest || !out.latestDigest) out.updateAvailable = false;
+  return out;
 }
 
 /** 网页的「有新版本」判断：两边都有构建号、而且不一样。开发环境（dev）从不提示。 */

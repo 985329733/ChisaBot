@@ -1,7 +1,11 @@
-# Magpie v0.1.1141, pinned to the image verified with this integration.
+# Magpie (ghcr.io/yetone/magpie), the model gateway every Bot's model goes through.
+#
+# THE TAG IS A VARIABLE, NOT A PINNED DIGEST. 管理后台 → 模型平台 Magpie 可以一键更新这个网关
+# （deploy/updater/magpie.sh），所以写死摘要只会被第一次更新覆盖掉。要自己钉住一个验证过的版本，
+# 把 MAGPIE_IMAGE 设成一个摘要即可（deploy/.env 或 compose 的 environment），见 docs/magpie.md。
 services:
   magpie:
-    image: ghcr.io/yetone/magpie@sha256:5fbc2c76a36bb56d62068c586547462bf40c236e8826055fba414776ec06f2ab
+    image: ${MAGPIE_IMAGE:-ghcr.io/yetone/magpie:latest}
     container_name: magpie
     command: [web, --addr, "0.0.0.0:3430", --no-open]
     restart: unless-stopped

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { estimateText, installUpdaterCommand, isNewerBuild, projectSystemUpdateState, safeText } from "./system-update";
+import { estimateText, installUpdaterCommand, isNewerBuild, projectMagpieGatewayState, projectSystemUpdateState, safeText } from "./system-update";
 
 const running = { version: "0.1.2", buildId: "glass-20261012a", commit: "a".repeat(40) };
 const NOW = Date.parse("2026-10-12T02:00:00Z");
@@ -107,11 +107,55 @@ test("install command uses the deployment's checkout and refuses odd paths", () 
 test("updater version and warnings are projected; a state without a version is an old updater", () => {
   const base = { updatedAt: "Mon 2026-10-12 9:59 AM CST (UTC+08:00)" };
   expect(projectSystemUpdateState(base, running, [], NOW)).toMatchObject({ updaterOutdated: true, warnings: [] });
-  expect(projectSystemUpdateState({ ...base, updaterVersion: "3", warnings: ["health_url_missing", 7] }, running, [], NOW)).toMatchObject({
-    updaterVersion: 3,
+  // 4 是当前版本（加了 magpie 动作）；3 认不出那个动作，页面据此提示「先做一次系统更新」。
+  expect(projectSystemUpdateState({ ...base, updaterVersion: "4", warnings: ["health_url_missing", 7] }, running, [], NOW)).toMatchObject({
+    updaterVersion: 4,
     updaterOutdated: false,
     warnings: ["health_url_missing"],
   });
+  expect(projectSystemUpdateState({ ...base, updaterVersion: "3" }, running, [], NOW).updaterOutdated).toBe(true);
   // Never wrote a state: not "outdated", just not installed.
   expect(projectSystemUpdateState(null, running, [], NOW).updaterOutdated).toBe(false);
+});
+
+test("magpie gateway state: digests decide, and a missing digest never claims an update", () => {
+  const current = `sha256:${"a".repeat(64)}`;
+  const latest = `sha256:${"b".repeat(64)}`;
+  // 没有文件 / 不是对象：不显示这张卡。
+  expect(projectMagpieGatewayState(null)).toBeUndefined();
+  expect(projectMagpieGatewayState("nope")).toBeUndefined();
+
+  expect(
+    projectMagpieGatewayState({
+      installed: true,
+      image: "ghcr.io/yetone/magpie:latest",
+      container: "magpie",
+      currentDigest: current,
+      latestDigest: latest,
+      updateAvailable: true,
+      checkedAt: "2026-10-19T07:00:00Z",
+    }),
+  ).toEqual({
+    installed: true,
+    image: "ghcr.io/yetone/magpie:latest",
+    container: "magpie",
+    currentDigest: current,
+    latestDigest: latest,
+    updateAvailable: true,
+    checkedAt: "2026-10-19T07:00:00Z",
+  });
+
+  // 摘要一样就是没有新版，哪怕宿主机写错了。
+  expect(
+    projectMagpieGatewayState({ installed: true, currentDigest: current, latestDigest: current, updateAvailable: true })?.updateAvailable,
+  ).toBe(false);
+  // 拿不到远端摘要时不能说「有新版本」。
+  expect(projectMagpieGatewayState({ installed: true, currentDigest: current, updateAvailable: true })?.updateAvailable).toBe(false);
+  // 不是 sha256 的摘要、不认识的字段：丢掉。
+  expect(projectMagpieGatewayState({ installed: false, currentDigest: "not-a-digest", latestDigest: 5, whatever: 1 })).toEqual({
+    installed: false,
+    updateAvailable: false,
+  });
+  // 查询失败的原因照原样给页面。
+  expect(projectMagpieGatewayState({ installed: true, error: "registry 不可达" })?.error).toBe("registry 不可达");
 });

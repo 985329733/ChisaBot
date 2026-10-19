@@ -90,6 +90,32 @@ def main():
         prev = u.previous({"image": "local/chisabot:auto-2"})
         assert prev == {"image": "local/chisabot:latest"}, prev
         assert u.previous({"image": "local/chisabot:nope"}) is None
+
+        # magpie: a fourth action, handled like update/rollback (Popen stubbed, nothing runs)
+        assert "magpie" in m.ACTIONS, m.ACTIONS
+        assert m.VERSION == "4", m.VERSION
+        with io.open(os.path.join(home, "magpie.sh"), "w", encoding="utf-8") as f:
+            f.write("#!/bin/bash\nexit 0\n")
+        started = []
+
+        class FakeChild(object):
+            pass
+
+        def fake_popen(args, **kwargs):
+            started.append(args)
+            stream = kwargs.get("stdout")
+            if stream is not None:
+                stream.close()
+            return FakeChild()
+
+        m.subprocess.Popen = fake_popen
+        u.internal["job"] = None
+        u.handle({"id": "magpie-test12345", "action": "magpie", "actor": "管理员"})
+        assert started and started[0][1].endswith("magpie.sh"), started
+        assert "--update" in started[0] and "--job" in started[0], started
+        assert u.internal["job"]["action"] == "magpie", u.internal["job"]
+        assert u.internal["job"]["status"] == "running", u.internal["job"]
+        u.internal["job"]["status"] = "succeeded"
         print("chisabot-updater self-test OK on python %d.%d" % sys.version_info[:2])
     finally:
         shutil.rmtree(home, ignore_errors=True)
