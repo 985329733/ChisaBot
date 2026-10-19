@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.1.43 — 2026-10-19
+
+### 客户端发版补齐：PC / Android 对齐到 0.1.43
+
+- **问题**：0.1.35 起每一版都只改服务器和网页，但发版照样推 `v0.1.x` 标签，标签会触发客户端发版工作流，
+  而工作流第一件事就是核对「标签 == pc 版本 == android 版本」。客户端版本从 0.1.34 起再没动过，于是
+  **每一次都在 50 秒内失败**（`标签 v0.1.42 与版本 v0.1.34 不一致`），PC / Android 的安装包一直停在 0.1.34。
+- **修**：三处版本号一起改成 `0.1.43`（根 `package.json`、`pc/package.json`、`android/app/build.gradle.kts` 的
+  `versionName`），`versionCode` 240 → **241**；补 `.github/release-notes/v0.1.43.md` / `.android.txt`。
+- **外壳没变**：`pc/` 和 `android/` 自 `v0.1.34` 起零提交，外壳指纹仍是 `059438f4e6c98c74`，PC 和 Android 都是
+  **原地更新**，不用重新安装。这一版装出来的行为和 0.1.34 一致，差别只是版本号。
+- **Android 未签名**：仓库没有配 `ANDROID_*` 签名 Secrets，Release 里是 `-unsigned.apk`；
+  要装到手机上，用自己的签名密钥签一次，自己的更新源照 [docs/ops/client-release.md](docs/ops/client-release.md) 走。
+- 电车类定时仍暂停；未在真机上验证（CB-017 / CB-018）。
+
 ## 0.1.42 — 2026-10-19
 
 ### 接管后点不动、滚不动：输入不再被一次失败的查询关掉
