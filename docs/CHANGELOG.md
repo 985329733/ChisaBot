@@ -1,3 +1,8 @@
+## 0.1.44
+
+- 机器人装好的工具真的在 PATH 上：`npm i -g` 装成功却 `command not found`，机器人把装好了读成装失败；命令的 PATH
+  现在追加工作区的 `.npm-global/bin`、`.bun/bin`、`.local/bin`（追加不前置）（#258）（电车仍暂停）
+
 ## 0.1.43
 
 - 客户端发版补齐：PC / Android 版本号对齐 0.1.43（versionCode 241）。外壳自 0.1.34 起无改动、指纹不变，原地更新；
