@@ -24,13 +24,13 @@ fill_secret() {
   min=${2:-32}
   cur=$(env_value "$name")
   if [ -n "$cur" ]; then return 0; fi
-  val=$(openssl rand -hex 32)
+  val=$(openssl rand -base64 32)
   if grep -q "^${name}=" .env; then
     sed -i "s#^${name}=.*#${name}=${val}#" .env
   else
     printf '%s=%s\n' "$name" "$val" >> .env
   fi
-  say "已生成空字段 ${name}（${#val} hex chars，≥${min}）"
+  say "已生成空字段 ${name}（${#val} base64 chars，≥${min}）"
 }
 command -v openssl >/dev/null 2>&1 || die "需要 openssl 生成密钥"
 fill_secret KEY_ENCRYPTION_KEY 32
@@ -65,6 +65,9 @@ check_compose_loopback() {
   if grep -E '^[[:space:]]*-[[:space:]]*"?0\.0\.0\.0:' "$f" >/dev/null 2>&1; then
     die "$f 把端口绑到 0.0.0.0：内部口 deny-by-default，请绑 127.0.0.1。"
   fi
+  if grep -E '^[[:space:]]*-[[:space:]]*"\[::' "$f" >/dev/null 2>&1; then
+    die "$f 把端口绑到 IPv6 [::]（等价于全网暴露）：内部口 deny-by-default，请绑 127.0.0.1。"
+  fi
   if grep -E '^[[:space:]]*-[[:space:]]*"?[0-9]+:[0-9]+("|$|/)' "$f" >/dev/null 2>&1; then
     die "$f 含无主机绑定的端口发布（如 3001:3001）；必须写成 127.0.0.1:端口:端口。"
   fi
@@ -75,8 +78,10 @@ if ! grep -E '127\.0\.0\.1:3001:3001' compose.yaml >/dev/null 2>&1; then
   die "compose.yaml 未把应用绑在 127.0.0.1:3001；好友包要求 loopback。"
 fi
 
-# 4) 前端产物
+# 4) 前端产物（依赖必须用 hoisted 模式安装，否则 shared/ 下解析不到 zod 等包，见 Dockerfile）
 if ! test -f ../app/dist/index.html; then
+  say "安装依赖…"
+  (cd .. && bun install --frozen-lockfile --linker hoisted) || die "依赖安装失败"
   say "构建前端…"
   (cd .. && TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build) || die "前端构建失败"
 fi

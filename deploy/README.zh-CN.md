@@ -14,8 +14,8 @@
 bun install --frozen-lockfile
 cp deploy/.env.example deploy/.env
 chmod 600 deploy/.env
-# 仅为首次安装的空字段生成随机密钥，不打印密钥。
-bun -e 'let text=await Bun.file("deploy/.env").text();for(const name of ["KEY_ENCRYPTION_KEY"]){text=text.replace(new RegExp("^"+name+"=\\s*$","m"),name+"="+require("node:crypto").randomBytes(32).toString("hex"))}await Bun.write("deploy/.env",text)'
+# 仅为首次安装的空字段生成随机密钥，不打印密钥（服务端要求 base64 编码的 32 字节密钥）。
+bun -e 'let text=await Bun.file("deploy/.env").text();for(const name of ["KEY_ENCRYPTION_KEY"]){text=text.replace(new RegExp("^"+name+"=\\s*$","m"),name+"="+require("node:crypto").randomBytes(32).toString("base64"))}await Bun.write("deploy/.env",text)'
 TENANT_PACKAGE_DIR=../examples/zh-CN bun run --cwd app build
 sh deploy/start.sh
 ```
@@ -48,6 +48,8 @@ cd /opt/chisabot-src && git pull && sudo sh deploy/install-updater.sh
 
 ```sh
 install -d -m 700 private magpie-data
+# Magpie 容器以 uid 65532（nonroot）运行，数据目录属主必须改过去，否则报 providers.json permission denied
+chown -R 65532:65532 magpie-data
 umask 077
 { printf 'MAGPIE_WEB_KEY='; openssl rand -hex 32; } > private/magpie.env
 docker compose --env-file .env -p magpie -f magpie.compose.yaml up -d --wait
